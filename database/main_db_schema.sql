@@ -1,0 +1,157 @@
+-- Investment Dashboard Main Database Schema
+-- Tables for Manual (Main) and Bot (External) data layers
+
+-- 1. Portfolio Management
+CREATE TABLE IF NOT EXISTS portfolios (
+    portfolio_id SERIAL PRIMARY KEY,
+    portfolio_name TEXT NOT NULL,
+    port_type TEXT NOT NULL,
+    target_ratio JSONB,
+    current_nav NUMERIC(20,8) DEFAULT 0.00,
+    margin_locked NUMERIC(20,8) DEFAULT 0.00,
+    cash_buffer_limit NUMERIC(20,8) DEFAULT 0.00,
+    available_cash NUMERIC(20,8) DEFAULT 0.00,
+    money_market NUMERIC(20,8) DEFAULT 0.00,
+    trade_plan_md TEXT,
+    risk_status TEXT CHECK (risk_status IN ('Safe', 'Warning', 'Danger')),
+    tags JSONB,
+    last_rebalance_date DATE,
+    data_source TEXT DEFAULT 'Manual' CHECK (data_source IN ('Manual', 'Bot')),
+    etl_synced BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. NAV History Tracking
+CREATE TABLE IF NOT EXISTS portfolio_nav_history (
+    nav_id SERIAL PRIMARY KEY,
+    portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
+    nav_date DATE NOT NULL,
+    nav_value NUMERIC(20,8) NOT NULL,
+    UNIQUE(portfolio_id, nav_date)
+);
+
+-- 3. Trade Planning
+CREATE TABLE IF NOT EXISTS trade_plans (
+    plan_id SERIAL PRIMARY KEY,
+    portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
+    entry_zone TEXT,
+    exit_zone TEXT,
+    tp_levels JSONB,
+    sl_level NUMERIC(20,8),
+    leverage NUMERIC(20,8),
+    margin_rate NUMERIC(20,8),
+    entry_reason TEXT,
+    data_source TEXT DEFAULT 'Manual' CHECK (data_source IN ('Manual', 'Bot')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. Option Details (with Greeks)
+CREATE TABLE IF NOT EXISTS option_details (
+    option_id SERIAL PRIMARY KEY,
+    strike_price NUMERIC(20,8),
+    option_type TEXT CHECK (option_type IN ('Call', 'Put')),
+    expiry_date DATE NOT NULL,
+    premium_entry NUMERIC(20,8),
+    premium_exit NUMERIC(20,8),
+    delta_at_entry NUMERIC(10,6),
+    IV_at_entry NUMERIC(10,6),
+    theta NUMERIC(10,6),
+    gamma NUMERIC(10,6),
+    vega NUMERIC(10,6),
+    rho NUMERIC(10,6),
+    underlying_price NUMERIC(20,8)
+);
+
+-- 5. Active Orders
+CREATE TABLE IF NOT EXISTS active_orders (
+    order_id SERIAL PRIMARY KEY,
+    plan_id INTEGER NOT NULL REFERENCES trade_plans(plan_id) ON DELETE CASCADE,
+    portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
+    asset_type TEXT NOT NULL,
+    side TEXT NOT NULL CHECK (side IN ('Buy', 'Sell')),
+    qty NUMERIC(20,8),
+    entry_price NUMERIC(20,8),
+    current_price NUMERIC(20,8),
+    tp_price NUMERIC(20,8),
+    leverage NUMERIC(20,8),
+    margin_rate NUMERIC(20,8),
+    order_status TEXT CHECK (order_status IN ('pending_sync', 'filled', 'cancel_pending')) DEFAULT 'pending_sync',
+    grid_group_id TEXT,
+    spread_pair_id TEXT,
+    executed_by TEXT CHECK (executed_by IN ('Manual', 'Bot', 'AI')),
+    option_id INTEGER REFERENCES option_details(option_id),
+    data_source TEXT DEFAULT 'Manual' CHECK (data_source IN ('Manual', 'Bot')),
+    etl_synced BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. Simulation Models
+CREATE TABLE IF NOT EXISTS simulation_models (
+    sim_id SERIAL PRIMARY KEY,
+    portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
+    model_name TEXT NOT NULL,
+    draft_data JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(portfolio_id, model_name)
+);
+
+-- 7. Trade History & Audit
+CREATE TABLE IF NOT EXISTS trade_history (
+    history_id SERIAL PRIMARY KEY,
+    portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
+    order_id INTEGER NOT NULL REFERENCES active_orders(order_id) ON DELETE CASCADE,
+    type TEXT NOT NULL CHECK (type IN ('Buy', 'Sell', 'Deposit', 'Withdraw', 'Transfer')),
+    asset TEXT NOT NULL,
+    amount NUMERIC(20,8),
+    exit_price NUMERIC(20,8),
+    realized_pl NUMERIC(20,8),
+    executed_by TEXT CHECK (executed_by IN ('Manual', 'Bot', 'AI')),
+    decision_note TEXT,
+    entry_date TIMESTAMP,
+    exit_date TIMESTAMP,
+    comments JSONB,
+    data_source TEXT DEFAULT 'Manual' CHECK (data_source IN ('Manual', 'Bot')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8. Asset Whitelists & Watchlists
+CREATE TABLE IF NOT EXISTS whitelist_assets (
+    asset_id SERIAL PRIMARY KEY,
+    ticker TEXT NOT NULL UNIQUE,
+    asset_type TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS watchlist (
+    watch_id SERIAL PRIMARY KEY,
+    ticker TEXT NOT NULL,
+    alert_price NUMERIC(20,8),
+    notes TEXT
+);
+
+-- 9. Transaction Model (Consolidated Ledger)
+CREATE TABLE IF NOT EXISTS transactions (
+    transaction_id SERIAL PRIMARY KEY,
+    transaction_type TEXT NOT NULL,  -- Funding, Trade, Transfer, Withdrawal, etc.
+    asset TEXT NOT NULL,
+    amount NUMERIC(20,8) NOT NULL,
+    source_portfolio_id INTEGER REFERENCES portfolios(portfolio_id),
+    destination_portfolio_id INTEGER REFERENCES portfolios(portfolio_id),
+    executed_by TEXT NOT NULL CHECK (executed_by IN ('Manual', 'Bot', 'AI')),
+    status TEXT DEFAULT 'completed',  -- pending, completed, failed, cancelled
+    reference_id TEXT,  -- External reference ID
+    audit_labels JSONB,  -- Flexible audit metadata
+    data_source TEXT DEFAULT 'Manual' CHECK (data_source IN ('Manual', 'Bot')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 10. Decision Journal (Section 2.3 - Mini Post-it Notes)
+CREATE TABLE IF NOT EXISTS decision_journals (
+    journal_id SERIAL PRIMARY KEY,
+    portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
+    history_id INTEGER REFERENCES trade_history(history_id) ON DELETE SET NULL,
+    entry_text TEXT NOT NULL,
+    data_source TEXT DEFAULT 'Manual' CHECK (data_source IN ('Manual', 'Bot')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

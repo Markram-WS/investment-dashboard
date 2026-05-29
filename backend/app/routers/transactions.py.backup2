@@ -1,0 +1,110 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.database import get_db
+from app.models import Transaction, Portfolio
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
+
+class TransactionResponse(BaseModel):
+    transaction_id: int
+    portfolio_id: Optional[int] = None
+    portfolio_name: Optional[str] = None
+    transaction_type: str  # Funding, Transfer, Trade, etc.
+    asset: Optional[str] = None
+    amount: Optional[float] = None
+    source_portfolio_id: Optional[int] = None
+    destination_portfolio_id: Optional[int] = None
+    executed_by: str  # Manual, Bot, AI
+    status: str
+    reference_id: Optional[str] = None
+    audit_labels: Optional[dict] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    # Computed fields for UI
+    flow: Optional[str] = None
+    balance_delta: Optional[float] = None  # To be calculated in the query if needed
+
+    class Config:
+        orm_mode = True
+
+router = APIRouter()
+
+@router.get("/", tags=["transactions"], response_model=List[TransactionResponse])
+async def get_transactions(db: AsyncSession = Depends(get_db)):
+    """
+    Get all transactions with computed flow and balance_delta fields.
+    """
+    # Query transactions with portfolio names for flow calculation
+    result = await db.execute(
+        select(Transaction, Portfolio.name.label("source_name"), Portfolio.name.label("dest_name"))
+        .outerjoin(Portfolio, Transaction.source_portfolio_id == Portfolio.portfolio_id, isouter=True)
+        .outerjoin(Portfolio, Transaction.destination_portfolio_id == Portfolio.portfolio_id, isouter=True)
+        .order_by(Transaction.created_at.desc())
+    )
+    rows = result.all()
+    
+    response = []
+    for transaction, source_name, dest_name in rows:
+        # Calculate flow: "Source -> Destination" or just show what we have
+        flow_parts = []
+        if source_name:
+            flow_parts.append(source_name)
+        elif transaction.source_portfolio_id:
+            flow_parts.append(f"Portfolio {transaction.source_portfolio_id}")
+        else:
+            flow_parts.append("External")
+            
+        flow_parts.append("->")
+        
+        if dest_name:
+            flow_parts.append(dest_name)
+        elif transaction.destination_portfolio_id:
+            flow_parts.append(f"Portfolio {transaction.destination_portfolio_id}")
+        else:
+            flow_parts.append("External")
+            
+        flow = " ".join(flow_parts)
+        
+        # For balance_delta, we'll show the amount as positive (incoming perspective)
+        # In a portfolio-specific view, this would be negative for outgoing transactions
+        balance_delta = float(transaction.amount) if transaction.amount else None
+        
+        response.append(
+            TransactionResponse(
+                transaction_id=transaction.transaction_id,
+                portfolio_id=None,  # Not applicable in general transaction list
+                portfolio_name=None,  # Not applicable
+                transaction_type=transaction.transaction_type,
+                asset=transaction.asset,
+                amount=transaction.amount,
+                source_portfolio_id=transaction.source_portfolio_id,
+                destination_portfolio_id=transaction.destination_portfolio_id,
+                executed_by=transaction.executed_by,
+                status=transaction.status,
+                reference_id=transaction.reference_id,
+                audit_labels=transaction.audit_labels,
+                created_at=transaction.created_at,
+                updated_at=None,  # No updated_at field in Transaction model
+                flow=flow,
+                balance_delta=balance_delta
+            )
+        )
+    return response
+
+@router.post("/", tags=["transactions"], status_code=status.HTTP_201_CREATED)
+async def create_transaction(transaction_data: dict, db: AsyncSession = Depends(get_db)):
+    """
+    Create a new transaction record.
+    Expected keys in transaction_data:
+        transaction_type, asset, amount, source_portfolio_id, destination_portfolio_id,
+        executed_by, status, reference_id, audit_labels
+    """
+    # For simplicity, we assume the input data is valid and matches the Transaction model.
+    # In a real application, you would use a Pydantic model for validation.
+    transaction = Transaction(**transaction_data)
+    db.add(transaction)
+    await db.commit()
+    await db.refresh(transaction)
+    return transaction
