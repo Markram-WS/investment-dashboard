@@ -8,8 +8,8 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    env_file:
-      - .env
+    environment:
+      - VITE_API_URL=http:///localhost:8083
     networks:
       - investment-network
     restart: unless-stopped
@@ -19,7 +19,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8083:8000"
     env_file:
       - .env
     networks:
@@ -44,6 +44,8 @@ services:
   db_ai:
     image: postgres:15-alpine
     container_name: investment_db_ai
+    ports:
+      - "5433:5432"
     env_file:
       - .env
     environment:

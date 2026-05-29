@@ -2,7 +2,6 @@
 """Check console errors on frontend pages using browser-use."""
 
 import asyncio
-import json
 from browser_use import Agent, Browser, ChatOpenAI
 
 PAGES = [
@@ -14,6 +13,7 @@ PAGES = [
     ("http://localhost:5173/analytics", "AnalyticsDashboard"),
     ("http://localhost:5173/create-portfolio", "CreateNewPortfolio"),
 ]
+
 
 async def check_page(url: str, name: str):
     """Check a single page for console errors."""
@@ -31,6 +31,7 @@ async def check_page(url: str, name: str):
     finally:
         await browser.close()
 
+
 async def main():
     print("=== Frontend Console Error Check ===\n")
     for url, name in PAGES:
@@ -41,6 +42,7 @@ async def main():
         else:
             print(f"  ✅ Result: {result['result'][:200]}")
         print()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
