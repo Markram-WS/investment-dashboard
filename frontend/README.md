@@ -92,17 +92,23 @@ frontend/
 | Trade Plans | `/api/v1/trade-plans` | GET/POST |
 | Orders | `/api/v1/orders` | GET |
 
-## 📱 หน้า Pages
+## 📱 Pages & Routes
 
-- `/` - **Portfolio Overview**: Cash breakdown, portfolio grid แบบ horizontal layout
-- `/transactions` - **Transactions**: ตารางธุรกรรม กับ filters (date, type)
-- `/all-assets` - **All Assets**: รายการ assets พร้อมราคา/เปลี่ยนแปลง
-- `/risk-analytics` - **Risk Analytics**: ตัวเลข risk metrics (Sharpe, VaR, Max Drawdown)
-- `/analytics` - **Analytics Dashboard**: NAV time series + summary
-- `/analytics/portfolio/{id}` - **Portfolio Detail**: Spread pairs, AI reasoning, trade plan
-- `/create-portfolio` - **Create Portfolio**: ฟอร์มสร้างพอร์ตโฟลเลียร์
-- `/managed-fund` - **Managed Fund**: Asset allocation, rebalance controls
-- `/spread-pairing` - **Spread Pairing**: จัดคู่ orders แบบ zone-based
+| Route | Component | File | Description |
+|-------|-----------|------|-------------|
+| `/` | PortfolioOverview | pages/PortfolioOverview.tsx | Cash breakdown + portfolio grid |
+| `/transactions` | TransactionsPage | pages/TransactionsPage.tsx | Transaction history + filters |
+| `/all-assets` | AllAssets | pages/AllAssets.tsx | Asset listing table |
+| `/risk-analytics` | RiskAnalytics | pages/RiskAnalytics.tsx | Risk metrics (Sharpe, VaR, Drawdown) |
+| `/analytics` | AnalyticsDashboard | pages/AnalyticsDashboard.tsx | NAV time series + summary |
+| `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | pages/PortfolioAnalyticsDetail.tsx | Individual portfolio analytics |
+| `/analytics/detail` | PortfolioAnalytics | screens/PortfolioAnalytics.tsx | Portfolio detail view |
+| `/create-portfolio` | CreateNewPortfolio | pages/CreateNewPortfolio.tsx | Portfolio creation form |
+| `/managed-fund` | ManagedFund | screens/ManagedFund.tsx | Asset allocation + rebalance |
+| `/managed-fund/{portfolioId}` | ManagedFund | screens/ManagedFund.tsx | Portfolio-specific Managed Fund |
+| `/spread-pairing` | SpreadPairing | screens/SpreadPairing.tsx | Spread pairing zone-based |
+| `/trades` | TradePlanManager | pages/TradePlanManager.tsx | Trade plan management |
+| `/orders` | ActiveOrders | pages/ActiveOrders.tsx | Active orders |
 
 ## 🐳 Docker Development
 
@@ -151,13 +157,37 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
 
 ### Environment Configuration
 
-```bash
-# .env (ต้องสร้างเอง - ไม่ใช่ใน repo)
-VITE_API_BASE_URL=http://localhost:8000/api/v1
+**สองระบบตัวแปรสถานะ (Two Systems):**
 
-# สำหรับ Docker: ใช้ env_file ใน docker-compose.yml
-# Vite dev mode: ใช้ define block ใน vite.config.ts เพื่อ inject ค่า
+| Variable | File | Purpose |
+|----------|------|---------|
+| `BACKEND_API_BASE_URL` | vite.config.ts | Proxy target: `http://localhost:8000` (สำหรับ Vite dev server) |
+| `VITE_API_BASE_URL` | api.ts | Fetch BASE_URL: `""` (ว่าง) สำหรับ relative path → Vite Proxy |
+
+```typescript
+// vite.config.ts - Two Configs
+const API_BASE_URL = process.env.BACKEND_API_BASE_URL || 'http://localhost:8000';
+define: {
+  'import.meta.env.BACKEND_API_BASE_URL': JSON.stringify(API_BASE_URL),
+},
+server: {
+  proxy: { '/api': { target: API_BASE_URL } },
+},
+
+// api.ts - Runtime Fetch
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''; // ค่าว่าง = Vite proxy
 ```
+
+**Docker Dev Mode:**
+
+```yaml
+# docker-compose.yml
+environment:
+  BACKEND_API_BASE_URL=http://localhost:8000  # Vite proxy target
+  VITE_API_BASE_URL=                         # ค่าว่าง = relative path
+```
+
+**ผลลัพธ์:** JS เรียก `/api/v1/...` (relative) → Vite Proxy → backend:8000
 
 ### API Route Constants (api.ts)
 
@@ -252,6 +282,17 @@ optimizeDeps: { include: ['react', 'react-dom', 'react-router-dom', '@tanstack/r
 warmup: { clientFiles: ['./src/main.tsx', './src/App.tsx', ...] }
 ```
 
+### Services Layer (Legacy)
+
+```typescript
+// services/*.ts - Legacy wrappers (not used in favor of lib/api.ts)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+console.info(API_BASE_URL); // Debug logging
+
+// Note: These services use direct fetch without Vite proxy benefits
+// Prefer lib/api.ts for consistent environment handling
+```
+
 ### API Route Consistency Note
 
 > **FastAPI trailing slash**: Routes ที่มี `/` ท้ายปละที่ไม่มี ถืกเป็น endpoint ต่างกัน  
@@ -260,4 +301,4 @@ warmup: { clientFiles: ['./src/main.tsx', './src/App.tsx', ...] }
 
 ---
 
-*อัปเดตโดย Hermes Agent - 30 พฤษภาคม 2026*
+*อัปเดตโดย Hermes Agent - 30 พฤษภาคม 2026 (network fix verified)*

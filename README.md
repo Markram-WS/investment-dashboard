@@ -43,6 +43,31 @@ docker ps
 | db_ai | 5433 | PostgreSQL — AI agent database |
 | frontend | 5173 | Vite dev server |
 
+### 🐳 Docker Network Architecture
+
+```
+Browser (host machine)
+    ↓ http://localhost:5173
+Frontend Container (network_mode: host)
+    ↓ Vite Proxy: /api/* → http://localhost:8000
+Backend Container (investment-network)
+    ↓ http://localhost:8000
+```
+
+**ทำไมใช้ `network_mode: host` สำหรับ frontend?**
+
+- Browser ทำงานบน host machine ไม่ได้อยู่ใน Docker network
+- หาก frontend อยู่ Docker network เดียวกับ backend JavaScript จะต้องเรียก `http://backend:8000` แต่ browser ไม่เข้าใจ service name จึงเกิด `ERR_CONNECTION_REFUSED`
+- วิธีนี้ทำให้ frontend อยู่บน host network เรียก backend ผ่าน `localhost:8000` ได้โดยตรง
+- Vite dev server proxy สำหรับ `/api/*` paths ไปยัง backend โดยอัตโนมัติ (see vite.config.ts)
+
+**Environment Variables**
+
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `VITE_API_BASE_URL` | `""` (empty) | Vite dev mode - uses relative paths for proxy |
+| `VITE_API_BASE_URL` | `http://localhost:8000/api/v1` | Production build (browser direct to backend) |
+
 ## 📋 API Endpoints
 
 ### Portfolios
