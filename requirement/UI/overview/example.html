@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en" style=""><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>InvestDesk | Wealth Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        /* Using Inter as a high-quality geometric sans fallback for Roobert PRO as per Miro Design System */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #ffffff;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        :root {
+            --miro-primary: #1c1c1e;
+            --miro-on-primary: #ffffff;
+            --miro-brand-yellow: #ffd02f;
+            --miro-brand-teal: #0fbcb0;
+            --miro-teal-light: #c3faf5;
+            --miro-brand-coral: #ff9999;
+            --miro-coral-light: #ffc6c6;
+            --miro-brand-blue: #4262ff;
+            --miro-blue-light: #dee0ff;
+            --miro-hairline: #e0e2e8;
+            --miro-hairline-soft: #eef0f3;
+            --miro-ink: #1c1c1e;
+            --miro-stone: #8e91a0;
+        }
+
+        /* Entrance Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-up {
+            opacity: 0;
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+
+        .stagger-1 { animation-delay: 0.1s; }
+        .stagger-2 { animation-delay: 0.2s; }
+        .stagger-3 { animation-delay: 0.3s; }
+        .stagger-4 { animation-delay: 0.4s; }
+        .stagger-5 { animation-delay: 0.5s; }
+
+        /* Pulse Animation for Available indicator */
+        @keyframes subtlePulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        .pulse-available {
+            animation: subtlePulse 2s infinite ease-in-out;
+        }
+
+        /* Shimmer Effect for bars */
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .shimmer-bar {
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%);
+            background-size: 200% 100%;
+            animation: shimmer 3s infinite linear;
+        }
+
+        /* Health Gauge Animation Initial State */
+        #health-gauge-path {
+            stroke-dasharray: 125.6;
+            stroke-dashoffset: 125.6;
+            transition: stroke-dashoffset 1.5s cubic-bezier(0.65, 0, 0.35, 1);
+        }
+
+        /* Dropdown Hover Logic from SCREEN_39 */
+        .group:hover .group-hover\:block {
+            display: block;
+        }
+
+        /* Respect Reduced Motion */
+        @media (prefers-reduced-motion: reduce) {
+            .animate-fade-up, .pulse-available, .shimmer-bar, #health-gauge-path {
+                animation: none !important;
+                transition: none !important;
+                opacity: 1 !important;
+                transform: none !important;
+                stroke-dashoffset: 12.5 !important; /* Final 93% state */
+            }
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary": "#1c1c1e",
+                      "on-primary": "#ffffff",
+                      "background": "#ffffff",
+                      "surface": "#ffffff",
+                      "outline-variant": "#e0e2e8",
+                      "on-surface": "#1c1c1e",
+                      "on-surface-variant": "#555a6a",
+                      "miro-yellow": "#ffd02f",
+                      "miro-teal": "#0fbcb0",
+                      "miro-teal-light": "#c3faf5",
+                      "miro-coral": "#ff9999",
+                      "miro-coral-light": "#ffc6c6",
+                      "miro-blue": "#4262ff",
+                      "miro-blue-light": "#dee0ff",
+                      "miro-stone": "#8e91a0",
+                      "brand-yellow": "#ffd02f",
+                      "brand-blue": "#4262ff",
+                      "brand-coral": "#ff9999",
+                      "brand-teal": "#0fbcb0",
+                      "hairline": "#e0e2e8",
+                      "hairline-soft": "#eef0f3",
+                      "ink": "#1c1c1e",
+                      "slate": "#555a6a",
+                      "steel": "#6b6f7e",
+                      "canvas": "#ffffff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "12px",
+                      "xl": "16px",
+                      "xxl": "20px",
+                      "xxxl": "28px",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "unit": "8px",
+                      "gutter": "24px",
+                      "margin-mobile": "16px",
+                      "margin-desktop": "40px",
+                      "content-max": "800px",
+                      "container-max": "1200px"
+              }
+            },
+          },
+        }
+      </script>
+</head>
+<body class="bg-background text-on-surface antialiased">
+<!-- Sticky Top Navigation (from SCREEN_39) -->
+<nav class="sticky top-0 z-50 w-full bg-canvas border-b border-hairline px-6 py-3 flex items-center justify-between">
+<div class="flex items-center gap-10">
+<!-- Branding -->
+<div class="flex items-center gap-3">
+<div class="h-8 w-8 bg-brand-yellow rounded-sm flex items-center justify-center shrink-0">
+<span class="text-ink font-bold text-lg">M</span>
+</div>
+<div class="flex flex-col">
+<h1 class="text-sm font-bold text-ink tracking-tight uppercase">InvestDesk</h1>
+<p class="text-[10px] font-bold text-steel uppercase tracking-widest leading-none">Dashboard</p>
+</div>
+</div>
+<!-- Navigation Links -->
+<div class="flex items-center gap-1">
+<!-- Overview Link (Active/Highlighted State) -->
+<a class="px-4 py-2 text-sm font-medium bg-ink text-white rounded-full transition-all flex items-center gap-2" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span> Overview
+</a>
+<a class="px-4 py-2 text-sm font-medium text-slate hover:text-ink hover:bg-surface rounded-full transition-all flex items-center gap-2" href="#">
+<span class="material-symbols-outlined text-[20px]">account_balance_wallet</span> All Assets
+</a>
+<a class="px-4 py-2 text-sm font-medium text-slate hover:text-ink hover:bg-surface rounded-full transition-all flex items-center gap-2" href="#">
+<span class="material-symbols-outlined text-[20px]">swap_horiz</span> Transactions
+</a>
+<a class="px-4 py-2 text-sm font-medium text-slate hover:text-ink hover:bg-surface rounded-full transition-all flex items-center gap-2" href="#">
+<span class="material-symbols-outlined text-[20px]">security</span> Risk Analytics
+</a>
+<!-- Portfolios Dropdown -->
+<div class="relative group">
+<button class="px-4 py-2 text-sm font-medium text-slate hover:text-ink hover:bg-surface rounded-full transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">folder</span> Portfolios
+<span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+<div class="absolute left-0 mt-1 w-48 bg-white border border-hairline rounded-xl shadow-xl hidden group-hover:block overflow-hidden">
+<a class="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate hover:bg-surface hover:text-ink transition-colors" href="#">
+<span class="h-2 w-2 rounded-full bg-brand-teal"></span> Binance
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate hover:bg-surface hover:text-ink transition-colors" href="#">
+<span class="h-2 w-2 rounded-full bg-brand-coral"></span> Finnomena
+</a>
+</div>
+</div>
+</div>
+</div>
+<!-- Top Right Utilities -->
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 flex items-center justify-center hover:bg-surface rounded-full transition-colors text-slate border border-hairline">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center hover:bg-surface rounded-full transition-colors text-slate border border-hairline">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</div>
+</nav>
+<!-- Main Content (Removed ml-64 because sidebar is gone) -->
+<main class="min-h-screen py-10 px-margin-desktop">
+<div class="max-w-[1200px] mx-auto">
+<header class="flex items-center justify-between mb-margin-desktop pt-unit animate-fade-up">
+<h1 class="text-5xl font-bold text-primary tracking-tighter">Overview</h1>
+<div class="flex items-center gap-4">
+<div class="relative w-[320px]">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-miro-hairline-soft/50 border-none rounded-md text-sm focus:ring-1 focus:ring-primary transition-all duration-300" placeholder="Search..." type="text"/>
+</div>
+</div>
+</header>
+<!-- Hero Card: Summary View -->
+<section class="mb-gutter animate-fade-up stagger-1">
+<div class="bg-miro-teal-light border border-outline-variant/30 rounded-xxxl p-10 shadow-sm transition-all duration-300 hover:shadow-md">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<div>
+<p class="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest mb-2">Asset total</p>
+<h1 class="font-bold text-primary tracking-tight mb-1 text-4xl">$1,248,500.00</h1>
+<div class="flex items-center gap-2 mt-4 text-miro-teal">
+<span class="material-symbols-outlined text-sm font-bold">trending_up</span>
+<span class="text-sm font-bold">+12.4% Overall P/L</span>
+</div>
+</div>
+<div class="md:col-span-2">
+<p class="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest mb-4">Cash (overall) breakdown</p>
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="p-4 bg-white rounded-xl border border-outline-variant/50 transition-all duration-300 hover:border-primary/20">
+<p class="text-[10px] text-on-surface-variant font-bold mb-1 uppercase">Lock</p>
+<p class="text-2xl font-bold text-primary">$250k</p>
+</div>
+<div class="p-4 bg-white rounded-xl border border-outline-variant/50 transition-all duration-300 hover:border-primary/20">
+<p class="text-[10px] text-on-surface-variant font-bold mb-1 uppercase">Buffer</p>
+<p class="text-2xl font-bold text-primary">$45k</p>
+</div>
+<div class="p-4 bg-miro-yellow rounded-xl shadow-sm pulse-available">
+<p class="text-[10px] text-primary font-bold mb-1 uppercase">Available</p>
+<p class="text-2xl font-bold text-primary">$85.2k</p>
+</div>
+<div class="p-4 bg-white rounded-xl border border-outline-variant/50 transition-all duration-300 hover:border-primary/20">
+<p class="text-[10px] text-on-surface-variant font-bold mb-1 uppercase">T+3</p>
+<p class="text-2xl font-bold text-primary">$12.8k</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Allocation Analysis & Widgets Row -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-gutter mb-gutter">
+<!-- Pool Health -->
+<div class="bg-white border border-outline-variant rounded-xxxl p-8 animate-fade-up stagger-2 hover:shadow-lg transition-all duration-300">
+<div class="flex items-center justify-between mb-8">
+<h3 class="text-sm font-bold text-primary uppercase tracking-widest">Pool Health Index</h3>
+<div class="flex items-center gap-2 px-3 py-1 rounded-full bg-miro-teal-light text-miro-teal">
+<span class="material-symbols-outlined text-xs font-bold">check_circle</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Healthy</span>
+</div>
+</div>
+<div class="flex flex-col items-center">
+<div class="relative w-48 h-24 overflow-hidden">
+<svg class="w-48 h-48" viewbox="0 0 100 100">
+<path d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent" stroke="#f4f4f6" stroke-width="12"></path>
+<path d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent" id="health-gauge-path" stroke="#0fbcb0" stroke-width="12"></path>
+</svg>
+<div class="absolute bottom-0 left-1/2 -translate-x-1/2 text-center">
+<p class="text-4xl font-bold tracking-tighter"><span id="health-value">0</span>%</p>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Efficiency</p>
+</div>
+</div>
+<p class="mt-8 text-sm text-on-surface-variant text-center px-12 leading-relaxed">Aggregated performance is 13.35% above the monthly risk benchmark.</p>
+</div>
+</div>
+<!-- Money Reserve Status -->
+<div class="bg-white border border-outline-variant rounded-xxxl p-8 animate-fade-up stagger-3 hover:shadow-lg transition-all duration-300">
+<div class="flex items-center justify-between mb-8">
+<h3 class="text-sm font-bold text-primary uppercase tracking-widest">Money Reserve Status</h3>
+<div class="flex items-center gap-2 px-3 py-1 rounded-full bg-miro-teal-light text-miro-teal">
+<span class="material-symbols-outlined text-xs font-bold">verified_user</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Optimal Reserve</span>
+</div>
+</div>
+<div class="space-y-8">
+<div class="relative h-3 bg-miro-hairline-soft rounded-full overflow-hidden">
+<div class="absolute left-0 top-0 bottom-0 w-1/4 bg-miro-coral/30"></div>
+<div class="absolute left-1/4 top-0 bottom-0 w-1/2 bg-miro-teal/30"></div>
+<div class="absolute left-3/4 top-0 bottom-0 w-1/4 bg-blue-100"></div>
+<div class="absolute top-0 bottom-0 shimmer-bar" style="width: 100%; height: 100%"></div>
+<div class="absolute top-0 bottom-0 w-1.5 bg-primary z-10 transition-all duration-1000" style="left: 48%"></div>
+</div>
+<div class="grid grid-cols-3 text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">
+<div class="text-left text-miro-coral">Danger<br/>&lt; $45k</div>
+<div class="text-center text-miro-teal">Optimal<br/>$45k - $90k</div>
+<div class="text-right text-blue-500">Neutral<br/>&gt; $90k</div>
+</div>
+<div class="p-4 bg-miro-teal-light/30 rounded-xl border border-miro-teal/20">
+<p class="text-xs leading-relaxed text-on-surface-variant italic">
+                            Current available liquidity ($85.2k) is within the optimal threshold relative to the $45k buffer.
+                        </p>
+</div>
+</div>
+</div>
+</section>
+<!-- Portfolio Grid -->
+<section>
+<div class="flex items-center justify-between mb-8 px-2 animate-fade-up stagger-4">
+<h2 class="text-3xl font-bold text-primary tracking-tight">Active Portfolios</h2>
+<button class="text-xs font-bold uppercase tracking-widest text-primary hover:underline flex items-center gap-2 transition-all duration-300">
+                    View All <span class="material-symbols-outlined text-sm">open_in_new</span>
+</button>
+</div>
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-gutter">
+<!-- Portfolio Card 1: Binance -->
+<div class="bg-miro-coral-light/40 border border-outline-variant/30 rounded-xxxl p-8 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] animate-fade-up stagger-4">
+<div class="flex justify-between items-start mb-8">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<h3 class="text-2xl font-bold text-primary tracking-tight">Binance</h3>
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-white/80 rounded-full text-[9px] font-bold uppercase tracking-widest text-primary">crypto</span>
+<span class="px-3 py-1 bg-white/80 rounded-full text-[9px] font-bold uppercase tracking-widest text-primary">bot</span>
+</div>
+</div>
+<p class="text-on-surface-variant text-sm font-medium">Managed algorithmic portfolio</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Profit</p>
+<p class="text-miro-teal font-black text-2xl">+18.5%</p>
+</div>
+</div>
+<div class="mb-8">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mb-1">Asset Total</p>
+<p class="text-4xl font-bold text-primary tracking-tighter">$420,150.00</p>
+</div>
+<div class="grid grid-cols-3 gap-4 mb-8">
+<div class="bg-white p-4 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
+<p class="text-[9px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Lock</p>
+<p class="font-bold text-sm">$100k</p>
+</div>
+<div class="bg-white p-4 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
+<p class="text-[9px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Buffer</p>
+<p class="font-bold text-sm">$15k</p>
+</div>
+<div class="bg-miro-yellow p-4 rounded-xl shadow-sm pulse-available">
+<p class="text-[9px] font-bold text-primary mb-1 uppercase tracking-wider">Available</p>
+<p class="font-bold text-sm">$32.5k</p>
+</div>
+</div>
+<div class="p-4 bg-white/50 rounded-xl flex items-center gap-3 relative overflow-hidden">
+<div class="absolute inset-0 shimmer-bar opacity-20 pointer-events-none"></div>
+<span class="material-symbols-outlined text-miro-teal text-sm font-bold">check</span>
+<span class="text-xs font-medium text-on-surface-variant">Pool health remains stable at 92% efficiency.</span>
+</div>
+</div>
+<!-- Portfolio Card 2: Finnomena -->
+<div class="bg-miro-coral-light/20 border border-outline-variant/30 rounded-xxxl p-8 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] animate-fade-up stagger-5">
+<div class="flex justify-between items-start mb-8">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<h3 class="text-2xl font-bold text-primary tracking-tight">Finnomena</h3>
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-white/80 rounded-full text-[9px] font-bold uppercase tracking-widest text-primary">Fund</span>
+<span class="px-3 py-1 bg-white/80 rounded-full text-[9px] font-bold uppercase tracking-widest text-primary">manual</span>
+</div>
+</div>
+<p class="text-on-surface-variant text-sm font-medium">Long-term liquidity provisions</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Profit</p>
+<p class="text-miro-teal font-black text-2xl">+8.2%</p>
+</div>
+</div>
+<div class="mb-8">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mb-1">Asset Total</p>
+<p class="text-4xl font-bold text-primary tracking-tighter">$828,350.00</p>
+</div>
+<div class="grid grid-cols-3 gap-4 mb-8">
+<div class="bg-white p-4 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
+<p class="text-[9px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Lock</p>
+<p class="font-bold text-sm">$150k</p>
+</div>
+<div class="bg-white p-4 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
+<p class="text-[9px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Buffer</p>
+<p class="font-bold text-sm">$30k</p>
+</div>
+<div class="bg-miro-yellow p-4 rounded-xl shadow-sm pulse-available">
+<p class="text-[9px] font-bold text-primary mb-1 uppercase tracking-wider">Available</p>
+<p class="font-bold text-sm">$52.7k</p>
+</div>
+</div>
+<div class="p-4 bg-primary rounded-xl flex items-center gap-3 relative overflow-hidden">
+<div class="absolute inset-0 shimmer-bar opacity-10 pointer-events-none"></div>
+<span class="material-symbols-outlined text-miro-coral text-sm font-bold">warning</span>
+<span class="text-xs font-medium text-on-primary">Rebalancing recommended: Variance above threshold.</span>
+</div>
+</div>
+<!-- Portfolio Card 3: Global Macro -->
+<div class="bg-miro-blue-light/40 border border-outline-variant/30 rounded-xxxl p-8 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] animate-fade-up stagger-5">
+<div class="flex justify-between items-start mb-8">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<h3 class="text-2xl font-bold text-primary tracking-tight">Global Macro</h3>
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-white/80 rounded-full text-[9px] font-bold uppercase tracking-widest text-primary">FUND</span>
+<span class="px-3 py-1 bg-white/80 rounded-full text-[9px] font-bold uppercase tracking-widest text-primary">MANUAL</span>
+</div>
+</div>
+<p class="text-on-surface-variant text-sm font-medium">Diversified global asset allocation</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Profit</p>
+<p class="text-miro-teal font-black text-2xl">+12.4%</p>
+</div>
+</div>
+<div class="mb-8">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mb-1">Asset Total</p>
+<p class="text-4xl font-bold text-primary tracking-tighter">$240,000.00</p>
+</div>
+<div class="grid grid-cols-3 gap-4 mb-8">
+<div class="bg-white p-4 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
+<p class="text-[9px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Lock</p>
+<p class="font-bold text-sm">$80k</p>
+</div>
+<div class="bg-white p-4 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
+<p class="text-[9px] font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Buffer</p>
+<p class="font-bold text-sm">$20k</p>
+</div>
+<div class="bg-miro-yellow p-4 rounded-xl shadow-sm pulse-available">
+<p class="text-[9px] font-bold text-primary mb-1 uppercase tracking-wider">Available</p>
+<p class="font-bold text-sm">$45.0k</p>
+</div>
+</div>
+<div class="p-4 bg-white/50 rounded-xl flex items-center gap-3 relative overflow-hidden">
+<div class="absolute inset-0 shimmer-bar opacity-20 pointer-events-none"></div>
+<span class="material-symbols-outlined text-miro-teal text-sm font-bold">check</span>
+<span class="text-xs font-medium text-on-surface-variant">Strategy tracking within expected volatility bounds.</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<footer class="py-10 px-10 border-t border-hairline flex flex-col md:flex-row items-center justify-between gap-6 bg-surface/30">
+<div class="flex items-center gap-6">
+<a class="text-steel hover:text-ink text-xs font-medium flex items-center gap-2 transition-colors" href="#">
+<span class="material-symbols-outlined text-[18px]">settings</span> Settings
+</a>
+<a class="text-steel hover:text-ink text-xs font-medium flex items-center gap-2 transition-colors" href="#">
+<span class="material-symbols-outlined text-[18px]">help_outline</span> Support
+</a>
+</div>
+<div class="text-steel text-[10px] font-bold uppercase tracking-[0.2em]">
+        © 2024 InvestDesk Financial Services
+    </div>
+</footer>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Skip animations if user prefers reduced motion
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReducedMotion) return;
+
+        // Health Gauge Animation logic
+        const gaugePath = document.getElementById('health-gauge-path');
+        const healthValueDisplay = document.getElementById('health-value');
+        const targetPercent = 93;
+        
+        // Final dashoffset for 93% on a semi-circle (0 is full, 125.6 is empty for half circle gauge)
+        const finalOffset = 125.6 * (1 - (targetPercent / 100));
+
+        // Start animation after a short delay
+        setTimeout(() => {
+            if (gaugePath) gaugePath.style.strokeDashoffset = finalOffset;
+            
+            // Counter animation for text
+            if (healthValueDisplay) {
+                let currentVal = 0;
+                const duration = 1500;
+                const interval = 20;
+                const step = (targetPercent / (duration / interval));
+                
+                const counter = setInterval(() => {
+                    currentVal += step;
+                    if (currentVal >= targetPercent) {
+                        healthValueDisplay.textContent = targetPercent;
+                        clearInterval(counter);
+                    } else {
+                        healthValueDisplay.textContent = Math.floor(currentVal);
+                    }
+                }, interval);
+            }
+        }, 600);
+    });
+</script>
+</body></html>

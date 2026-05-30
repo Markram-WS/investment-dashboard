@@ -206,3 +206,9 @@ components:
 - [ ] *Multi-currency: Layout for secondary currency display.*
 ---
 [[UI-VISUAL-LAYOUT|⬅️ กลับสู่ Master Layout]]
+
+
+
+----------
+
+

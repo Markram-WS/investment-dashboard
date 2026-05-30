@@ -9,7 +9,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_API_BASE_URL=
     network_mode: "host"
     restart: unless-stopped
 
@@ -60,8 +60,6 @@ services:
 networks:
   investment-network:
     driver: bridge
-  host:
-    driver: host
 
 volumes:
   postgres_main_data:

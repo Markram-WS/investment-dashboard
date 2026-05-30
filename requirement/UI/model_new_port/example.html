@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>InvestDesk | Create Portfolio</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #faf9f6;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        :root {
+            --palette-coral: #F27B6E;
+            --palette-peach: #FFD8B5;
+            --palette-cream: #FFFCE0;
+            --palette-teal: #19B5B5;
+            --palette-blue: #1181A6;
+            --palette-neutral-blue: #A5C9CA;
+            --palette-warning-orange: #FFB37B;
+            --miro-ink: #1c1c1e;
+            --miro-hairline: #e0e2e8;
+            --miro-canvas: #ffffff;
+            --miro-stone: #8e91a0;
+        }
+        .miro-font { font-family: 'Inter', sans-serif; }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-tertiary-fixed-variant": "#454744",
+                      "error-container": "#ffdad6",
+                      "on-primary-container": "#858481",
+                      "outline-variant": "#c8c7bf",
+                      "tertiary-container": "#1a1c19",
+                      "on-primary-fixed-variant": "#474744",
+                      "on-primary-fixed": "#1c1c1a",
+                      "primary": "#000000",
+                      "surface-variant": "#e3e2e0",
+                      "secondary-fixed-dim": "#bec8d0",
+                      "on-surface-variant": "#474741",
+                      "on-background": "#1a1c1a",
+                      "inverse-primary": "#c9c6c3",
+                      "error": "#ba1a1a",
+                      "surface-container": "#efeeeb",
+                      "on-tertiary-fixed": "#1a1c19",
+                      "tertiary-fixed": "#e3e3de",
+                      "surface-container-highest": "#e3e2e0",
+                      "inverse-surface": "#2f312f",
+                      "on-error-container": "#93000a",
+                      "surface": "#faf9f6",
+                      "on-secondary": "#ffffff",
+                      "on-tertiary": "#ffffff",
+                      "surface-tint": "#5f5e5c",
+                      "primary-fixed-dim": "#c9c6c3",
+                      "surface-bright": "#faf9f6",
+                      "primary-fixed": "#e5e2de",
+                      "surface-dim": "#dbdad7",
+                      "surface-container-low": "#f4f3f1",
+                      "on-error": "#ffffff",
+                      "background": "#faf9f6",
+                      "tertiary-fixed-dim": "#c6c7c2",
+                      "on-tertiary-container": "#838480",
+                      "tertiary": "#000000",
+                      "on-surface": "#1a1c1a",
+                      "primary-container": "#1c1c1a",
+                      "on-secondary-container": "#5a646b",
+                      "surface-container-lowest": "#ffffff",
+                      "on-secondary-fixed-variant": "#3e484f",
+                      "surface-container-high": "#e9e8e5",
+                      "secondary-fixed": "#dae4ec",
+                      "on-primary": "#ffffff",
+                      "inverse-on-surface": "#f2f1ee",
+                      "outline": "#777771",
+                      "secondary": "#566067",
+                      "secondary-container": "#d7e1e9",
+                      "miro-ink": "#1c1c1e",
+                      "miro-hairline": "#e0e2e8",
+                      "miro-canvas": "#ffffff",
+                      "miro-stone": "#8e91a0",
+                      "miro-blue": "#4262ff"
+              },
+              "spacing": {
+                      "unit": "8px",
+                      "gutter": "24px",
+                      "margin-mobile": "16px",
+                      "margin-desktop": "40px",
+                      "content-max": "800px",
+                      "container-max": "1200px"
+              },
+            },
+          },
+        }
+      </script>
+</head>
+<body class="bg-surface text-miro-ink antialiased overflow-hidden">
+<!-- Top Navigation Bar (Background context from SCREEN_39) -->
+<header class="h-16 border-b border-miro-hairline bg-white flex items-center px-gutter sticky top-0 z-40">
+<div class="flex items-center gap-2 mr-12">
+<div class="w-8 h-8 bg-primary rounded-sm flex items-center justify-center font-bold text-white text-xs">M</div>
+<span class="font-bold text-lg tracking-tight">InvestDesk</span>
+</div>
+<nav class="flex items-center gap-1">
+<a class="px-4 py-2 text-sm font-medium text-miro-stone hover:text-primary rounded-full transition-colors" href="#">Overview</a>
+<a class="px-4 py-2 text-sm font-medium text-miro-stone hover:text-primary rounded-full transition-colors" href="#">All Assets</a>
+<a class="px-4 py-2 text-sm font-medium text-miro-stone hover:text-primary rounded-full transition-colors" href="#">Transactions</a>
+<a class="px-4 py-2 text-sm font-medium text-miro-stone hover:text-primary rounded-full transition-colors" href="#">Risk Analytics</a>
+<div class="relative group">
+<button class="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary bg-surface-container rounded-full">
+<span>Portfolios: Binance</span>
+<span class="material-symbols-outlined text-sm">expand_more</span>
+</button>
+</div>
+</nav>
+<div class="ml-auto flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full border border-miro-hairline hover:bg-surface-container">
+<span class="material-symbols-outlined text-xl">search</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full border border-miro-hairline hover:bg-surface-container">
+<span class="material-symbols-outlined text-xl">notifications</span>
+</button>
+<div class="w-10 h-10 rounded-full bg-miro-hairline overflow-hidden border border-miro-hairline">
+<img alt="Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDmdtv1TThjz2WjblaHcGah8yE7kCXMVTaBCSYZrsXse12vo-7tXapSuQDYQfwrztkk0dLF3MoAK6KAqs0ps9hqNh6ULR09rDBt1jZ10cCuStPeWCqlZh2un0265GRhrP42aTWsl3fuwYzmHmoG-YxfCDtdPhpEAUMlNNTcrjKyFWKPUInVKHBibtE6vRVqJ1OqXl3TLF2tScZpqgwD58fhu3nkAW0uokddD9kNFT8VY5kwIuJTkYPDSwDAzSa0t7FxezBka1Ovvik"/>
+</div>
+</div>
+</header>
+<!-- Background Content (Portfolio Analytics Layout from SCREEN_39) -->
+<main class="max-w-container-max mx-auto p-margin-desktop opacity-30 blur-[2px] pointer-events-none">
+<div class="flex items-end justify-between mb-8">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<h1 class="text-4xl font-bold tracking-tight">Binance Strategy</h1>
+<span class="px-3 py-1 bg-[#fff0f0] border border-red-100 rounded-full text-[10px] font-bold uppercase tracking-widest text-red-600">Active</span>
+</div>
+<p class="text-miro-stone font-medium">Algorithmic crypto trading portfolio • Updated 2m ago</p>
+</div>
+<div class="flex gap-3">
+<button class="px-6 py-2.5 rounded-full border border-miro-hairline font-semibold text-sm bg-white">Export</button>
+<button class="px-6 py-2.5 rounded-full bg-primary text-white font-semibold text-sm">Edit Strategy</button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-gutter">
+<div class="bg-white border border-miro-hairline rounded-[24px] p-6">
+<p class="text-[10px] text-miro-stone font-bold uppercase tracking-widest mb-1">Portfolio Value</p>
+<p class="text-3xl font-bold tracking-tight">$420,150.00</p>
+<p class="mt-2 text-xs font-bold text-miro-teal">+18.5% Total Profit</p>
+</div>
+<div class="bg-white border border-miro-hairline rounded-[24px] p-6">
+<p class="text-[10px] text-miro-stone font-bold uppercase tracking-widest mb-1">Current Risk</p>
+<p class="text-3xl font-bold tracking-tight">Moderate</p>
+<p class="mt-2 text-xs font-medium text-miro-stone">Volatility: 4.2%</p>
+</div>
+<div class="bg-white border border-miro-hairline rounded-[24px] p-6">
+<p class="text-[10px] text-miro-stone font-bold uppercase tracking-widest mb-1">Assets Held</p>
+<p class="text-3xl font-bold tracking-tight">12</p>
+<p class="mt-2 text-xs font-medium text-miro-stone">Main: BTC/ETH</p>
+</div>
+<div class="bg-white border border-miro-hairline rounded-[24px] p-6">
+<p class="text-[10px] text-miro-stone font-bold uppercase tracking-widest mb-1">Cash Reserve</p>
+<p class="text-3xl font-bold tracking-tight">$32.5k</p>
+<p class="mt-2 text-xs font-bold text-miro-stone">Available Liquidity</p>
+</div>
+</div>
+<div class="bg-white border border-miro-hairline rounded-[24px] p-8 mb-gutter">
+<div class="flex items-center justify-between mb-8">
+<h3 class="text-sm font-bold uppercase tracking-widest">Performance History</h3>
+<div class="flex gap-2">
+<button class="px-4 py-1 text-xs font-bold bg-surface-container rounded-full">1M</button>
+<button class="px-4 py-1 text-xs font-bold text-miro-stone">3M</button>
+<button class="px-4 py-1 text-xs font-bold text-miro-stone">1Y</button>
+</div>
+</div>
+<div class="h-64 bg-surface-container-low rounded-xl flex items-center justify-center">
+<span class="text-miro-stone text-sm">Chart Placeholder</span>
+</div>
+</div>
+</main>
+<!-- Create Portfolio Modal: Fixed and Centered -->
+<div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-miro-ink/20 backdrop-blur-[2px]" id="create-portfolio-modal">
+<div class="bg-miro-canvas border border-miro-hairline rounded-[16px] shadow-[rgba(5,0,56,0.15)_0px_24px_56px_-12px] w-full max-w-[500px] overflow-hidden miro-font">
+<!-- Modal Header -->
+<div class="px-8 py-6 flex justify-between items-center bg-miro-canvas">
+<h3 class="text-[28px] font-medium leading-[1.25] tracking-tight text-miro-ink">Create New Portfolio</h3>
+<button class="text-miro-stone hover:text-miro-ink transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<!-- Modal Content -->
+<div class="px-8 pb-6 space-y-6">
+<div class="space-y-4">
+<div>
+<label class="block text-[13px] font-semibold text-miro-stone uppercase tracking-[0.5px] mb-2">Port Name</label>
+<input class="w-full h-[44px] bg-miro-canvas border border-[#c7cad5] rounded-full px-4 focus:ring-2 focus:ring-miro-blue focus:border-miro-blue text-[16px] text-miro-ink placeholder:text-miro-stone/60" placeholder="e.g. My Strategy" type="text"/>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block text-[13px] font-semibold text-miro-stone uppercase tracking-[0.5px] mb-2">Type of Port</label>
+<div class="relative">
+<select class="w-full h-[44px] bg-miro-canvas border border-[#c7cad5] rounded-full px-4 appearance-none focus:ring-2 focus:ring-miro-blue focus:border-miro-blue text-[16px] text-miro-ink">
+<option>Managed</option>
+<option>Self-managed</option>
+<option>Bot</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-miro-stone pointer-events-none">expand_more</span>
+</div>
+</div>
+<div>
+<label class="block text-[13px] font-semibold text-miro-stone uppercase tracking-[0.5px] mb-2">Broker</label>
+<input class="w-full h-[44px] bg-miro-canvas border border-[#c7cad5] rounded-full px-4 focus:ring-2 focus:ring-miro-blue focus:border-miro-blue text-[16px] text-miro-ink" placeholder="e.g. Binance" type="text"/>
+</div>
+</div>
+<div>
+<label class="block text-[13px] font-semibold text-miro-stone uppercase tracking-[0.5px] mb-2">Type of Asset</label>
+<div class="relative">
+<select class="w-full h-[44px] bg-miro-canvas border border-[#c7cad5] rounded-full px-4 appearance-none focus:ring-2 focus:ring-miro-blue focus:border-miro-blue text-[16px] text-miro-ink">
+<option>Crypto</option>
+<option>Stocks</option>
+<option>Forex</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-miro-stone pointer-events-none">expand_more</span>
+</div>
+</div>
+<div>
+<label class="block text-[13px] font-semibold text-miro-stone uppercase tracking-[0.5px] mb-2">Port Color</label>
+<div class="grid grid-cols-6 gap-3 sm:flex sm:flex-wrap sm:gap-3">
+<button aria-label="Coral" class="w-8 h-8 rounded-full bg-[#F27B6E] border border-miro-hairline ring-2 ring-miro-ink ring-offset-2 transition-transform hover:scale-105"></button>
+<button aria-label="Peach" class="w-8 h-8 rounded-full bg-[#FFD8B5] border border-miro-hairline hover:ring-2 hover:ring-miro-hairline hover:ring-offset-2 transition-transform hover:scale-105"></button>
+<button aria-label="Cream" class="w-8 h-8 rounded-full bg-[#FFFCE0] border border-miro-hairline hover:ring-2 hover:ring-miro-hairline hover:ring-offset-2 transition-transform hover:scale-105"></button>
+<button aria-label="Teal" class="w-8 h-8 rounded-full bg-[#19B5B5] border border-miro-hairline hover:ring-2 hover:ring-miro-hairline hover:ring-offset-2 transition-transform hover:scale-105"></button>
+<button aria-label="Pastel Blue" class="w-8 h-8 rounded-full bg-[#A5C9CA] border border-miro-hairline hover:ring-2 hover:ring-miro-hairline hover:ring-offset-2 transition-transform hover:scale-105"></button>
+<button aria-label="Soft Lavender" class="w-8 h-8 rounded-full bg-[#E6E6FA] border border-miro-hairline hover:ring-2 hover:ring-miro-hairline hover:ring-offset-2 transition-transform hover:scale-105"></button>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block text-[13px] font-semibold text-miro-stone uppercase tracking-[0.5px] mb-2">Initial Capital</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 text-miro-stone">$</span>
+<input class="w-full h-[44px] pl-8 bg-miro-canvas border border-[#c7cad5] rounded-full px-4 focus:ring-2 focus:ring-miro-blue focus:border-miro-blue text-[16px] text-miro-ink" placeholder="0.00" type="number"/>
+</div>
+</div>
+<div>
+<label class="block text-[13px] font-semibold text-miro-stone uppercase tracking-[0.5px] mb-2">Current P/L</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 text-miro-stone">%</span>
+<input class="w-full h-[44px] pl-8 bg-miro-canvas border border-[#c7cad5] rounded-full px-4 focus:ring-2 focus:ring-miro-blue focus:border-miro-blue text-[16px] text-miro-ink" placeholder="0.00" type="number"/>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Modal Footer -->
+<div class="px-8 py-6 bg-miro-canvas flex justify-end gap-4 border-t border-miro-hairline">
+<button class="px-6 py-3 text-[14px] font-medium text-miro-ink rounded-full border border-miro-hairline hover:bg-gray-50 transition-all">Cancel</button>
+<button class="px-8 py-3 bg-miro-ink text-white rounded-full text-[14px] font-medium hover:bg-[#2c2c34] transition-all shadow-sm">Create Portfolio</button>
+</div>
+</div>
+</div>
+</body></html>

@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Get API URL from environment
+const API_BASE_URL = process.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 export default defineConfig({
   plugins: [react()],
   define: {
@@ -26,6 +29,14 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    proxy: {
+      // Proxy API calls to backend service
+      '/api': {
+        target: API_BASE_URL,
+        changeOrigin: true,
+        secure: false,
+      },
+    },
     warmup: {
       clientFiles: ['./src/main.tsx', './src/App.tsx', './src/components/Navigation.tsx', './src/pages/PortfolioOverview.tsx'],
     },

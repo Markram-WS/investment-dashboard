@@ -106,6 +106,24 @@ frontend/
 
 ## 🐳 Docker Development
 
+### Network Architecture
+
+```
+Browser (host)
+   ↓ http://localhost:5173
+Frontend (network_mode: host)
+   ↓ Vite Proxy: /api/* → http://localhost:8000
+Backend (Docker network: investment-network)
+   ↓ http://localhost:8000
+```
+
+**ทำไมเลือก network_mode: host?**
+- Browser ทำงานบน host machine ไม่ได้อยู่ใน Docker network
+- ถ้า frontend อยู่ Docker network เดียวกับ backend JS จะต้องเรียก `http://backend:8000` ซึ่ง browser ไม่เข้าใจ
+- วิธีนี้ทำให้ frontend อยู่บน host network เรียก backend ผ่าน localhost ได้โดยตรง
+
+### Commands
+
 ```bash
 # Development mode
 npm run dev
@@ -118,7 +136,7 @@ npm run test
 npm run test:ui
 ```
 
-VITE_API_BASE_URL ถูก inject ผ่าน vite.config.ts (fallback: `http://localhost:8000`)
+VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""`) เพื่อให้ JS เรียกผ่าน relative path (`/api/...`) ซึ่ง Vite dev server proxy จะส่งต่อไปยัง backend
 
 ## 📊 Features หลัก
 
