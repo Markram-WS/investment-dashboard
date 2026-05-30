@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
@@ -8,6 +8,20 @@ from typing import List, Optional
 from datetime import datetime
 
 router = APIRouter()
+
+# Request model for creating trade history
+class TradeHistoryCreate(BaseModel):
+    portfolio_id: int
+    type: str  # Buy, Sell, Deposit, Withdraw, Transfer
+    asset: str
+    amount: Optional[float] = None
+    exit_price: Optional[float] = None
+    realized_pl: Optional[float] = None
+    executed_by: str = "Manual"
+    decision_note: Optional[str] = None
+    entry_date: Optional[datetime] = None
+    exit_date: Optional[datetime] = None
+    order_id: Optional[int] = None
 
 
 class TransactionResponse(BaseModel):
@@ -74,3 +88,48 @@ async def get_trade_history(
         )
     
     return response
+
+
+@router.post("/", tags=["trade-history"], status_code=status.HTTP_201_CREATED)
+async def create_trade_history(
+    history: TradeHistoryCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a trade history record (for manual entry or bot sync)."""
+    # Validate portfolio exists
+    portfolio_result = await db.execute(
+        select(Portfolio).where(Portfolio.portfolio_id == history.portfolio_id)
+    )
+    if portfolio_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    
+    db_history = TradeHistory(
+        portfolio_id=history.portfolio_id,
+        order_id=history.order_id,
+        type=history.type,
+        asset=history.asset,
+        amount=history.amount,
+        exit_price=history.exit_price,
+        realized_pl=history.realized_pl,
+        executed_by=history.executed_by,
+        decision_note=history.decision_note,
+        entry_date=history.entry_date,
+        exit_date=history.exit_date,
+        comments={}
+    )
+    
+    db.add(db_history)
+    await db.commit()
+    await db.refresh(db_history)
+    
+    return {
+        "history_id": db_history.history_id,
+        "portfolio_id": db_history.portfolio_id,
+        "type": db_history.type,
+        "asset": db_history.asset,
+        "amount": float(str(db_history.amount)) if db_history.amount is not None else None,
+        "exit_price": float(str(db_history.exit_price)) if db_history.exit_price is not None else None,
+        "realized_pl": float(str(db_history.realized_pl)) if db_history.realized_pl is not None else None,
+        "executed_by": db_history.executed_by,
+        "decision_note": db_history.decision_note,
+    }

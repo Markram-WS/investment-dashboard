@@ -7,9 +7,9 @@ import ActiveOrders from './pages/ActiveOrders';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import PortfolioAnalyticsDetail from './pages/PortfolioAnalyticsDetail';
 import CreateNewPortfolio from './pages/CreateNewPortfolio';
-import ManagedFund from './screens/ManagedFund';
-import SpreadPairing from './screens/SpreadPairing';
-import PortfolioAnalytics from './screens/PortfolioAnalytics';
+import PortfolioMutualFund from './screens/PortfolioMutualFund';
+import PortfolioSpread from './screens/PortfolioSpread';
+import PortfolioGrid from './screens/PortfolioGrid';
 import AllAssets from './pages/AllAssets';
 import RiskAnalytics from './pages/RiskAnalytics';
 import Navigation from './components/Navigation';
@@ -29,11 +29,11 @@ export default function App() {
         <Route path="/orders" element={<ActiveOrders />} />
         <Route path="/analytics" element={<AnalyticsDashboard />} />
         <Route path="/analytics/portfolio/:portfolio_id" element={<PortfolioAnalyticsDetail />} />
-        <Route path="/analytics/detail" element={<PortfolioAnalytics />} />
-        <Route path="/spread-pairing" element={<SpreadPairing />} />
+        <Route path="/analytics/detail" element={<PortfolioGrid />} />
+        <Route path="/spread-pairing" element={<PortfolioSpread />} />
         <Route path="/create-portfolio" element={<CreateNewPortfolio />} />
-        <Route path="/managed-fund" element={<ManagedFund />} />
-        <Route path="/managed-fund/:portfolioId" element={<ManagedFund />} />
+        <Route path="/managed-fund" element={<PortfolioMutualFund />} />
+        <Route path="/managed-fund/:portfolioId" element={<PortfolioMutualFund />} />
         <Route path="/all-assets" element={<AllAssets />} />
         <Route path="/risk-analytics" element={<RiskAnalytics />} />
       </Routes>

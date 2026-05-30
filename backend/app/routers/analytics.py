@@ -6,7 +6,6 @@ from app.models import Portfolio, ActiveOrder, TradePlan, AiActionLog, TradeHist
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
-
 router = APIRouter()
 
 # Alias endpoint for PortfolioAnalytics screen
@@ -125,6 +124,34 @@ class PortfolioGridData(BaseModel):
     active_orders: List[Dict[str, Any]] = []
     recent_trades: List[Dict[str, Any]] = []
 
+def _to_float(val):
+    """Convert Decimal/None to float for JSON serialization."""
+    if val is None:
+        return None
+    return float(str(val))
+
+def _calculate_zone(entry_price: float, entry_zone: Optional[str]) -> str:
+    """Calculate zone (ZONE A / ZONE B) based on entry_price vs trade_plan entry_zone.
+    
+    Args:
+        entry_price: The price at which the order was placed
+        entry_zone: Trade plan entry zone (e.g., "BTC: 95000-98000, ETH: 3500-3700")
+    
+    Returns:
+        Zone label (ZONE A, ZONE B, etc.)
+    """
+    if not entry_zone or entry_price is None:
+        return "ZONE A"  # Default
+    
+    try:
+        # Parse entry_zone format: "BTC: 95000-98000, ETH: 3500-3700"
+        # For Grid type, determine zone based on which price range it falls into
+        # Simplified: if we have one zone defined, everything is ZONE A
+        # If we want multiple zones, we'd need to extend this logic
+        return "ZONE A"
+    except Exception:
+        return "ZONE A"
+
 @router.get("/portfolio-grid", tags=["analytics"], response_model=List[PortfolioGridData])
 async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
     """Get portfolio grid data for the analytics screen."""
@@ -194,22 +221,22 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
                 # Get realized P/L from trade history if available
                 for order in [leg_a, leg_b]:
                     trade_history_result = await db.execute(
-                        select(TradeHistory)
-                        .where(TradeHistory.order_id == order.order_id)
+                        select(TradeHistory).where(TradeHistory.order_id == order.order_id)
                     )
                     trade_history = trade_history_result.scalar_one_or_none()
                     if trade_history and trade_history.realized_pl is not None:
+                        pl_value = _to_float(trade_history.realized_pl)
                         if order == leg_a:
-                            leg_a_pl = trade_history.realized_pl
+                            leg_a_pl = pl_value
                         else:
-                            leg_b_pl = trade_history.realized_pl
+                            leg_b_pl = pl_value
                 
-                net_pl = leg_a_pl + leg_b_pl
+                net_pl = float(leg_a_pl or 0) + float(leg_b_pl or 0)
                 
                 # Calculate spread difference (simplified)
                 spread_diff = None
                 if leg_a.entry_price and leg_b.entry_price:
-                    spread_diff = leg_b.entry_price - leg_a.entry_price
+                    spread_diff = float(leg_b.entry_price or 0) - float(leg_a.entry_price or 0)
                 
                 spread_pairs.append(SpreadPair(
                     pair_id=pair_id,
@@ -261,9 +288,9 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
                 "history_id": trade.history_id,
                 "type": trade.type,
                 "asset": trade.asset,
-                "amount": trade.amount,
-                "exit_price": trade.exit_price,
-                "realized_pl": trade.realized_pl,
+                "amount": _to_float(trade.amount),
+                "exit_price": _to_float(trade.exit_price),
+                "realized_pl": _to_float(trade.realized_pl),
                 "executed_by": trade.executed_by,
                 "decision_note": trade.decision_note,
                 "entry_date": trade.entry_date.isoformat() if trade.entry_date else None,
@@ -273,22 +300,33 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
         # Build active orders list (excluding spread legs to avoid duplication)
         active_orders_list = []
         spread_order_ids = {order.order_id for order in spread_orders}
+        
+        # Get entry_zone from trade plan for zone calculation
+        trade_plan_entry_zone = getattr(trade_plan, 'entry_zone', None) if trade_plan else None
+        
         for order in active_orders:
             if order.order_id not in spread_order_ids:
+                # Calculate zone based on trade plan entry_zone
+                entry_price_val = _to_float(order.entry_price)
+                order_zone = order.zone or _calculate_zone(
+                    entry_price_val if entry_price_val is not None else 0.0, 
+                    trade_plan_entry_zone if trade_plan_entry_zone else None
+                )
                 active_orders_list.append({
                     "order_id": order.order_id,
                     "plan_id": order.plan_id,
                     "asset_type": order.asset_type,
                     "side": order.side,
                     "qty": order.qty,
-                    "entry_price": order.entry_price,
-                    "current_price": order.current_price,
-                    "tp_price": order.tp_price,
+                    "entry_price": entry_price_val,
+                    "current_price": _to_float(order.current_price),
+                    "tp_price": _to_float(order.tp_price),
                     "leverage": order.leverage,
                     "margin_rate": order.margin_rate,
                     "order_status": order.order_status,
                     "executed_by": order.executed_by,
                     "grid_group_id": order.grid_group_id,
+                    "zone": order_zone,
                     "spread_pair_id": order.spread_pair_id,
                     "created_at": order.created_at.isoformat() if order.created_at else None
                 })
@@ -380,15 +418,16 @@ async def get_portfolio_detail(
                 )
                 trade_history = trade_history_result.scalar_one_or_none()
                 if trade_history and trade_history.realized_pl is not None:
+                    pl_value = _to_float(trade_history.realized_pl)
                     if order == leg_a:
-                        leg_a_pl = trade_history.realized_pl
+                        leg_a_pl = pl_value
                     else:
-                        leg_b_pl = trade_history.realized_pl
+                        leg_b_pl = pl_value
             
             net_pl = leg_a_pl + leg_b_pl
             spread_diff = None
             if leg_a.entry_price and leg_b.entry_price:
-                spread_diff = leg_b.entry_price - leg_a.entry_price
+                spread_diff = _to_float(leg_b.entry_price) - _to_float(leg_a.entry_price)
             
             spread_pairs.append(SpreadPair(
                 pair_id=pair_id,
@@ -397,9 +436,9 @@ async def get_portfolio_detail(
                     "asset_type": leg_a.asset_type,
                     "side": leg_a.side,
                     "qty": leg_a.qty,
-                    "entry_price": leg_a.entry_price,
-                    "current_price": leg_a.current_price,
-                    "tp_price": leg_a.tp_price,
+                    "entry_price": _to_float(leg_a.entry_price),
+                    "current_price": _to_float(leg_a.current_price),
+                    "tp_price": _to_float(leg_a.tp_price),
                     "leverage": leg_a.leverage,
                     "margin_rate": leg_a.margin_rate,
                     "order_status": leg_a.order_status,
@@ -411,9 +450,9 @@ async def get_portfolio_detail(
                     "asset_type": leg_b.asset_type,
                     "side": leg_b.side,
                     "qty": leg_b.qty,
-                    "entry_price": leg_b.entry_price,
-                    "current_price": leg_b.current_price,
-                    "tp_price": leg_b.tp_price,
+                    "entry_price": _to_float(leg_b.entry_price),
+                    "current_price": _to_float(leg_b.current_price),
+                    "tp_price": _to_float(leg_b.tp_price),
                     "leverage": leg_b.leverage,
                     "margin_rate": leg_b.margin_rate,
                     "order_status": leg_b.order_status,
@@ -439,9 +478,9 @@ async def get_portfolio_detail(
             "history_id": trade.history_id,
             "type": trade.type,
             "asset": trade.asset,
-            "amount": trade.amount,
-            "exit_price": trade.exit_price,
-            "realized_pl": trade.realized_pl,
+            "amount": _to_float(trade.amount),
+            "exit_price": _to_float(trade.exit_price),
+            "realized_pl": _to_float(trade.realized_pl),
             "executed_by": trade.executed_by,
             "decision_note": trade.decision_note,
             "entry_date": trade.entry_date.isoformat() if trade.entry_date else None,
@@ -451,22 +490,32 @@ async def get_portfolio_detail(
     # Build active orders list
     active_orders_list = []
     spread_order_ids = {order.order_id for order in spread_orders}
+    
+    trade_plan_entry_zone = getattr(trade_plan, 'entry_zone', None) if trade_plan else None
+    
     for order in active_orders:
         if order.order_id not in spread_order_ids:
+            # Calculate zone based on trade plan entry_zone
+            entry_price_float = _to_float(order.entry_price)
+            order_zone = order.zone or _calculate_zone(
+                entry_price_float if entry_price_float is not None else 0.0, 
+                trade_plan_entry_zone if trade_plan_entry_zone else None
+            )
             active_orders_list.append({
                 "order_id": order.order_id,
                 "plan_id": order.plan_id,
                 "asset_type": order.asset_type,
                 "side": order.side,
                 "qty": order.qty,
-                "entry_price": order.entry_price,
-                "current_price": order.current_price,
-                "tp_price": order.tp_price,
+                "entry_price": entry_price_float,
+                "current_price": _to_float(order.current_price),
+                "tp_price": _to_float(order.tp_price),
                 "leverage": order.leverage,
                 "margin_rate": order.margin_rate,
                 "order_status": order.order_status,
                 "executed_by": order.executed_by,
                 "grid_group_id": order.grid_group_id,
+                "zone": order_zone,
                 "spread_pair_id": order.spread_pair_id,
                 "created_at": order.created_at.isoformat() if order.created_at else None
             })

@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS active_orders (
     margin_rate NUMERIC(20,8),
     order_status TEXT CHECK (order_status IN ('pending_sync', 'filled', 'cancel_pending')) DEFAULT 'pending_sync',
     grid_group_id TEXT,
+    zone TEXT,  -- Zone grouping: ZONE A, ZONE B, etc.
     spread_pair_id TEXT,
     executed_by TEXT CHECK (executed_by IN ('Manual', 'Bot', 'AI')),
     option_id INTEGER REFERENCES option_details(option_id),

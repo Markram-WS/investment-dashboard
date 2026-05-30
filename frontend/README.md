@@ -195,12 +195,75 @@ Portfolio Grid (xl:grid-cols-2 on desktop)
 | `/all-assets` | AllAssets | pages/AllAssets.tsx | Asset listing table |
 | `/risk-analytics` | RiskAnalytics | pages/RiskAnalytics.tsx | Risk metrics (Sharpe, VaR, Drawdown) |
 | `/analytics` | AnalyticsDashboard | pages/AnalyticsDashboard.tsx | NAV time series + summary |
-| `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | pages/PortfolioAnalyticsDetail.tsx | Individual portfolio analytics |
-| `/analytics/detail` | PortfolioAnalytics | screens/PortfolioAnalytics.tsx | Portfolio detail view |
-| `/create-portfolio` | CreateNewPortfolio | pages/CreateNewPortfolio.tsx | Portfolio creation form |
-| `/managed-fund` | ManagedFund | screens/ManagedFund.tsx | Asset allocation + rebalance |
-| `/managed-fund/{portfolioId}` | ManagedFund | screens/ManagedFund.tsx | Portfolio-specific Managed Fund |
-| `/spread-pairing` | SpreadPairing | screens/SpreadPairing.tsx | Spread pairing zone-based |
+| `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | pages/PortfolioAnalyticsDetail.tsx | **Dynamic Layout** - auto-selects based on port_type (spread/grid/managed-fund) |
+| `/analytics/detail` | PortfolioAnalytics | screens/PortfolioAnalytics.tsx | **Grid View** - Split view: Left Orders+Payoff, Right Sticky Notes (Canary Yellow) |
+| `/spread-pairing` | SpreadPairing | screens/SpreadPairing.tsx | **Spread View** - Order Pairs table + Payoff chart, Side-by-side Long/Short legs |
+| `/managed-fund/{portfolioId}` | ManagedFund | screens/ManagedFund.tsx | **Managed Fund View** - Asset Allocation (Target vs Current) + Rebalance + NAV History |
+
+## 🎨 Analytics Layout Varieties
+
+Portfolio Analytics มี 3 รูปแบบใหญ่ ๆ ที่เลือกแสดงโดยอัตโนมัติตาม `port_type`:
+
+### 1. Grid View (`/analytics/portfolio/{id}`)
+- **Route**: `/analytics/detail` (fallback) + `/analytics/portfolio/{id}` (dynamic)
+- **Port Type**: `grid*` (default)
+- **Layout**: Split View
+  - **Left Panel (Main Command)**: Payoff Chart (placeholder) + Active Orders Table
+  - **Right Panel (Strategy & Notes)**: Canary Yellow Sticky Note Panel (350px)
+    - Trade Plan (Markdown)
+    - Quick Stats (active pairs / unpaired count)
+    - Decision Journal (completed cycles from orders with spread_pair_id)
+- **Mock Data (Binance Futures)**:
+  ```typescript
+  active_orders: [
+    { order_id: 101, asset_type: "BTC", side: "BUY", qty: 0.5, status: "ACTIVE" },
+    { order_id: 102, asset_type: "ETH", side: "SELL", qty: 2.0, status: "ACTIVE" },
+    { order_id: 103, asset_type: "SOL", side: "BUY", qty: 10, status: "CLOSED", spread_pair_id: "shsojvp" }
+  ]
+  ```
+- **Features**:
+  - Active Orders table with Side/Status color coding
+  - Manual Refresh with timestamp
+  - Risk Status Header with info tooltip (ⓘ)
+  - Decision Journal from closed orders with spread_pair_id
+
+### 2. Spread View (`/spread-pairing`)
+- **Port Type**: `spread*`
+- **Layout**: Split View
+  - **Left Panel**: Order Pairs table + Payoff chart visualization
+  - **Right Panel**: Sticky Note Strategy (Canary Yellow)
+- **Features**:
+  - Side-by-side Long/Short leg display
+  - Consolidated P/L column (teal/coral color coding)
+  - Visual Bracket Linking (⎡⎤ brackets)
+  - Manual Re-grouping via dropdown
+  - Payoff Wizard sandbox simulation
+
+### 3. Managed Fund View (`/managed-fund/{portfolioId}`)
+- **Port Type**: `managed-fund*`
+- **Layout**: Vertical sections
+  ```
+  ┌─────────────────────────────────────────┐
+  │ Header: Portfolio Name + Type Badge       │
+  │ Key Metrics | Asset Allocation          │
+  ├─────────────────────────────────────────┤
+  │ Trade Plan (Markdown Editor)            │
+  ├─────────────────────────────────────────┤
+  │ Rebalance Actions: [Calculate] [Execute]│
+  │ Recommendations Table                   │
+  ├─────────────────────────────────────────┤
+  │ NAV History (Line Chart)                │
+  └─────────────────────────────────────────┘
+  ```
+- **Features**:
+  - Key Metrics: Current NAV, Margin Locked, Available Cash
+  - Asset Allocation: Target vs Current bars with drift indicator dots
+    - 🟢 Safe (drift <= 5%)
+    - 🟡 Warning (5-15%)
+    - 🔴 Danger (drift > 15%)
+  - Trade Plan editor (inline markdown)
+  - Rebalance: Calculate recommendations + Execute trades
+  - NAV History line chart
 | `/trades` | TradePlanManager | pages/TradePlanManager.tsx | Trade plan management |
 | `/orders` | ActiveOrders | pages/ActiveOrders.tsx | Active orders |
 

@@ -74,6 +74,7 @@ class ActiveOrder(Base):
     margin_rate = Column(Numeric(20, 8))
     order_status = Column(String, default='pending_sync')
     grid_group_id = Column(String)
+    zone = Column(String)  # Zone grouping: ZONE A, ZONE B, etc.
     spread_pair_id = Column(String)
     executed_by = Column(String)
     option_id = Column(Integer, ForeignKey('option_details.option_id'))
