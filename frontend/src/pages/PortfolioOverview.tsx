@@ -108,25 +108,6 @@ export default function PortfolioOverview() {
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
 
-      {/* Header */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }} className="animate-fade-up">
-        <h1 className="page-title" style={{ margin: 0 }}>Overview</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ position: 'relative', width: 240 }}>
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-slate)', fontSize: 14 }}>🔍</span>
-            <input 
-              type="text" 
-              placeholder="Search..." 
-              style={{ width: '100%', paddingLeft: 36, paddingRight: 12, paddingTop: 8, paddingBottom: 8,
-                       background: 'var(--color-surface)', border: 'none', borderRadius: 6, fontSize: 14 }} 
-            />
-          </div>
-          <button onClick={() => setCurrency(currency === "USD" ? "THB" : "USD")} className="btn-ghost" style={{ fontSize: 13 }}>
-            {currency === "USD" ? "Switch to THB ฿" : "Switch to USD $"}
-          </button>
-        </div>
-      </header>
-
       {/* Hero Card */}
       <section style={{ marginBottom: 32 }} className="animate-fade-up stagger-1">
         <div style={{ 
@@ -180,7 +161,7 @@ export default function PortfolioOverview() {
 
       {/* Widgets Row */}
       <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 32, position: 'relative', zIndex: 2 }}>
-        {/* Pool Health */}
+        {/* Pool Health - SVG gauge from example.html */}
         <div style={{ background: 'var(--color-canvas)', border: '1px solid var(--color-hairline)',
                      borderRadius: 'var(--rounded-xxl)', padding: 32 }} className="animate-fade-up stagger-2">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
@@ -189,19 +170,18 @@ export default function PortfolioOverview() {
             </h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
                          background: 'var(--color-teal-light)', borderRadius: 'var(--rounded-full)', color: 'var(--color-brand-teal)' }}>
-              <span style={{ fontSize: 12, fontWeight: 700 }}>✓</span>
+              <span style={{ fontSize: 14, fontWeight: 700 }}>✓</span>
               <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Healthy</span>
             </div>
           </div>
-          <div style={{ position: 'relative', width: 192, height: 120, overflow: 'visible', margin: '0 auto' }}>
-            <svg width="192" height="120" viewBox="0 0 100 60">
-              <path d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent" stroke="#f4f4f6" strokeWidth="10" />
+          <div style={{ position: 'relative', width: 192, height: 192 }}>
+            <svg width="192" height="192" viewBox="0 0 100 100">
+              <path d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent" stroke="#f4f4f6" strokeWidth={12} />
               <path 
                 d="M 10 50 A 40 40 0 0 1 90 50" 
                 fill="transparent" 
                 stroke="#0fbcb0" 
-                strokeWidth="10"
-                className="health-gauge-path"
+                strokeWidth={12}
                 style={{ strokeDasharray: 125.6, strokeDashoffset: gaugeOffset }}
               />
             </svg>
@@ -226,7 +206,7 @@ export default function PortfolioOverview() {
             </h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
                          background: 'var(--color-teal-light)', borderRadius: 'var(--rounded-full)', color: 'var(--color-brand-teal)' }}>
-              <span style={{ fontSize: 12, fontWeight: 700 }}>✓</span>
+              <span style={{ fontSize: 14, fontWeight: 700 }}>✓</span>
               <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Optimal Reserve</span>
             </div>
           </div>
@@ -256,7 +236,7 @@ export default function PortfolioOverview() {
 
       {/* Portfolio Grid - 2 columns on desktop */}
       <section style={{ position: 'relative', zIndex: 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32, zIndex: 2, position: 'relative' }}>
           <h2 style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-primary)', letterSpacing: -0.5 }}>
             Active Portfolios
           </h2>
@@ -364,7 +344,7 @@ export default function PortfolioOverview() {
                       <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmt(p.buffer)}</p>
                     </div>
                     <div style={{ padding: 16, background: 'var(--color-brand-yellow)', borderRadius: 'var(--rounded-xl)',
-                                 boxShadow: 'var(--shadow-sm)', transition: 'boxShadow 0.15s ease' }} className="pulse-available">
+                                 boxShadow: 'var(--shadow-sm)', transition: 'boxShadow 0.15s ease', position: 'relative' }} className="pulse-available">
                       <p style={{ fontSize: 9, color: 'var(--color-primary)', fontWeight: 700,
                                   textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Available</p>
                       <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmt(p.available)}</p>

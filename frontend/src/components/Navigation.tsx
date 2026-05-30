@@ -4,16 +4,21 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 
 const NAV_ITEMS = [
-  { name: "Overview", path: "/" },
-  { name: "All Assets", path: "/all-assets" },
-  { name: "Transactions", path: "/transactions" },
-  { name: "Risk Analytics", path: "/risk-analytics" },
+  { name: "Overview", path: "/", icon: "📊" },
+  { name: "All Assets", path: "/all-assets", icon: "💰" },
+  { name: "Transactions", path: "/transactions", icon: "🔁" },
+  { name: "Risk Analytics", path: "/risk-analytics", icon: "🛡️" },
 ];
+
+function Icon({ emoji }: { emoji: string }) {
+  return <span style={{ fontSize: 18 }}>{emoji}</span>;
+}
 
 export default function Navigation() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [portfolioOpen, setPortfolioOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [portfoliosDropdownOpen, setPortfoliosDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -28,13 +33,14 @@ export default function Navigation() {
   const handleOutsideClick = useCallback((e: MouseEvent) => {
     if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
       setPortfolioOpen(false);
+      setPortfoliosDropdownOpen(false);
     }
   }, []);
 
   useEffect(() => {
-    if (portfolioOpen) document.addEventListener("mousedown", handleOutsideClick);
+    if (portfolioOpen || portfoliosDropdownOpen) document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [portfolioOpen, handleOutsideClick]);
+  }, [portfolioOpen, portfoliosDropdownOpen, handleOutsideClick]);
 
   useEffect(() => {
     const onResize = () => { if (window.innerWidth >= 768) setMobileOpen(false); };
@@ -42,128 +48,170 @@ export default function Navigation() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  const current = portfolios.find((p) => p.id === selectedId);
-
   return (
-    <header style={{
+    <nav style={{
       background: 'var(--color-canvas)',
       borderBottom: '1px solid var(--color-hairline)',
-      position: 'sticky', top: 0, zIndex: 50,
-      boxShadow: 'var(--shadow-sm)'
+      position: 'sticky', top: 0, zIndex: 100,
+      height: 64, display: 'flex', alignItems: 'center',
+      padding: '0 24px'
     }}>
-      <nav style={{
-        maxWidth: 1120, margin: '0 auto',
-        height: 64, display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', padding: '0 24px'
-      }}>
-        {/* Brand */}
-        <NavLink to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: 'var(--color-primary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}>
-            <span style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>I</span>
-          </div>
-          <span style={{
-            fontSize: 18, fontWeight: 600,
-            color: 'var(--color-ink)',
-            fontFamily: 'var(--font-heading)', letterSpacing: '-0.3px'
-          }}>
-            INVESTDESK
-          </span>
-        </NavLink>
+      <div style={{ display: 'flex', alignItems: 'center', width: '100%', maxWidth: 1200, margin: '0 auto' }}>
+        {/* Branding (Left) - Like example.html */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <NavLink to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 4,
+              background: 'var(--color-brand-yellow)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <span style={{ color: 'var(--color-ink)', fontWeight: 700, fontSize: 18 }}>M</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-ink)', textTransform: 'uppercase', letterSpacing: 0 }}>
+                InvestDesk
+              </span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                Dashboard
+              </span>
+            </div>
+          </NavLink>
+        </div>
 
-        {/* Desktop Nav */}
-        <div className="hidden md:flex" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        {/* Navigation Links (Center) - Using inline styles */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 1, margin: '0 auto' }}>
           {NAV_ITEMS.map((item) => (
-            <NavLink key={item.path} to={item.path} className="nav-link" end>
+            <NavLink 
+              key={item.path} 
+              to={item.path} 
+              style={({ isActive }) => ({
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 16px',
+                borderRadius: '9999px',
+                fontSize: 14,
+                fontWeight: 500,
+                textDecoration: 'none',
+                transition: 'background 0.15s ease, color 0.15s ease',
+                background: isActive ? 'var(--color-primary)' : 'transparent',
+                color: isActive ? '#fff' : 'var(--color-slate)',
+                border: 'none'
+              })}
+              end
+            >
+              <Icon emoji={item.icon} />
               {item.name}
             </NavLink>
           ))}
-        </div>
-
-        {/* Right side */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* Portfolio Selector — Desktop */}
-          <div className="hidden md:block" style={{ position: 'relative' }} ref={dropdownRef}>
+          
+          {/* Portfolios Dropdown - Like example.html */}
+          <div style={{ position: 'relative' }} ref={dropdownRef}>
             <button
-              onClick={() => setPortfolioOpen(!portfolioOpen)}
-              className="select-trigger"
-              style={{ fontSize: 13, padding: '6px 12px' }}
+              onClick={() => setPortfoliosDropdownOpen(!portfoliosDropdownOpen)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 16px',
+                borderRadius: '9999px',
+                fontSize: 14,
+                fontWeight: 500,
+                color: 'var(--color-slate)',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'color 0.15s ease, background 0.15s ease'
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
-              <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {current?.name ?? "All Portfolios"}
-              </span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
-                style={{ transform: portfolioOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>
-                <path d="M6 9l6 6 6-6" />
-              </svg>
+              <Icon emoji="📁" />
+              <span>Portfolios</span>
+              <span style={{ fontSize: 16 }}>▾</span>
             </button>
-
-            {portfolioOpen && (
-              <div className="select-dropdown" style={{ right: 0, marginTop: 4 }}>
-                <button
-                  onClick={() => { setSelectedId(null); setPortfolioOpen(false); }}
-                  className={`select-option ${selectedId === null ? 'active' : ''}`}
-                >
-                  All Portfolios
-                </button>
-                {portfolios.length > 0 && (
-                  <div style={{ height: 1, background: 'var(--color-hairline)', margin: '4px 0' }} />
-                )}
-                {portfolios.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => { setSelectedId(p.id); setPortfolioOpen(false); }}
-                    className={`select-option ${selectedId === p.id ? 'active' : ''}`}
-                    style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}
-                  >
-                    {p.name}
-                  </button>
-                ))}
+            
+            {portfoliosDropdownOpen && (
+              <div style={{
+                position: 'absolute', left: 0, marginTop: 4, width: 200,
+                background: 'var(--color-canvas)', border: '1px solid var(--color-hairline)',
+                borderRadius: 12, boxShadow: 'var(--shadow-lg)', overflow: 'hidden', zIndex: 10
+              }}>
+                {portfolios.map((p) => {
+                  const color = p.name.toLowerCase().includes('binance') || p.name.toLowerCase().includes('btc') 
+                    ? 'var(--color-brand-teal)' 
+                    : 'var(--color-brand-coral)';
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => { setSelectedId(p.id); setPortfoliosDropdownOpen(false); }}
+                      style={{
+                        width: '100%', padding: '12px 16px', fontSize: 14, fontWeight: 500,
+                        color: 'var(--color-slate)', background: 'transparent', border: 'none',
+                        display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer'
+                      }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, display: 'inline-block' }}></span>
+                      {p.name}
+                    </button>
+                  );
+                })}
                 {portfolios.length === 0 && (
-                  <p style={{ padding: '12px 14px', fontSize: 13, color: 'var(--color-slate)', margin: 0 }}>
-                    No portfolios found
-                  </p>
+                  <p style={{ padding: '12px 16px', fontSize: 13, color: 'var(--color-slate)', margin: 0 }}>No portfolios</p>
                 )}
                 <div style={{ height: 1, background: 'var(--color-hairline)', margin: '4px 0' }} />
                 <button
-                  onClick={() => { setPortfolioOpen(false); navigate("/create-portfolio"); }}
-                  className="select-option"
-                  style={{ color: 'var(--color-brand-teal)', fontWeight: 500 }}
+                  onClick={() => { setPortfoliosDropdownOpen(false); navigate('/create-portfolio'); }}
+                  style={{
+                    width: '100%', padding: '12px 16px', fontSize: 14, fontWeight: 500,
+                    color: 'var(--color-brand-teal)', background: 'transparent', border: 'none',
+                    cursor: 'pointer'
+                  }}
                 >
                   + Create Portfolio
                 </button>
               </div>
             )}
           </div>
+        </div>
 
-          {/* Mobile menu button */}
-          <button
-            className="md:hidden"
-            onClick={() => setMobileOpen(!mobileOpen)}
-            style={{
-              background: 'none', border: 'none', padding: 8,
-              borderRadius: 'var(--rounded-md)', cursor: 'pointer'
-            }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-ink)" strokeWidth={2}>
-              {mobileOpen
-                ? <path d="M6 18L18 6M6 6l12 12" />
-                : <path d="M4 6h16M4 12h16M4 18h16" />
-              }
-            </svg>
+        {/* Top Right Utilities (Right) - Like example.html */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+          <button style={{
+            width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'transparent', border: '1px solid var(--color-hairline)',
+            borderRadius: '50%', cursor: 'pointer'
+          }}>
+            🔔
+          </button>
+          <button style={{
+            width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'transparent', border: '1px solid var(--color-hairline)',
+            borderRadius: '50%', cursor: 'pointer'
+          }}>
+            ⋮
           </button>
         </div>
-      </nav>
+
+        {/* Mobile menu button */}
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          style={{
+            background: 'none', border: 'none', padding: 8,
+            borderRadius: 'var(--rounded-md)', cursor: 'pointer', marginLeft: 'auto'
+          }}
+        >
+          <span style={{ fontSize: 20 }}>{mobileOpen ? '✕' : '☰'}</span>
+        </button>
+      </div>
 
       {/* Mobile Menu */}
       {mobileOpen && (
-        <div className="md:hidden" style={{
+        <div style={{
           background: 'var(--color-canvas)',
           borderTop: '1px solid var(--color-hairline)',
-          boxShadow: 'var(--shadow-lg)'
+          boxShadow: 'var(--shadow-lg)',
+          position: 'absolute', top: 64, left: 0, right: 0
         }}>
           <div style={{ padding: '8px 16px' }}>
             {NAV_ITEMS.map((item) => (
@@ -179,35 +227,34 @@ export default function Navigation() {
                     fontSize: 15, fontWeight: 500,
                     background: isActive ? 'var(--color-primary)' : 'transparent',
                     color: isActive ? '#fff' : 'var(--color-ink)',
-                    marginBottom: 2
+                    marginBottom: 2,
+                    display: 'flex', alignItems: 'center', gap: 10
                   }}>
+                    <Icon emoji={item.icon} />
                     {item.name}
                   </div>
                 )}
               </NavLink>
             ))}
+            {portfolios.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => { setSelectedId(p.id); setMobileOpen(false); }}
+                style={{
+                  background: 'none', border: 'none', padding: '12px 16px',
+                  fontSize: 14, color: 'var(--color-ink)',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  width: '100%', textAlign: 'left',
+                  borderRadius: 'var(--rounded-sm)', cursor: 'pointer'
+                }}
+              >
+                <Icon emoji="📁" />
+                {p.name}
+              </button>
+            ))}
           </div>
-          {portfolios.length > 0 && (
-            <div style={{ borderTop: '1px solid var(--color-hairline)', padding: '12px 16px' }}>
-              <p className="label-caps" style={{ marginBottom: 8 }}>Portfolios</p>
-              {portfolios.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => { setSelectedId(p.id); setMobileOpen(false); }}
-                  style={{
-                    background: 'none', border: 'none', padding: '8px 12px',
-                    fontSize: 14, color: 'var(--color-ink)',
-                    display: 'block', width: '100%', textAlign: 'left',
-                    borderRadius: 'var(--rounded-sm)', cursor: 'pointer'
-                  }}
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
-    </header>
+    </nav>
   );
 }

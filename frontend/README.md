@@ -137,6 +137,15 @@ Portfolio Grid (xl:grid-cols-2 on desktop)
 | `--color-brand-coral` | `#ff9999` | Danger status |
 | `--color-brand-blue` | `#4262ff` | Info, Neutral reserve |
 
+### Navigation Component (Navigation.tsx)
+
+- **Branding**: "M" badge (brand-yellow) + "InvestDesk / Dashboard" text
+- **Nav Links**: Overview 📊, All Assets 💰, Transactions 🔁, Risk Analytics 🛡️ อยู่ตรงกลาง (margin: '0 auto')
+- **Portfolios Dropdown**: 📁 + รายการพอร์ต + Create Portfolio action
+- **Top Right**: 🔔 notifications + ⋮ more_vert icons สำหรับ utilities
+- **Responsive**: Mobile menu แยกจาก desktop nav
+- **Icons**: ใช้ emoji (📊💰🔁🛡️📁🔔⋮) แทน Material icons (ทำงานได้เสมอ)
+
 ### Component Primitives
 
 - `.card` - White background, border, rounded-xl
