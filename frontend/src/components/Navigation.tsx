@@ -3,16 +3,34 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 
-const NAV_ITEMS = [
-  { name: "Overview", path: "/", icon: "📊" },
-  { name: "All Assets", path: "/all-assets", icon: "💰" },
-  { name: "Transactions", path: "/transactions", icon: "🔁" },
-  { name: "Risk Analytics", path: "/risk-analytics", icon: "🛡️" },
-];
-
-function Icon({ emoji }: { emoji: string }) {
-  return <span style={{ fontSize: 18 }}>{emoji}</span>;
+// Inline SVG icons (optimized from Material Symbols)
+function SVGIcon({ name }: { name: string }) {
+  const icons: Record<string, string> = {
+    dashboard: "M520-600v-240h320v240H520ZM120-440v-400h320v400H120Zm400 320v-400h320v400H520Zm-400 0v-240h320v240H120Z",
+    wallet: "M200-200v-560 560Zm0 80q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v320q0 33-23.5 56.5T760-360H200Zm0-80v-400v400Z",
+    swap: "M280-160 80-360l200-200 56 57-103 103h287v80H233l103 103-56 57Zm400-240-56-57 103-103H440v-80h287L637-617l56 57-200 200Z",
+    security: "M480-80q-139-35-229.5-159.5T160-516v-244l320-120 320 120v244q0 139-90.5 263.5T480-80Zm-120-40q100-33 166-117t66-197v-214l-200-78-200 78v214q0 100 66 197t166 117Z",
+    folder: "M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h240l80 80h320q33 0 56.5 23.5T880-680v480q0 33-23.5 56.5T799-120H160Z",
+    expand: "M480-120 300-300l58-58 122 122 122-122 58 58-180 180ZM358-598l-58-58 180-180 180 180-58 58-122-122-122 122Z",
+    notifications: "M160-200v-80h80v-280q0-83 50-147.5T420-792v-28q0-25 17.5-42.5T480-880q25 0 42.5 17.5T540-812v28q83 34 125 98t42 148v280h80v80H160Zm280-320q0-50 35-85t85-35v-40q-50 0-85 35t-35 85v40Z",
+    more: "M480-160q-33 0-56.5-23.5T400-240q0-33 23.5-56.5T480-320q33 0 56.5 23.5T560-240q0 33-23.5 56.5T480-160q-33 0-56.5-23.5T400-240q0-33 23.5-56.5T480-320q33 0 56.5 23.5T560-240q0 33-23.5 56.5T480-160Z",
+    menu: "M80-720q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v80q0 33-23.5 56.5T800-560H160q-33 0-56.5-23.5T80-640v-80Zm0 240q0-33 23.5-56.5T160-560h640q33 0 56.5 23.5T880-480v80q0 33-23.5 56.5T800-320H160q-33 0-56.5-23.5T80-400v-80Zm0 240q0-33 23.5-56.5T160-320h640q33 0 56.5 23.5T880-240v80q0 33-23.5 56.5T800-80H160q-33 0-56.5-23.5T80-160v-80Z",
+    close: "M640-240q-17 0-28.5-11.5T600-280v-80q0-17 11.5-28.5T640-400h160q17 0 28.5 11.5T840-360v80q0 17-11.5 28.5T800-280H640v80h160v80H640Zm-480 0q-17 0-28.5-11.5T120-200v-80q0-17 11.5-28.5T160-320h160q17 0 28.5 11.5T360-280v80q0 17-11.5 28.5T320-160H160v80h160v-80H160Z"
+  };
+  
+  return (
+    <svg width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" style={{ fontSize: 20 }}>
+      <path d={icons[name] || icons.menu} />
+    </svg>
+  );
 }
+
+const NAV_ITEMS = [
+  { name: "Overview", path: "/", icon: "dashboard" },
+  { name: "All Assets", path: "/all-assets", icon: "wallet" },
+  { name: "Transactions", path: "/transactions", icon: "swap" },
+  { name: "Risk Analytics", path: "/risk-analytics", icon: "security" },
+];
 
 export default function Navigation() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -100,7 +118,7 @@ export default function Navigation() {
               })}
               end
             >
-              <Icon emoji={item.icon} />
+              <SVGIcon name={item.icon} />
               {item.name}
             </NavLink>
           ))}
@@ -126,9 +144,9 @@ export default function Navigation() {
               onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
-              <Icon emoji="📁" />
+              <SVGIcon name="folder" />
               <span>Portfolios</span>
-              <span style={{ fontSize: 16 }}>▾</span>
+              <SVGIcon name="expand" />
             </button>
             
             {portfoliosDropdownOpen && (
@@ -182,14 +200,14 @@ export default function Navigation() {
             background: 'transparent', border: '1px solid var(--color-hairline)',
             borderRadius: '50%', cursor: 'pointer'
           }}>
-            🔔
+            <SVGIcon name="notifications" />
           </button>
           <button style={{
             width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: 'transparent', border: '1px solid var(--color-hairline)',
             borderRadius: '50%', cursor: 'pointer'
           }}>
-            ⋮
+            <SVGIcon name="more" />
           </button>
         </div>
 
@@ -201,7 +219,7 @@ export default function Navigation() {
             borderRadius: 'var(--rounded-md)', cursor: 'pointer', marginLeft: 'auto'
           }}
         >
-          <span style={{ fontSize: 20 }}>{mobileOpen ? '✕' : '☰'}</span>
+          <SVGIcon name={mobileOpen ? "close" : "menu"} />
         </button>
       </div>
 
@@ -230,7 +248,7 @@ export default function Navigation() {
                     marginBottom: 2,
                     display: 'flex', alignItems: 'center', gap: 10
                   }}>
-                    <Icon emoji={item.icon} />
+                    <SVGIcon name={item.icon} />
                     {item.name}
                   </div>
                 )}
@@ -248,7 +266,7 @@ export default function Navigation() {
                   borderRadius: 'var(--rounded-sm)', cursor: 'pointer'
                 }}
               >
-                <Icon emoji="📁" />
+                <SVGIcon name="folder" />
                 {p.name}
               </button>
             ))}

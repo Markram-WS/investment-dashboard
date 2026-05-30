@@ -2,32 +2,32 @@
 
 React + TypeScript + Vite frontend สำหรับระบบจัดการพอร์ตโฟลเลียรีนับตามออเดอร์ (Portfolio Management System) 🚀
 
-## 📋 สรุปโครงสร้างโปรเจค
+## 📁 Frontend Project Structure
 
 ```
 frontend/
 ├── package.json              # Dependencies: React 18, Vite, TanStack Query, React Router
-├── vite.config.ts          # Vite config + define VITE_API_BASE_URL สำหรับ Docker env
-├── Dockerfile              # Node 20 Alpine - expose 5173
-├── .env                    # Environment variables (API URL)
-├── index.html              # Entry point
+├── vite.config.ts           # Vite config + proxy /api → backend:8000
+├── Dockerfile               # Node 20 Alpine - expose 5173
+├── .env                    # Environment: BACKEND_API_BASE_URL, VITE_API_BASE_URL
+├── index.html              # Entry point with Inter font
 ├── src/
 │   ├── main.tsx            # React entry: StrictMode + QueryClientProvider
-│   ├── App.tsx             # Router + Navigation layout
-│   ├── index.css           # Design tokens (Miro-inspired: --color-brand-teal, --color-primary)
+│   ├── App.tsx             # Router + Navigation layout (z-index: 100)
+│   ├── index.css           # Design tokens + animations (pulse, shimmer, gauge)
 │   │
 │   ├── lib/
 │   │   └── api.ts          # API wrapper: get/post/put/del + all endpoints
 │   │
-│   ├── services/
+│   ├── services/           # Legacy services (deprecated, use lib/api.ts)
 │   │   ├── overviewService.ts
 │   │   └── transactionsService.ts
 │   │
 │   ├── components/
-│   │   └── Navigation.tsx  # Top nav with portfolio dropdown + mobile menu
+│   │   └── Navigation.tsx  # Sticky nav with SVG icons + dropdown
 │   │
 │   ├── pages/              # Main routes (pages)
-│   │   ├── PortfolioOverview.tsx    # Overview: Cash stats + portfolio grid
+│   │   ├── PortfolioOverview.tsx    # Hero Card + Pool Health (SVG) + Grid
 │   │   ├── TransactionsPage.tsx     # Transaction history + filters
 │   │   ├── CreateNewPortfolio.tsx   # Portfolio creation form
 │   │   ├── RiskAnalytics.tsx        # Sharpe, VaR, Drawdown charts
@@ -42,7 +42,17 @@ frontend/
 │       ├── ManagedFund.tsx        # Managed fund: NAV, allocation, rebalance
 │       └── SpreadPairing.tsx      # Spread pairing: order pairs + zones
 │
-└── tests/
+├── assets/                 # SVG icons (Material Symbols style)
+│   ├── dashboard.svg       # overview icon
+│   ├── wallet.svg          # account_balance_wallet
+│   ├── swap.svg            # swap_horiz
+│   ├── security.svg        # security
+│   ├── folder.svg          # folder
+│   ├── expand.svg          # expand_more
+│   ├── notifications.svg   # notifications
+│   └── more.svg            # more_vert
+│
+└── tests/                # Vitest test suite
     ├── setupTests.ts
     ├── simple.test.ts
     ├── Navigation.test.tsx
@@ -168,7 +178,13 @@ Portfolio Grid (xl:grid-cols-2 on desktop)
 **Animations Added** (see index.css):
 - `.pulse-available` - Box shadow pulse for Available cash card
 - `.shimmer-bar` - Gradient sweep for threshold bars  
-- `.health-gauge-path` - SVG stroke-dashoffset transition (1.5s)
+- `.health-gauge-path` - SVG stroke-dashoffset transition (1.5s cubic-bezier)
+
+**Pool Health SVG Gauge (2026-05-30):**
+- Container: `display: flex` + `alignItems: center` + `width: 192px, height: 96px, overflow: hidden` 
+- SVG viewBox: `"0 0 100 100"` with semi-circle path `M 10 50 A 40 40 0 0 1 90 50`
+- Animation: strokeDashoffset animated from 125.6 (empty) → value based on pool_health_index
+- Centered with flexbox `alignItems: center`, text positioned at `bottom: -20` for proper alignment
 
 ## 📱 Pages & Routes
 

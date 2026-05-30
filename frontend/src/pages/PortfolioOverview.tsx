@@ -161,7 +161,7 @@ export default function PortfolioOverview() {
 
       {/* Widgets Row */}
       <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 32, position: 'relative', zIndex: 2 }}>
-        {/* Pool Health - SVG gauge from example.html */}
+        {/* Pool Health - SVG gauge centered */}
         <div style={{ background: 'var(--color-canvas)', border: '1px solid var(--color-hairline)',
                      borderRadius: 'var(--rounded-xxl)', padding: 32 }} className="animate-fade-up stagger-2">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
@@ -174,7 +174,7 @@ export default function PortfolioOverview() {
               <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Healthy</span>
             </div>
           </div>
-          <div style={{ position: 'relative', width: 192, height: 192 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 192, height: 96, overflow: 'hidden', position: 'relative', margin: '0 auto' }}>
             <svg width="192" height="192" viewBox="0 0 100 100">
               <path d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent" stroke="#f4f4f6" strokeWidth={12} />
               <path 
@@ -182,16 +182,16 @@ export default function PortfolioOverview() {
                 fill="transparent" 
                 stroke="#0fbcb0" 
                 strokeWidth={12}
+                className="health-gauge-path"
                 style={{ strokeDasharray: 125.6, strokeDashoffset: gaugeOffset }}
               />
             </svg>
-            <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', textAlign: 'center' }}>
+            <div style={{ position: 'absolute', bottom: -20, textAlign: 'center' }}>
               <p style={{ fontSize: 36, fontWeight: 800, letterSpacing: -1 }}>{pool_health_index.toFixed(0)}%</p>
-              <p style={{ fontSize: 10, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
-                Efficiency
-              </p>
+              <p style={{ fontSize: 10, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Efficiency</p>
             </div>
           </div>
+          
           <p style={{ fontSize: 14, color: 'var(--color-slate)', textAlign: 'center', marginTop: 24, padding: '0 48px' }}>
             Aggregated performance is 13.35% above the monthly risk benchmark.
           </p>
