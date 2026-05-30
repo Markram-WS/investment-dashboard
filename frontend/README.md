@@ -92,6 +92,75 @@ frontend/
 | Trade Plans | `/api/v1/trade-plans` | GET/POST |
 | Orders | `/api/v1/orders` | GET |
 
+## 🎨 UI Architecture (from DESIGN.md spec)
+
+### Visual Hierarchy
+
+```
+Header (sticky top-0)
+  ├─ Branding (InvestDesk/ Dashboard)
+  ├─ Navigation Links (Overview, All Assets, Transactions, Risk Analytics)
+  └─ Portfolio Dropdown + Top Right Utilities (notifications, more_vert)
+
+Hero Card
+  ├─ Asset Total + Overall P/L (+12.4%)
+  └─ Cash Breakdown: Lock / Buffer / Available / T+3
+
+Widgets Row (2-column grid)
+  ├─ Pool Health Gauge (semi-circle SVG, 93% animated)
+  └─ Money Reserve Status (Danger/Optimal/Neutral threshold bars)
+
+Portfolio Grid (xl:grid-cols-2 on desktop)
+  └─ Portfolio Cards:
+      ├─ Risk border color: teal (Safe) / yellow (Warning) / coral (Danger)
+      ├─ Profit percentage (top-right)
+      ├─ Left border accent (3px solid riskColor)
+      └─ Status message (pool health warning/rebalance)
+```
+
+### Animation & Effects
+
+| Feature | CSS Animation | Purpose |
+|---------|---------------|---------|
+| `animate-fade-up` | `fadeInUp` (0.6s) | Staggered entrance |
+| `pulse-available` | `scale(1 → 1.02)` | Available card highlight |
+| `shimmer-bar` | `linear-gradient` sweep | Visual interest |
+| `#health-gauge-path` | `stroke-dashoffset` transition | Gauge fill animation |
+
+### Design Tokens (index.css)
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--color-primary` | `#1c1c1e` | Main background, text |
+| `--color-brand-teal` | `#0fbcb0` | Safe status, profit |
+| `--color-brand-yellow` | `#ffd02f` | Warning, Available highlight |
+| `--color-brand-coral` | `#ff9999` | Danger status |
+| `--color-brand-blue` | `#4262ff` | Info, Neutral reserve |
+
+### Component Primitives
+
+- `.card` - White background, border, rounded-xl
+- `.btn-primary` - Dark pill button (rounded-full)
+- `.btn-ghost` - Transparent button
+- `.nav-link` - Navigation link styling
+- `.select-dropdown` - Portfolio selector dropdown
+
+### 🛠 Architectural Gap Analysis (IMPLEMENTED)
+
+| Current State | Design Spec Requirement | Status |
+|---------------|------------------------|--------|
+| Header not sticky | sticky top-0 with search/notification icons | ✅ Implemented (search input added) |
+| No Hero Card | Teal background, Asset Total + Overall P/L | ✅ Added Hero Card with `--color-teal-light` |
+| Cash: Margin/Money Market | Cash: Lock/Buffer/Available/T+3 | ✅ Labels renamed (Margin→Lock, Money Market→T+3) |
+| Circle gauge | Semi-circle SVG gauge (93% animated) | ✅ SVG path animation with `stroke-dashoffset` |
+| `auto-fill grid` (1-3 cols) | `xl:grid-cols-2` (2 cols) | ✅ Grid changed to `repeat(2, 1fr)` |
+| Portfolio cards (basic) | Tags + profit % + status indicator | ✅ Tags (crypto/bot/FUND) + Profit % + Status bar |
+
+**Animations Added** (see index.css):
+- `.pulse-available` - Box shadow pulse for Available cash card
+- `.shimmer-bar` - Gradient sweep for threshold bars  
+- `.health-gauge-path` - SVG stroke-dashoffset transition (1.5s)
+
 ## 📱 Pages & Routes
 
 | Route | Component | File | Description |

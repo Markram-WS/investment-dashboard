@@ -12,6 +12,11 @@
   --color-brand-coral: #ff9999;
   --color-brand-teal: #0fbcb0;
 
+  /* Light Variants (for hero card, available indicator) */
+  --color-teal-light: #c3faf5;
+  --color-coral-light: #ffc6c6;
+  --color-yellow-light: #fff9e6;
+
   /* Surface / Background */
   --color-canvas: #ffffff;
   --color-surface: #f7f8fa;
@@ -45,6 +50,7 @@
   --rounded-md: 8px;
   --rounded-lg: 12px;
   --rounded-xl: 16px;
+  --rounded-xxl: 20px;
   --rounded-full: 9999px;
 
   /* Spacing */
@@ -101,10 +107,11 @@ body {
 }
 
 .card-hover {
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 .card-hover:hover {
   box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 /* Button — Primary (dark pill) */
@@ -161,6 +168,49 @@ body {
 .badge-coral { background: rgba(255,153,153,0.18); color: #d94343; }
 .badge-blue { background: rgba(66,98,255,0.12); color: var(--color-brand-blue); }
 .badge-neutral { background: var(--color-surface); color: var(--color-slate); }
+
+/* Pulse Animation for Available indicator */
+@keyframes subtlePulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+.pulse-available {
+  animation: subtlePulse 2s infinite ease-in-out;
+}
+
+/* Shimmer Effect for bars */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-bar {
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s infinite linear;
+}
+
+/* Entrance Animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  opacity: 0;
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
+
+/* Health Gauge Animation Initial State */
+.health-gauge-path {
+  stroke-dasharray: 125.6;
+  stroke-dashoffset: 125.6;
+  transition: stroke-dashoffset 1.5s cubic-bezier(0.65, 0, 0.35, 1);
+}
 
 /* Select (custom dropdown) */
 .select-trigger {
@@ -313,3 +363,51 @@ body {
 .status-dot.yellow { background: var(--color-brand-yellow); }
 .status-dot.coral { background: var(--color-brand-coral); }
 .status-dot.blue { background: var(--color-brand-blue); }
+
+/* Responsive Portfolio Grid */
+.portfolio-grid {
+  display: grid;
+  gap: var(--space-lg);
+}
+@media (min-width: 1280px) {
+  .portfolio-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ===== Design Spec Animations ===== */
+
+/* Pulse animation for Available cash card */
+@keyframes pulse-available {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 208, 47, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(255, 208, 47, 0); }
+}
+.pulse-available {
+  animation: pulse-available 2s infinite;
+  position: relative;
+  z-index: 1;
+}
+
+/* Shimmer effect for status bars */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-bar {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-bar::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Health gauge SVG path animation */
+.health-gauge-path {
+  transition: stroke-dashoffset 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  stroke-linecap: round;
+}
