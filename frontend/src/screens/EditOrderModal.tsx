@@ -8,6 +8,7 @@ interface EditOrderModalProps {
   onClose: () => void;
   onSave: () => Promise<void>;
   onChange: (field: keyof typeof formData, value: any) => void;
+  zones: string[];
 }
 
 export const EditOrderModal: React.FC<EditOrderModalProps> = ({
@@ -17,6 +18,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   onClose,
   onSave,
   onChange,
+  zones,
 }) => {
   if (!showModal || !order) return null;
 
@@ -76,14 +78,29 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             />
           </div>
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Zone</label>
+            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">SL Price</label>
             <input
-              type="text"
-              value={formData.zone || ''}
-              onChange={(e) => onChange('zone', e.target.value)}
+              type="number"
+              step="any"
+              value={formData.sl_price || ''}
+              onChange={(e) => onChange('sl_price', parseFloat(e.target.value))}
               className="w-full border rounded px-3 py-2 text-sm"
-              placeholder="ZONE A, ZONE B, etc."
             />
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Zone</label>
+            <select
+              value={formData.zone || ''}
+              onChange={(e) => onChange('zone', e.target.value || null)}
+              className="w-full border rounded px-3 py-2 text-sm"
+            >
+              <option value="">-- No Zone --</option>
+              {zones.map((zone) => (
+                <option key={zone} value={zone}>
+                  {zone}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-6">

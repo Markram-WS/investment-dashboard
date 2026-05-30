@@ -73,6 +73,7 @@ class ActiveOrder(Base):
     leverage = Column(Numeric(20, 8))
     margin_rate = Column(Numeric(20, 8))
     order_status = Column(String, default='pending_sync')
+    sl_price = Column(Numeric(20, 8))
     grid_group_id = Column(String)
     zone = Column(String)  # Zone grouping: ZONE A, ZONE B, etc.
     spread_pair_id = Column(String)

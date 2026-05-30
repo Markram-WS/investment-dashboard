@@ -18,6 +18,7 @@ class ActiveOrderCreate(BaseModel):
     entry_price: Optional[float] = None
     current_price: Optional[float] = None
     tp_price: Optional[float] = None
+    sl_price: Optional[float] = None
     leverage: Optional[float] = None
     margin_rate: Optional[float] = None
     spread_pair_id: Optional[str] = None
@@ -30,6 +31,7 @@ class ActiveOrderUpdate(BaseModel):
     entry_price: Optional[float] = None
     current_price: Optional[float] = None
     tp_price: Optional[float] = None
+    sl_price: Optional[float] = None
     leverage: Optional[float] = None
     margin_rate: Optional[float] = None
     order_status: Optional[str] = None
@@ -47,6 +49,7 @@ class ActiveOrderResponse(BaseModel):
     entry_price: Optional[float]
     current_price: Optional[float]
     tp_price: Optional[float]
+    sl_price: Optional[float]
     leverage: Optional[float]
     margin_rate: Optional[float]
     order_status: str

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { EditOrderModal } from './EditOrderModal';
 import { useOrderEdit } from '../hooks/useOrderEdit';
 import { ZoneGroupRow } from './components/ZoneGroupRow';
-import { PortfolioData } from './types';
+import { PortfolioData, ZoneGroup } from './types';
 import { IconAdd } from '../components/icons/IconAdd';
 import { IconLayers } from '../components/icons/IconLayers';
 
@@ -42,7 +42,11 @@ const PortfolioGrid: React.FC = () => {
       }
       const data = await response.json();
       setPortfolios(data);
-      if (data.length > 0 && !selectedPortfolio) {
+      // อัปเดต selectedPortfolio จาก portfolios ใหม่
+      if (selectedPortfolio) {
+        const updatedSelected = data.find((p: PortfolioData) => p.portfolio_id === selectedPortfolio.portfolio_id);
+        setSelectedPortfolio(updatedSelected || (data.length > 0 ? data[0] : null));
+      } else if (data.length > 0) {
         setSelectedPortfolio(data[0]);
       }
       setLastUpdated(new Date());
@@ -76,11 +80,11 @@ const PortfolioGrid: React.FC = () => {
     const orders = selectedPortfolio?.active_orders || [];
     const groups: Record<string, ZoneGroup> = {};
 
-    // Sort orders by entry_price first
+    // Sort orders by entry_price first (DESC - จากมากไปน้อย)
     const sortedOrders = [...orders].sort((a, b) => {
       const priceA = a.entry_price ?? 0;
       const priceB = b.entry_price ?? 0;
-      return priceA - priceB;
+      return priceB - priceA; // DESC
     });
 
     sortedOrders.forEach(order => {
@@ -232,7 +236,9 @@ const PortfolioGrid: React.FC = () => {
                       <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Asset</th>
                       <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Side</th>
                       <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry</th>
+                      <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Qty</th>
                       <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">TP Target</th>
+                      <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">SL</th>
                       <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">P/L</th>
                       <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Status</th>
                       <th className="p-4 w-12"></th>
@@ -381,6 +387,7 @@ const PortfolioGrid: React.FC = () => {
         onClose={closeModal}
         onSave={handleSaveOrder}
         onChange={handleFormChange}
+        zones={zoneGroups.map(g => g.zone)}
       />
     </div>
   );

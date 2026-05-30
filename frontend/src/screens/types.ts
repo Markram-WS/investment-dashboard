@@ -8,6 +8,7 @@ export interface SpreadOrder {
   entry_price: number | null;
   current_price: number | null;
   tp_price: number | null;
+  sl_price: number | null;
   leverage: number | null;
   margin_rate: number | null;
   order_status: string;

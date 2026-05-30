@@ -54,7 +54,7 @@ export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit })
     <>
       {/* Zone header row */}
       <tr className="bg-surface border-b border-hairline">
-        <td className="pl-8 py-3" colSpan={9}>
+        <td className="pl-8 py-3" colSpan={10}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-tealLight text-brandTeal border border-brandTeal/20 uppercase tracking-wide">
@@ -91,7 +91,9 @@ export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit })
               </span>
             </td>
             <td className="py-4 text-xs font-medium">${order.entry_price ? order.entry_price.toLocaleString() : '-'}</td>
+            <td className="py-4 text-xs font-medium">{order.qty}</td>
             <td className="py-4 text-xs font-medium">${order.tp_price ? order.tp_price.toLocaleString() : '-'}</td>
+            <td className="py-4 text-xs font-medium">${order.sl_price ? order.sl_price.toLocaleString() : '-'}</td>
             <td className={`py-4 text-xs font-bold ${pl >= 0 ? 'text-brandTeal' : 'text-brandCoral'}`}>
               {pl >= 0 ? '+' : ''}${pl.toFixed(2)}
             </td>
@@ -122,6 +124,8 @@ export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit })
             </span>
           </td>
           <td className="py-2 text-[10px] font-medium text-slate/60">${order.entry_price ? order.entry_price.toLocaleString() : '-'}</td>
+          <td className="py-2 text-[10px] font-medium text-slate/60">{order.qty}</td>
+          <td className="py-2 text-[10px] font-medium text-slate/60">-</td>
           <td className="py-2 text-[10px] font-medium text-slate/60">-</td>
           <td className="py-2 text-slate/40 font-bold text-[10px]">-</td>
           <td className="py-2 text-[9px] text-slate font-bold uppercase tracking-wider">Pending</td>

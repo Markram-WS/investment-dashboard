@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 interface SpreadOrder {
   order_id: number;
@@ -32,7 +32,8 @@ export const useOrderEdit = (): UseOrderEditReturn => {
   const [editingOrder, setEditingOrder] = useState<SpreadOrder | null>(null);
   const [formData, setFormData] = useState<Partial<SpreadOrder>>({});
   const [showModal, setShowModal] = useState(false);
-  const [onRefresh, setOnRefresh] = useState<() => void>(() => {});
+  // ใช้ useRef เพื่อให้ได้ latest reference ของ callback
+  const onRefreshRef = useRef<() => void>(() => {});
 
   const startEdit = useCallback((order: SpreadOrder) => {
     setEditingOrder(order);
@@ -42,6 +43,7 @@ export const useOrderEdit = (): UseOrderEditReturn => {
       qty: order.qty,
       entry_price: order.entry_price,
       tp_price: order.tp_price,
+      sl_price: order.sl_price,
       zone: order.zone,
     });
     setShowModal(true);
@@ -71,13 +73,13 @@ export const useOrderEdit = (): UseOrderEditReturn => {
         throw new Error(`Failed to update order: ${response.statusText}`);
       }
 
-      // Refresh ก่อนปิด modal
-      onRefresh();
+      // Refresh ก่อนปิด modal - ใช้ latest reference
+      onRefreshRef.current();
       closeModal();
     } catch (error) {
       console.error('Error saving order:', error);
     }
-  }, [editingOrder, formData, onRefresh]);
+  }, [editingOrder, formData, closeModal]);
 
   return {
     editingOrder,
@@ -87,6 +89,8 @@ export const useOrderEdit = (): UseOrderEditReturn => {
     closeModal,
     handleFormChange,
     handleSaveOrder,
-    setOnRefresh: useCallback((callback: () => void) => setOnRefresh(() => callback), []),
+    setOnRefresh: useCallback((callback: () => void) => {
+      onRefreshRef.current = callback;
+    }, []),
   };
 };
