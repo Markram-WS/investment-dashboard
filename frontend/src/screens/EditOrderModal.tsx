@@ -10,10 +10,6 @@ interface EditOrderModalProps {
   onChange: (field: keyof typeof formData, value: any) => void;
 }
 
-const colors = {
-  brandTeal: '#0fbcb0',
-};
-
 export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   order,
   formData,
@@ -99,7 +95,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
           </button>
           <button
             onClick={onSave}
-            className="px-4 py-2 text-sm bg-brandTeal text-white rounded hover:bg-brandTeal/80"
+            className="px-4 py-2 text-sm bg-teal-600 text-white rounded hover:bg-teal-700"
           >
             Save Changes
           </button>
