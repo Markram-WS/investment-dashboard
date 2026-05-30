@@ -1,8 +1,0 @@
-FROM node:22-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-COPY vitest.config.ts ./
-COPY src/ ./src/
-RUN npm install --legacy-peer-deps --ignore-scripts
-RUN npm install -D vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event @testing-library/dom jsdom --legacy-peer-deps --ignore-scripts
-CMD ["node", "node_modules/vitest/vitest.mjs", "run", "src/pages/PortfolioOverview.test.tsx", "--reporter=verbose"]

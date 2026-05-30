@@ -90,7 +90,7 @@ PORTFOLIO_TYPES = [
 
 router = APIRouter()
 
-@router.get("/", tags=["portfolios"])
+@router.get("", tags=["portfolios"])
 async def list_portfolios(db: AsyncSession = Depends(get_db)):
     """List all portfolios with their risk status."""
     result = await db.execute(select(Portfolio))

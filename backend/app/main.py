@@ -20,6 +20,7 @@ app = FastAPI(
     title="Investment Dashboard API",
     description="Professional investment management system",
     version="0.1.0",
+    redirect_slashes=False,
 )
 
 # CORS Configuration
@@ -29,9 +30,6 @@ app.add_middleware(
         "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:5174",
-        "http://frontend:3000",
-        "http://frontend:5173",
-        "http://frontend:5174",
     ],
     allow_credentials=True,
     allow_methods=["*"],
