@@ -1,12 +1,12 @@
 import React from 'react';
-import { SpreadOrder } from './PortfolioGrid';
+import { SpreadOrder } from './types';
 
 interface EditOrderModalProps {
   order: SpreadOrder | null;
   formData: Partial<SpreadOrder>;
   showModal: boolean;
   onClose: () => void;
-  onSave: () => void;
+  onSave: () => Promise<void>;
   onChange: (field: keyof typeof formData, value: any) => void;
 }
 

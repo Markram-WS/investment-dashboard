@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 interface SpreadOrder {
   order_id: number;
@@ -24,15 +24,17 @@ interface UseOrderEditReturn {
   startEdit: (order: SpreadOrder) => void;
   closeModal: () => void;
   handleFormChange: (field: keyof Partial<SpreadOrder>, value: any) => void;
-  handleSaveOrder: () => Promise<boolean>;
+  handleSaveOrder: () => Promise<void>;
+  setOnRefresh: (callback: () => void) => void;
 }
 
 export const useOrderEdit = (): UseOrderEditReturn => {
   const [editingOrder, setEditingOrder] = useState<SpreadOrder | null>(null);
   const [formData, setFormData] = useState<Partial<SpreadOrder>>({});
   const [showModal, setShowModal] = useState(false);
+  const [onRefresh, setOnRefresh] = useState<() => void>(() => {});
 
-  const startEdit = (order: SpreadOrder) => {
+  const startEdit = useCallback((order: SpreadOrder) => {
     setEditingOrder(order);
     setFormData({
       asset_type: order.asset_type,
@@ -43,20 +45,20 @@ export const useOrderEdit = (): UseOrderEditReturn => {
       zone: order.zone,
     });
     setShowModal(true);
-  };
+  }, []);
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setShowModal(false);
     setEditingOrder(null);
     setFormData({});
-  };
+  }, []);
 
-  const handleFormChange = (field: keyof Partial<SpreadOrder>, value: any) => {
+  const handleFormChange = useCallback((field: keyof Partial<SpreadOrder>, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  }, []);
 
-  const handleSaveOrder = async (): Promise<boolean> => {
-    if (!editingOrder) return false;
+  const handleSaveOrder = useCallback(async () => {
+    if (!editingOrder) return;
 
     try {
       const response = await fetch(`/api/v1/orders/${editingOrder.order_id}`, {
@@ -69,13 +71,13 @@ export const useOrderEdit = (): UseOrderEditReturn => {
         throw new Error(`Failed to update order: ${response.statusText}`);
       }
 
+      // Refresh ก่อนปิด modal
+      onRefresh();
       closeModal();
-      return true;
     } catch (error) {
       console.error('Error saving order:', error);
-      return false;
     }
-  };
+  }, [editingOrder, formData, onRefresh]);
 
   return {
     editingOrder,
@@ -85,5 +87,6 @@ export const useOrderEdit = (): UseOrderEditReturn => {
     closeModal,
     handleFormChange,
     handleSaveOrder,
+    setOnRefresh: useCallback((callback: () => void) => setOnRefresh(() => callback), []),
   };
 };

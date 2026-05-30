@@ -1,142 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { EditOrderModal } from './EditOrderModal';
 import { useOrderEdit } from '../hooks/useOrderEdit';
+import { ZoneGroupRow } from './components/ZoneGroupRow';
+import { PortfolioData } from './types';
+import { IconAdd } from '../components/icons/IconAdd';
+import { IconLayers } from '../components/icons/IconLayers';
 
 // Design tokens from UI-LAYOUT-PORTFOLIO-ANALYTICS-SPREAD.md
 const colors = {
-  primary: '#1c1c1e',
-  onPrimary: '#ffffff',
-  brandYellow: '#ffd02f',
   brandTeal: '#0fbcb0',
   tealLight: '#e0f7f6',
   brandCoral: '#ff9999',
   coralLight: '#fdeced',
-  brandBlue: '#4262ff',
-  canvas: '#ffffff',
-  surface: '#f7f8fa',
-  hairline: '#e0e2e8',
-  ink: '#1c1c1e',
   slate: '#555a6a',
+  hairline: '#e0e2e8',
+  surface: '#f7f8fa',
+  brandYellow: '#ffd02f',
   success: '#00b473',
   warning: '#f4d03f',
   error: '#e74c3c',
 };
-
-// SVG Icon components
-const IconEdit: React.FC<{className?: string}> = ({className = "w-4 h-4"}) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 11.5 8 16l4.5-7.5z" />
-  </svg>
-);
-
-const IconClose: React.FC<{className?: string}> = ({className = "w-4 h-4"}) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <line x1="18" y1="6" x2="6" y2="18" />
-    <line x1="6" y1="6" x2="18" y2="18" />
-  </svg>
-);
-
-const IconAdd: React.FC<{className?: string}> = ({className = "w-5 h-5"}) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <line x1="12" y1="5" x2="12" y2="19" />
-    <line x1="5" y1="12" x2="19" y2="12" />
-  </svg>
-);
-
-const IconLayers: React.FC<{className?: string}> = ({className = "w-5 h-5"}) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M12 2L2 7l10 5 10-5-10-5z" />
-    <path d="M2 17l10 5 10-5" />
-    <path d="M2 12l10 5 10-5" />
-  </svg>
-);
-
-// Types based on API response
-interface SpreadOrder {
-  order_id: number;
-  asset_type: string;
-  side: string;
-  qty: number | string;
-  entry_price: number | null;
-  current_price: number | null;
-  tp_price: number | null;
-  leverage: number | null;
-  margin_rate: number | null;
-  order_status: string;
-  executed_by: string;
-  created_at: string | null;
-  spread_pair_id: string | null;
-  zone: string | null;  // Zone grouping
-}
-
-interface SpreadPair {
-  pair_id: string;
-  leg_a: {
-    order_id: number;
-    asset_type: string;
-    side: string;
-    qty: number | string;
-    entry_price: number | null;
-    current_price: number | null;
-    tp_price: number | null;
-    leverage: number | null;
-    margin_rate: number | null;
-    order_status: string;
-    executed_by: string;
-    created_at: string | null;
-  };
-  leg_b: {
-    order_id: number;
-    asset_type: string;
-    side: string;
-    qty: number | string;
-    entry_price: number | null;
-    current_price: number | null;
-    tp_price: number | null;
-    leverage: number | null;
-    margin_rate: number | null;
-    order_status: string;
-    executed_by: string;
-    created_at: string | null;
-  };
-  net_pl: number | null;
-  spread_diff: number | null;
-  zone: string | null;
-}
-
-interface RecentTrade {
-  history_id: number;
-  type: string;
-  asset: string;
-  amount: number;
-  exit_price: number;
-  realized_pl: number;
-  executed_by: string;
-  decision_note: string;
-  entry_date: string;
-  exit_date: string;
-}
-
-interface PortfolioData {
-  portfolio_id: number;
-  portfolio_name: string;
-  port_type: string;
-  risk_status: string;
-  trade_plan_md: string | null;
-  ai_reasoning: string | null;
-  ai_risk_insight: string | null;
-  spread_pairs: SpreadPair[];
-  active_orders: SpreadOrder[];
-  recent_trades: RecentTrade[];
-}
-
-// Zone-specific grouping types
-interface ZoneGroup {
-  zone: string;
-  mainOrders: SpreadOrder[]; // Active positions (filled status)
-  pendingCloseOrders: SpreadOrder[]; // Orders waiting to close (pending_sync)
-}
 
 const PortfolioGrid: React.FC = () => {
   const [portfolios, setPortfolios] = useState<PortfolioData[]>([]);
@@ -145,18 +28,7 @@ const PortfolioGrid: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [showHistorical, setShowHistorical] = useState(false);
-  const [groupByZone, setGroupByZone] = useState(true); // Zone grouping toggle
-
-  // Order edit hook (SRP - separated state management)
-  const {
-    editingOrder,
-    formData,
-    showModal,
-    startEdit,
-    closeModal,
-    handleFormChange,
-    handleSaveOrder,
-  } = useOrderEdit();
+  const [groupByZone, setGroupByZone] = useState(true);
 
   useEffect(() => {
     fetchAnalyticsData();
@@ -182,45 +54,54 @@ const PortfolioGrid: React.FC = () => {
     }
   };
 
-  // Group orders by Zone (ZONE A, ZONE B, etc.)
-  const groupOrdersByZone = (orders: SpreadOrder[]): ZoneGroup[] => {
+  // Order edit hook (SRP - separated state management)
+  const {
+    editingOrder,
+    formData,
+    showModal,
+    startEdit,
+    closeModal,
+    handleFormChange,
+    handleSaveOrder,
+    setOnRefresh,
+  } = useOrderEdit();
+
+  // Register refresh callback once on mount
+  useEffect(() => {
+    setOnRefresh(() => fetchAnalyticsData);
+  }, [setOnRefresh]);
+
+  // Group orders by Zone - using useMemo to prevent stale closure issues
+  const zoneGroups = useMemo(() => {
+    const orders = selectedPortfolio?.active_orders || [];
     const groups: Record<string, ZoneGroup> = {};
-    
-    orders.forEach(order => {
-      const zone = order.zone || 'ZONE A'; // Default zone
+
+    // Sort orders by entry_price first
+    const sortedOrders = [...orders].sort((a, b) => {
+      const priceA = a.entry_price ?? 0;
+      const priceB = b.entry_price ?? 0;
+      return priceA - priceB;
+    });
+
+    sortedOrders.forEach(order => {
+      const zone = order.zone || 'ZONE A';
       if (!groups[zone]) {
         groups[zone] = {
           zone,
-          mainOrders: [], // Active positions (filled status)
-          pendingCloseOrders: [], // Orders waiting to close (pending_sync)
+          mainOrders: [],
+          pendingCloseOrders: [],
         };
       }
-      
-      // Group based on order_status
+
       if (order.order_status === 'filled') {
         groups[zone].mainOrders.push(order);
       } else if (order.order_status === 'pending_sync') {
         groups[zone].pendingCloseOrders.push(order);
       }
     });
-    
+
     return Object.values(groups);
-  };
-
-  const getZonePriceRange = (zone: string, orders: SpreadOrder[]): string => {
-    // Calculate price range from orders in this zone
-    const prices = orders.map(o => o.entry_price).filter(p => p !== null) as number[];
-    if (prices.length === 0) return '';
-    const min = Math.min(...prices);
-    const max = Math.max(...prices);
-    return `$${min.toLocaleString()}-$${max.toLocaleString()}`;
-  };
-
-  const getZoneBase = (orders: SpreadOrder[]): string => {
-    if (orders.length === 0) return '';
-    const avgPrice = orders.reduce((sum, o) => sum + (o.entry_price || 0), 0) / orders.length;
-    return `Grid Base: $${avgPrice.toFixed(2)}`;
-  };
+  }, [selectedPortfolio?.active_orders]);
 
   const renderRiskStatus = (status: string) => {
     const statusColors = {
@@ -242,9 +123,8 @@ const PortfolioGrid: React.FC = () => {
       .replace(/\n$/gim, '<br />');
   };
 
-  // Check if portfolio is Grid type (Margin)
   const isGridType = (portfolio: PortfolioData | null) => {
-    return portfolio?.port_type?.toLowerCase().includes('grid') || 
+    return portfolio?.port_type?.toLowerCase().includes('grid') ||
            portfolio?.port_type?.toLowerCase().includes('margin');
   };
 
@@ -271,9 +151,6 @@ const PortfolioGrid: React.FC = () => {
       </div>
     );
   }
-
-  // Group active orders by Zone
-  const zoneGroups = groupOrdersByZone(selectedPortfolio.active_orders || []);
 
   return (
     <div className="p-4 h-full flex flex-col">
@@ -343,122 +220,28 @@ const PortfolioGrid: React.FC = () => {
                 </div>
               )}
             </div>
-            
+
             {isGridType(selectedPortfolio) && zoneGroups.length > 0 && groupByZone ? (
-              // Grid type - show Zone-grouped view (from example.html)
+              // Grid type - show Zone-grouped view
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-surface border-y border-hairline">
-                      <th className="p-4 pl-8 text-[10px] font-bold text-steel uppercase tracking-widest">ID</th>
-                      <th className="p-4 text-[10px] font-bold text-steel uppercase tracking-widest">Zone</th>
-                      <th className="p-4 text-[10px] font-bold text-steel uppercase tracking-widest">Asset</th>
-                      <th className="p-4 text-[10px] font-bold text-steel uppercase tracking-widest">Side</th>
-                      <th className="p-4 text-[10px] font-bold text-steel uppercase tracking-widest">Entry</th>
-                      <th className="p-4 text-[10px] font-bold text-steel uppercase tracking-widest">TP Target</th>
-                      <th className="p-4 text-[10px] font-bold text-steel uppercase tracking-widest">P/L</th>
-                      <th className="p-4 text-[10px] font-bold text-steel uppercase tracking-widest">Status</th>
+                      <th className="p-4 pl-8 text-[10px] font-bold text-slate uppercase tracking-widest">ID</th>
+                      <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Zone</th>
+                      <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Asset</th>
+                      <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Side</th>
+                      <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry</th>
+                      <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">TP Target</th>
+                      <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">P/L</th>
+                      <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Status</th>
                       <th className="p-4 w-12"></th>
                     </tr>
                   </thead>
                   <tbody className="text-sm text-ink">
-                    {zoneGroups.map((zoneGroup) => {
-                      const zonePriceRange = getZonePriceRange(zoneGroup.zone, [...zoneGroup.mainOrders, ...zoneGroup.pendingCloseOrders]);
-                      const zoneBase = getZoneBase([...zoneGroup.mainOrders, ...zoneGroup.pendingCloseOrders]);
-                      
-                      return (
-                        <React.Fragment key={zoneGroup.zone}>
-                          {/* Zone header row */}
-                          <tr className="bg-surface border-b border-hairline">
-                            <td className="pl-8 py-3" colSpan={9}>
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-tealLight text-brandTeal border border-brandTeal/20 uppercase tracking-wide">
-                                    {zoneGroup.zone}: {zonePriceRange}
-                                  </span>
-                                  <span className="text-[10px] font-bold text-slate uppercase tracking-widest">{zoneBase}</span>
-                                </div>
-                                <div className="flex gap-2 pr-4">
-                                  <button className="px-3 py-1 text-[9px] font-bold border border-hairline rounded-full bg-white hover:bg-surface transition-colors uppercase tracking-wider">
-                                    Consolidate TP
-                                  </button>
-                                  <button className="px-3 py-1 text-[9px] font-bold bg-brandTeal/10 text-brandTeal border border-brandTeal/20 rounded-full hover:bg-brandTeal/20 transition-colors uppercase tracking-wider">
-                                    Close Zone Profit
-                                  </button>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                          
-                          {/* Main orders in this zone */}
-                          {zoneGroup.mainOrders.map((order) => {
-                            const pl = order.current_price && order.entry_price 
-                              ? (order.current_price - order.entry_price) * Number(order.qty)
-                              : 0;
-                            
-                            return (
-                              <tr key={order.order_id} className="border-b border-hairline hover:bg-surface/50 transition-colors trade-group-border">
-                                <td className="pl-8 py-4 font-bold text-xs">#{order.order_id}</td>
-                                <td className="py-4 text-xs text-slate font-medium">{zoneGroup.zone}</td>
-                                <td className="py-4 font-bold text-xs uppercase">{order.asset_type}</td>
-                                <td className="py-4">
-                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                    order.side === 'BUY' || order.side === 'Buy' || order.side === 'buy'
-                                      ? 'bg-tealLight text-brandTeal border border-brandTeal/20 uppercase'
-                                      : 'bg-coralLight text-brandCoral border border-brandCoral/20 uppercase'
-                                  }`}>
-                                    {order.side}
-                                  </span>
-                                </td>
-                                <td className="py-4 text-xs font-medium">${order.entry_price ? order.entry_price.toLocaleString() : '-'}</td>
-                                <td className="py-4 text-xs font-medium">${order.tp_price ? order.tp_price.toLocaleString() : '-'}</td>
-                                <td className={`py-4 text-xs font-bold ${pl >= 0 ? 'text-brandTeal' : 'text-brandCoral'}`}>
-                                  {pl >= 0 ? '+' : ''}${pl.toFixed(2)}
-                                </td>
-                                <td className="py-4 text-[10px] text-slate font-bold uppercase tracking-wider">{order.order_status}</td>
-                                <td className="pr-6 text-right py-4">
-                                  <button 
-                                    onClick={() => startEdit(order)}
-                                    className="p-1.5 hover:bg-canvas rounded-full transition-colors text-steel border border-hairlineSoft"
-                                  >
-                                    <IconEdit className="w-4 h-4" />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                          
-                          {/* Pending close orders (sub-orders with yellow border) */}
-                          {zoneGroup.pendingCloseOrders.map((order) => (
-                            <tr key={order.order_id} className="border-b border-hairline hover:bg-surface transition-colors" 
-                                style={{borderLeft: '3px solid #ffd02f'}}>
-                              <td className="pl-12 py-2 font-bold text-[10px] text-slate">{order.order_id}-S</td>
-                              <td className="py-2 text-[10px] text-slate/60 font-medium">Pending Sync</td>
-                              <td className="py-2 text-[10px] font-medium text-slate/60">{zoneGroup.zone}</td>
-                              <td className="py-2 font-bold text-[10px] uppercase text-slate/60">{order.asset_type}</td>
-                              <td className="py-2">
-                                <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${
-                                  order.side === 'BUY' || order.side === 'Buy' || order.side === 'buy'
-                                    ? 'bg-tealLight text-brandTeal border border-brandTeal/20'
-                                    : 'bg-coralLight text-brandCoral border border-brandCoral/20'
-                                } uppercase`}>
-                                  {order.side}
-                                </span>
-                              </td>
-                              <td className="py-2 text-[10px] font-medium text-slate/60">${order.entry_price ? order.entry_price.toLocaleString() : '-'}</td>
-                              <td className="py-2 text-[10px] font-medium text-slate/60">-</td>
-                              <td className="py-2 text-slate/40 font-bold text-[10px]">-</td>
-                              <td className="py-2 text-[9px] text-slate font-bold uppercase tracking-wider">Pending</td>
-                              <td className="pr-6 text-right py-2">
-                                <button className="p-1 hover:bg-canvas rounded-full transition-colors text-steel/40 border border-hairlineSoft">
-                                  <IconClose className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </React.Fragment>
-                      );
-                    })}
+                    {zoneGroups.map((zoneGroup) => (
+                      <ZoneGroupRow key={zoneGroup.zone} zoneGroup={zoneGroup} onEdit={startEdit} />
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -506,7 +289,7 @@ const PortfolioGrid: React.FC = () => {
               </div>
             )}
           </div>
-          
+
           {/* Add Order footer button */}
           <div className="h-12 w-full flex items-center justify-center border-t border-hairline bg-surface/50">
             <div className="relative flex -mt-10 z-10">
@@ -528,7 +311,7 @@ const PortfolioGrid: React.FC = () => {
             <h3 className="font-semibold mb-2 text-gray-700">Trade Plan</h3>
             <div className="bg-yellow-100 p-3 rounded shadow mb-4">
               {selectedPortfolio.trade_plan_md ? (
-                <div 
+                <div
                   className="text-sm text-gray-700 whitespace-pre-wrap"
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(selectedPortfolio.trade_plan_md) }}
                 />
@@ -562,7 +345,7 @@ const PortfolioGrid: React.FC = () => {
               <span>Historical Grid System</span>
               <span className="text-xs">{showHistorical ? '▼' : '▶'}</span>
             </button>
-            
+
             {showHistorical && (
               <div className="space-y-2 max-h-64 overflow-auto mt-2">
                 {selectedPortfolio.recent_trades && selectedPortfolio.recent_trades.length > 0 ? (
