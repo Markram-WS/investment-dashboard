@@ -1,5 +1,5 @@
 import React from 'react';
-import { ZoneGroup, SpreadOrder } from './types';
+import { ZoneGroup, SpreadOrder } from '../types';
 
 // Design tokens
 const colors = {
@@ -16,6 +16,7 @@ const colors = {
 interface ZoneGroupRowProps {
   zoneGroup: ZoneGroup;
   onEdit: (order: SpreadOrder) => void;
+  onEditZone?: (orders: SpreadOrder[], zone: string) => void; // แก้ไขหลาย orders ในกลุ่ม
 }
 
 const IconEdit: React.FC<{className?: string}> = ({className = "w-4 h-4"}) => (
@@ -25,7 +26,7 @@ const IconEdit: React.FC<{className?: string}> = ({className = "w-4 h-4"}) => (
   </svg>
 );
 
-export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit }) => {
+export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit, onEditZone }) => {
   const zonePriceRange = (orders: SpreadOrder[]): string => {
     const prices = orders.map(o => o.entry_price).filter(p => p !== null) as number[];
     if (prices.length === 0) return '';
@@ -63,11 +64,12 @@ export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit })
               <span className="text-[10px] font-bold text-slate uppercase tracking-widest">{basePrice}</span>
             </div>
             <div className="flex gap-2 pr-4">
-              <button className="px-3 py-1 text-[9px] font-bold border border-hairline rounded-full bg-white hover:bg-surface transition-colors uppercase tracking-wider">
-                Consolidate TP
-              </button>
-              <button className="px-3 py-1 text-[9px] font-bold bg-brandTeal/10 text-brandTeal border border-brandTeal/20 rounded-full hover:bg-brandTeal/20 transition-colors uppercase tracking-wider">
-                Close Zone Profit
+              <button
+                onClick={() => onEditZone?.(allOrders, zoneGroup.zone)}
+                className="p-1.5 hover:bg-white rounded-full transition-colors text-slate border border-hairline"
+                title="Edit Zone"
+              >
+                <IconEdit className="w-4 h-4" />
               </button>
             </div>
           </div>

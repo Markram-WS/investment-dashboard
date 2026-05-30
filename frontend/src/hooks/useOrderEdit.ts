@@ -8,6 +8,7 @@ interface SpreadOrder {
   entry_price: number | null;
   current_price: number | null;
   tp_price: number | null;
+  sl_price: number | null;
   leverage: number | null;
   margin_rate: number | null;
   order_status: string;
@@ -73,13 +74,15 @@ export const useOrderEdit = (): UseOrderEditReturn => {
         throw new Error(`Failed to update order: ${response.statusText}`);
       }
 
-      // Refresh ก่อนปิด modal - ใช้ latest reference
-      onRefreshRef.current();
-      closeModal();
+      // เรียก refresh function ก่อนปิด modal
+      if (onRefreshRef.current) {
+        onRefreshRef.current();
+      }
+      setShowModal(false);
     } catch (error) {
       console.error('Error saving order:', error);
     }
-  }, [editingOrder, formData, closeModal]);
+  }, [editingOrder, formData]);
 
   return {
     editingOrder,
