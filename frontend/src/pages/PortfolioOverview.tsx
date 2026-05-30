@@ -92,7 +92,6 @@ export default function PortfolioOverview() {
 
   const getProfitPct = (p: PortfolioOverviewItem) => {
     if (p.profit_percentage !== undefined) return p.profit_percentage;
-    // Fallback: estimate from available ratio (not hardcode mock value)
     const total = p.margin + p.buffer + p.available;
     return total > 0 ? (p.available / total * 100) : 0;
   };
@@ -180,7 +179,7 @@ export default function PortfolioOverview() {
       </section>
 
       {/* Widgets Row */}
-      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 32 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 32, position: 'relative', zIndex: 2 }}>
         {/* Pool Health */}
         <div style={{ background: 'var(--color-canvas)', border: '1px solid var(--color-hairline)',
                      borderRadius: 'var(--rounded-xxl)', padding: 32 }} className="animate-fade-up stagger-2">
@@ -194,14 +193,14 @@ export default function PortfolioOverview() {
               <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Healthy</span>
             </div>
           </div>
-          <div style={{ position: 'relative', width: 192, height: 96, overflow: 'hidden', margin: '0 auto' }}>
-            <svg width="192" height="96" viewBox="0 0 100 50">
-              <path d="M 10 40 A 40 40 0 0 1 90 40" fill="transparent" stroke="#f4f4f6" strokeWidth="12" />
+          <div style={{ position: 'relative', width: 192, height: 120, overflow: 'visible', margin: '0 auto' }}>
+            <svg width="192" height="120" viewBox="0 0 100 60">
+              <path d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent" stroke="#f4f4f6" strokeWidth="10" />
               <path 
-                d="M 10 40 A 40 40 0 0 1 90 40" 
+                d="M 10 50 A 40 40 0 0 1 90 50" 
                 fill="transparent" 
                 stroke="#0fbcb0" 
-                strokeWidth="12"
+                strokeWidth="10"
                 className="health-gauge-path"
                 style={{ strokeDasharray: 125.6, strokeDashoffset: gaugeOffset }}
               />
@@ -256,7 +255,7 @@ export default function PortfolioOverview() {
       </section>
 
       {/* Portfolio Grid - 2 columns on desktop */}
-      <section>
+      <section style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
           <h2 style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-primary)', letterSpacing: -0.5 }}>
             Active Portfolios
@@ -334,7 +333,7 @@ export default function PortfolioOverview() {
                         color: 'var(--color-brand-teal)',
                         margin: 0
                       }}>
-                        +{profitPct}%
+                        +{profitPct.toFixed(1)}%
                       </p>
                     </div>
                   </div>
