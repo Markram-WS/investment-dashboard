@@ -1,0 +1,110 @@
+import React from 'react';
+import { SpreadOrder } from './PortfolioGrid';
+
+interface EditOrderModalProps {
+  order: SpreadOrder | null;
+  formData: Partial<SpreadOrder>;
+  showModal: boolean;
+  onClose: () => void;
+  onSave: () => void;
+  onChange: (field: keyof typeof formData, value: any) => void;
+}
+
+const colors = {
+  brandTeal: '#0fbcb0',
+};
+
+export const EditOrderModal: React.FC<EditOrderModalProps> = ({
+  order,
+  formData,
+  showModal,
+  onClose,
+  onSave,
+  onChange,
+}) => {
+  if (!showModal || !order) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+        <h3 className="text-lg font-bold mb-4">Edit Order #{order.order_id}</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Asset Type</label>
+            <input
+              type="text"
+              value={formData.asset_type || ''}
+              onChange={(e) => onChange('asset_type', e.target.value)}
+              className="w-full border rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Side</label>
+            <select
+              value={formData.side || ''}
+              onChange={(e) => onChange('side', e.target.value)}
+              className="w-full border rounded px-3 py-2 text-sm"
+            >
+              <option value="BUY">BUY</option>
+              <option value="SELL">SELL</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Qty</label>
+            <input
+              type="number"
+              step="any"
+              value={formData.qty || ''}
+              onChange={(e) => onChange('qty', parseFloat(e.target.value))}
+              className="w-full border rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Entry Price</label>
+            <input
+              type="number"
+              step="any"
+              value={formData.entry_price || ''}
+              onChange={(e) => onChange('entry_price', parseFloat(e.target.value))}
+              className="w-full border rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">TP Price</label>
+            <input
+              type="number"
+              step="any"
+              value={formData.tp_price || ''}
+              onChange={(e) => onChange('tp_price', parseFloat(e.target.value))}
+              className="w-full border rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Zone</label>
+            <input
+              type="text"
+              value={formData.zone || ''}
+              onChange={(e) => onChange('zone', e.target.value)}
+              className="w-full border rounded px-3 py-2 text-sm"
+              placeholder="ZONE A, ZONE B, etc."
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-6">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm border rounded hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSave}
+            className="px-4 py-2 text-sm bg-brandTeal text-white rounded hover:bg-brandTeal/80"
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

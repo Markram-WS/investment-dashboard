@@ -23,6 +23,20 @@ class ActiveOrderCreate(BaseModel):
     spread_pair_id: Optional[str] = None
 
 
+class ActiveOrderUpdate(BaseModel):
+    asset_type: Optional[str] = None
+    side: Optional[str] = None
+    qty: Optional[float] = None
+    entry_price: Optional[float] = None
+    current_price: Optional[float] = None
+    tp_price: Optional[float] = None
+    leverage: Optional[float] = None
+    margin_rate: Optional[float] = None
+    order_status: Optional[str] = None
+    zone: Optional[str] = None
+    spread_pair_id: Optional[str] = None
+
+
 class ActiveOrderResponse(BaseModel):
     order_id: int
     plan_id: int
@@ -85,3 +99,21 @@ async def update_order_status(order_id: int, payload: Dict[str, Any], db: AsyncS
         await db.refresh(order)
     
     return {"order_id": order.order_id, "order_status": order.order_status}
+
+
+@router.put("/{order_id}", tags=["orders"], response_model=ActiveOrderResponse)
+async def update_order(order_id: int, order_update: ActiveOrderUpdate, db: AsyncSession = Depends(get_db)):
+    """Update an active order with new values."""
+    result = await db.execute(select(ActiveOrder).where(ActiveOrder.order_id == order_id))
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Update only provided fields
+    update_data = order_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(order, field, value)
+    
+    await db.commit()
+    await db.refresh(order)
+    return order

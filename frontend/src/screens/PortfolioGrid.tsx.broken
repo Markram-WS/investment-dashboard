@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { EditOrderModal } from './EditOrderModal';
-import { useOrderEdit } from '../hooks/useOrderEdit';
 
 // Design tokens from UI-LAYOUT-PORTFOLIO-ANALYTICS-SPREAD.md
 const colors = {
@@ -146,17 +144,8 @@ const PortfolioGrid: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [showHistorical, setShowHistorical] = useState(false);
   const [groupByZone, setGroupByZone] = useState(true); // Zone grouping toggle
-
-  // Order edit hook (SRP - separated state management)
-  const {
-    editingOrder,
-    formData,
-    showModal,
-    startEdit,
-    closeModal,
-    handleFormChange,
-    handleSaveOrder,
-  } = useOrderEdit();
+  const [editingOrder, setEditingOrder] = useState<SpreadOrder | null>(null);
+  const [editForm, setEditForm] = useState<Partial<SpreadOrder>>({});
 
   useEffect(() => {
     fetchAnalyticsData();
@@ -246,6 +235,51 @@ const PortfolioGrid: React.FC = () => {
   const isGridType = (portfolio: PortfolioData | null) => {
     return portfolio?.port_type?.toLowerCase().includes('grid') || 
            portfolio?.port_type?.toLowerCase().includes('margin');
+  };
+
+  // Handle edit order
+  const handleEditOrder = (order: SpreadOrder) => {
+    setEditingOrder(order);
+    setEditForm({
+      asset_type: order.asset_type,
+      side: order.side,
+      qty: order.qty,
+      entry_price: order.entry_price,
+      tp_price: order.tp_price,
+      order_status: order.order_status,
+      zone: order.zone,
+    });
+  };
+
+  // Save edited order
+  const handleSaveOrder = async () => {
+    if (!editingOrder) return;
+    
+    try {
+      const response = await fetch(`/api/v1/orders/${editingOrder.order_id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editForm),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update order');
+      }
+      
+      // Refresh data to show updated values
+      fetchAnalyticsData();
+      setEditingOrder(null);
+      setEditForm({});
+    } catch (err) {
+      console.error('Error updating order:', err);
+    }
+  };
+
+  // Handle form field changes
+  const handleFormChange = (field: keyof typeof editForm, value: any) => {
+    setEditForm(prev => ({ ...prev, [field]: value }));
   };
 
   if (loading) {
@@ -418,8 +452,8 @@ const PortfolioGrid: React.FC = () => {
                                 <td className="py-4 text-[10px] text-slate font-bold uppercase tracking-wider">{order.order_status}</td>
                                 <td className="pr-6 text-right py-4">
                                   <button 
-                                    onClick={() => startEdit(order)}
                                     className="p-1.5 hover:bg-canvas rounded-full transition-colors text-steel border border-hairlineSoft"
+                                    onClick={() => handleEditOrder(order)}
                                   >
                                     <IconEdit className="w-4 h-4" />
                                   </button>
@@ -589,16 +623,6 @@ const PortfolioGrid: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Edit Order Modal */}
-      <EditOrderModal
-        order={editingOrder}
-        formData={formData}
-        showModal={showModal}
-        onClose={closeModal}
-        onSave={handleSaveOrder}
-        onChange={handleFormChange}
-      />
     </div>
   );
 };
