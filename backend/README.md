@@ -59,6 +59,7 @@ open http://localhost:8000/docs
 > `portfolios.internal_notes` stores free-text observations; editable via `PUT /api/v1/portfolios/{id}`.
 > `portfolios.tags` is a JSONB map of key→bool for metadata filtering.
 > `available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit` are returned in the portfolio-grid analytics response.
+> `risk_score` (0–100) is computed server-side from `available_cash`, `margin_locked`, `cash_buffer_limit` — matching the frontend risk gauge logic.
 > All services auto-restart unless stopped. Logs: `podman compose logs -f backend`.
 
 ---
@@ -116,7 +117,7 @@ open http://localhost:8000/docs
 ### Portfolio Grid
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
-| `GET` | `/api/v1/analytics/portfolio-grid?portfolio_id=` | Full grid data: orders, cash details (`available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit`), tags, trade plan, internal notes |
+| `GET` | `/api/v1/analytics/portfolio-grid?portfolio_id=` | Full grid data: orders, cash details (`available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit`), `risk_score`, tags, trade plan, internal notes |
 
 ### Trade History
 | Method | Endpoint | Description |

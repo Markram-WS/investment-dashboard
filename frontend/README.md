@@ -62,11 +62,12 @@ frontend/
 │   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID UUID, asset, side, qty, TP/SL, zone, status)
 │   │   ├── CloseOrderModal.tsx     # Close order form (editable Close ID UUID, exit price, P/L, auto-calc)
 │   │   ├── EditOrderModal.tsx       # Order edit modal
+│   │   ├── EditPortfolioModal.tsx   # Portfolio field editor: name, NAV, margin, buffer, cash, MM, tags
 │   │   ├── ZoneEditModal.tsx        # Zone edit modal
 │   │   ├── ZoneGroupModal.tsx       # Zone group CRUD (add/edit/delete zone definitions)
 │   │   └── components/
 │   │       ├── PortfolioHeader.tsx    # Breadcrumb, title, Refresh + Add Order buttons
-│   │       ├── SummaryCard.tsx        # 3-col values, Cash Details grid, Risk gauge, Asset Allocation, Tags
+│   │       ├── SummaryCard.tsx        # 3-col values, Cash Details (Total Notional), Risk gauge (dynamic), Asset Allocation (real data), Tags, triple-dot edit
 │   │       ├── StrategyNotes.tsx      # Trade Plan + Internal Notes (both inline-editable, yellow sticky)
 │   │       ├── TagsSection.tsx        # Metadata tag pills
 │   │       ├── PerformanceSection.tsx # Performance wrapper + Equity/Payoff toggle
@@ -187,7 +188,32 @@ Portfolio Grid (xl:grid-cols-2 on desktop)
 | `--color-brand-coral` | `#ff9999` | Danger status |
 | `--color-brand-blue` | `#4262ff` | Info, Neutral reserve |
 
-### Navigation Component (Navigation.tsx)
+### Risk Level Gauge (Portfolio Summary)
+
+The risk donut is computed dynamically from cash data:
+
+- **`cashBufferLimit ≠ 0`**: `((availableCash − marginLocked) / cashBufferLimit) × 100` (capped at 100)
+- **`cashBufferLimit = 0`**: `((availableCash − marginLocked) / marginLocked) × 100` (capped at 100)
+- **Both $0$**: returns `100` (Safe — no exposure)
+- Color: 🟢 teal (`≥100%` Safe), 🟡 yellow (`≥50%` Warning), 🔴 red (`<50%` Danger)
+- `risk_score` is also computed server-side via `analytics.py` → `_compute_risk_score()`
+
+### Global Focus Ring
+
+All `<input>`, `<select>`, and `<textarea>` elements use a global focus style in `index.css`:
+
+```css
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  --tw-ring-shadow: ... 0 0 0 calc(2px + ...) #1c1c1e;
+  box-shadow: ...;
+  border-color: #1c1c1e;
+}
+```
+
+No per-component focus classes needed — every modal (AddOrder, EditOrder, CloseOrder, EditPortfolio, Zone) uses the consistent `ink` (#1c1c1e) ring.
 
 - **Branding**: "M" badge (brand-yellow) + "InvestDesk / Dashboard" text
 - **Nav Links**: Overview 📊, All Assets 💰, Transactions 🔁, Risk Analytics 🛡️ อยู่ตรงกลาง (margin: '0 auto')
@@ -430,7 +456,7 @@ All shared types are defined in `src/types/index.ts`:
 | Domain | Key Interfaces | Notes |
 |--------|---------------|-------|
 | **Portfolio Overview** | `PortfolioOverviewItem`, `OverviewResponse` | |
-| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` | `order_id` is **string** (UUID) |
+| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` | `order_id` is **string** (UUID); `risk_score` (0–100) computed server-side |
 | **Managed Fund** | `FundPortfolio`, `TradePlan`, `TradeRecommendation`, `NavHistoryRecord` | |
 | **Spread Pairing** | `PortfolioSpreadsData` | |
 | **Transactions** | `Transaction` | Includes `order_id` and `close_order_id` (both string) |

@@ -16,6 +16,7 @@ interface SummaryCardProps {
   riskPercent: number;
   tags: Record<string, boolean> | null;
   assetAllocation: AllocationItem[];
+  onEditPortfolio?: () => void;
 }
 
 const R = 16, CIRCUMFERENCE = 2 * Math.PI * R;
@@ -23,12 +24,22 @@ const R = 16, CIRCUMFERENCE = 2 * Math.PI * R;
 const SummaryCard: React.FC<SummaryCardProps> = ({
   totalValue, totalCash, totalNotional, cumulativePl, plPercent, availableCash,
   marginLocked, cashBufferLimit, moneyMarket, riskStatus, riskPercent, tags, assetAllocation,
+  onEditPortfolio,
 }) => {
   let offset = 0;
 
   return (
   <div className="col-span-12 lg:col-span-8 bg-white rounded-xl border border-hairline p-8 flex flex-col">
-    <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-6">Portfolio Summary</h3>
+    <div className="flex justify-between items-center mb-6">
+      <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Portfolio Summary</h3>
+      <button onClick={onEditPortfolio} className="p-1 hover:bg-gray-100 rounded-full transition-colors" title="Edit Portfolio">
+        <svg className="w-5 h-5 text-slate" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="5" cy="12" r="1.5" />
+          <circle cx="12" cy="12" r="1.5" />
+          <circle cx="19" cy="12" r="1.5" />
+        </svg>
+      </button>
+    </div>
 
     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 pb-8 border-b border-hairline">
       <div className="flex flex-col">

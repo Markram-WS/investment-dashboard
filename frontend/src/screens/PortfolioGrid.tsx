@@ -4,6 +4,7 @@ import { AddOrderModal } from "./AddOrderModal";
 import { ZoneEditModal } from "./ZoneEditModal";
 import { ZoneGroupModal } from "./ZoneGroupModal";
 import { CloseOrderModal } from "./CloseOrderModal";
+import EditPortfolioModal from "./EditPortfolioModal";
 import { useOrderEdit } from "../hooks/useOrderEdit";
 import { useAddOrder } from "../hooks/useAddOrder";
 import { usePortfolioManager } from "../hooks/usePortfolioManager";
@@ -36,6 +37,7 @@ const PortfolioGrid: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [closingOrder, setClosingOrder] = useState<SpreadOrder | null>(null);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showEditPortfolioModal, setShowEditPortfolioModal] = useState(false);
 
   const [viewMode, setViewMode] = useState<"equity" | "payoff">("equity");
   const [performanceData, setPerformanceData] = useState<any>(null);
@@ -196,6 +198,7 @@ const PortfolioGrid: React.FC = () => {
           riskPercent={riskPercent}
           tags={selectedPortfolio.tags}
           assetAllocation={assetAllocation}
+          onEditPortfolio={() => setShowEditPortfolioModal(true)}
         />
 
         <StrategyNotes
@@ -263,6 +266,19 @@ const PortfolioGrid: React.FC = () => {
         onSave={async () => { await handleCreateOrder(selectedPortfolio.portfolio_id); fetchAnalyticsData(); }}
         onChange={handleAddFormChange}
         zones={zoneGroups.map((g) => g.zone)}
+      />
+      <EditPortfolioModal
+        portfolioId={selectedPortfolio.portfolio_id}
+        portfolioName={selectedPortfolio.portfolio_name}
+        currentNav={totalCash}
+        marginLocked={marginLocked}
+        cashBufferLimit={cashBufferLimit}
+        availableCash={selectedPortfolio.available_cash || 0}
+        moneyMarket={selectedPortfolio.money_market || 0}
+        tags={selectedPortfolio.tags}
+        showModal={showEditPortfolioModal}
+        onClose={() => setShowEditPortfolioModal(false)}
+        onSaved={fetchAnalyticsData}
       />
     </div>
   );
