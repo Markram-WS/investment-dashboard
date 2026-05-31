@@ -56,18 +56,26 @@ frontend/
 │   │   └── PortfolioAnalyticsDetail.tsx # Dynamic layout router
 │   │
 │   ├── screens/            # Secondary layouts (detail screens)
-│   │   ├── PortfolioGrid.tsx        # Grid view: orders + sticky notes + Add/Close/Trade History
+│   │   ├── PortfolioGrid.tsx        # Slim orchestrator (~241 lines) composing sub-components
 │   │   ├── PortfolioSpread.tsx      # Spread pairing: pairs + payoff
 │   │   ├── PortfolioMutualFund.tsx  # Managed fund: allocation, rebalance, NAV
-│   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID, asset, side, qty, TP/SL, zone, status)
-│   │   ├── CloseOrderModal.tsx     # Close order form (editable Close ID, exit price, P/L, auto-calc)
+│   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID UUID, asset, side, qty, TP/SL, zone, status)
+│   │   ├── CloseOrderModal.tsx     # Close order form (editable Close ID UUID, exit price, P/L, auto-calc)
 │   │   ├── EditOrderModal.tsx       # Order edit modal
 │   │   ├── ZoneEditModal.tsx        # Zone edit modal
 │   │   ├── ZoneGroupModal.tsx       # Zone group CRUD (add/edit/delete zone definitions)
 │   │   └── components/
-│   │       ├── TradePlanView.tsx    # Trade plan markdown display
-│   │       ├── QuickStatsView.tsx   # Active pairs/positions stats
-│   │       ├── ZoneGroupRow.tsx     # Zone-grouped order row with edit/close buttons
+│   │       ├── PortfolioHeader.tsx    # Breadcrumb, title, Refresh + Add Order buttons
+│   │       ├── SummaryCard.tsx        # 3-col values, Cash Details grid, Risk gauge, Asset Allocation, Tags
+│   │       ├── StrategyNotes.tsx      # Trade Plan + Internal Notes (both inline-editable, yellow sticky)
+│   │       ├── TagsSection.tsx        # Metadata tag pills
+│   │       ├── PerformanceSection.tsx # Performance wrapper + Equity/Payoff toggle
+│   │       ├── PerformanceChart.tsx   # Dynamic SVG: equity line chart or payoff bar chart
+│   │       ├── OrderManagement.tsx    # Active orders table (zone-grouped or flat), toggle, footer
+│   │       ├── TradeHistoryTable.tsx  # Collapsible closed-orders table
+│   │       ├── TradePlanView.tsx      # Trade plan markdown display (click-to-edit, Save/Cancel)
+│   │       ├── QuickStatsView.tsx     # Active pairs/positions stats
+│   │       ├── ZoneGroupRow.tsx       # Zone-grouped order row with edit/close buttons
 │   │       └── HistoricalGridView.tsx # Historical trades accordion
 │   │
 │   └── assets/             # SVG icons (Material Symbols style)
@@ -75,6 +83,7 @@ frontend/
 │       ├── folder.svg, expand.svg, notifications.svg, more.svg
 │       └── hero.png, react.svg, vite.svg
 │
+└── tests/
 └── tests/                # Vitest test suite
     ├── setupTests.ts
     ├── simple.test.ts
@@ -120,6 +129,7 @@ frontend/
 | Risk | `/api/v1/risk/analytics` | GET |
 | Risk | `/api/v1/risk/pool-health` | GET |
 | Analytics | `/api/v1/analytics/portfolio-grid` | GET |
+| Analytics | `/api/v1/analytics/performance/{portfolio_id}` | GET (equity curve, payoff bars, total P/L) |
 | Rebalance | `/api/v1/rebalance/recommend` | POST |
 | AI | `/api/v1/ai/status?portfolio_id` | GET |
 | Trade Plans | `/api/v1/trade-plans` | GET/POST |
