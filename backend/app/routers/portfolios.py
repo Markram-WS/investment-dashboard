@@ -154,6 +154,36 @@ async def get_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)):
     return response_data
 
 
+class PortfolioUpdate(BaseModel):
+    portfolio_name: Optional[str] = None
+    port_type: Optional[str] = None
+    target_ratio: Optional[Dict[str, Any]] = None
+    current_nav: Optional[float] = None
+    margin_locked: Optional[float] = None
+    cash_buffer_limit: Optional[float] = None
+    available_cash: Optional[float] = None
+    money_market: Optional[float] = None
+    trade_plan_md: Optional[str] = None
+    risk_status: Optional[str] = None
+    tags: Optional[Dict[str, Any]] = None
+    last_rebalance_date: Optional[date] = None
+
+
+@router.put("/{portfolio_id}", tags=["portfolios"])
+async def update_portfolio(portfolio_id: int, update: PortfolioUpdate, db: AsyncSession = Depends(get_db)):
+    """Update a portfolio by ID."""
+    result = await db.execute(select(Portfolio).where(Portfolio.portfolio_id == portfolio_id))
+    portfolio = result.scalar_one_or_none()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    update_data = update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(portfolio, field, value)
+    await db.commit()
+    await db.refresh(portfolio)
+    return portfolio
+
+
 @router.delete("/{portfolio_id}", tags=["portfolios"])
 async def delete_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)):
     """Delete a portfolio by ID."""

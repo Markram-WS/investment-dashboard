@@ -393,16 +393,28 @@ const PortfolioGrid: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        <button
-                          onClick={() => handleCloseOrder(order)}
-                          className="p-1 hover:bg-red-50 rounded transition-colors text-red-300 hover:text-red-500"
-                          title="Close Order"
-                        >
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => startEdit(order)}
+                            className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-400 hover:text-gray-600"
+                            title="Edit Order"
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 11.5 8 16l4.5-7.5z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleCloseOrder(order)}
+                            className="p-1 hover:bg-red-50 rounded transition-colors text-red-300 hover:text-red-500"
+                            title="Close Order"
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                     );
@@ -506,7 +518,12 @@ const PortfolioGrid: React.FC = () => {
           <div className="flex-1 p-3 overflow-auto">
             {/* Trade Plan View - แยกเป็น component */}
             <h3 className="font-semibold mb-2 text-gray-700">Trade Plan</h3>
-            <TradePlanView tradePlanMd={selectedPortfolio.trade_plan_md} renderMarkdown={renderMarkdown} />
+            <TradePlanView
+              tradePlanMd={selectedPortfolio.trade_plan_md}
+              renderMarkdown={renderMarkdown}
+              portfolioId={selectedPortfolio.portfolio_id}
+              onSaved={fetchAnalyticsData}
+            />
             
             {/* Quick Stats - แยกเป็น component */}
             <h3 className="font-semibold mb-2 text-gray-700">Quick Stats</h3>
@@ -522,7 +539,10 @@ const PortfolioGrid: React.FC = () => {
         formData={formData}
         showModal={showModal}
         onClose={closeModal}
-        onSave={handleSaveOrder}
+        onSave={async () => {
+          await handleSaveOrder();
+          fetchAnalyticsData();
+        }}
         onChange={handleFormChange}
         zones={zoneGroups.map((g) => g.zone)}
       />
