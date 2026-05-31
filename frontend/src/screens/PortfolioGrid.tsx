@@ -186,7 +186,7 @@ const PortfolioGrid: React.FC = () => {
   ) || 0;
 
   return (
-    <div className="p-6 min-h-screen max-w-[1600px] mx-auto">
+    <div className="px-10 py-6 min-h-screen max-w-[1800px] mx-auto">
       {/* Breadcrumb / Secondary Header */}
       <header className="flex justify-between items-center w-full mb-6">
         <div className="flex flex-col">
@@ -290,6 +290,21 @@ const PortfolioGrid: React.FC = () => {
               </div>
             </div>
           </div>
+          {selectedPortfolio?.tags && Object.keys(selectedPortfolio.tags).length > 0 && (
+            <div className="mt-6 pt-6 border-t border-hairline">
+              <p className="text-[11px] font-bold text-gray-500 mb-3 uppercase tracking-widest">Metadata Tags</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.keys(selectedPortfolio.tags).map((tag) => (
+                  <span
+                    key={tag}
+                    className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-surface text-slate rounded-full border border-hairline"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Strategy & Notes */}
@@ -314,7 +329,7 @@ const PortfolioGrid: React.FC = () => {
                   <textarea
                     value={notesContent}
                     onChange={(e) => setNotesContent(e.target.value)}
-                    className="w-full h-32 bg-white border border-hairline rounded-lg p-4 text-sm focus:ring-2 focus:ring-brand-blue outline-none resize-none"
+                    className="w-full h-32 bg-yellow-100 rounded-lg p-4 text-sm focus:ring-2 focus:ring-brand-yellow outline-none resize-none"
                     placeholder="Type your observation..."
                     autoFocus
                   />
@@ -348,7 +363,7 @@ const PortfolioGrid: React.FC = () => {
                 </div>
               ) : (
                 <div
-                  className="w-full min-h-[80px] bg-white border border-hairline rounded-lg p-4 text-sm cursor-pointer hover:bg-yellow-50 transition-colors"
+                  className="w-full min-h-[80px] bg-yellow-100 rounded-lg p-4 text-sm cursor-pointer hover:bg-yellow-200/80 transition-colors"
                   onClick={() => { setNotesContent(selectedPortfolio?.internal_notes || ''); setEditingNotes(true); }}
                 >
                   {selectedPortfolio?.internal_notes ? (
@@ -405,7 +420,7 @@ const PortfolioGrid: React.FC = () => {
 
       {/* Order Management Section */}
       <section className="bg-white rounded-xl border border-hairline overflow-hidden mb-6">
-        <div className="p-6 flex justify-between items-center">
+        <div className="p-8 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <h3 className="text-[11px] font-bold text-ink uppercase tracking-widest">Order Management</h3>
             <span className="px-2 py-0.5 bg-ink text-[10px] text-white font-bold rounded-full uppercase tracking-tighter">{activeOrders.length} ACTIVE</span>

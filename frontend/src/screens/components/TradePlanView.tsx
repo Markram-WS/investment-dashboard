@@ -16,7 +16,7 @@ export const TradePlanView: React.FC<TradePlanViewProps> = ({ tradePlanMd, rende
   if (!editing) {
     return (
       <div
-        className="bg-yellow-100 p-3 rounded shadow mb-4 min-h-[100px] cursor-pointer hover:bg-yellow-200/80 transition-colors"
+        className="bg-yellow-100 p-3 rounded mb-4 min-h-[100px] cursor-pointer hover:bg-yellow-200/80 transition-colors border border-yellow-300"
         onClick={() => setEditing(true)}
       >
         {(tradePlanMd || content) ? (
@@ -46,7 +46,7 @@ export const TradePlanView: React.FC<TradePlanViewProps> = ({ tradePlanMd, rende
   };
 
   return (
-    <div className="bg-yellow-100 p-3 rounded shadow mb-4">
+    <div className="bg-yellow-100 p-3 rounded mb-4 border border-yellow-300">
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
