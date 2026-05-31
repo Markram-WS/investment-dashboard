@@ -164,6 +164,7 @@ class PortfolioUpdate(BaseModel):
     available_cash: Optional[float] = None
     money_market: Optional[float] = None
     trade_plan_md: Optional[str] = None
+    internal_notes: Optional[str] = None
     risk_status: Optional[str] = None
     tags: Optional[Dict[str, Any]] = None
     last_rebalance_date: Optional[date] = None

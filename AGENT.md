@@ -40,6 +40,7 @@
 requirement\Detailed-Functional-Requirements.md
 
 ## Main Page
+### DESIND : D:\InvestmentDashboard\requirement\UI\DESIGN.md
 ### SPREAD detail
 requirement\UI\UI-LAYOUT-PORTFOLIO-ANALYTICS-SPREAD.md
 requirement\UI\portfolio_analytics_grid(layout)
@@ -52,3 +53,7 @@ requirement\UI\UI-LAYOUT-MANAGED-FUND.md
 
 ## backend detail : D:\InvestmentDashboard\backend\README.md
 ## fontend detail : D:\InvestmentDashboard\frontend\README.md
+## database : D:\InvestmentDashboard\database
+
+requirement
+requirement\Detailed-Functional-Requirements.md

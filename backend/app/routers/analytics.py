@@ -118,6 +118,7 @@ class PortfolioGridData(BaseModel):
     port_type: str
     risk_status: str
     trade_plan_md: Optional[str] = None
+    internal_notes: Optional[str] = None
     ai_reasoning: Optional[str] = None
     ai_risk_insight: Optional[str] = None
     spread_pairs: List[SpreadPair] = []
@@ -338,6 +339,7 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
             port_type=portfolio.port_type,
             risk_status=portfolio.risk_status,
             trade_plan_md=portfolio.trade_plan_md or (trade_plan.entry_reason if trade_plan else None),
+            internal_notes=portfolio.internal_notes,
             ai_reasoning=ai_reasoning,
             ai_risk_insight=ai_risk_insight,
             spread_pairs=spread_pairs,
@@ -528,6 +530,7 @@ async def get_portfolio_detail(
         port_type=portfolio.port_type,
         risk_status=portfolio.risk_status,
         trade_plan_md=portfolio.trade_plan_md or (trade_plan.entry_reason if trade_plan else None),
+        internal_notes=portfolio.internal_notes,
         ai_reasoning=ai_reasoning,
         ai_risk_insight=ai_risk_insight,
         spread_pairs=spread_pairs,
