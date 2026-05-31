@@ -1,22 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
-
-interface SpreadOrder {
-  order_id: number;
-  asset_type: string;
-  side: string;
-  qty: number | string;
-  entry_price: number | null;
-  current_price: number | null;
-  tp_price: number | null;
-  sl_price: number | null;
-  leverage: number | null;
-  margin_rate: number | null;
-  order_status: string;
-  executed_by: string;
-  created_at: string | null;
-  spread_pair_id: string | null;
-  zone: string | null;
-}
+import { SpreadOrder } from '../types';
+import { api } from '../lib/api';
 
 interface UseOrderEditReturn {
   editingOrder: SpreadOrder | null;
@@ -64,17 +48,7 @@ export const useOrderEdit = (): UseOrderEditReturn => {
     if (!editingOrder) return;
 
     try {
-      const response = await fetch(`/api/v1/orders/${editingOrder.order_id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to update order: ${response.statusText}`);
-      }
-
-      // เรียก refresh function ก่อนปิด modal
+      await api.updateOrder(editingOrder.order_id, formData);
       if (onRefreshRef.current) {
         onRefreshRef.current();
       }

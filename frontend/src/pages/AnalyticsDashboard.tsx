@@ -1,4 +1,4 @@
-import PortfolioAnalyticsGrid from './PortfolioAnalyticsGrid';
+import { Link } from 'react-router-dom';
 
 export default function AnalyticsDashboard() {
   return (
@@ -13,7 +13,11 @@ export default function AnalyticsDashboard() {
           <h3 className="font-semibold mb-2">Risk Summary</h3>
           <p className="text-gray-500">Risk metrics placeholder</p>
         </div>
-        <PortfolioAnalyticsGrid />
+        <div className="mt-4">
+          <Link to="/analytics/detail" className="text-accent hover:underline">
+            View Grid Detail →
+          </Link>
+        </div>
       </div>
     </div>
   );

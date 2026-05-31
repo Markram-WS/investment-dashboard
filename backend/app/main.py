@@ -1,5 +1,8 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.database import engine, ai_engine
+from app.models import Base
 from app.routers import (
     portfolios,
     trade_plans,
@@ -16,11 +19,20 @@ from app.routers import (
     assets,
 )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with ai_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+
 app = FastAPI(
     title="Investment Dashboard API",
     description="Professional investment management system",
     version="0.1.0",
     redirect_slashes=False,
+    lifespan=lifespan,
 )
 
 # CORS Configuration

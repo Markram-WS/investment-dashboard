@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../lib/api';
 
 const CreateNewPortfolio: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -44,19 +45,7 @@ const CreateNewPortfolio: React.FC = () => {
     setSuccess(false);
 
     try {
-      const response = await fetch('/api/v1/portfolios/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
+      await api.createPortfolio(formData);
       setSuccess(true);
       // Redirect to portfolio overview after a short delay
       setTimeout(() => {

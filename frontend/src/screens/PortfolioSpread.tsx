@@ -1,52 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { api } from '../lib/api';
+import { PortfolioSpreadsData, SpreadPair, SpreadOrder } from '../types';
 
-// Types based on backend response
-interface SpreadOrder {
-  order_id: number;
-  asset_type: string;
-  side: string;
-  qty: number;
-  entry_price: number | null;
-  current_price: number | null;
-  tp_price: number | null;
-  leverage: number | null;
-  margin_rate: number | null;
-  order_status: string;
-  executed_by: string;
-  created_at: string | null;
-  spread_pair_id: string | null;
-}
-
-interface SpreadPair {
-  pair_id: string;
-  leg_a: SpreadOrder;
-  leg_b: SpreadOrder;
-  net_pl: number | null;
-  spread_diff: number | null;
-  zone: string;
-}
-
-interface PortfolioSpreadsData {
-  portfolio_id: number;
-  portfolio_name: string;
-  port_type: string;
-  risk_status: string;
-  spread_pairs: SpreadPair[];
-  unpaired_orders: SpreadOrder[];
-}
-
-// Props interface for receiving portfolioId from PortfolioAnalyticsDetail
 interface SpreadPairingProps {
   portfolioId?: string;
 }
 
 const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfolioId }) => {
-  const { portfolio_id } = useParams<{ portfolio_id: string }>();
   const [portfolioData, setPortfolioData] = useState<PortfolioSpreadsData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  // Use portfolioId from params, props, or default to 1
-  const activePortfolioId = propPortfolioId || portfolio_id || "1";
+  const activePortfolioId = propPortfolioId || "1";
   const [showPairWizard, setShowPairWizard] = useState<boolean>(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [targetPairId, setTargetPairId] = useState<string>('');
@@ -59,11 +23,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
 
   const fetchSpreadData = async () => {
     try {
-      const response = await fetch(`/api/v1/portfolios/${activePortfolioId}/spreads`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
+      const data = await api.getPortfolioSpreads(activePortfolioId);
 
       setPortfolioData(data);
       // Populate completedCycles from spread_pairs with zones
@@ -158,12 +118,8 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
     if (!window.confirm('Delete this spread pair?')) return;
 
     try {
-      const response = await fetch(`/api/v1/spread-pairs/${pairId}`, {
-        method: 'DELETE',
-      });
-      if (response.ok) {
-        fetchSpreadData();
-      }
+      await api.deleteSpreadPair(pairId);
+      fetchSpreadData();
     } catch (err) {
       console.error('Failed to delete pair:', err);
     }
@@ -173,20 +129,10 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
     if (!selectedOrderId || !targetPairId) return;
 
     try {
-      const response = await fetch('/api/v1/spread-pairs/link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          order_id: selectedOrderId,
-          pair_id: targetPairId
-        })
-      });
-
-      if (response.ok) {
-        setShowPairWizard(false);
-        setTargetPairId('');
-        fetchSpreadData();
-      }
+      await api.linkSpreadPair(selectedOrderId, targetPairId);
+      setShowPairWizard(false);
+      setTargetPairId('');
+      fetchSpreadData();
     } catch (err) {
       console.error('Failed to pair orders:', err);
     }

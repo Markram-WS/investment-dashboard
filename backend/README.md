@@ -25,7 +25,6 @@ This backend is built with:
 - **FastAPI** – modern, async REST API
 - **SQLAlchemy 2.0 (async)** – ORM & DB engine
 - **PostgreSQL** – two databases (`investment_main`, `investment_ai`)
-- **Alembic** – optional migrations
 - **Podman / Docker** – containerization
 
 ---
@@ -55,6 +54,7 @@ curl http://localhost:8000/health
 open http://localhost:8000/docs
 ```
 
+> Tables are auto-created on first startup via the FastAPI `lifespan` handler.
 > All services auto-restart unless stopped. Logs: `podman compose logs -f backend`.
 
 ---
@@ -71,13 +71,14 @@ open http://localhost:8000/docs
 
 ## API Reference
 
+> **Trailing slash note:** `redirect_slashes=False` — `/api/v1/portfolios` and `/api/v1/portfolios/` are **different** routes. GET uses no trailing slash; POST uses trailing slash.
+
 ### Portfolios
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
-| `GET` | `/api/v1/portfolios/` | List all portfolios |
+| `GET` | `/api/v1/portfolios` | List all portfolios |
 | `POST` | `/api/v1/portfolios/` | Create a new portfolio |
 | `GET` | `/api/v1/portfolios/{id}` | Retrieve portfolio by ID |
-| `PUT` | `/api/v1/portfolios/{id}` | Update portfolio |
 | `DELETE` | `/api/v1/portfolios/{id}` | Delete portfolio |
 
 ### Trade Plans
@@ -117,23 +118,27 @@ open http://localhost:8000/docs
 ```text
 backend/
 ├── app/
-│   ├── main.py
-│   ├── database.py
-│   ├── models.py
-│   ├── schemas/
-│   │   ├── portfolio.py
-│   │   ├── trade_plan.py
-│   │   └── ...
+│   ├── main.py              # FastAPI app + lifespan (auto-create tables)
+│   ├── database.py           # Async engine + session factories
+│   ├── models.py             # SQLAlchemy ORM models (14 tables)
 │   └── routers/
-│       ├── portfolios.py
-│       ├── trade_plans.py
-│       ├── active_orders.py
-│       ├── analytics.py
-│       └── ai_agents.py
+│       ├── portfolios.py     # Portfolio CRUD + types
+│       ├── trade_plans.py    # Trade plan CRUD
+│       ├── active_orders.py  # Order management
+│       ├── analytics.py      # Portfolio grid + detail analytics
+│       ├── overview.py       # Global dashboard overview
+│       ├── risk.py           # Pool health, money reserve, safety
+│       ├── rebalance.py      # Dual-mode rebalancing engine
+│       ├── transactions.py   # Transaction history
+│       ├── trade_history.py  # Historical trade records
+│       ├── transfers.py      # Cash pool transfers
+│       ├── journal.py        # Decision journal
+│       ├── ai_agents.py      # AI autonomy (scan, plan, execute)
+│       ├── assets.py         # Whitelist assets
+│       └── etl_sync.py       # ETL sync utilities
 ├── tests/
 ├── requirements.txt
 ├── Dockerfile
-├── docker-compose.yml
 └── README.md
 ```
 

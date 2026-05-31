@@ -1,101 +1,15 @@
-import React, { useState, useEffect } from "react";
-
-// Types for Managed Fund data
-interface Portfolio {
-  portfolio_id: number;
-  portfolio_name: string;
-  port_type: string;
-  current_nav: number;
-  margin_locked: number;
-  available_cash: number;
-  money_market: number;
-  cash_buffer_limit: number;
-  target_ratio: Record<string, number>;
-  current_allocations: Record<string, number>;
-  last_rebalance_date: string | null;
-  risk_status: string | null;
-}
-
-interface TradeRecommendation {
-  symbol: string;
-  side: "Buy" | "Sell";
-  qty: number;
-  estimated_price: number;
-  reason: string;
-}
-
-interface RecommendResponse {
-  portfolio_id: number;
-  portfolio_name: string;
-  current_nav: number;
-  target_allocations: Record<string, any>;
-  current_allocations: Record<string, any>;
-  recommendations: TradeRecommendation[];
-  total_drift: number;
-}
-
-interface NavHistoryRecord {
-  nav_id: number;
-  nav_date: string;
-  nav_value: number;
-}
-
-interface NavHistoryResponse {
-  portfolio_id: number;
-  portfolio_name: string;
-  nav_history: NavHistoryRecord[];
-}
-
-interface TradePlan {
-  plan_id: number;
-  portfolio_id: number;
-  trade_plan_md: string | null;
-  created_at: string;
-  updated_at: string | null;
-}
-
-// Design tokens from UI-LAYOUT-MANAGED-FUND.md
-const colors = {
-  primary: "#1c1c1e",
-  onPrimary: "#ffffff",
-  brandYellow: "#ffd02f",
-  brandTeal: "#0fbcb0",
-  tealLight: "#e0f7f6",
-  brandCoral: "#ff9999",
-  coralLight: "#fdeced",
-  brandBlue: "#4262ff",
-  canvas: "#ffffff",
-  surface: "#f7f8fa",
-  surfaceSoft: "#fafbfc",
-  hairline: "#e0e2e8",
-  ink: "#1c1c1e",
-  slate: "#555a6a",
-  success: "#00b473",
-  warning: "#f4d03f",
-  error: "#e74c3c",
-};
-
-const rounded = {
-  sm: "6px",
-  md: "8px",
-  lg: "12px",
-  xl: "16px",
-};
-
-const spacing = {
-  xs: "8px",
-  sm: "12px",
-  md: "16px",
-  lg: "24px",
-  xl: "32px",
-};
+import { useState, useEffect } from "react";
+import { api } from "../lib/api";
+import { FundPortfolio, TradeRecommendation, RecommendResponse, NavHistoryRecord, NavHistoryResponse, TradePlan } from "../types";
+import { colors, rounded, spacing } from "../constants/colors";
+import { getRiskColor, getDriftColor, calculateDrift } from "../utils/risk";
 
 interface ManagedFundProps {
   portfolioId?: string;
 }
 
 export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [portfolio, setPortfolio] = useState<FundPortfolio | null>(null);
   const [tradePlans, setTradePlans] = useState<TradePlan[]>([]);
   const [recommendations, setRecommendations] = useState<TradeRecommendation[]>([]);
   const [navHistory, setNavHistory] = useState<NavHistoryRecord[]>([]);
@@ -112,26 +26,24 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
         setLoading(true);
         
         // Fetch basic portfolio data
-        const portfolioResponse = await fetch(`/api/v1/portfolios/${portfolioId}`);
-        if (!portfolioResponse.ok) {
-          throw new Error(`HTTP error! status: ${portfolioResponse.status}`);
-        }
-        const portfolioData = await portfolioResponse.json();
+        const portfolioData = await api.getPortfolio(parseInt(portfolioId));
         setPortfolio(portfolioData);
         setError(null);
 
         // Fetch trade plans for this portfolio
-        const tradePlansResponse = await fetch(`/api/v1/trade-plans/?portfolio_id=${portfolioId}`);
-        if (tradePlansResponse.ok) {
-          const tradePlansData = await tradePlansResponse.json();
+        try {
+          const tradePlansData = await api.getTradePlans(parseInt(portfolioId));
           setTradePlans(tradePlansData);
+        } catch {
+          // Trade plans may not exist yet
         }
 
         // Fetch NAV history
-        const navResponse = await fetch(`/api/v1/rebalance/nav-history/${portfolioId}`);
-        if (navResponse.ok) {
-          const navData: NavHistoryResponse = await navResponse.json();
+        try {
+          const navData: NavHistoryResponse = await api.getNavHistory(parseInt(portfolioId));
           setNavHistory(navData.nav_history || []);
+        } catch {
+          // NAV history may not exist yet
         }
       } catch (err) {
         console.error("Failed to fetch data:", err);
@@ -173,33 +85,12 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
     fetchData();
   }, [portfolioId]);
 
-  // Calculate drift percentage for an asset
-  const calculateDrift = (symbol: string): number => {
+  // Calculate drift for a specific asset
+  const calcDrift = (symbol: string): number => {
     if (!portfolio) return 0;
     const target = portfolio.target_ratio?.[symbol] || 0;
     const current = portfolio.current_allocations?.[symbol] || 0;
-    return Math.abs(target - current);
-  };
-
-  // Get drift indicator color
-  const getDriftColor = (drift: number): string => {
-    if (drift <= 5) return colors.success;
-    if (drift <= 15) return colors.warning;
-    return colors.error;
-  };
-
-  // Get risk status color
-  const getRiskColor = (riskStatus: string | null | undefined): string => {
-    switch (riskStatus) {
-      case "Danger":
-        return colors.error;
-      case "Warning":
-        return colors.warning;
-      case "Safe":
-        return colors.success;
-      default:
-        return colors.slate;
-    }
+    return calculateDrift(target, current);
   };
 
   // Handle rebalance recommendation
@@ -207,13 +98,7 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
     if (!portfolio) return;
     try {
       setRecommendLoading(true);
-      const response = await fetch("/api/v1/rebalance/recommend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ portfolio_id: portfolio.portfolio_id }),
-      });
-      if (!response.ok) throw new Error("Failed to calculate rebalance");
-      const data: RecommendResponse = await response.json();
+      const data: RecommendResponse = await api.recommendRebalance({ portfolio_id: portfolio.portfolio_id });
       setRecommendations(data.recommendations);
     } catch (err) {
       console.error("Rebalance calculation failed:", err);
@@ -226,15 +111,10 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
   const handleExecuteTrades = async () => {
     if (!portfolio || recommendations.length === 0) return;
     try {
-      const response = await fetch("/api/v1/rebalance/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          portfolio_id: portfolio.portfolio_id,
-          recommendations: recommendations,
-        }),
+      await api.executeRebalance({
+        portfolio_id: portfolio.portfolio_id,
+        recommendations: recommendations,
       });
-      if (!response.ok) throw new Error("Failed to execute trades");
       alert("Trades executed successfully!");
       setRecommendations([]);
     } catch (err) {
@@ -251,13 +131,7 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
   // Save edited trade plan
   const saveEditedPlan = async (planId: number) => {
     try {
-      const response = await fetch(`/api/v1/trade-plans/${planId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trade_plan_md: editContent }),
-      });
-      if (!response.ok) throw new Error("Failed to update trade plan");
-      const updatedPlan = await response.json();
+      const updatedPlan = await api.updateTradePlan(planId, { trade_plan_md: editContent });
       setTradePlans(plans => plans.map(p => 
         p.plan_id === planId ? updatedPlan : p
       ));
@@ -351,7 +225,7 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
           <div className="space-y-3">
             {Object.entries(portfolio.target_ratio || {}).map(([symbol, target]) => {
               const current = portfolio.current_allocations?.[symbol] || 0;
-              const drift = calculateDrift(symbol);
+              const drift = calcDrift(symbol);
               const driftColor = getDriftColor(drift);
               return (
                 <div key={symbol}>

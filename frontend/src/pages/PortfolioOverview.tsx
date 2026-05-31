@@ -1,31 +1,10 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
-
-interface PortfolioOverviewItem {
-  portfolio_id: number;
-  portfolio_name: string;
-  margin: number;
-  buffer: number;
-  available: number;
-  risk_status: string | null;
-  profit_percentage?: number;
-  portfolio_type?: string;
-  is_bot_trading?: boolean;
-  status_message?: string;
-}
-
-interface OverviewResponse {
-  margin: number;
-  buffer: number;
-  available_cash: number;
-  money_market: number;
-  pool_health_index: number;
-  money_reserve_status: string;
-  portfolios: PortfolioOverviewItem[];
-}
-
-const EXCHANGE_RATE = 35;
+import { PortfolioOverviewItem, OverviewResponse } from "../types";
+import { getPortfolioTags, getProfitPct, getStatusMessage } from "../utils/tags";
+import { getRiskColor } from "../utils/risk";
+import { fmtAmount } from "../utils/format";
 
 export default function PortfolioOverview() {
   const navigate = useNavigate();
@@ -51,13 +30,6 @@ export default function PortfolioOverview() {
     }
   }, [data]);
 
-  const fmt = (n: number) => {
-    const v = currency === "THB" ? n * EXCHANGE_RATE : n;
-    return currency === "USD"
-      ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      : `฿${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
       <div style={{ color: 'var(--color-slate)' }}>Loading…</div>
@@ -70,38 +42,6 @@ export default function PortfolioOverview() {
   const lock = margin;
   const tPlus3 = money_market;
   const totalCash = lock + buffer + available_cash + tPlus3;
-
-  const riskColor = (status: string | null) =>
-    status === "Safe" ? "var(--color-brand-teal)" :
-    status === "Warning" ? "var(--color-brand-yellow)" :
-    status === "Danger" ? "var(--color-brand-coral)" : "var(--color-slate)";
-
-  const getTags = (p: PortfolioOverviewItem) => {
-    const tags: string[] = [];
-    if (p.portfolio_name.toLowerCase().includes('binance') || p.portfolio_name.toLowerCase().includes('btc')) {
-      tags.push('crypto');
-    }
-    if (p.is_bot_trading || p.portfolio_name.toLowerCase().includes('binance')) {
-      tags.push('bot');
-    }
-    if (tags.length === 0 && (p.portfolio_name.toLowerCase().includes('fund') || p.portfolio_name.toLowerCase().includes('global'))) {
-      tags.push('FUND');
-    }
-    return tags;
-  };
-
-  const getProfitPct = (p: PortfolioOverviewItem) => {
-    if (p.profit_percentage !== undefined) return p.profit_percentage;
-    const total = p.margin + p.buffer + p.available;
-    return total > 0 ? (p.available / total * 100) : 0;
-  };
-
-  const getStatusMessage = (p: PortfolioOverviewItem) => {
-    if (p.status_message) return p.status_message;
-    if (p.risk_status === "Danger") return "Rebalancing recommended: Variance above threshold.";
-    if (p.risk_status === "Warning") return "Pool health monitoring required.";
-    return "Pool health remains stable at 92% efficiency.";
-  };
 
   const overallPLPct = ((available_cash + tPlus3 - lock) / (lock + buffer + 1) * 100);
 
@@ -121,7 +61,7 @@ export default function PortfolioOverview() {
               <p style={{ fontSize: 10, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase',
                           fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>Asset total</p>
               <h1 style={{ fontSize: 36, fontWeight: 700, color: 'var(--color-primary)', margin: '0 0 4px' }}>
-                {fmt(totalCash)}
+                {fmtAmount(totalCash, currency)}
               </h1>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-brand-teal)' }}>
                 <span style={{ fontSize: 14 }}>↗</span>
@@ -136,22 +76,22 @@ export default function PortfolioOverview() {
                 <div style={{ padding: 16, background: 'var(--color-canvas)', borderRadius: 'var(--rounded-xl)',
                              border: '1px solid var(--color-outline-variant)' }}>
                   <p style={{ fontSize: 10, color: 'var(--color-slate)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Lock</p>
-                  <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmt(lock)}</p>
+                  <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(lock, currency)}</p>
                 </div>
                 <div style={{ padding: 16, background: 'var(--color-canvas)', borderRadius: 'var(--rounded-xl)',
                              border: '1px solid var(--color-outline-variant)' }}>
                   <p style={{ fontSize: 10, color: 'var(--color-slate)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Buffer</p>
-                  <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmt(buffer)}</p>
+                  <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(buffer, currency)}</p>
                 </div>
                 <div style={{ padding: 16, background: 'var(--color-brand-yellow)', borderRadius: 'var(--rounded-xl)',
                              boxShadow: 'var(--shadow-sm)' }} className="pulse-available">
                   <p style={{ fontSize: 10, color: 'var(--color-primary)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Available</p>
-                  <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmt(available_cash)}</p>
+                  <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(available_cash, currency)}</p>
                 </div>
                 <div style={{ padding: 16, background: 'var(--color-canvas)', borderRadius: 'var(--rounded-xl)',
                              border: '1px solid var(--color-outline-variant)' }}>
                   <p style={{ fontSize: 10, color: 'var(--color-slate)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>T+3</p>
-                  <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmt(tPlus3)}</p>
+                  <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(tPlus3, currency)}</p>
                 </div>
               </div>
             </div>
@@ -228,7 +168,7 @@ export default function PortfolioOverview() {
           <div style={{ padding: 16, background: 'rgba(195,250,245,0.3)', borderRadius: 'var(--rounded-xl)',
                        border: '1px solid rgba(15,188,176,0.2)' }}>
             <p style={{ fontSize: 13, color: 'var(--color-slate)', fontStyle: 'italic', margin: 0 }}>
-              Current available liquidity ({fmt(available_cash + tPlus3)}) is within the optimal threshold relative to the $45k buffer.
+              Current available liquidity ({fmtAmount(available_cash + tPlus3, currency)}) is within the optimal threshold relative to the $45k buffer.
             </p>
           </div>
         </div>
@@ -255,7 +195,7 @@ export default function PortfolioOverview() {
             {portfolios.map((p, idx) => {
               const total = p.margin + p.buffer + p.available;
               const profitColor = p.risk_status === 'Safe' ? 'var(--color-brand-teal)' : p.risk_status === 'Warning' ? 'var(--color-brand-yellow)' : 'var(--color-brand-coral)';
-              const tags = getTags(p);
+              const tags = getPortfolioTags(p);
               const profitPct = getProfitPct(p);
               const statusMessage = getStatusMessage(p);
               const isDanger = p.risk_status === "Danger";
@@ -269,7 +209,7 @@ export default function PortfolioOverview() {
                      style={{ 
                        padding: 32, 
                        cursor: 'pointer', 
-                       borderLeft: `3px solid ${riskColor(p.risk_status)}`,
+                       borderLeft: `3px solid ${getRiskColor(p.risk_status)}`,
                        background: cardBg
                      }}
                      onClick={() => navigate(`/analytics/portfolio/${p.portfolio_id}`)}>
@@ -325,7 +265,7 @@ export default function PortfolioOverview() {
                       Asset Total
                     </p>
                     <p style={{ fontSize: 36, fontWeight: 700, color: 'var(--color-primary)', letterSpacing: -1, margin: 0 }}>
-                      {fmt(total)}
+                      {fmtAmount(total, currency)}
                     </p>
                   </div>
 
@@ -335,19 +275,19 @@ export default function PortfolioOverview() {
                                  boxShadow: 'var(--shadow-sm)', transition: 'boxShadow 0.15s ease' }}>
                       <p style={{ fontSize: 9, color: 'var(--color-slate)', fontWeight: 700,
                                   textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Lock</p>
-                      <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmt(p.margin)}</p>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(p.margin, currency)}</p>
                     </div>
                     <div style={{ padding: 16, background: 'var(--color-canvas)', borderRadius: 'var(--rounded-xl)',
                                  boxShadow: 'var(--shadow-sm)', transition: 'boxShadow 0.15s ease' }}>
                       <p style={{ fontSize: 9, color: 'var(--color-slate)', fontWeight: 700,
                                   textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Buffer</p>
-                      <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmt(p.buffer)}</p>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(p.buffer, currency)}</p>
                     </div>
                     <div style={{ padding: 16, background: 'var(--color-brand-yellow)', borderRadius: 'var(--rounded-xl)',
                                  boxShadow: 'var(--shadow-sm)', transition: 'boxShadow 0.15s ease', position: 'relative' }} className="pulse-available">
                       <p style={{ fontSize: 9, color: 'var(--color-primary)', fontWeight: 700,
                                   textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Available</p>
-                      <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmt(p.available)}</p>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(p.available, currency)}</p>
                     </div>
                   </div>
 

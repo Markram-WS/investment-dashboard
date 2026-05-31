@@ -1,18 +1,9 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import PortfolioMutualFund from "../screens/PortfolioMutualFund";
 import PortfolioGrid from "../screens/PortfolioGrid";
 import PortfolioSpread from "../screens/PortfolioSpread";
-
-// Types for portfolio data to detect port_type
-interface PortfolioType {
-  portfolio_id: number;
-  portfolio_name: string;
-  port_type: string;
-}
-
-// Layout type detection
-type AnalyticsLayout = "spread" | "grid" | "managed-fund";
+import { PortfolioType, AnalyticsLayout } from "../types";
 
 export default function PortfolioAnalyticsDetail() {
   const { portfolio_id } = useParams<{ portfolio_id: string }>();

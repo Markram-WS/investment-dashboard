@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { PortfolioData } from '../screens/types';
+import { PortfolioData } from '../types';
 
 export const usePortfolioManager = () => {
   const [portfolios, setPortfolios] = useState<PortfolioData[]>([]);

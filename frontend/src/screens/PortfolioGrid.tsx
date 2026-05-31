@@ -5,25 +5,14 @@ import { useOrderEdit } from '../hooks/useOrderEdit';
 import { usePortfolioManager } from '../hooks/usePortfolioManager';
 import { useZoneEditor } from '../hooks/useZoneEditor';
 import { ZoneGroupRow } from './components/ZoneGroupRow';
-import { PortfolioData, ZoneGroup, SpreadOrder } from './types';
+import { TradePlanView } from './components/TradePlanView';
+import { QuickStatsView } from './components/QuickStatsView';
+import { HistoricalGridView } from './components/HistoricalGridView';
+import { PortfolioData, ZoneGroup, SpreadOrder } from '../types';
 import { IconAdd } from '../components/icons/IconAdd';
 import { IconLayers } from '../components/icons/IconLayers';
 import { useMarkdownRenderer } from '../hooks/useMarkdownRenderer';
-
-// Design tokens from UI-LAYOUT-PORTFOLIO-ANALYTICS-SPREAD.md
-const colors = {
-  brandTeal: '#0fbcb0',
-  tealLight: '#e0f7f6',
-  brandCoral: '#ff9999',
-  coralLight: '#fdeced',
-  slate: '#555a6a',
-  hairline: '#e0e2e8',
-  surface: '#f7f8fa',
-  brandYellow: '#ffd02f',
-  success: '#00b473',
-  warning: '#f4d03f',
-  error: '#e74c3c',
-};
+import { colors } from '../constants/colors';
 
 const PortfolioGrid: React.FC = () => {
   // usePortfolioManager hook - จัดการ portfolio data + loading/error states
@@ -38,7 +27,6 @@ const PortfolioGrid: React.FC = () => {
   } = usePortfolioManager();
 
   // UI state
-  const [showHistorical, setShowHistorical] = useState(false);
   const [groupByZone, setGroupByZone] = useState(true);
 
   // Order edit hook (SRP - separated state management)
@@ -338,7 +326,7 @@ const PortfolioGrid: React.FC = () => {
                 </span>
               </button>
               <button className="ml-2 h-10 w-10 rounded-full bg-white text-ink shadow-lg hover:scale-105 transition-all flex items-center justify-center border-4 border-white">
-                <IconLayers className="w-4.5 h-4.5" />
+                <IconLayers className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -346,86 +334,16 @@ const PortfolioGrid: React.FC = () => {
         {/* Right Panel: Sticky Note Style - Canary Yellow #FFFCE0 */}
         <div className="w-[350px] flex flex-col bg-yellow-100/30">
           <div className="flex-1 p-3 overflow-auto">
-            {/* Trade Plan View */}
+            {/* Trade Plan View - แยกเป็น component */}
             <h3 className="font-semibold mb-2 text-gray-700">Trade Plan</h3>
-            <div className="bg-yellow-100 p-3 rounded shadow mb-4">
-              {selectedPortfolio.trade_plan_md ? (
-                <div
-                  className="text-sm text-gray-700 whitespace-pre-wrap"
-                  dangerouslySetInnerHTML={{
-                    __html: renderMarkdown(selectedPortfolio.trade_plan_md),
-                  }}
-                />
-              ) : (
-                <p className="text-sm text-gray-500">No trade plan available</p>
-              )}
-            </div>
-            {/* Quick Stats */}
+            <TradePlanView tradePlanMd={selectedPortfolio.trade_plan_md} renderMarkdown={renderMarkdown} />
+            
+            {/* Quick Stats - แยกเป็น component */}
             <h3 className="font-semibold mb-2 text-gray-700">Quick Stats</h3>
-            <div className="bg-yellow-100 p-3 rounded shadow mb-4">
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <span className="text-gray-500">Active Pairs:</span>
-                  <span className="font-medium ml-1">
-                    {selectedPortfolio.spread_pairs?.length || 0}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-500">Positions:</span>
-                  <span className="font-medium ml-1">
-                    {selectedPortfolio.active_orders?.length || 0}
-                  </span>
-                </div>
-              </div>
-            </div>
+            <QuickStatsView portfolio={selectedPortfolio} />
           </div>
-          {/* Historical Grid System (Collapsible) */}
-          <div className="p-3 border-t border-yellow-200">
-            <button
-              onClick={() => setShowHistorical(!showHistorical)}
-              className="w-full flex justify-between items-center font-semibold mb-2 text-gray-700"
-            >
-              <span>Historical Grid System</span>
-              <span className="text-xs">{showHistorical ? '▼' : '▶'}</span>
-            </button>
-            {showHistorical && (
-              <div className="space-y-2 max-h-64 overflow-auto mt-2">
-                {selectedPortfolio.recent_trades &&
-                selectedPortfolio.recent_trades.length > 0 ? (
-                  selectedPortfolio.recent_trades.map((trade) => (
-                    <div
-                      key={trade.history_id}
-                      className="bg-yellow-100 p-2 rounded border border-yellow-200 text-xs"
-                    >
-                      <div className="flex justify-between">
-                        <span className="font-medium">
-                          {trade.asset} {trade.type}
-                        </span>
-                        <span
-                          className={
-                            trade.realized_pl && trade.realized_pl > 0
-                              ? 'text-green-600'
-                              : 'text-red-600'
-                          }
-                        >
-                          {trade.realized_pl
-                            ? `$${trade.realized_pl} P/L`
-                            : '-'}
-                        </span>
-                      </div>
-                      <div className="text-gray-500 mt-1">
-                        {trade.entry_date} → {trade.exit_date}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="bg-yellow-100 p-2 rounded border border-yellow-200">
-                    <p className="text-xs text-gray-600">No historical trades</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          {/* Historical Grid System - แยกเป็น component */}
+          <HistoricalGridView recentTrades={selectedPortfolio.recent_trades} />
         </div>
       </div>
       {/* Edit Order Modal */}

@@ -1,70 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../lib/api";
-
-// Types for the transaction data
-interface Transaction {
-  history_id: number;
-  portfolio_id: number;
-  portfolio_name: string;
-  type: string; // Buy, Sell, Deposit, Withdraw, Transfer
-  asset: string;
-  amount: number | null; // total amount (qty * price) for trades, or amount for deposit/withdraw
-  exit_price: number | null;
-  realized_pl: number | null;
-  executed_by: string; // Manual, Bot, AI
-  decision_note: string | null;
-  entry_date: string | null; // ISO string
-  exit_date: string | null; // ISO string
-  flow: string | null; // For transfers: "Source -> Destination", else null
-  comments: any | null;
-}
-
-interface TransactionsResponse {
-  transactions: Transaction[];
-  loading: boolean;
-  error: string | null;
-}
-
-// Design tokens from UI-LAYOUT-TRANSACTIONS.md
-const colors = {
-  primary: "#1c1c1e",
-  onPrimary: "#ffffff",
-  brandYellow: "#ffd02f",
-  brandTeal: "#0fbcb0",
-  tealLight: "#e0f7f6",
-  brandCoral: "#ff9999",
-  coralLight: "#fdeced",
-  brandBlue: "#4262ff",
-  canvas: "#ffffff",
-  surface: "#f7f8fa",
-  surfaceSoft: "#fafbfc",
-  hairline: "#e0e2e8",
-  ink: "#1c1c1e",
-  slate: "#555a6a",
-  success: "#00b473",
-  warning: "#f4d03f",
-  error: "#e74c3c",
-};
-
-const rounded = {
-  sm: "6px",
-  md: "8px",
-  lg: "12px",
-  xl: "16px",
-  full: "9999px",
-};
-
-const spacing = {
-  xs: "8px",
-  sm: "12px",
-  md: "16px",
-  lg: "24px",
-  xl: "32px",
-  xxl: "48px",
-  section: "64px",
-};
-
-const EXCHANGE_RATE_THB_PER_USD = 35;
+import { Transaction } from "../types";
+import { colors, rounded, spacing } from "../constants/colors";
+import { formatCurrency, formatDate } from "../utils/format";
 
 export default function TransactionsPage() {
   const [transactionsData, setTransactionsData] = useState<Transaction[]>([]);
@@ -97,31 +35,7 @@ export default function TransactionsPage() {
     fetchData();
   }, []);
 
-  // Convert amount to selected currency
-  const convert = (amount: number | null): number => {
-    if (amount === null) return 0;
-    if (currency === "THB") {
-      return amount * EXCHANGE_RATE_THB_PER_USD;
-    }
-    return amount;
-  };
-
-  // Format number as currency
-  const formatCurrency = (amount: number): string => {
-    const converted = convert(amount);
-    if (currency === "USD") {
-      return `$${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    } else {
-      return `฿${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    }
-  };
-
-  // Format date
-  const formatDate = (dateString: string | null): string => {
-    if (!dateString) return "";
-    const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
-    return new Date(dateString).toLocaleDateString(undefined, options);
-  };
+  const fmtCurrency = (amount: number): string => formatCurrency(amount, currency);
 
   // Get transaction type label with icon
   const getTransactionType = (type: string): { label: string; color: string } => {
@@ -335,14 +249,14 @@ export default function TransactionsPage() {
                     <div className="space-y-1">
                       {tx.amount !== null ? (
                         <div className="text-right">
-                          {formatCurrency(tx.amount)}
+                          {fmtCurrency(tx.amount)}
                         </div>
                       ) : (
                         <div className="text-right text-[var(--color-slate, #555a6a)]">-</div>
                       )}
                       {tx.realized_pl !== null ? (
                         <div className="text-right text-sm">
-                          {formatCurrency(tx.realized_pl)} {tx.realized_pl >= 0 ? "+" : ""}
+                          {fmtCurrency(tx.realized_pl)} {tx.realized_pl >= 0 ? "+" : ""}
                         </div>
                       ) : null}
                     </div>

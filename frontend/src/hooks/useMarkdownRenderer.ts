@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { PortfolioData } from '../screens/types';
+import { PortfolioData } from '../types';
 
 export const useMarkdownRenderer = () => {
   const renderRiskStatus = useCallback((status: string): string => {

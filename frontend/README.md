@@ -9,22 +9,39 @@ frontend/
 ├── package.json              # Dependencies: React 18, Vite, TanStack Query, React Router
 ├── vite.config.ts           # Vite config + proxy /api → backend:8000
 ├── Dockerfile               # Node 20 Alpine - expose 5173
-├── .env                    # Environment: BACKEND_API_BASE_URL, VITE_API_BASE_URL
 ├── index.html              # Entry point with Inter font
 ├── src/
 │   ├── main.tsx            # React entry: StrictMode + QueryClientProvider
 │   ├── App.tsx             # Router + Navigation layout (z-index: 100)
 │   ├── index.css           # Design tokens + animations (pulse, shimmer, gauge)
 │   │
+│   ├── types/
+│   │   └── index.ts        # Shared TypeScript interfaces (portfolio, transaction, spread, fund)
+│   │
+│   ├── constants/
+│   │   └── colors.ts       # Design tokens: colors, rounded, spacing, EXCHANGE_RATE
+│   │
+│   ├── utils/
+│   │   ├── format.ts       # Currency formatting, date formatting
+│   │   ├── risk.ts         # Risk color helpers, drift calculation
+│   │   └── tags.ts         # Portfolio tag helpers
+│   │
 │   ├── lib/
 │   │   └── api.ts          # API wrapper: get/post/put/del + all endpoints
 │   │
-│   ├── services/           # Legacy services (deprecated, use lib/api.ts)
-│   │   ├── overviewService.ts
-│   │   └── transactionsService.ts
+│   ├── hooks/
+│   │   ├── useOrderEdit.ts        # Order editing state + API save
+│   │   ├── usePortfolioManager.ts  # Portfolio data fetching + selection
+│   │   ├── useZoneEditor.ts       # Zone grouping editor
+│   │   └── useMarkdownRenderer.ts # Simple markdown → HTML + risk status
 │   │
 │   ├── components/
-│   │   └── Navigation.tsx  # Sticky nav with SVG icons + dropdown
+│   │   ├── Navigation.tsx  # Sticky nav with SVG icons + dropdown
+│   │   └── icons/          # Inline SVG icon components
+│   │       ├── IconAdd.tsx
+│   │       ├── IconClose.tsx
+│   │       ├── IconEdit.tsx
+│   │       └── IconLayers.tsx
 │   │
 │   ├── pages/              # Main routes (pages)
 │   │   ├── PortfolioOverview.tsx    # Hero Card + Pool Health (SVG) + Grid
@@ -34,23 +51,25 @@ frontend/
 │   │   ├── AllAssets.tsx            # Asset listing table
 │   │   ├── TradePlanManager.tsx     # Placeholder page
 │   │   ├── ActiveOrders.tsx         # Active orders placeholder
-│   │   ├── AnalyticsDashboard.tsx   # NAV + risk summary + grid
-│   │   ├── PortfolioAnalyticsGrid.tsx # Portfolio grid view
-│   │   └── PortfolioAnalyticsDetail.tsx # Individual portfolio analytics
+│   │   ├── AnalyticsDashboard.tsx   # NAV + risk summary
+│   │   └── PortfolioAnalyticsDetail.tsx # Dynamic layout router
 │   │
-│   └── screens/            # Secondary layouts (screens)
-│       ├── ManagedFund.tsx        # Managed fund: NAV, allocation, rebalance
-│       └── SpreadPairing.tsx      # Spread pairing: order pairs + zones
-│
-├── assets/                 # SVG icons (Material Symbols style)
-│   ├── dashboard.svg       # overview icon
-│   ├── wallet.svg          # account_balance_wallet
-│   ├── swap.svg            # swap_horiz
-│   ├── security.svg        # security
-│   ├── folder.svg          # folder
-│   ├── expand.svg          # expand_more
-│   ├── notifications.svg   # notifications
-│   └── more.svg            # more_vert
+│   ├── screens/            # Secondary layouts (detail screens)
+│   │   ├── PortfolioGrid.tsx        # Grid view: orders + sticky notes
+│   │   ├── PortfolioSpread.tsx      # Spread pairing: pairs + payoff
+│   │   ├── PortfolioMutualFund.tsx  # Managed fund: allocation, rebalance, NAV
+│   │   ├── EditOrderModal.tsx       # Order edit modal
+│   │   ├── ZoneEditModal.tsx        # Zone edit modal
+│   │   └── components/
+│   │       ├── TradePlanView.tsx    # Trade plan markdown display
+│   │       ├── QuickStatsView.tsx   # Active pairs/positions stats
+│   │       ├── ZoneGroupRow.tsx     # Zone-grouped order row
+│   │       └── HistoricalGridView.tsx # Historical trades accordion
+│   │
+│   └── assets/             # SVG icons (Material Symbols style)
+│       ├── dashboard.svg, wallet.svg, swap.svg, security.svg
+│       ├── folder.svg, expand.svg, notifications.svg, more.svg
+│       └── hero.png, react.svg, vite.svg
 │
 └── tests/                # Vitest test suite
     ├── setupTests.ts
@@ -385,36 +404,16 @@ staleTime: 30000
 
 ### Data Models (TypeScript)
 
-```typescript
-// Portfolio Overview Item
-interface PortfolioOverviewItem {
-  portfolio_id: number;
-  portfolio_name: string;
-  margin: number;
-  buffer: number;
-  available: number;
-  risk_status: 'Safe' | 'Warning' | 'Danger' | null;
-}
+All shared types are defined in `src/types/index.ts`:
 
-// Transaction
-interface Transaction {
-  history_id: number;
-  type: 'Buy' | 'Sell' | 'Deposit' | 'Withdraw' | 'Transfer';
-  asset: string;
-  amount: number | null;
-  executed_by: 'Manual' | 'Bot' | 'AI';
-  // ...
-}
-
-// Spread Pair
-interface SpreadPair {
-  pair_id: string;
-  leg_a: SpreadOrder;
-  leg_b: SpreadOrder;
-  net_pl: number | null;
-  zone: string;
-}
-```
+| Domain | Key Interfaces |
+|--------|---------------|
+| **Portfolio Overview** | `PortfolioOverviewItem`, `OverviewResponse` |
+| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` |
+| **Managed Fund** | `FundPortfolio`, `TradePlan`, `TradeRecommendation`, `NavHistoryRecord` |
+| **Spread Pairing** | `PortfolioSpreadsData` |
+| **Transactions** | `Transaction` |
+| **Routing** | `PortfolioType`, `AnalyticsLayout` |
 
 ### Testing Strategy
 
@@ -439,22 +438,28 @@ optimizeDeps: { include: ['react', 'react-dom', 'react-router-dom', '@tanstack/r
 warmup: { clientFiles: ['./src/main.tsx', './src/App.tsx', ...] }
 ```
 
-### Services Layer (Legacy)
+### Architecture: Shared Modules
 
-```typescript
-// services/*.ts - Legacy wrappers (not used in favor of lib/api.ts)
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-console.info(API_BASE_URL); // Debug logging
+The frontend follows SOLID principles with clear separation of concerns:
 
-// Note: These services use direct fetch without Vite proxy benefits
-// Prefer lib/api.ts for consistent environment handling
-```
+| Layer | Directory | Purpose |
+|-------|-----------|---------|
+| **Types** | `types/` | All shared interfaces (portfolio, spread, fund, transaction) |
+| **Constants** | `constants/` | Design tokens (colors, spacing, exchange rate) |
+| **Utilities** | `utils/` | Pure helper functions (formatting, risk calculations, tags) |
+| **Hooks** | `hooks/` | Stateful business logic (order editing, portfolio management) |
+| **API** | `lib/api.ts` | Centralized HTTP client — all endpoints in one place |
+| **Components** | `components/` | Presentation-only UI (Navigation, SVG icons) |
+| **Pages** | `pages/` | Top-level route components |
+| **Screens** | `screens/` | Detail view layouts with business logic |
+
+All raw `fetch` calls have been replaced with `lib/api.ts` methods.
 
 ### API Route Consistency Note
 
-> **FastAPI trailing slash**: Routes ที่มี `/` ท้ายปละที่ไม่มี ถืกเป็น endpoint ต่างกัน  
-> ตัวอย่าง: `/api/v1/portfolios/` (มี)  vs `/api/v1/portfolios` (ไม่มี)  
-> อย่าให้เกิด redirect 307 - ให้ใช้ route definitions ที่สม่ำเสมอกัน
+> Backend has `redirect_slashes=False` — routes with and without trailing `/` are **different**.  
+> Example: `GET /api/v1/portfolios` (no slash) vs `POST /api/v1/portfolios/` (with slash) are distinct endpoints.  
+> The frontend `api.ts` accounts for this: `getPortfolios()` hits no-slash, `createPortfolio()` hits with-slash.
 
 ---
 

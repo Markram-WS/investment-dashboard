@@ -1,0 +1,27 @@
+import { EXCHANGE_RATE } from '../constants/colors';
+
+export function fmtAmount(n: number, currency: "USD" | "THB"): string {
+  const v = currency === "THB" ? n * EXCHANGE_RATE : n;
+  return currency === "USD"
+    ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : `฿${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function convertAmount(amount: number | null, currency: "USD" | "THB"): number {
+  if (amount === null) return 0;
+  return currency === "THB" ? amount * EXCHANGE_RATE : amount;
+}
+
+export function formatCurrency(amount: number, currency: "USD" | "THB"): string {
+  const converted = convertAmount(amount, currency);
+  if (currency === "USD") {
+    return `$${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return `฿${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function formatDate(dateString: string | null): string {
+  if (!dateString) return "";
+  const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
+  return new Date(dateString).toLocaleDateString(undefined, options);
+}

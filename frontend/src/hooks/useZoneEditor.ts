@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { SpreadOrder } from '../screens/types';
+import { SpreadOrder } from '../types';
+import { api } from '../lib/api';
 
 export const useZoneEditor = (onRefresh: () => void) => {
   const [editingZoneOrders, setEditingZoneOrders] = useState<SpreadOrder[]>([]);
@@ -19,11 +20,7 @@ export const useZoneEditor = (onRefresh: () => void) => {
     if (editingZoneOrders.length > 0) {
       try {
         for (const order of editingZoneOrders) {
-          await fetch(`/api/v1/orders/${order.order_id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ zone: newZone }),
-          });
+          await api.updateOrder(order.order_id, { zone: newZone });
         }
         onRefresh();
       } catch (error) {

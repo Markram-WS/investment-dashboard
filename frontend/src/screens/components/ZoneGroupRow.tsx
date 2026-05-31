@@ -1,17 +1,6 @@
 import React from 'react';
-import { ZoneGroup, SpreadOrder } from '../types';
-
-// Design tokens
-const colors = {
-  brandTeal: '#0fbcb0',
-  tealLight: '#e0f7f6',
-  brandCoral: '#ff9999',
-  coralLight: '#fdeced',
-  slate: '#555a6a',
-  hairline: '#e0e2e8',
-  surface: '#f7f8fa',
-  brandYellow: '#ffd02f',
-};
+import { ZoneGroup, SpreadOrder } from '../../types';
+import { colors } from '../../constants/colors';
 
 interface ZoneGroupRowProps {
   zoneGroup: ZoneGroup;
@@ -57,13 +46,7 @@ export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit, o
       <tr className="bg-surface border-b border-hairline">
         <td className="pl-8 py-3" colSpan={10}>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-tealLight text-brandTeal border border-brandTeal/20 uppercase tracking-wide">
-                {zoneGroup.zone}: {priceRange}
-              </span>
-              <span className="text-[10px] font-bold text-slate uppercase tracking-widest">{basePrice}</span>
-            </div>
-            <div className="flex gap-2 pr-4">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => onEditZone?.(allOrders, zoneGroup.zone)}
                 className="p-1.5 hover:bg-white rounded-full transition-colors text-slate border border-hairline"
@@ -71,6 +54,10 @@ export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit, o
               >
                 <IconEdit className="w-4 h-4" />
               </button>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-tealLight text-brandTeal border border-brandTeal/20 uppercase tracking-wide">
+                {zoneGroup.zone}: {priceRange}
+              </span>
+              <span className="text-[10px] font-bold text-slate uppercase tracking-widest">{basePrice}</span>
             </div>
           </div>
         </td>

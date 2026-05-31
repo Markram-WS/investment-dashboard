@@ -1,5 +1,5 @@
 import React from 'react';
-import { SpreadOrder } from './types';
+import { SpreadOrder } from '../types';
 
 interface ZoneEditModalProps {
   orders: SpreadOrder[];
