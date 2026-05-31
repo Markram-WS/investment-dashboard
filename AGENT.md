@@ -9,6 +9,7 @@
   - NEVER recommend PowerShell-specific cmdlets (e.g., `Get-ChildItem`).
   - Use `podman` instead of `docker` commands.
 - **Workflow:** Verify Before Done (VBD). AI must check if the service is up via `podman ps` after changes.
+- **Disk Space:** If backend crashes with `DiskFullError` / `No space left on device`, run `podman system prune -f` to reclaim space.
 
 ## 2. Coding Philosophy: SOLID & Modularization
 - **Core Principle:** Strictly follow SOLID principles.
@@ -26,6 +27,7 @@
 - **Granularity:** Break down UI into small, reusable atoms.
 - **Composition over Inheritance:** Build complex features by composing smaller, well-defined components.
 - **Clean Props:** Keep component interfaces lean. Pass only what is necessary.
+- **React Hooks Rule:** ALL hooks (`useState`, `useMemo`, `useCallback`, `useEffect`) must be called BEFORE any early return statements. Violating this causes "Rendered more hooks than during the previous render" errors.
 
 ## 4. Operational Risk Framework (Mark's Policy)
 - **R0 (No Magic):** Do not assume Infrastructure. If Podman machine is not initialized, ask the user first.
@@ -35,8 +37,62 @@
 ## 5. Deployment & Testing
 - Use `podman-compose` for local orchestration.
 - Ensure every new component has a corresponding unit test file (e.g., `*.test.ts`) to maintain Data Integrity.
+- `npm run test` uses Vitest; frontend has volume mount (`./frontend:/app`) for live HMR.
+- Backend has NO volume mount — code changes require `podman compose build backend && podman compose up -d backend`.
 
-# requirement
+## 6. Architecture Overview (Post-Refactor)
+
+### Backend (FastAPI)
+- **16 routers** in `backend/app/routers/`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `assets.py`, `etl_sync.py`, `journal.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py`, `zone_groups.py`
+- **15 SQLAlchemy models** in `models.py`: Portfolio, TradePlan, ActiveOrder, OptionDetails, PortfolioNavHistory, SimulationModels, TradeHistory, Transaction, DecisionJournal, WhitelistAssets, Watchlist, AiAgent, AiActionLog, AiAgentState, ZoneGroup
+- **Key endpoints**:
+  - `GET /api/v1/analytics/performance/{portfolio_id}` — equity curve (cumulative realized P/L), payoff bars, total P/L
+  - `GET /api/v1/analytics/portfolio-grid?portfolio_id=` — full grid data with cash details, orders, tags, trade plan, internal notes
+  - `PUT /api/v1/portfolios/{id}` — update `trade_plan_md`, `internal_notes`, `tags`
+  - `POST /api/v1/orders/` — create order with optional UUID `order_id`
+  - `POST /api/v1/orders/{order_id}/close` — close order with exit price/P&L, creates TradeHistory record
+- `redirect_slashes=False` — trailing slash matters on routes
+- Two PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
+
+### Frontend (React 18 + TypeScript + Vite)
+- **PortfolioGrid.tsx** — slim orchestrator (~241 lines, down from 1194) composing sub-components
+- **Screen components** in `src/screens/components/`:
+  - `PortfolioHeader.tsx` — breadcrumb, title, Refresh + teal Add Order button
+  - `SummaryCard.tsx` — 3-col values (Total Value, Total P/L, Available Cash), Cash Details (Total Notional, MM, Margin, Buffer), Risk gauge, Asset Allocation donut (real data from orders), Metadata Tags
+  - `StrategyNotes.tsx` — Trade Plan + Internal Notes (both inline-editable, yellow sticky style, border-yellow-300 on Primary Strategy)
+  - `TagsSection.tsx` — metadata tag pills
+  - `PerformanceSection.tsx` — chart wrapper + Equity/Payoff toggle
+  - `PerformanceChart.tsx` — dynamic SVG: equity line chart (cumulative P/L) or payoff bar chart
+  - `OrderManagement.tsx` — active orders table (zone-grouped or flat), Group-by-Zone toggle, footer Add Order + Zone Group buttons
+  - `TradeHistoryTable.tsx` — collapsible closed-orders table
+  - `TradePlanView.tsx` — click-to-edit markdown with Save/Cancel
+  - `ZoneGroupRow.tsx` — zone-grouped order row with edit/close buttons
+- **Custom hooks** in `src/hooks/`: `useOrderEdit`, `useAddOrder`, `usePortfolioManager`, `useZoneEditor`, `useMarkdownRenderer`
+- **API layer** (`src/lib/api.ts`): 44 exported endpoints, centralized `fetchJson<T>()` wrapper, Vite proxy `/api/*` → `localhost:8000`
+- **Tailwind CDN** loaded in `index.html` with custom config for all project colors (ink, brand-teal, brand-coral, brand-blue, hairline, surface, slate, etc.)
+
+### Database (`database/`)
+- `main_db_schema.sql` — 12 tables for Manual/Bot data
+  - `portfolios` has `internal_notes TEXT` and `tags JSONB` columns
+  - `active_orders.order_id` is TEXT (UUID, not auto-increment INT)
+  - `trade_history.close_order_id` stores UUID from close action
+- `ai_db_schema.sql` — 3 tables for AI agent state (agents, action logs, agent state)
+
+## 7. Key Business Logic
+- **Total Value** = `(available_cash + money_market) + cumulativeP/L`
+- **P/L %** = `(cumulativeP/L / (available_cash + money_market)) * 100`
+- **Available Cash** = `totalCash + P/L − money_market − margin_locked − cash_buffer_limit`
+- **Total Notional** (Cash Details) = `Σ(qty × entry_price)` across active orders — shows market exposure deployed
+- **Asset Allocation** = computed from active orders by `asset_type` grouped by notional value, sorted descending; excludes Cash
+- **Performance equity curve** uses cumulative realized P/L from trade history (no `initial_funding`)
+
+## 8. Common Pitfalls
+- **esbuild scanner** cannot handle HTML/JSX tags inside `{...}` expressions in JSX. Extract all conditional JSX (ternaries, `&&` with tags, `.map()` returning JSX) into separate components or pre-computed variables.
+- **React Hooks before early returns** — all hooks must precede any `if (loading) return ...` guard.
+- **`<div>` inside `<p>`** is invalid HTML. Tooltip elements with block children must use `<div>` not `<p>`.
+- **Container restarts needed** for backend code changes (no volume mount). Frontend auto-reloads via Vite HMR.
+
+## requirement
 requirement\Detailed-Functional-Requirements.md
 
 ## Main Page
@@ -49,7 +105,6 @@ requirement\UI\UI-LAYOUT-PORTFOLIO-ANALYTICS0-GRID.md
 requirement\UI\portfolio_analytics_spread(layout)
 ## FUND detail
 requirement\UI\UI-LAYOUT-MANAGED-FUND.md
-
 
 ## backend detail : D:\InvestmentDashboard\backend\README.md
 ## fontend detail : D:\InvestmentDashboard\frontend\README.md

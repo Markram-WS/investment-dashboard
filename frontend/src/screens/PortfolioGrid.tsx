@@ -9,8 +9,9 @@ import { useAddOrder } from "../hooks/useAddOrder";
 import { usePortfolioManager } from "../hooks/usePortfolioManager";
 import { useZoneEditor } from "../hooks/useZoneEditor";
 import { useMarkdownRenderer } from "../hooks/useMarkdownRenderer";
-import { SpreadOrder } from "../types";
+import { SpreadOrder, AllocationItem } from "../types";
 import { api } from "../lib/api";
+import { allocationColors } from "../constants/colors";
 
 import PortfolioHeader from "./components/PortfolioHeader";
 import SummaryCard from "./components/SummaryCard";
@@ -126,17 +127,43 @@ const PortfolioGrid: React.FC = () => {
 
   const { renderMarkdown, isGridType } = useMarkdownRenderer();
 
-  if (loading) return <div className="p-6"><p className="text-gray-500">Loading portfolio analytics...</p></div>;
-  if (error) return <div className="p-6"><p className="text-red-500">Error: {error}</p></div>;
-  if (!selectedPortfolio) return <div className="p-6"><p className="text-gray-500">No portfolio data available.</p></div>;
+  const assetAllocation: AllocationItem[] = useMemo(() => {
+    const groups: Record<string, number> = {};
+    const orders = selectedPortfolio?.active_orders || [];
+    (orders.filter((o) => o.order_status !== "closed")).forEach((o: any) => {
+      const asset = o.asset_type || "Other";
+      const notional = (o.entry_price || 0) * Number(o.qty || 0);
+      groups[asset] = (groups[asset] || 0) + notional;
+    });
+    const total = Object.values(groups).reduce((s, v) => s + v, 0);
+    if (total === 0) return [];
+    return Object.entries(groups)
+      .sort((a, b) => b[1] - a[1])
+      .map(([label, value], i) => ({
+        label,
+        percentage: (value / total) * 100,
+        color: allocationColors[i % allocationColors.length],
+      }));
+  }, [selectedPortfolio?.active_orders]);
 
-  const totalCash = (selectedPortfolio.available_cash || 0) + (selectedPortfolio.money_market || 0);
+  const totalNotional = useMemo(() =>
+    activeOrders.reduce((sum, o) => sum + (o.entry_price || 0) * Number(o.qty || 0), 0),
+  [activeOrders]);
+
+  const totalCash = (selectedPortfolio?.available_cash || 0) + (selectedPortfolio?.money_market || 0);
   const cumulativePl = performanceData?.total_pl || 0;
   const totalValue = totalCash + cumulativePl;
   const plPercent = totalCash > 0 ? (cumulativePl / totalCash) * 100 : 0;
-  const marginLocked = selectedPortfolio.margin_locked || 0;
-  const cashBufferLimit = selectedPortfolio.cash_buffer_limit || 0;
-  const availableCash = totalCash + cumulativePl - (selectedPortfolio.money_market || 0) - marginLocked - cashBufferLimit;
+  const marginLocked = selectedPortfolio?.margin_locked || 0;
+  const cashBufferLimit = selectedPortfolio?.cash_buffer_limit || 0;
+  const availableCash = totalCash + cumulativePl - (selectedPortfolio?.money_market || 0) - marginLocked - cashBufferLimit;
+
+  const riskPercent = selectedPortfolio?.risk_score ?? 0;
+  const riskStatusText = riskPercent >= 100 ? "Safe" : riskPercent >= 50 ? "Warning" : "Danger";
+
+  if (loading) return <div className="p-6"><p className="text-gray-500">Loading portfolio analytics...</p></div>;
+  if (error) return <div className="p-6"><p className="text-red-500">Error: {error}</p></div>;
+  if (!selectedPortfolio) return <div className="p-6"><p className="text-gray-500">No portfolio data available.</p></div>;
 
   const handleRefresh = () => {
     fetchAnalyticsData();
@@ -158,14 +185,17 @@ const PortfolioGrid: React.FC = () => {
         <SummaryCard
           totalValue={totalValue}
           totalCash={totalCash}
+          totalNotional={totalNotional}
           cumulativePl={cumulativePl}
           plPercent={plPercent}
           availableCash={availableCash}
           marginLocked={marginLocked}
           cashBufferLimit={cashBufferLimit}
           moneyMarket={selectedPortfolio.money_market || 0}
-          riskStatus={selectedPortfolio.risk_status}
+          riskStatus={riskStatusText}
+          riskPercent={riskPercent}
           tags={selectedPortfolio.tags}
+          assetAllocation={assetAllocation}
         />
 
         <StrategyNotes

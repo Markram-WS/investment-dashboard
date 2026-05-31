@@ -38,3 +38,18 @@ export const spacing = {
 };
 
 export const EXCHANGE_RATE = 35;
+
+export const allocationColors = [
+  "#ff9999",  // coral
+  "#0fbcb0",  // teal
+  "#ffd02f",  // yellow
+  "#4262ff",  // blue
+  "#9b59b6",  // purple
+  "#e67e22",  // orange
+  "#2ecc71",  // green
+  "#e74c3c",  // red
+  "#1abc9c",  // turquoise
+  "#f39c12",  // amber
+  "#3498db",  // sky blue
+  "#95a5a6",  // grey
+];

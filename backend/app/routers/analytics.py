@@ -117,6 +117,7 @@ class PortfolioGridData(BaseModel):
     portfolio_name: str
     port_type: str
     risk_status: str
+    risk_score: Optional[float] = None
     trade_plan_md: Optional[str] = None
     internal_notes: Optional[str] = None
     available_cash: Optional[float] = None
@@ -135,6 +136,21 @@ def _to_float(val):
     if val is None:
         return None
     return float(str(val))
+
+def _compute_risk_score(available_cash: Optional[float], margin_locked: Optional[float], cash_buffer_limit: Optional[float]) -> float:
+    """Compute risk score (0-100) matching frontend logic."""
+    ac = available_cash or 0
+    ml = margin_locked or 0
+    cbl = cash_buffer_limit or 0
+    if ml <= 0 and cbl == 0:
+        return 100.0
+    if cbl != 0:
+        if ac <= ml:
+            return 0.0
+        return min(100.0, ((ac - ml) / cbl) * 100)
+    if ml <= 0:
+        return 0.0
+    return min(100.0, ((ac - ml) / ml) * 100)
 
 def _calculate_zone(entry_price: float, entry_zone: Optional[str]) -> str:
     """Calculate zone (ZONE A / ZONE B) based on entry_price vs trade_plan entry_zone.
@@ -343,6 +359,11 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
             portfolio_name=portfolio.portfolio_name,
             port_type=portfolio.port_type,
             risk_status=portfolio.risk_status,
+            risk_score=_compute_risk_score(
+                _to_float(portfolio.available_cash),
+                _to_float(portfolio.margin_locked),
+                _to_float(portfolio.cash_buffer_limit)
+            ),
             trade_plan_md=portfolio.trade_plan_md or (trade_plan.entry_reason if trade_plan else None),
             internal_notes=portfolio.internal_notes,
             available_cash=_to_float(portfolio.available_cash),
@@ -538,6 +559,11 @@ async def get_portfolio_detail(
         portfolio_name=portfolio.portfolio_name,
         port_type=portfolio.port_type,
         risk_status=portfolio.risk_status,
+        risk_score=_compute_risk_score(
+            _to_float(portfolio.available_cash),
+            _to_float(portfolio.margin_locked),
+            _to_float(portfolio.cash_buffer_limit)
+        ),
         trade_plan_md=portfolio.trade_plan_md or (trade_plan.entry_reason if trade_plan else None),
         internal_notes=portfolio.internal_notes,
         available_cash=_to_float(portfolio.available_cash),

@@ -1,9 +1,11 @@
 import React from "react";
 import TagsSection from "./TagsSection";
+import { AllocationItem } from "../../types";
 
 interface SummaryCardProps {
   totalValue: number;
   totalCash: number;
+  totalNotional: number;
   cumulativePl: number;
   plPercent: number;
   availableCash: number;
@@ -11,17 +13,23 @@ interface SummaryCardProps {
   cashBufferLimit: number;
   moneyMarket: number;
   riskStatus: string;
+  riskPercent: number;
   tags: Record<string, boolean> | null;
+  assetAllocation: AllocationItem[];
 }
 
+const R = 16, CIRCUMFERENCE = 2 * Math.PI * R;
+
 const SummaryCard: React.FC<SummaryCardProps> = ({
-  totalValue, totalCash, cumulativePl, plPercent, availableCash,
-  marginLocked, cashBufferLimit, moneyMarket, riskStatus, tags,
-}) => (
+  totalValue, totalCash, totalNotional, cumulativePl, plPercent, availableCash,
+  marginLocked, cashBufferLimit, moneyMarket, riskStatus, riskPercent, tags, assetAllocation,
+}) => {
+  let offset = 0;
+
+  return (
   <div className="col-span-12 lg:col-span-8 bg-white rounded-xl border border-hairline p-8 flex flex-col">
     <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-6">Portfolio Summary</h3>
 
-    {/* Top 3-column values */}
     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 pb-8 border-b border-hairline">
       <div className="flex flex-col">
         <p className="text-xs font-medium text-gray-500 mb-2">Total Value</p>
@@ -47,7 +55,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
           <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
             i
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 px-3 py-2 bg-ink text-white text-[10px] leading-relaxed rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-              Total Cash + P/L − Money Market − Margin Locked − Cash Buffer
+              Available Cash + P/L − Money Market − Margin Locked − Cash Buffer
               <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 bg-ink rotate-45"></div>
             </div>
           </span>
@@ -57,13 +65,12 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
       </div>
     </div>
 
-    {/* Cash Details */}
     <div className="mb-8 pb-8 border-b border-hairline">
       <p className="text-[11px] font-bold text-gray-500 mb-4 uppercase tracking-widest">Cash Details</p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         <div>
-          <p className="text-[10px] font-medium text-gray-500 mb-1">Total Cash</p>
-          <p className="text-lg font-bold">${totalCash.toLocaleString()}</p>
+          <p className="text-[10px] font-medium text-gray-500 mb-1">Total Notional</p>
+          <p className="text-lg font-bold">${totalNotional.toLocaleString()}</p>
         </div>
         <div>
           <p className="text-[10px] font-medium text-gray-500 mb-1">Money Market (T+3)</p>
@@ -80,7 +87,6 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
       </div>
     </div>
 
-    {/* Risk Level & Asset Allocation */}
     <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
       <div className="flex border-r border-hairline pr-8">
         <div className="flex flex-col w-full">
@@ -89,18 +95,28 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
             <div className="relative flex items-center justify-center w-40 h-40 shrink-0">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                 <circle cx="18" cy="18" fill="transparent" r="16" stroke="#f0f0f0" strokeWidth="3" />
-                <circle cx="18" cy="18" fill="transparent" r="16" stroke="#1c1c1e" strokeDasharray="66 34" strokeDashoffset="0" strokeWidth="4" />
+                <circle cx="18" cy="18" fill="transparent" r="16"
+                  stroke={riskPercent >= 100 ? "#0fbcb0" : riskPercent >= 50 ? "#ffd02f" : "#e74c3c"}
+                  strokeDasharray={`${(riskPercent / 100) * CIRCUMFERENCE} ${CIRCUMFERENCE}`}
+                  strokeDashoffset="0" strokeWidth="4" strokeLinecap="round" />
               </svg>
               <div className="absolute text-center">
-                <p className="text-[14px] font-bold text-ink">66%</p>
+                <p className="text-[14px] font-bold text-ink">{riskPercent.toFixed(0)}%</p>
               </div>
             </div>
             <div className="flex flex-col gap-3 items-start">
               <div className="flex items-center gap-2 bg-surface px-3 py-1.5 rounded-full border border-hairline">
-                <span className="h-2 w-2 rounded-full bg-ink" />
-                <span className="text-[11px] font-bold uppercase tracking-wider">{riskStatus || "Moderate"}</span>
+                <span className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: riskPercent >= 100 ? "#0fbcb0" : riskPercent >= 50 ? "#ffd02f" : "#e74c3c" }} />
+                <span className="text-[11px] font-bold uppercase tracking-wider">{riskStatus || "Safe"}</span>
               </div>
-              <p className="text-[11px] text-slate font-medium max-w-[120px]">Score based on portfolio volatility</p>
+              <p className="text-[11px] text-slate font-medium max-w-[120px]">
+                {riskPercent >= 100
+                  ? "Buffer fully covers exposure"
+                  : riskPercent >= 50
+                    ? "Buffer partially covers exposure"
+                    : "Exposure exceeds buffer capacity"}
+              </p>
             </div>
           </div>
         </div>
@@ -112,32 +128,33 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
             <div className="relative flex items-center justify-center w-40 h-40 shrink-0">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                 <circle cx="18" cy="18" fill="transparent" r="16" stroke="#f0f0f0" strokeWidth="3" />
-                <circle cx="18" cy="18" fill="transparent" r="16" stroke="#ff9999" strokeDasharray="45 55" strokeDashoffset="0" strokeWidth="4" />
-                <circle cx="18" cy="18" fill="transparent" r="16" stroke="#0fbcb0" strokeDasharray="30 70" strokeDashoffset="-45" strokeWidth="4" />
-                <circle cx="18" cy="18" fill="transparent" r="16" stroke="#ffd02f" strokeDasharray="15 85" strokeDashoffset="-75" strokeWidth="4" />
-                <circle cx="18" cy="18" fill="transparent" r="16" stroke="#4262ff" strokeDasharray="10 90" strokeDashoffset="-90" strokeWidth="4" />
+                {assetAllocation.map((a) => {
+                  const dashLen = (a.percentage / 100) * CIRCUMFERENCE;
+                  const gapLen = CIRCUMFERENCE - dashLen;
+                  const segOffset = offset;
+                  offset -= dashLen;
+                  return (
+                    <circle key={a.label} cx="18" cy="18" fill="transparent" r="16"
+                      stroke={a.color} strokeDasharray={`${dashLen} ${gapLen}`}
+                      strokeDashoffset={segOffset} strokeWidth="4" />
+                  );
+                })}
               </svg>
               <div className="absolute text-center">
-                <p className="text-[14px] font-bold text-ink">100%</p>
+                <p className="text-[14px] font-bold text-ink">{assetAllocation.length > 0 ? "100%" : "—"}</p>
               </div>
             </div>
             <div className="flex flex-col gap-3 justify-center">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-brand-coral" />
-                <span className="text-[11px] font-bold">Eq 45%</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-brand-teal" />
-                <span className="text-[11px] font-bold">FI 30%</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-brand-yellow" />
-                <span className="text-[11px] font-bold">Alt 15%</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-brand-blue" />
-                <span className="text-[11px] font-bold">Cash 10%</span>
-              </div>
+              {assetAllocation.length > 0 ? (
+                assetAllocation.map((a) => (
+                  <div key={a.label} className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: a.color }} />
+                    <span className="text-[11px] font-bold">{a.label} {a.percentage.toFixed(1)}%</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-[11px] text-slate">No allocation data</p>
+              )}
             </div>
           </div>
         </div>
@@ -146,6 +163,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
 
     <TagsSection tags={tags} />
   </div>
-);
+  );
+};
 
 export default SummaryCard;

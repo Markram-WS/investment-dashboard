@@ -68,6 +68,7 @@ export interface PortfolioData {
   portfolio_name: string;
   port_type: string;
   risk_status: string;
+  risk_score: number | null;
   trade_plan_md: string | null;
   internal_notes: string | null;
   available_cash: number | null;
@@ -96,6 +97,12 @@ export interface PortfolioType {
 }
 
 export type AnalyticsLayout = "spread" | "grid" | "managed-fund";
+
+export interface AllocationItem {
+  label: string;
+  percentage: number;
+  color: string;
+}
 
 // === Transactions ===
 export interface Transaction {
