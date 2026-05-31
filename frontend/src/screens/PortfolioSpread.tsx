@@ -12,7 +12,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
   const [error, setError] = useState<string | null>(null);
   const activePortfolioId = propPortfolioId || "1";
   const [showPairWizard, setShowPairWizard] = useState<boolean>(false);
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [targetPairId, setTargetPairId] = useState<string>('');
   const [completedCycles, setCompletedCycles] = useState<Array<{pair_id: string, zone: string, net_pl: number | null}>>([]);
   const [showPayoffChart, setShowPayoffChart] = useState<{show: boolean, pairId: string | null}>({show: false, pairId: null});
@@ -109,7 +109,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
     }
   };
 
-  const handleCreatePair = async (orderId: number) => {
+  const handleCreatePair = async (orderId: string) => {
     setSelectedOrderId(orderId);
     setShowPairWizard(true);
   };

@@ -1,11 +1,11 @@
 import React from 'react';
 import { ZoneGroup, SpreadOrder } from '../../types';
-import { colors } from '../../constants/colors';
 
 interface ZoneGroupRowProps {
   zoneGroup: ZoneGroup;
   onEdit: (order: SpreadOrder) => void;
-  onEditZone?: (orders: SpreadOrder[], zone: string) => void; // แก้ไขหลาย orders ในกลุ่ม
+  onEditZone?: (orders: SpreadOrder[], zone: string) => void;
+  onClose?: (order: SpreadOrder) => void;
 }
 
 const IconEdit: React.FC<{className?: string}> = ({className = "w-4 h-4"}) => (
@@ -15,7 +15,19 @@ const IconEdit: React.FC<{className?: string}> = ({className = "w-4 h-4"}) => (
   </svg>
 );
 
-export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit, onEditZone }) => {
+const IconClose: React.FC<{className?: string}> = ({className = "w-4 h-4"}) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+const formatDate = (dateStr: string | null): string => {
+  if (!dateStr) return '-';
+  return dateStr.slice(0, 10);
+};
+
+export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit, onEditZone, onClose }) => {
   const zonePriceRange = (orders: SpreadOrder[]): string => {
     const prices = orders.map(o => o.entry_price).filter(p => p !== null) as number[];
     if (prices.length === 0) return '';
@@ -44,7 +56,7 @@ export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit, o
     <>
       {/* Zone header row */}
       <tr className="bg-surface border-b border-hairline">
-        <td className="pl-8 py-3" colSpan={10}>
+        <td className="pl-8 py-3" colSpan={12}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button
@@ -79,6 +91,7 @@ export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit, o
                 {order.side}
               </span>
             </td>
+            <td className="py-4 text-[10px] text-slate">{formatDate(order.created_at)}</td>
             <td className="py-4 text-xs font-medium">${order.entry_price ? order.entry_price.toLocaleString() : '-'}</td>
             <td className="py-4 text-xs font-medium">{order.qty}</td>
             <td className="py-4 text-xs font-medium">${order.tp_price ? order.tp_price.toLocaleString() : '-'}</td>
@@ -88,12 +101,24 @@ export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit, o
             </td>
             <td className="py-4 text-[10px] text-slate font-bold uppercase tracking-wider">{order.order_status}</td>
             <td className="pr-6 text-right py-4">
-              <button
-                onClick={() => onEdit(order)}
-                className="p-1.5 hover:bg-white rounded-full transition-colors text-slate border border-hairline"
-              >
-                <IconEdit className="w-4 h-4" />
-              </button>
+              <div className="flex items-center justify-end gap-1">
+                <button
+                  onClick={() => onEdit(order)}
+                  className="p-1.5 hover:bg-white rounded-full transition-colors text-slate border border-hairline"
+                  title="Edit"
+                >
+                  <IconEdit className="w-4 h-4" />
+                </button>
+                {onClose && (
+                  <button
+                    onClick={() => onClose(order)}
+                    className="p-1.5 hover:bg-red-50 rounded-full transition-colors text-red-300 hover:text-red-500 border border-hairline"
+                    title="Close Order"
+                  >
+                    <IconClose className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </td>
           </tr>
         );
@@ -105,13 +130,13 @@ export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit, o
             style={{borderLeft: '3px solid #ffd02f'}}>
           <td className="pl-12 py-2 font-bold text-[10px] text-slate">{order.order_id}-S</td>
           <td className="py-2 text-[10px] text-slate/60 font-medium">Pending Sync</td>
-          <td className="py-2 text-[10px] font-medium text-slate/60">{zoneGroup.zone}</td>
           <td className="py-2 font-bold text-[10px] uppercase text-slate/60">{order.asset_type}</td>
           <td className="py-2">
             <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${getSideBadgeClass(order.side)}`}>
               {order.side}
             </span>
           </td>
+          <td className="py-2 text-[10px] text-slate/60">{formatDate(order.created_at)}</td>
           <td className="py-2 text-[10px] font-medium text-slate/60">${order.entry_price ? order.entry_price.toLocaleString() : '-'}</td>
           <td className="py-2 text-[10px] font-medium text-slate/60">{order.qty}</td>
           <td className="py-2 text-[10px] font-medium text-slate/60">-</td>
@@ -119,12 +144,15 @@ export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit, o
           <td className="py-2 text-slate/40 font-bold text-[10px]">-</td>
           <td className="py-2 text-[9px] text-slate font-bold uppercase tracking-wider">Pending</td>
           <td className="pr-6 text-right py-2">
-            <button className="p-1 hover:bg-white rounded-full transition-colors text-slate/40 border border-hairline">
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+            {onClose && (
+              <button
+                onClick={() => onClose(order)}
+                className="p-1 hover:bg-red-50 rounded-full transition-colors text-red-300 hover:text-red-500 border border-hairline"
+                title="Close Order"
+              >
+                <IconClose className="w-3.5 h-3.5" />
+              </button>
+            )}
           </td>
         </tr>
       ))}

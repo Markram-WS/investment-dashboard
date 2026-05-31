@@ -24,7 +24,7 @@ export interface OverviewResponse {
 
 // === Portfolio Analytics ===
 export interface SpreadOrder {
-  order_id: number;
+  order_id: string;
   asset_type: string;
   side: string;
   qty: number | string;

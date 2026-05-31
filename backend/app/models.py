@@ -1,3 +1,4 @@
+import uuid
 from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime, Boolean, ForeignKey, CheckConstraint, Numeric, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, configure_mappers
@@ -35,6 +36,7 @@ class Portfolio(Base):
     nav_history = relationship("PortfolioNavHistory", back_populates="portfolio")
     simulation_models = relationship("SimulationModels", back_populates="portfolio")
     trade_history = relationship("TradeHistory", back_populates="portfolio")
+    zone_groups = relationship("ZoneGroup", back_populates="portfolio")
     # Note: No direct transaction relationship due to ambiguity with source/destination FKs
 
 class TradePlan(Base):
@@ -61,7 +63,7 @@ class TradePlan(Base):
 class ActiveOrder(Base):
     __tablename__ = 'active_orders'
     
-    order_id = Column(Integer, primary_key=True)
+    order_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     plan_id = Column(Integer, ForeignKey('trade_plans.plan_id'), nullable=False)
     portfolio_id = Column(Integer, ForeignKey('portfolios.portfolio_id'), nullable=False)
     asset_type = Column(String, nullable=False)
@@ -137,10 +139,12 @@ class TradeHistory(Base):
     
     history_id = Column(Integer, primary_key=True)
     portfolio_id = Column(Integer, ForeignKey('portfolios.portfolio_id'), nullable=False)
-    order_id = Column(Integer, ForeignKey('active_orders.order_id'), nullable=True)
+    order_id = Column(String, ForeignKey('active_orders.order_id'), nullable=True)
+    close_order_id = Column(String, nullable=True)
     type = Column(String, nullable=False)
     asset = Column(String, nullable=False)
     amount = Column(Numeric(20, 8), nullable=True)
+    entry_price = Column(Numeric(20, 8))
     exit_price = Column(Numeric(20, 8))
     realized_pl = Column(Numeric(20, 8))
     executed_by = Column(String)
@@ -252,3 +256,18 @@ class AiAgentState(Base):
     error_logs = Column(String)
     
     agent = relationship("AiAgent", back_populates="state")
+
+
+class ZoneGroup(Base):
+    __tablename__ = 'zone_groups'
+
+    id = Column(Integer, primary_key=True)
+    portfolio_id = Column(Integer, ForeignKey('portfolios.portfolio_id'), nullable=False)
+    name = Column(String, nullable=False)
+    max_orders = Column(Integer, nullable=True)
+    min_price = Column(Numeric(20, 8), nullable=True)
+    max_price = Column(Numeric(20, 8), nullable=True)
+    range = Column(Numeric(20, 8), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    portfolio = relationship("Portfolio", back_populates="zone_groups")

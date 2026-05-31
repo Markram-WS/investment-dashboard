@@ -16,7 +16,7 @@ frontend/
 │   ├── index.css           # Design tokens + animations (pulse, shimmer, gauge)
 │   │
 │   ├── types/
-│   │   └── index.ts        # Shared TypeScript interfaces (portfolio, transaction, spread, fund)
+│   │   └── index.ts        # Shared TypeScript interfaces (portfolio, transaction, spread, fund, order)
 │   │
 │   ├── constants/
 │   │   └── colors.ts       # Design tokens: colors, rounded, spacing, EXCHANGE_RATE
@@ -33,6 +33,7 @@ frontend/
 │   │   ├── useOrderEdit.ts        # Order editing state + API save
 │   │   ├── usePortfolioManager.ts  # Portfolio data fetching + selection
 │   │   ├── useZoneEditor.ts       # Zone grouping editor
+│   │   ├── useAddOrder.ts         # Add order form state + API create order
 │   │   └── useMarkdownRenderer.ts # Simple markdown → HTML + risk status
 │   │
 │   ├── components/
@@ -55,15 +56,18 @@ frontend/
 │   │   └── PortfolioAnalyticsDetail.tsx # Dynamic layout router
 │   │
 │   ├── screens/            # Secondary layouts (detail screens)
-│   │   ├── PortfolioGrid.tsx        # Grid view: orders + sticky notes
+│   │   ├── PortfolioGrid.tsx        # Grid view: orders + sticky notes + Add/Close/Trade History
 │   │   ├── PortfolioSpread.tsx      # Spread pairing: pairs + payoff
 │   │   ├── PortfolioMutualFund.tsx  # Managed fund: allocation, rebalance, NAV
+│   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID, asset, side, qty, TP/SL, zone, status)
+│   │   ├── CloseOrderModal.tsx     # Close order form (editable Close ID, exit price, P/L, auto-calc)
 │   │   ├── EditOrderModal.tsx       # Order edit modal
 │   │   ├── ZoneEditModal.tsx        # Zone edit modal
+│   │   ├── ZoneGroupModal.tsx       # Zone group CRUD (add/edit/delete zone definitions)
 │   │   └── components/
 │   │       ├── TradePlanView.tsx    # Trade plan markdown display
 │   │       ├── QuickStatsView.tsx   # Active pairs/positions stats
-│   │       ├── ZoneGroupRow.tsx     # Zone-grouped order row
+│   │       ├── ZoneGroupRow.tsx     # Zone-grouped order row with edit/close buttons
 │   │       └── HistoricalGridView.tsx # Historical trades accordion
 │   │
 │   └── assets/             # SVG icons (Material Symbols style)
@@ -119,7 +123,14 @@ frontend/
 | Rebalance | `/api/v1/rebalance/recommend` | POST |
 | AI | `/api/v1/ai/status?portfolio_id` | GET |
 | Trade Plans | `/api/v1/trade-plans` | GET/POST |
-| Orders | `/api/v1/orders` | GET |
+| Orders | `/api/v1/orders/` | POST (create with optional UUID order_id) |
+| Orders | `/api/v1/orders` | GET (list) |
+| Orders | `/api/v1/orders/{order_id}/close` | POST (close + trade history) |
+| Orders | `/api/v1/orders/{order_id}` | PUT (update) |
+| Trade History | `/api/v1/trade-history/` | GET (list, optional `?portfolio_id=`) |
+| Zone Groups | `/api/v1/zone-groups/?portfolio_id=` | GET/POST |
+| Zone Groups | `/api/v1/zone-groups/{id}` | PUT/DELETE |
+| Spread Pairs | `/api/v1/spread-pairs/` | POST/DELETE |
 
 ## 🎨 UI Architecture (from DESIGN.md spec)
 
@@ -406,14 +417,14 @@ staleTime: 30000
 
 All shared types are defined in `src/types/index.ts`:
 
-| Domain | Key Interfaces |
-|--------|---------------|
-| **Portfolio Overview** | `PortfolioOverviewItem`, `OverviewResponse` |
-| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` |
-| **Managed Fund** | `FundPortfolio`, `TradePlan`, `TradeRecommendation`, `NavHistoryRecord` |
-| **Spread Pairing** | `PortfolioSpreadsData` |
-| **Transactions** | `Transaction` |
-| **Routing** | `PortfolioType`, `AnalyticsLayout` |
+| Domain | Key Interfaces | Notes |
+|--------|---------------|-------|
+| **Portfolio Overview** | `PortfolioOverviewItem`, `OverviewResponse` | |
+| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` | `order_id` is **string** (UUID) |
+| **Managed Fund** | `FundPortfolio`, `TradePlan`, `TradeRecommendation`, `NavHistoryRecord` | |
+| **Spread Pairing** | `PortfolioSpreadsData` | |
+| **Transactions** | `Transaction` | Includes `order_id` and `close_order_id` (both string) |
+| **Routing** | `PortfolioType`, `AnalyticsLayout` | |
 
 ### Testing Strategy
 

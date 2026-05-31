@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS ai_action_logs (
     confidence_score NUMERIC(3,2) CHECK (confidence_score >= 0 AND confidence_score <= 1),
     raw_data_snapshot JSONB,
     linked_plan_id INTEGER,
-    linked_order_id INTEGER,
+    linked_order_id TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

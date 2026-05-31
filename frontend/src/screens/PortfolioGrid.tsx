@@ -1,7 +1,11 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { EditOrderModal } from './EditOrderModal';
+import { AddOrderModal } from './AddOrderModal';
 import { ZoneEditModal } from './ZoneEditModal';
+import { ZoneGroupModal } from './ZoneGroupModal';
+import { CloseOrderModal } from './CloseOrderModal';
 import { useOrderEdit } from '../hooks/useOrderEdit';
+import { useAddOrder } from '../hooks/useAddOrder';
 import { usePortfolioManager } from '../hooks/usePortfolioManager';
 import { useZoneEditor } from '../hooks/useZoneEditor';
 import { ZoneGroupRow } from './components/ZoneGroupRow';
@@ -13,6 +17,7 @@ import { IconAdd } from '../components/icons/IconAdd';
 import { IconLayers } from '../components/icons/IconLayers';
 import { useMarkdownRenderer } from '../hooks/useMarkdownRenderer';
 import { colors } from '../constants/colors';
+import { api } from '../lib/api';
 
 const PortfolioGrid: React.FC = () => {
   // usePortfolioManager hook - จัดการ portfolio data + loading/error states
@@ -28,6 +33,11 @@ const PortfolioGrid: React.FC = () => {
 
   // UI state
   const [groupByZone, setGroupByZone] = useState(true);
+  const [showZoneGroupModal, setShowZoneGroupModal] = useState(false);
+  const [tradeHistory, setTradeHistory] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [closingOrder, setClosingOrder] = useState<SpreadOrder | null>(null);
+  const [showCloseModal, setShowCloseModal] = useState(false);
 
   // Order edit hook (SRP - separated state management)
   const {
@@ -40,6 +50,16 @@ const PortfolioGrid: React.FC = () => {
     handleSaveOrder,
     setOnRefresh,
   } = useOrderEdit();
+
+  // Add Order hook
+  const {
+    showModal: showAddModal,
+    formData: addFormData,
+    openModal,
+    closeModal: closeAddModal,
+    handleFormChange: handleAddFormChange,
+    handleCreateOrder,
+  } = useAddOrder();
 
   // Register refresh callback once on mount
   React.useEffect(() => {
@@ -55,9 +75,45 @@ const PortfolioGrid: React.FC = () => {
     handleSaveZone,
   } = useZoneEditor(fetchAnalyticsData);
 
+  // Fetch trade history when portfolio changes
+  React.useEffect(() => {
+    if (selectedPortfolio) {
+      api.getTradeHistory(selectedPortfolio.portfolio_id).then(setTradeHistory).catch(() => {});
+    }
+  }, [selectedPortfolio?.portfolio_id]);
+
+  // Close order handler - show modal if no price data, else close directly
+  const handleCloseOrder = useCallback((order: SpreadOrder) => {
+    setClosingOrder(order);
+    setShowCloseModal(true);
+  }, []);
+
+  // Confirm close with user-provided exit price and P/L
+  const handleConfirmClose = useCallback(async (orderId: string, closeOrderId: string, exitPrice: number | null, realizedPl: number | null) => {
+    try {
+      await api.closeOrder(orderId, { close_order_id: closeOrderId, exit_price: exitPrice, realized_pl: realizedPl });
+      setShowCloseModal(false);
+      setClosingOrder(null);
+      fetchAnalyticsData();
+      if (selectedPortfolio) {
+        const data = await api.getTradeHistory(selectedPortfolio.portfolio_id);
+        setTradeHistory(data);
+      }
+    } catch (err) {
+      console.error('Failed to close order:', err);
+    }
+  }, [fetchAnalyticsData, selectedPortfolio]);
+
+  // Filter out closed orders so they disappear from Order Management
+  const activeOrders = useMemo(() => {
+    return (selectedPortfolio?.active_orders || []).filter(
+      (o) => o.order_status !== 'closed',
+    );
+  }, [selectedPortfolio?.active_orders]);
+
   // Group orders by Zone - using useMemo to prevent stale closure issues
   const zoneGroups = useMemo(() => {
-    const orders = selectedPortfolio?.active_orders || [];
+    const orders = activeOrders;
     const groups: Record<string, ZoneGroup> = {};
     // Sort orders by entry_price first (DESC - จากมากไปน้อย)
     const sortedOrders = [...orders].sort((a, b) => {
@@ -81,7 +137,7 @@ const PortfolioGrid: React.FC = () => {
       }
     });
     return Object.values(groups);
-  }, [selectedPortfolio?.active_orders]);
+  }, [activeOrders]);
 
   // Markdown renderer hook
   const { renderMarkdown, renderRiskStatus, isGridType } = useMarkdownRenderer();
@@ -156,7 +212,10 @@ const PortfolioGrid: React.FC = () => {
           <div className="text-xs text-gray-500">
             Last updated: {lastUpdated.toLocaleTimeString()}
           </div>
-          <button className="px-4 py-2 bg-black text-white text-xs font-medium rounded-full hover:bg-gray-800 transition-colors">
+          <button
+            onClick={openModal}
+            className="px-4 py-2 bg-black text-white text-xs font-medium rounded-full hover:bg-gray-800 transition-colors"
+          >
             ADD ORDER
           </button>
         </div>
@@ -235,22 +294,28 @@ const PortfolioGrid: React.FC = () => {
                         zoneGroup={zoneGroup}
                         onEdit={startEdit}
                         onEditZone={handleEditZone}
+                        onClose={handleCloseOrder}
                       />
                     ))}
                   </tbody>
                 </table>
               </div>
-            ) : selectedPortfolio.active_orders &&
-              selectedPortfolio.active_orders.length > 0 ? (
+            ) : activeOrders.length > 0 ? (
               // Default table view for non-Grid types or when Group by Zone is off
               <table className="w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">
                       Asset
                     </th>
                     <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">
                       Side
+                    </th>
+                    <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">
+                      Open Date
                     </th>
                     <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">
                       Qty
@@ -261,17 +326,31 @@ const PortfolioGrid: React.FC = () => {
                     <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">
                       Current
                     </th>
+                    <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">
+                      TP
+                    </th>
+                    <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">
+                      SL
+                    </th>
                     <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">
                       Status
                     </th>
+                    <th className="px-3 py-2 w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedPortfolio.active_orders.map((order) => (
+                  {activeOrders.map((order) => {
+                    const openDate = order.created_at
+                      ? order.created_at.slice(0, 10)
+                      : '-';
+                    return (
                     <tr
                       key={order.order_id}
                       className="border-b border-[#e0e2e8] bg-white hover:bg-gray-50"
                     >
+                      <td className="px-3 py-2 text-xs text-gray-500 font-mono">
+                        #{order.order_id}
+                      </td>
                       <td className="px-3 py-2 font-medium text-sm">
                         {order.asset_type}
                       </td>
@@ -286,6 +365,7 @@ const PortfolioGrid: React.FC = () => {
                           {order.side}
                         </span>
                       </td>
+                      <td className="px-3 py-2 text-xs text-gray-500">{openDate}</td>
                       <td className="px-3 py-2 text-right text-xs">
                         {order.qty}
                       </td>
@@ -294,6 +374,12 @@ const PortfolioGrid: React.FC = () => {
                       </td>
                       <td className="px-3 py-2 text-right text-xs">
                         ${order.current_price || '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs">
+                        ${order.tp_price || '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs">
+                        ${order.sl_price || '-'}
                       </td>
                       <td className="px-3 py-2">
                         <span
@@ -306,8 +392,21 @@ const PortfolioGrid: React.FC = () => {
                           {order.order_status}
                         </span>
                       </td>
+                      <td className="px-3 py-2">
+                        <button
+                          onClick={() => handleCloseOrder(order)}
+                          className="p-1 hover:bg-red-50 rounded transition-colors text-red-300 hover:text-red-500"
+                          title="Close Order"
+                        >
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </button>
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             ) : (
@@ -319,16 +418,87 @@ const PortfolioGrid: React.FC = () => {
           {/* Add Order footer button */}
           <div className="h-12 w-full flex items-center justify-center border-t border-hairline bg-surface/50">
             <div className="relative flex -mt-10 z-10">
-              <button className="h-10 px-4 gap-2 rounded-full bg-black text-white shadow-lg hover:scale-105 transition-all flex items-center justify-center border-4 border-white">
+              <button
+                onClick={openModal}
+                className="h-10 px-4 gap-2 rounded-full bg-black text-white shadow-lg hover:scale-105 transition-all flex items-center justify-center border-4 border-white"
+              >
                 <IconAdd className="w-4.5 h-4.5" />
                 <span className="text-[10px] font-bold uppercase tracking-widest">
                   Add Order
                 </span>
               </button>
-              <button className="ml-2 h-10 w-10 rounded-full bg-white text-ink shadow-lg hover:scale-105 transition-all flex items-center justify-center border-4 border-white">
+              <button
+                onClick={() => setShowZoneGroupModal(true)}
+                className="ml-2 h-10 w-10 rounded-full bg-white text-ink shadow-lg hover:scale-105 transition-all flex items-center justify-center border-4 border-white"
+              >
                 <IconLayers className="w-4 h-4" />
               </button>
             </div>
+          </div>
+          {/* Trade History */}
+          <div className="border-t border-hairline">
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-widest hover:bg-gray-50"
+            >
+              <span>Trade History ({tradeHistory.length})</span>
+              <svg className={`w-3 h-3 transition-transform ${showHistory ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {showHistory && (
+              <div className="max-h-48 overflow-auto">
+                {tradeHistory.length === 0 ? (
+                  <p className="px-4 py-3 text-xs text-gray-400 text-center">No closed orders yet.</p>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-1.5 text-left font-medium text-[10px] uppercase tracking-wider">Open ID</th>
+                        <th className="px-3 py-1.5 text-left font-medium text-[10px] uppercase tracking-wider">Close ID</th>
+                        <th className="px-3 py-1.5 text-left font-medium text-[10px] uppercase tracking-wider">Asset</th>
+                        <th className="px-3 py-1.5 text-left font-medium text-[10px] uppercase tracking-wider">Side</th>
+                        <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Qty</th>
+                        <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Entry</th>
+                        <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Exit</th>
+                        <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">P/L</th>
+                        <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Open Date</th>
+                        <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Close Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tradeHistory.map((h: any) => {
+                        const fmt = (d: string) => d ? d.slice(0, 10) : '-';
+                        return (
+                        <tr key={h.history_id} className="border-b border-gray-100">
+                          <td className="px-3 py-1.5 text-gray-500">{h.order_id ?? '-'}</td>
+                          <td className="px-3 py-1.5 text-gray-500">{h.close_order_id ?? '-'}</td>
+                          <td className="px-3 py-1.5 font-medium">{h.asset}</td>
+                          <td className="px-3 py-1.5">
+                            <span className={`px-1 rounded text-[9px] font-bold ${
+                              h.type === 'BUY' || h.type === 'Buy'
+                                ? 'bg-[#e0f7f6] text-[#0fbcb0]'
+                                : 'bg-[#fdeced] text-[#ff9999]'
+                            }`}>
+                              {h.type}
+                            </span>
+                          </td>
+                          <td className="px-3 py-1.5 text-right">{h.amount ?? '-'}</td>
+                          <td className="px-3 py-1.5 text-right">{h.entry_price != null ? `$${Number(h.entry_price).toLocaleString()}` : '-'}</td>
+                          <td className="px-3 py-1.5 text-right">{h.exit_price != null ? `$${Number(h.exit_price).toLocaleString()}` : '-'}</td>
+                          <td className={`px-3 py-1.5 text-right font-medium ${(h.realized_pl ?? 0) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {h.realized_pl != null ? `$${Number(h.realized_pl).toLocaleString()}` : '-'}
+                          </td>
+                          <td className="px-3 py-1.5 text-right text-gray-500">{fmt(h.entry_date)}</td>
+                          <td className="px-3 py-1.5 text-right text-gray-500">{fmt(h.exit_date)}</td>
+                        </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
           </div>
         </div>
         {/* Right Panel: Sticky Note Style - Canary Yellow #FFFCE0 */}
@@ -363,6 +533,31 @@ const PortfolioGrid: React.FC = () => {
         showModal={editingZoneOrders.length > 0}
         onClose={handleCloseZoneModal}
         onSave={handleSaveZone}
+      />
+      {/* Zone Group Modal */}
+      <ZoneGroupModal
+        showModal={showZoneGroupModal}
+        onClose={() => setShowZoneGroupModal(false)}
+        portfolioId={selectedPortfolio.portfolio_id}
+      />
+      {/* Close Order Modal */}
+      <CloseOrderModal
+        order={closingOrder}
+        showModal={showCloseModal}
+        onClose={() => { setShowCloseModal(false); setClosingOrder(null); }}
+        onConfirm={handleConfirmClose}
+      />
+      {/* Add Order Modal */}
+      <AddOrderModal
+        formData={addFormData}
+        showModal={showAddModal}
+        onClose={closeAddModal}
+        onSave={async () => {
+          await handleCreateOrder(selectedPortfolio.portfolio_id);
+          fetchAnalyticsData();
+        }}
+        onChange={handleAddFormChange}
+        zones={zoneGroups.map((g) => g.zone)}
       />
     </div>
   );
