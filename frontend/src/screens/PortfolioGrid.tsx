@@ -178,12 +178,10 @@ const PortfolioGrid: React.FC = () => {
     );
   }
 
-  const totalValue = selectedPortfolio?.active_orders?.reduce(
-    (sum: number, o: any) => sum + (Number(o.entry_price || 0) * Number(o.qty || 0)), 0
-  ) || 0;
-  const totalPl = selectedPortfolio?.active_orders?.reduce(
-    (sum: number, o: any) => sum + ((Number(o.current_price || 0) - Number(o.entry_price || 0)) * Number(o.qty || 0)), 0
-  ) || 0;
+  const totalCash = (selectedPortfolio?.available_cash || 0) + (selectedPortfolio?.money_market || 0);
+  const cumulativePl = performanceData?.total_pl || 0;
+  const totalValue = totalCash + cumulativePl;
+  const plPercent = totalCash > 0 ? (cumulativePl / totalCash) * 100 : 0;
 
   return (
     <div className="px-10 py-6 min-h-screen max-w-[1800px] mx-auto">
@@ -228,14 +226,14 @@ const PortfolioGrid: React.FC = () => {
               <p className="text-xs font-medium text-gray-500 mb-2">Total Value</p>
               <p className="text-3xl font-bold leading-none">${totalValue.toLocaleString()}</p>
               <p className="text-brand-teal text-sm font-semibold mt-2 flex items-center gap-1">
-                +{totalValue > 0 ? ((totalPl / totalValue) * 100).toFixed(1) : '0'}%
+                {plPercent >= 0 ? '+' : ''}{plPercent.toFixed(1)}%
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></svg>
               </p>
             </div>
             <div className="flex flex-col">
               <p className="text-xs font-medium text-gray-500 mb-2">Total P/L</p>
-              <p className={`text-3xl font-bold leading-none ${totalPl >= 0 ? 'text-brand-teal' : 'text-brand-coral'}`}>
-                {totalPl >= 0 ? '+' : ''}${totalPl.toLocaleString()}
+              <p className={`text-3xl font-bold leading-none ${cumulativePl >= 0 ? 'text-brand-teal' : 'text-brand-coral'}`}>
+                {cumulativePl >= 0 ? '+' : ''}${cumulativePl.toLocaleString()}
               </p>
               <p className="text-slate text-xs mt-2">All time performance</p>
             </div>

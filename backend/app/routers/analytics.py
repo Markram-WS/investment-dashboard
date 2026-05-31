@@ -119,6 +119,8 @@ class PortfolioGridData(BaseModel):
     risk_status: str
     trade_plan_md: Optional[str] = None
     internal_notes: Optional[str] = None
+    available_cash: Optional[float] = None
+    money_market: Optional[float] = None
     tags: Optional[Dict[str, Any]] = None
     ai_reasoning: Optional[str] = None
     ai_risk_insight: Optional[str] = None
@@ -341,6 +343,8 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
             risk_status=portfolio.risk_status,
             trade_plan_md=portfolio.trade_plan_md or (trade_plan.entry_reason if trade_plan else None),
             internal_notes=portfolio.internal_notes,
+            available_cash=_to_float(portfolio.available_cash),
+            money_market=_to_float(portfolio.money_market),
             tags=portfolio.tags,
             ai_reasoning=ai_reasoning,
             ai_risk_insight=ai_risk_insight,
@@ -352,7 +356,6 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
     return grid_data
 
 
-# Endpoint for single portfolio detail analytics (used by PortfolioAnalyticsDetail)
 @router.get("/portfolio/{portfolio_id}", tags=["analytics"], response_model=PortfolioGridData)
 async def get_portfolio_detail(
     portfolio_id: int,
@@ -533,6 +536,8 @@ async def get_portfolio_detail(
         risk_status=portfolio.risk_status,
         trade_plan_md=portfolio.trade_plan_md or (trade_plan.entry_reason if trade_plan else None),
         internal_notes=portfolio.internal_notes,
+        available_cash=_to_float(portfolio.available_cash),
+        money_market=_to_float(portfolio.money_market),
         tags=portfolio.tags,
         ai_reasoning=ai_reasoning,
         ai_risk_insight=ai_risk_insight,

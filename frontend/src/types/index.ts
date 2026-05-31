@@ -70,6 +70,8 @@ export interface PortfolioData {
   risk_status: string;
   trade_plan_md: string | null;
   internal_notes: string | null;
+  available_cash: number | null;
+  money_market: number | null;
   tags: Record<string, boolean> | null;
   ai_reasoning: string | null;
   ai_risk_insight: string | null;
