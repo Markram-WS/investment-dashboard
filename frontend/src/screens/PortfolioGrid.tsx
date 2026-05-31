@@ -207,13 +207,13 @@ const PortfolioGrid: React.FC = () => {
           </button>
           <button
             onClick={openModal}
-            className="h-10 px-4 gap-2 rounded-full bg-ink text-white shadow-lg hover:scale-105 transition-all flex items-center justify-center border-2 border-white"
+            className="h-11 w-11 rounded-full bg-brand-teal text-white shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+            title="Add Order"
           >
-            <svg className="w-4 h-4 font-bold" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            <span className="text-[10px] font-bold uppercase tracking-widest">Add Order</span>
           </button>
         </div>
       </header>
@@ -534,14 +534,14 @@ const PortfolioGrid: React.FC = () => {
         </div>
 
         {/* Add Order footer button */}
-        <div className="h-12 w-full flex items-center justify-center border-t border-hairline bg-surface/50">
-          <div className="relative flex -mt-10 z-10">
+        <div className="h-16 w-full flex items-center justify-center border-t border-hairline bg-surface/50">
+          <div className="relative flex z-10">
             <button
               onClick={openModal}
-              className="h-10 px-4 gap-2 rounded-full bg-ink text-white shadow-lg hover:scale-105 transition-all flex items-center justify-center border-4 border-white"
+              className="h-11 w-11 rounded-full bg-brand-teal text-white shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+              title="Add Order"
             >
-              <IconAdd className="w-4.5 h-4.5" />
-              <span className="text-[10px] font-bold uppercase tracking-widest">Add Order</span>
+              <IconAdd className="w-5 h-5" />
             </button>
             <button
               onClick={() => setShowZoneGroupModal(true)}
