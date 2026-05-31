@@ -18,6 +18,7 @@ from app.routers import (
     trade_history,
     assets,
     zone_groups,
+    performance,
 )
 
 @asynccontextmanager
@@ -70,6 +71,7 @@ app.include_router(journal.router, prefix="/api/v1/journal", tags=["journal"])
 app.include_router(risk.router, prefix="/api/v1/risk", tags=["risk"])
 app.include_router(rebalance.router, prefix="/api/v1/rebalance", tags=["rebalance"])
 app.include_router(zone_groups.router, prefix="/api/v1/zone-groups", tags=["zone-groups"])
+app.include_router(performance.router, prefix="/api/v1/analytics/performance", tags=["analytics"])
 
 
 @app.get("/")
