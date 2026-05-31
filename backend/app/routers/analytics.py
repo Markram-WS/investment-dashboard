@@ -121,6 +121,8 @@ class PortfolioGridData(BaseModel):
     internal_notes: Optional[str] = None
     available_cash: Optional[float] = None
     money_market: Optional[float] = None
+    margin_locked: Optional[float] = None
+    cash_buffer_limit: Optional[float] = None
     tags: Optional[Dict[str, Any]] = None
     ai_reasoning: Optional[str] = None
     ai_risk_insight: Optional[str] = None
@@ -345,6 +347,8 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
             internal_notes=portfolio.internal_notes,
             available_cash=_to_float(portfolio.available_cash),
             money_market=_to_float(portfolio.money_market),
+            margin_locked=_to_float(portfolio.margin_locked),
+            cash_buffer_limit=_to_float(portfolio.cash_buffer_limit),
             tags=portfolio.tags,
             ai_reasoning=ai_reasoning,
             ai_risk_insight=ai_risk_insight,
@@ -538,6 +542,8 @@ async def get_portfolio_detail(
         internal_notes=portfolio.internal_notes,
         available_cash=_to_float(portfolio.available_cash),
         money_market=_to_float(portfolio.money_market),
+        margin_locked=_to_float(portfolio.margin_locked),
+        cash_buffer_limit=_to_float(portfolio.cash_buffer_limit),
         tags=portfolio.tags,
         ai_reasoning=ai_reasoning,
         ai_risk_insight=ai_risk_insight,
