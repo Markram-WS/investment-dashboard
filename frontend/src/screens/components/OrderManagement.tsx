@@ -129,13 +129,13 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             <tr className="bg-surface border-y border-hairline">
               <th className="p-4 w-8" />
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">ID</th>
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Group</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Asset</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Side</th>
               {showDir && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Direction</th>}
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry Date</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry Price</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Qty</th>
+              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Current</th>
               {showLev && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Leverage</th>}
               {showLev && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Margin</th>}
               {showExp && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Expiry</th>}
@@ -180,6 +180,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
               {showStrikePrice && <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Strike Price</th>}
               <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">TP</th>
               <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">SL</th>
+              <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">P/L</th>
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Status</th>
               <th className="px-3 py-2 w-10" />
             </tr>
@@ -234,6 +235,18 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                   )}
                   <td className="px-3 py-2 text-right text-xs">${order.tp_price || "-"}</td>
                   <td className="px-3 py-2 text-right text-xs">${order.sl_price || "-"}</td>
+                  <td className={`px-3 py-2 text-right text-xs font-bold ${(() => {
+                    const pl = order.current_price && order.entry_price ? (order.current_price - order.entry_price) * Number(order.qty) : 0;
+                    return pl >= 0 ? 'text-emerald-600' : 'text-red-500';
+                  })()}`}>
+                    {(() => {
+                      const pl = order.current_price && order.entry_price ? (order.current_price - order.entry_price) * Number(order.qty) : 0;
+                      return pl >= 0 ? '+' : '';
+                    })()}${(() => {
+                      const pl = order.current_price && order.entry_price ? (order.current_price - order.entry_price) * Number(order.qty) : 0;
+                      return pl.toFixed(2);
+                    })()}
+                  </td>
                   <td className="px-3 py-2">
                     <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${
                       (order.order_status || "").toUpperCase() === "FILLED" ? "bg-green-100 text-green-700" :

@@ -11,6 +11,7 @@ interface AddOrderModalProps {
   onChange: (field: keyof AddOrderForm, value: any) => void;
   groups: GroupOption[];
   groupOrderCounts: Record<number, number>;
+  assetTypeOptions: string[];
 }
 
 function ToggleBtn({ options, value, onChange }: {
@@ -49,6 +50,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   onChange,
   groups,
   groupOrderCounts,
+  assetTypeOptions,
 }) => {
   const entryPrice = parseFloat(formData.entry_price as string) || 0;
   const selectedGroup = groups.find(g => g.id === formData.group_id);
@@ -106,8 +108,12 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               type="text"
               value={formData.asset_type}
               onChange={(e) => onChange('asset_type', e.target.value)}
+              list="asset-types-add"
               className="w-full border rounded px-3 py-2 text-sm"
             />
+            <datalist id="asset-types-add">
+              {assetTypeOptions.map((t) => <option key={t} value={t} />)}
+            </datalist>
           </div>
           <div className="flex gap-4">
             <div className="flex-1">

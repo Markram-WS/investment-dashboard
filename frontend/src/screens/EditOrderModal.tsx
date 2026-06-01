@@ -11,6 +11,7 @@ interface EditOrderModalProps {
   onChange: (field: keyof typeof formData, value: any) => void;
   groups: GroupOption[];
   groupOrderCounts: Record<number, number>;
+  assetTypeOptions: string[];
 }
 
 function ToggleBtn({ options, value, onChange }: {
@@ -50,6 +51,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   onChange,
   groups,
   groupOrderCounts,
+  assetTypeOptions,
 }) => {
   const entryPrice = parseFloat(formData.entry_price as string) || 0;
   const groupId = formData.group_id ?? null;
@@ -101,8 +103,12 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
               type="text"
               value={formData.asset_type || ''}
               onChange={(e) => onChange('asset_type', e.target.value)}
+              list="asset-types-edit"
               className="w-full border rounded px-3 py-2 text-sm"
             />
+            <datalist id="asset-types-edit">
+              {assetTypeOptions.map((t) => <option key={t} value={t} />)}
+            </datalist>
           </div>
           <div className="flex gap-4">
             <div className="flex-1">

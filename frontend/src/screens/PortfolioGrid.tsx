@@ -110,6 +110,13 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     return counts;
   }, [activeOrders]);
 
+  const assetTypeOptions = useMemo(() => {
+    const allOrders = selectedPortfolio?.active_orders || [];
+    const types = new Set<string>();
+    allOrders.forEach((o: any) => { if (o.asset_type) types.add(o.asset_type); });
+    return Array.from(types).sort();
+  }, [selectedPortfolio?.active_orders]);
+
   const handleCloseOrder = useCallback((order: SpreadOrder) => {
     const status = (order.order_status || "").toUpperCase();
     if (status === "PENDING") {
@@ -330,6 +337,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onChange={handleFormChange}
         groups={groups}
         groupOrderCounts={groupOrderCounts}
+        assetTypeOptions={assetTypeOptions}
       />
       <ZoneEditModal
         orders={editingZoneOrders}
@@ -362,6 +370,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onChange={handleAddFormChange}
         groups={groups}
         groupOrderCounts={groupOrderCounts}
+        assetTypeOptions={assetTypeOptions}
       />
       <EditPortfolioModal
         portfolioId={selectedPortfolio.portfolio_id}

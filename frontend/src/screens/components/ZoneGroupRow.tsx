@@ -160,7 +160,6 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
               </span>
             </td>
             <td className="py-4 font-bold text-xs">#{order.order_id}</td>
-            <td className="py-4 text-xs text-slate font-medium">{groupInfo.group_name}</td>
             <td className="py-4 font-bold text-xs uppercase">{order.asset_type}</td>
             <td className="py-4">
               <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${getSideBadgeClass(order.side)}`}>
@@ -173,6 +172,7 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
             <td className="py-4 text-[10px] text-slate">{formatDate(order.created_at)}</td>
             <td className="py-4 text-xs font-medium">${order.entry_price ? order.entry_price.toLocaleString() : '-'}</td>
             <td className="py-4 text-xs font-medium">{order.qty}</td>
+            <td className="py-4 text-xs font-medium">${order.current_price ? order.current_price.toLocaleString() : '-'}</td>
             {showLev && (
               <td className="py-4 text-xs font-medium">{order.leverage != null ? `${order.leverage}x` : '-'}</td>
             )}
