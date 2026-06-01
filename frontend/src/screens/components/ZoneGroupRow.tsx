@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { SpreadOrder, GroupOption } from '../../types';
 
 interface OrderGroupRowProps {
@@ -35,31 +35,39 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
   const count = groupInfo.mainOrders.length;
 
   const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounter = useRef(0);
 
-  const handleDragStart = useCallback((e: React.DragEvent, orderId: string) => {
-    e.dataTransfer.setData('text/plain', orderId);
-    e.dataTransfer.effectAllowed = 'move';
+  const createDragGhost = useCallback((order: SpreadOrder): HTMLElement => {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:absolute;top:-1000px;left:-1000px;padding:8px 16px;background:#1c1c1e;color:#fff;border-radius:9999px;font-size:12px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:12px;box-shadow:0 4px 16px rgba(0,0,0,0.25);pointer-events:none;font-family:inherit;letter-spacing:0';
+    el.innerHTML = `
+      <span style="opacity:0.6">#${order.order_id?.slice(0, 8) || ''}</span>
+      <span style="opacity:0.3">|</span>
+      <span>${order.asset_type || ''}</span>
+      <span style="opacity:0.3">|</span>
+      <span style="color:${(order.side || '').toUpperCase() === 'BUY' ? '#0fbcb0' : '#ff9999'}">${(order.side || '').toUpperCase()}</span>
+      <span style="opacity:0.3">|</span>
+      <span>$${order.entry_price?.toLocaleString() || '-'}</span>
+    `;
+    return el;
   }, []);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+  const handleGroupDragEnter = useCallback(() => {
+    dragCounter.current += 1;
+    if (dragCounter.current === 1) setIsDragOver(true);
   }, []);
 
-  const handleDragEnter = useCallback(() => {
-    setIsDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    const target = e.currentTarget;
-    const related = e.relatedTarget as Node;
-    if (!target.contains(related)) {
+  const handleGroupDragLeave = useCallback((e: React.DragEvent) => {
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
       setIsDragOver(false);
     }
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleGroupDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    dragCounter.current = 0;
     setIsDragOver(false);
     const orderId = e.dataTransfer.getData('text/plain');
     if (orderId && onAssignGroup) {
@@ -67,21 +75,32 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
     }
   }, [onAssignGroup, groupInfo.group_id]);
 
+  const handleDragStart = useCallback((e: React.DragEvent, order: SpreadOrder) => {
+    e.dataTransfer.setData('text/plain', order.order_id);
+    e.dataTransfer.effectAllowed = 'move';
+    const ghost = createDragGhost(order);
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 30, 20);
+    setTimeout(() => document.body.removeChild(ghost), 0);
+  }, [createDragGhost]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
   return (
     <>
       <tr
         className={`${isUngrouped ? 'bg-gray-50' : 'bg-surface'} border-b border-hairline transition-colors ${isDragOver ? 'bg-blue-50' : ''}`}
         onDragOver={handleDragOver}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        onDragEnter={handleGroupDragEnter}
+        onDragLeave={handleGroupDragLeave}
+        onDrop={handleGroupDrop}
         style={isDragOver ? { borderLeft: '3px solid #3b82f6' } : undefined}
       >
         <td className="pl-8 py-3" colSpan={13}>
           <div className="flex items-center gap-2">
-            {isUngrouped && (
-              <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">──</span>
-            )}
             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${isUngrouped ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-tealLight text-brandTeal border border-brandTeal/20'} uppercase tracking-wide`}>
               {groupLabel}
             </span>
@@ -103,12 +122,17 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
         return (
           <tr
             key={order.order_id}
-            className="border-b border-hairline hover:bg-surface/50 transition-colors trade-group-border group"
+            className={`border-b border-hairline hover:bg-surface/50 transition-colors trade-group-border group ${isDragOver ? 'bg-blue-50/30' : ''}`}
+            onDragOver={handleDragOver}
+            onDragEnter={handleGroupDragEnter}
+            onDragLeave={handleGroupDragLeave}
+            onDrop={handleGroupDrop}
+            style={isDragOver ? { borderLeft: '3px solid #3b82f6' } : undefined}
           >
             <td className="pl-4 py-4 w-8">
               <span
                 draggable
-                onDragStart={(e) => handleDragStart(e, order.order_id)}
+                onDragStart={(e) => handleDragStart(e, order)}
                 className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-gray-500 transition-opacity"
                 title="Drag to assign group or close"
               >
@@ -122,7 +146,7 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                 </svg>
               </span>
             </td>
-            <td className="font-bold text-xs">#{order.order_id}</td>
+            <td className="py-4 font-bold text-xs">#{order.order_id}</td>
             <td className="py-4 text-xs text-slate font-medium">{groupInfo.group_name}</td>
             <td className="py-4 font-bold text-xs uppercase">{order.asset_type}</td>
             <td className="py-4">

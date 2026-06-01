@@ -40,7 +40,7 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
 
   return (
     <div
-      className={`border-t border-hairline transition-colors ${isDragOver ? 'bg-blue-50 border-blue-300' : ''}`}
+      className={`bg-gray-50 rounded-b-xl border border-hairline transition-colors ${isDragOver ? 'bg-blue-50 border-blue-300' : ''}`}
       onDragOver={handleDragOver}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -49,11 +49,13 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
     >
       <button
         onClick={onToggleHistory}
-        className={`w-full flex items-center justify-between px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${isDragOver ? 'text-blue-700 bg-blue-50' : 'text-gray-500 hover:bg-gray-50'}`}
+        className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${isDragOver ? 'text-blue-700 bg-blue-50' : 'text-gray-500 hover:bg-gray-100'}`}
       >
-        <span>
-          Trade History ({tradeHistory.length})
-          {isDragOver && <span className="ml-2 text-blue-600 font-semibold">Drop to close/cancel</span>}
+        <span className="flex items-center gap-2">
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-gray-100 text-gray-500 border border-gray-200 uppercase tracking-wide">
+            Trade History ({tradeHistory.length})
+          </span>
+          {isDragOver && <span className="text-[10px] text-blue-600 font-semibold">Drop to close/cancel</span>}
         </span>
         <svg className={`w-3 h-3 transition-transform ${showHistory ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polyline points="6 9 12 15 18 9" />

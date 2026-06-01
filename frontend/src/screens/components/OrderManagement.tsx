@@ -30,31 +30,61 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
   onAddOrder, onShowZoneGroupModal, showHistory, onToggleHistory,
   onAssignGroup, onDropOnTradeHistory,
 }) => {
-  const handleDragStart = (e: React.DragEvent, orderId: string) => {
-    e.dataTransfer.setData('text/plain', orderId);
+  const createDragGhost = (order: SpreadOrder): HTMLElement => {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:absolute;top:-1000px;left:-1000px;padding:8px 16px;background:#1c1c1e;color:#fff;border-radius:9999px;font-size:12px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:12px;box-shadow:0 4px 16px rgba(0,0,0,0.25);pointer-events:none;font-family:inherit;letter-spacing:0';
+    el.innerHTML = `
+      <span style="opacity:0.6">#${order.order_id?.slice(0, 8) || ''}</span>
+      <span style="opacity:0.3">|</span>
+      <span>${order.asset_type || ''}</span>
+      <span style="opacity:0.3">|</span>
+      <span style="color:${(order.side || '').toUpperCase() === 'BUY' ? '#0fbcb0' : '#ff9999'}">${(order.side || '').toUpperCase()}</span>
+      <span style="opacity:0.3">|</span>
+      <span>$${order.entry_price?.toLocaleString() || '-'}</span>
+    `;
+    return el;
+  };
+
+  const handleDragStart = (e: React.DragEvent, order: SpreadOrder) => {
+    e.dataTransfer.setData('text/plain', order.order_id);
     e.dataTransfer.effectAllowed = 'move';
+    const ghost = createDragGhost(order);
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 30, 20);
+    setTimeout(() => document.body.removeChild(ghost), 0);
   };
 
   return (
   <section className="bg-white rounded-xl border border-hairline overflow-hidden mb-6">
     {/* Header */}
-    <div className="p-8 flex justify-between items-center">
-      <div className="flex items-center gap-4">
-        <h3 className="text-[11px] font-bold text-ink uppercase tracking-widest">Order Management</h3>
-        <span className="px-2 py-0.5 bg-ink text-[10px] text-white font-bold rounded-full uppercase tracking-tighter">
-          {activeOrders.length} ACTIVE
-        </span>
-      </div>
-      <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Group</span>
-          <button
-            onClick={onGroupByZoneToggle}
-            className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${groupByZone ? "bg-brand-teal" : "bg-gray-300"}`}
-          >
-            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${groupByZone ? "translate-x-4" : "translate-x-0"}`} />
-          </button>
+    <div className="px-8 pt-8 pb-4 flex justify-between">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-4">
+          <h3 className="text-[11px] font-bold text-ink uppercase tracking-widest">Order Management</h3>
+          <span className="px-2 py-0.5 bg-ink text-[10px] text-white font-bold rounded-full uppercase tracking-tighter">
+            {activeOrders.length} ACTIVE
+          </span>
         </div>
+        <div className="flex items-center gap-4">
+          <button onClick={onShowZoneGroupModal} className="h-8 w-8 rounded-full bg-white text-slate border border-hairline hover:bg-surface transition-all flex items-center justify-center" title="Order Groups">
+            <IconLayers className="w-4 h-4" />
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Group</span>
+            <button
+              onClick={onGroupByZoneToggle}
+              className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${groupByZone ? "bg-brand-teal" : "bg-gray-300"}`}
+            >
+              <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${groupByZone ? "translate-x-4" : "translate-x-0"}`} />
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center">
+        <button onClick={onAddOrder} className="h-9 px-4 rounded-full bg-brand-teal text-white text-xs font-bold shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5" title="Add Order">
+          <IconAdd className="w-4 h-4" />
+          Add Order
+        </button>
       </div>
     </div>
 
@@ -64,11 +94,13 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-surface border-y border-hairline">
-              <th className="p-4 pl-8 text-[10px] font-bold text-slate uppercase tracking-widest">ID</th>
+              <th className="p-4 w-8" />
+              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">ID</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Group</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Asset</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Side</th>
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry</th>
+              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry Date</th>
+              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry Price</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Qty</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">TP Target</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">SL</th>
@@ -116,7 +148,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                   <td className="pl-3 py-2 w-8">
                     <span
                       draggable
-                      onDragStart={(e) => handleDragStart(e, order.order_id)}
+                      onDragStart={(e) => handleDragStart(e, order)}
                       className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-gray-500 transition-opacity"
                       title="Drag to assign group or close"
                     >
@@ -176,18 +208,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
       )}
     </div>
 
-    {/* Footer */}
-    <div className="h-16 w-full flex items-center justify-center border-t border-hairline bg-surface/50">
-      <div className="relative flex z-10">
-        <button onClick={onAddOrder} className="h-11 w-11 rounded-full bg-brand-teal text-white shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center" title="Add Order">
-          <IconAdd className="w-5 h-5" />
-        </button>
-        <button onClick={onShowZoneGroupModal} className="ml-2 h-10 w-10 rounded-full bg-white text-ink shadow-lg hover:scale-105 transition-all flex items-center justify-center border-4 border-white">
-          <IconLayers className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-
+    <div className="mb-6" />
     <TradeHistoryTable tradeHistory={tradeHistory} showHistory={showHistory} onToggleHistory={onToggleHistory} onDropOnTradeHistory={onDropOnTradeHistory} />
   </section>
   );
