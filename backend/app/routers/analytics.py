@@ -188,7 +188,7 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
         # Get active orders for this portfolio
         active_orders_result = await db.execute(
             select(ActiveOrder)
-            .options(selectinload(ActiveOrder.group))
+            .options(selectinload(ActiveOrder.group), selectinload(ActiveOrder.option))
             .where(ActiveOrder.portfolio_id == portfolio.portfolio_id)
             .order_by(ActiveOrder.created_at.desc())
         )
@@ -331,6 +331,7 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
         for order in active_orders:
             if order.order_id not in spread_order_ids:
                 entry_price_val = _to_float(order.entry_price)
+                exercise_price = _to_float(order.option.strike_price) if order.option else None
                 active_orders_list.append({
                     "order_id": order.order_id,
                     "plan_id": order.plan_id,
@@ -348,6 +349,11 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
                     "group_id": order.group_id,
                     "group_name": order.group.name if order.group else None,
                     "spread_pair_id": order.spread_pair_id,
+                    "contract_type": order.contract_type,
+                    "direction": order.direction,
+                    "expiry_date": order.expiry_date.isoformat() if order.expiry_date else None,
+                    "strike_price": _to_float(order.strike_price),
+                    "exercise_price": exercise_price,
                     "created_at": order.created_at.isoformat() if order.created_at else None
                 })
         
@@ -396,7 +402,7 @@ async def get_portfolio_detail(
     # Get active orders for this portfolio
     active_orders_result = await db.execute(
         select(ActiveOrder)
-        .options(selectinload(ActiveOrder.group))
+        .options(selectinload(ActiveOrder.group), selectinload(ActiveOrder.option))
         .where(ActiveOrder.portfolio_id == portfolio_id)
         .order_by(ActiveOrder.created_at.desc())
     )
@@ -525,7 +531,8 @@ async def get_portfolio_detail(
     for order in active_orders:
         if order.order_id not in spread_order_ids:
             entry_price_float = _to_float(order.entry_price)
-            active_orders_list.append({
+            exercise_price = _to_float(order.option.strike_price) if order.option else None
+        active_orders_list.append({
                 "order_id": order.order_id,
                 "plan_id": order.plan_id,
                 "asset_type": order.asset_type,
@@ -542,6 +549,10 @@ async def get_portfolio_detail(
                 "group_id": order.group_id,
                 "group_name": order.group.name if order.group else None,
                 "spread_pair_id": order.spread_pair_id,
+                "contract_type": order.contract_type,
+                "direction": order.direction,
+                "expiry_date": order.expiry_date.isoformat() if order.expiry_date else None,
+                "exercise_price": exercise_price,
                 "created_at": order.created_at.isoformat() if order.created_at else None
             })
     

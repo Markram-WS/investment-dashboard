@@ -12,6 +12,7 @@ interface OrderGroupRowProps {
   onEdit: (order: SpreadOrder) => void;
   onClose?: (order: SpreadOrder) => void;
   onAssignGroup?: (orderId: string, groupId: number | null) => void;
+  contractFilter: 'spot' | 'future' | 'option';
 }
 
 const formatDate = (dateStr: string | null): string => {
@@ -25,7 +26,7 @@ const getSideBadgeClass = (side: string): string => {
     : 'bg-coralLight text-brandCoral border border-brandCoral/20 uppercase';
 };
 
-export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups, onEdit, onClose, onAssignGroup }) => {
+export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups, onEdit, onClose, onAssignGroup, contractFilter }) => {
   const isUngrouped = groupInfo.group_id === null;
   const groupDef = groups.find(g => g.id === groupInfo.group_id);
   const groupLabel = groupDef
@@ -36,6 +37,15 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
 
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounter = useRef(0);
+
+  const showDir = contractFilter !== 'spot';
+  const showLev = contractFilter !== 'spot';
+  const showExp = contractFilter !== 'spot';
+  const showStrikePrice = contractFilter === 'option';
+
+  const extraCols = (showDir ? 1 : 0) + (showLev ? 2 : 0) + (showExp ? 1 : 0) + (showStrikePrice ? 1 : 0);
+  const baseCols = 13;
+  const totalCols = baseCols + extraCols;
 
   const createDragGhost = useCallback((order: SpreadOrder): HTMLElement => {
     const el = document.createElement('div');
@@ -99,7 +109,7 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
         onDrop={handleGroupDrop}
         style={isDragOver ? { borderLeft: '3px solid #3b82f6' } : undefined}
       >
-        <td className="pl-8 py-3" colSpan={13}>
+        <td className="pl-8 py-3" colSpan={totalCols}>
           <div className="flex items-center gap-2">
             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${isUngrouped ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-tealLight text-brandTeal border border-brandTeal/20'} uppercase tracking-wide`}>
               {groupLabel}
@@ -119,10 +129,13 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
           ? (order.current_price - order.entry_price) * Number(order.qty)
           : 0;
 
+        const isSpot = (order.contract_type || 'spot') === 'spot';
+        const showGray = isSpot && contractFilter !== 'spot';
+
         return (
           <tr
             key={order.order_id}
-            className={`border-b border-hairline hover:bg-surface/50 transition-colors trade-group-border group ${isDragOver ? 'bg-blue-50/30' : ''}`}
+            className={`border-b border-hairline transition-colors trade-group-border group ${showGray ? 'bg-gray-50' : 'hover:bg-surface/50'} ${isDragOver ? 'bg-blue-50/30' : ''}`}
             onDragOver={handleDragOver}
             onDragEnter={handleGroupDragEnter}
             onDragLeave={handleGroupDragLeave}
@@ -154,9 +167,24 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                 {order.side}
               </span>
             </td>
+            {showDir && (
+              <td className="py-4 text-[10px] text-slate">{order.direction || '-'}</td>
+            )}
             <td className="py-4 text-[10px] text-slate">{formatDate(order.created_at)}</td>
             <td className="py-4 text-xs font-medium">${order.entry_price ? order.entry_price.toLocaleString() : '-'}</td>
             <td className="py-4 text-xs font-medium">{order.qty}</td>
+            {showLev && (
+              <td className="py-4 text-xs font-medium">{order.leverage != null ? `${order.leverage}x` : '-'}</td>
+            )}
+            {showLev && (
+              <td className="py-4 text-xs font-medium">${order.margin_rate != null ? order.margin_rate : '-'}</td>
+            )}
+            {showExp && (
+              <td className="py-4 text-[10px] text-slate">{order.expiry_date ? formatDate(order.expiry_date) : '-'}</td>
+            )}
+            {showStrikePrice && (
+              <td className="py-4 text-xs font-medium">${order.strike_price != null ? order.strike_price.toLocaleString() : '-'}</td>
+            )}
             <td className="py-4 text-xs font-medium">${order.tp_price ? order.tp_price.toLocaleString() : '-'}</td>
             <td className="py-4 text-xs font-medium">${order.sl_price ? order.sl_price.toLocaleString() : '-'}</td>
             <td className={`py-4 text-xs font-bold ${pl >= 0 ? 'text-brandTeal' : 'text-brandCoral'}`}>

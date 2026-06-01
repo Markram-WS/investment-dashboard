@@ -31,6 +31,10 @@ export const useOrderEdit = (): UseOrderEditReturn => {
       sl_price: order.sl_price,
       group_id: order.group_id,
       order_status: order.order_status,
+      contract_type: order.contract_type,
+      direction: order.direction,
+      expiry_date: order.expiry_date,
+      strike_price: order.strike_price,
     });
     setShowModal(true);
   }, []);

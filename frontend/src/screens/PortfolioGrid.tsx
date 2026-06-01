@@ -48,6 +48,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const [alertMsg, setAlertMsg] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  const [contractFilter, setContractFilter] = useState<'spot' | 'future' | 'option'>('spot');
   const [viewMode, setViewMode] = useState<"equity" | "payoff">("equity");
   const [performanceData, setPerformanceData] = useState<any>(null);
 
@@ -316,6 +317,8 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onToggleHistory={() => setShowHistory(!showHistory)}
         onAssignGroup={handleAssignGroup}
         onDropOnTradeHistory={handleDropOnTradeHistory}
+        contractFilter={contractFilter}
+        onContractFilterChange={setContractFilter}
       />
 
       <EditOrderModal

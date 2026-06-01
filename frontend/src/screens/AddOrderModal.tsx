@@ -1,18 +1,7 @@
 import React, { useMemo } from 'react';
 import { GroupOption } from '../types';
 import { GroupCombobox } from './components/GroupCombobox';
-
-interface AddOrderForm {
-  order_id: string;
-  asset_type: string;
-  side: string;
-  qty: number | string;
-  entry_price: number | string;
-  tp_price: number | string;
-  sl_price: number | string;
-  group_id: number | null;
-  order_status: string;
-}
+import type { AddOrderForm } from '../hooks/useAddOrder';
 
 interface AddOrderModalProps {
   formData: AddOrderForm;
@@ -22,6 +11,34 @@ interface AddOrderModalProps {
   onChange: (field: keyof AddOrderForm, value: any) => void;
   groups: GroupOption[];
   groupOrderCounts: Record<number, number>;
+}
+
+function ToggleBtn({ options, value, onChange }: {
+  options: { value: string; label: string; activeClass: string }[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="inline-flex gap-x-1.5">
+      {options.map((opt) => {
+        const isActive = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-full border transition-all ${
+              isActive
+                ? opt.activeClass
+                : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300 hover:text-gray-500'
+            }`}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 export const AddOrderModal: React.FC<AddOrderModalProps> = ({
@@ -72,6 +89,18 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             />
           </div>
           <div>
+            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Contract Type</label>
+            <ToggleBtn
+              options={[
+                { value: 'spot', label: 'Spot', activeClass: 'bg-blue-600 text-white border-blue-600' },
+                { value: 'future', label: 'Future', activeClass: 'bg-teal-600 text-white border-teal-600' },
+                { value: 'option', label: 'Option', activeClass: 'bg-amber-500 text-white border-amber-500' },
+              ]}
+              value={formData.contract_type}
+              onChange={(v) => onChange('contract_type', v)}
+            />
+          </div>
+          <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Asset Type</label>
             <input
               type="text"
@@ -80,56 +109,111 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               className="w-full border rounded px-3 py-2 text-sm"
             />
           </div>
-          <div>
-            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Side</label>
-            <select
-              value={formData.side}
-              onChange={(e) => onChange('side', e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
-            >
-              <option value="BUY">BUY</option>
-              <option value="SELL">SELL</option>
-            </select>
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Side</label>
+              <ToggleBtn
+                options={[
+                  { value: 'BUY', label: 'BUY', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
+                  { value: 'SELL', label: 'SELL', activeClass: 'bg-red-500 text-white border-red-500' },
+                ]}
+                value={formData.side}
+                onChange={(v) => onChange('side', v)}
+              />
+            </div>
+            {formData.contract_type !== 'spot' && (
+              <div className="flex-1">
+                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Direction</label>
+                <ToggleBtn
+                  options={[
+                    { value: 'LONG', label: 'LONG', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
+                    { value: 'SHORT', label: 'SHORT', activeClass: 'bg-red-500 text-white border-red-500' },
+                  ]}
+                  value={formData.direction || 'LONG'}
+                  onChange={(v) => onChange('direction', v)}
+                />
+              </div>
+            )}
           </div>
-          <div>
-            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Qty</label>
-            <input
-              type="number"
-              step="any"
-              value={formData.qty}
-              onChange={(e) => onChange('qty', e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
-            />
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Entry Price</label>
+              <input
+                type="number"
+                step="any"
+                value={formData.entry_price}
+                onChange={(e) => onChange('entry_price', e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Qty</label>
+              <input
+                type="number"
+                step="any"
+                value={formData.qty}
+                onChange={(e) => onChange('qty', e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Entry Price</label>
-            <input
-              type="number"
-              step="any"
-              value={formData.entry_price}
-              onChange={(e) => onChange('entry_price', e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
-            />
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">TP Price</label>
+              <input
+                type="number"
+                step="any"
+                value={formData.tp_price}
+                onChange={(e) => onChange('tp_price', e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">SL Price</label>
+              <input
+                type="number"
+                step="any"
+                value={formData.sl_price}
+                onChange={(e) => onChange('sl_price', e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">TP Price</label>
-            <input
-              type="number"
-              step="any"
-              value={formData.tp_price}
-              onChange={(e) => onChange('tp_price', e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">SL Price</label>
-            <input
-              type="number"
-              step="any"
-              value={formData.sl_price}
-              onChange={(e) => onChange('sl_price', e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
-            />
+          {formData.contract_type === 'option' && (
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Strike Price</label>
+              <input
+                type="number"
+                step="any"
+                value={formData.strike_price}
+                onChange={(e) => onChange('strike_price', e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              />
+            </div>
+          )}
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Status</label>
+              <ToggleBtn
+                options={[
+                  { value: 'FILLED', label: 'FILLED', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
+                  { value: 'PENDING', label: 'PENDING', activeClass: 'bg-amber-400 text-white border-amber-400' },
+                ]}
+                value={formData.order_status}
+                onChange={(v) => onChange('order_status', v)}
+              />
+            </div>
+            {formData.contract_type !== 'spot' && (
+              <div className="flex-1">
+                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Expiry Date</label>
+                <input
+                  type="date"
+                  value={formData.expiry_date}
+                  onChange={(e) => onChange('expiry_date', e.target.value)}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Group</label>
@@ -144,17 +228,6 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 ))}
               </div>
             )}
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Status</label>
-            <select
-              value={formData.order_status}
-              onChange={(e) => onChange('order_status', e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
-            >
-              <option value="FILLED">FILLED</option>
-              <option value="PENDING">PENDING</option>
-            </select>
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-6">

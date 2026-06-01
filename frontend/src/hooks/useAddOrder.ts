@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { api } from '../lib/api';
 
-interface AddOrderForm {
+export interface AddOrderForm {
   order_id: string;
   asset_type: string;
   side: string;
@@ -11,6 +11,10 @@ interface AddOrderForm {
   sl_price: number | string;
   group_id: number | null;
   order_status: string;
+  contract_type: 'spot' | 'future' | 'option';
+  direction: string;
+  expiry_date: string;
+  strike_price: number | string;
 }
 
 interface UseAddOrderReturn {
@@ -35,6 +39,10 @@ const defaultForm: AddOrderForm = {
   sl_price: '',
   group_id: null,
   order_status: 'FILLED',
+  contract_type: 'spot',
+  direction: '',
+  expiry_date: '',
+  strike_price: '',
 };
 
 export const useAddOrder = (): UseAddOrderReturn => {
@@ -69,6 +77,10 @@ export const useAddOrder = (): UseAddOrderReturn => {
         sl_price: formData.sl_price !== '' ? parseFloat(formData.sl_price as string) : null,
         group_id: formData.group_id,
         order_status: formData.order_status,
+        contract_type: formData.contract_type,
+        direction: formData.direction || undefined,
+        expiry_date: formData.expiry_date ? new Date(formData.expiry_date).toISOString() : undefined,
+        strike_price: formData.strike_price !== '' ? parseFloat(formData.strike_price as string) : undefined,
       });
       if (onCreatedRef.current) {
         await onCreatedRef.current();

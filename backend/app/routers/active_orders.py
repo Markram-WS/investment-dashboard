@@ -26,6 +26,10 @@ class ActiveOrderCreate(BaseModel):
     group_id: Optional[int] = None
     order_status: Optional[str] = None
     spread_pair_id: Optional[str] = None
+    contract_type: Optional[str] = 'spot'
+    direction: Optional[str] = None
+    expiry_date: Optional[datetime] = None
+    strike_price: Optional[float] = None
 
 
 class ActiveOrderUpdate(BaseModel):
@@ -41,6 +45,10 @@ class ActiveOrderUpdate(BaseModel):
     order_status: Optional[str] = None
     group_id: Optional[int] = None
     spread_pair_id: Optional[str] = None
+    contract_type: Optional[str] = None
+    direction: Optional[str] = None
+    expiry_date: Optional[datetime] = None
+    strike_price: Optional[float] = None
 
 
 class ActiveOrderResponse(BaseModel):
@@ -59,6 +67,10 @@ class ActiveOrderResponse(BaseModel):
     order_status: str
     spread_pair_id: Optional[str]
     group_id: Optional[int] = None
+    contract_type: Optional[str] = 'spot'
+    direction: Optional[str] = None
+    expiry_date: Optional[datetime] = None
+    strike_price: Optional[float] = None
     created_at: Optional[datetime] = None
 
     class Config:

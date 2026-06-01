@@ -22,13 +22,22 @@ interface OrderManagementProps {
   onToggleHistory: () => void;
   onAssignGroup?: (orderId: string, groupId: number | null) => void;
   onDropOnTradeHistory?: (orderId: string) => void;
+  contractFilter: 'spot' | 'future' | 'option';
+  onContractFilterChange: (v: 'spot' | 'future' | 'option') => void;
 }
+
+const CONTRACT_TABS = [
+  { value: 'spot' as const, label: 'Spot' },
+  { value: 'future' as const, label: 'Futures' },
+  { value: 'option' as const, label: 'Options' },
+];
 
 const OrderManagement: React.FC<OrderManagementProps> = ({
   activeOrders, zoneGroups, groups, groupByZone, onGroupByZoneToggle, isGridType,
   tradeHistory, onEditOrder, onEditZone, onCloseOrder,
   onAddOrder, onShowZoneGroupModal, showHistory, onToggleHistory,
   onAssignGroup, onDropOnTradeHistory,
+  contractFilter, onContractFilterChange,
 }) => {
   const createDragGhost = (order: SpreadOrder): HTMLElement => {
     const el = document.createElement('div');
@@ -54,6 +63,11 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
     setTimeout(() => document.body.removeChild(ghost), 0);
   };
 
+  const showDir = contractFilter !== 'spot';
+  const showLev = contractFilter !== 'spot';
+  const showExp = contractFilter !== 'spot';
+  const showStrikePrice = contractFilter === 'option';
+
   return (
   <section className="bg-white rounded-xl border border-hairline overflow-hidden mb-6">
     {/* Header */}
@@ -65,20 +79,39 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             {activeOrders.length} ACTIVE
           </span>
         </div>
-        <div className="flex items-center gap-4">
-          <button onClick={onShowZoneGroupModal} className="h-8 w-8 rounded-full bg-white text-slate border border-hairline hover:bg-surface transition-all flex items-center justify-center" title="Order Groups">
-            <IconLayers className="w-4 h-4" />
-          </button>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Group</span>
-            <button
-              onClick={onGroupByZoneToggle}
-              className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${groupByZone ? "bg-brand-teal" : "bg-gray-300"}`}
-            >
-              <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${groupByZone ? "translate-x-4" : "translate-x-0"}`} />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onGroupByZoneToggle}
+                className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${groupByZone ? "bg-brand-teal" : "bg-gray-300"}`}
+              >
+                <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${groupByZone ? "translate-x-4" : "translate-x-0"}`} />
+              </button>
+            </div>
+            <button onClick={onShowZoneGroupModal} className="h-8 w-8 rounded-full bg-white text-slate border border-hairline hover:bg-surface transition-all flex items-center justify-center" title="Order Groups">
+              <IconLayers className="w-4 h-4" />
             </button>
+            {/* Contract type toggle */}
+            <div className="inline-flex gap-x-1">
+              {CONTRACT_TABS.map((tab) => (
+                <button
+                  key={tab.value}
+                  onClick={() => onContractFilterChange(tab.value)}
+                  className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-full border transition-all ${
+                    contractFilter === tab.value
+                      ? tab.value === 'spot'
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : tab.value === 'future'
+                        ? 'bg-teal-600 text-white border-teal-600'
+                        : 'bg-amber-500 text-white border-amber-500'
+                      : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300 hover:text-gray-500'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
       </div>
       <div className="flex items-center">
         <button onClick={onAddOrder} className="h-9 px-4 rounded-full bg-brand-teal text-white text-xs font-bold shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5" title="Add Order">
@@ -99,9 +132,14 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Group</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Asset</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Side</th>
+              {showDir && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Direction</th>}
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry Date</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry Price</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Qty</th>
+              {showLev && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Leverage</th>}
+              {showLev && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Margin</th>}
+              {showExp && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Expiry</th>}
+              {showStrikePrice && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Strike Price</th>}
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">TP Target</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">SL</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">P/L</th>
@@ -118,6 +156,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                 onEdit={onEditOrder}
                 onClose={onCloseOrder}
                 onAssignGroup={onAssignGroup}
+                contractFilter={contractFilter}
               />
             ))}
           </tbody>
@@ -130,10 +169,15 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">ID</th>
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Asset</th>
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Side</th>
+              {showDir && <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Direction</th>}
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Open Date</th>
               <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Qty</th>
               <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Entry</th>
               <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Current</th>
+              {showLev && <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Leverage</th>}
+              {showLev && <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Margin</th>}
+              {showExp && <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Expiry</th>}
+              {showStrikePrice && <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Strike Price</th>}
               <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">TP</th>
               <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">SL</th>
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Status</th>
@@ -143,8 +187,10 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
           <tbody>
             {activeOrders.map((order) => {
               const openDate = order.created_at ? order.created_at.slice(0, 10) : "-";
+              const isSpot = (order.contract_type || 'spot') === 'spot';
+              const showGray = isSpot && contractFilter !== 'spot';
               return (
-                <tr key={order.order_id} className="border-b border-hairline-soft bg-white hover:bg-surface/50 group">
+                <tr key={order.order_id} className={`border-b border-hairline-soft group ${showGray ? 'bg-gray-50' : 'bg-white hover:bg-surface/50'}`}>
                   <td className="pl-3 py-2 w-8">
                     <span
                       draggable
@@ -167,10 +213,25 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                   <td className="px-3 py-2">
                     <span className={`text-xs px-1 rounded ${order.side === "BUY" || order.side === "Buy" ? "bg-teal-light text-brand-teal" : "bg-coral-light text-brand-coral"}`}>{order.side}</span>
                   </td>
+                  {showDir && (
+                    <td className="px-3 py-2 text-xs">{order.direction || '-'}</td>
+                  )}
                   <td className="px-3 py-2 text-xs text-gray-500">{openDate}</td>
                   <td className="px-3 py-2 text-right text-xs">{order.qty}</td>
                   <td className="px-3 py-2 text-right text-xs">${order.entry_price || "-"}</td>
                   <td className="px-3 py-2 text-right text-xs">${order.current_price || "-"}</td>
+                  {showLev && (
+                    <td className="px-3 py-2 text-right text-xs">{order.leverage != null ? `${order.leverage}x` : '-'}</td>
+                  )}
+                  {showLev && (
+                    <td className="px-3 py-2 text-right text-xs">${order.margin_rate != null ? order.margin_rate : '-'}</td>
+                  )}
+                  {showExp && (
+                    <td className="px-3 py-2 text-xs">{order.expiry_date ? order.expiry_date.slice(0, 10) : '-'}</td>
+                  )}
+                  {showStrikePrice && (
+                    <td className="px-3 py-2 text-right text-xs">${order.strike_price != null ? order.strike_price : '-'}</td>
+                  )}
                   <td className="px-3 py-2 text-right text-xs">${order.tp_price || "-"}</td>
                   <td className="px-3 py-2 text-right text-xs">${order.sl_price || "-"}</td>
                   <td className="px-3 py-2">

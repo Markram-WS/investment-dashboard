@@ -83,6 +83,10 @@ CREATE TABLE IF NOT EXISTS active_orders (
     executed_by TEXT,
     option_id INTEGER REFERENCES option_details(option_id),
     data_source TEXT DEFAULT 'Manual' CHECK (data_source IN ('Manual', 'Bot')),
+    contract_type TEXT DEFAULT 'spot' CHECK (contract_type IN ('spot', 'future', 'option')),
+    direction TEXT,
+    expiry_date TIMESTAMP,
+    strike_price NUMERIC(20,8),
     etl_synced BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

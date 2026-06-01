@@ -40,6 +40,11 @@ export interface SpreadOrder {
   spread_pair_id: string | null;
   group_id: number | null;
   group_name: string | null;
+  contract_type?: 'spot' | 'future' | 'option';
+  direction?: string | null;
+  expiry_date?: string | null;
+  strike_price?: number | null;
+  exercise_price?: number | null;
 }
 
 export interface GroupOption {
