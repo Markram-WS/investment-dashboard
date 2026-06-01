@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.models import Portfolio, ActiveOrder, TradeHistory, TradePlan, OptionDetails, PortfolioNavHistory, SimulationModels, DecisionJournal, Transaction, ZoneGroup
+from app.models import Portfolio, ActiveOrder, TradeHistory, TradePlan, OptionDetails, PortfolioNavHistory, SimulationModels, DecisionJournal, Transaction, OrdersGroup
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from datetime import date
@@ -226,7 +226,7 @@ async def delete_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)
     )
 
     await db.execute(
-        ZoneGroup.__table__.delete().where(ZoneGroup.portfolio_id == portfolio_id)
+        OrdersGroup.__table__.delete().where(OrdersGroup.portfolio_id == portfolio_id)
     )
 
     await db.execute(

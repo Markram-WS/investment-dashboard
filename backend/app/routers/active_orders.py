@@ -24,6 +24,7 @@ class ActiveOrderCreate(BaseModel):
     leverage: Optional[float] = None
     margin_rate: Optional[float] = None
     zone: Optional[str] = None
+    group_id: Optional[str] = None
     order_status: Optional[str] = None
     spread_pair_id: Optional[str] = None
 
@@ -40,6 +41,7 @@ class ActiveOrderUpdate(BaseModel):
     margin_rate: Optional[float] = None
     order_status: Optional[str] = None
     zone: Optional[str] = None
+    group_id: Optional[str] = None
     spread_pair_id: Optional[str] = None
 
 
@@ -58,6 +60,7 @@ class ActiveOrderResponse(BaseModel):
     margin_rate: Optional[float]
     order_status: str
     spread_pair_id: Optional[str]
+    group_id: Optional[str] = None
     created_at: Optional[datetime] = None
 
     class Config:
@@ -123,6 +126,7 @@ async def update_order_status(order_id: str, payload: Dict[str, Any], db: AsyncS
         history = TradeHistory(
             portfolio_id=order.portfolio_id,
             order_id=order.order_id,
+            group_id=order.group_id,
             type=order.side,
             asset=order.asset_type,
             amount=float(order.qty) if order.qty else None,
@@ -184,6 +188,7 @@ async def close_order(order_id: str, req: CloseOrderRequest, db: AsyncSession = 
         portfolio_id=order.portfolio_id,
         order_id=order.order_id,
         close_order_id=req.close_order_id,
+        group_id=order.group_id,
         type=order.side,
         asset=order.asset_type,
         amount=float(order.qty) if order.qty else None,

@@ -348,7 +348,7 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
                     "margin_rate": order.margin_rate,
                     "order_status": order.order_status,
                     "executed_by": order.executed_by,
-                    "grid_group_id": order.grid_group_id,
+                    "group_id": order.group_id,
                     "zone": order_zone,
                     "spread_pair_id": order.spread_pair_id,
                     "created_at": order.created_at.isoformat() if order.created_at else None
@@ -548,7 +548,7 @@ async def get_portfolio_detail(
                 "margin_rate": order.margin_rate,
                 "order_status": order.order_status,
                 "executed_by": order.executed_by,
-                "grid_group_id": order.grid_group_id,
+                "group_id": order.group_id,
                 "zone": order_zone,
                 "spread_pair_id": order.spread_pair_id,
                 "created_at": order.created_at.isoformat() if order.created_at else None

@@ -107,13 +107,13 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             />
           </div>
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Zone</label>
-            <select
-              value={formData.zone}
-              onChange={(e) => onChange('zone', e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
-            >
-              <option value="">-- No Zone --</option>
+            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Group</label>
+              <select
+                value={formData.zone}
+                onChange={(e) => onChange('zone', e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="">-- No Group --</option>
               {zones.map((zone) => (
                 <option key={zone} value={zone}>
                   {zone}

@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS active_orders (
     leverage NUMERIC(20,8),
     margin_rate NUMERIC(20,8),
     order_status TEXT DEFAULT 'pending_sync',
-    grid_group_id TEXT,
+    group_id TEXT,
     zone TEXT,
     spread_pair_id TEXT,
     executed_by TEXT,
@@ -102,8 +102,9 @@ CREATE TABLE IF NOT EXISTS simulation_models (
 CREATE TABLE IF NOT EXISTS trade_history (
     history_id SERIAL PRIMARY KEY,
     portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
-    order_id TEXT REFERENCES active_orders(order_id) ON DELETE SET NULL,
+    order_id TEXT,  -- reference only, FK removed
     close_order_id TEXT,
+    group_id TEXT,
     type TEXT NOT NULL,
     asset TEXT NOT NULL,
     amount NUMERIC(20,8),
@@ -121,7 +122,7 @@ CREATE TABLE IF NOT EXISTS trade_history (
 );
 
 -- 8. Zone Group Definitions (per-portfolio zone config with price ranges)
-CREATE TABLE IF NOT EXISTS zone_groups (
+CREATE TABLE IF NOT EXISTS orders_groups (
     id SERIAL PRIMARY KEY,
     portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
     name TEXT NOT NULL,

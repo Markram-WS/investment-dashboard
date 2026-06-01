@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../lib/api';
 
 interface ZoneGroupRecord {
@@ -42,7 +42,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
       const data = await api.getZoneGroups(portfolioId);
       setZones(data);
     } catch (err) {
-      console.error('Failed to load zone groups:', err);
+      console.error('Failed to load order groups:', err);
     } finally {
       setLoading(false);
     }
@@ -51,6 +51,18 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
   useEffect(() => {
     if (showModal) fetchZones();
   }, [showModal, fetchZones]);
+
+  const sortedZones = useMemo(() => {
+    return [...zones].sort((a, b) => {
+      const aMin = a.min_price ?? Number.NEGATIVE_INFINITY;
+      const bMin = b.min_price ?? Number.NEGATIVE_INFINITY;
+      if (bMin !== aMin) return bMin - aMin;
+      const aMax = a.max_price ?? Number.NEGATIVE_INFINITY;
+      const bMax = b.max_price ?? Number.NEGATIVE_INFINITY;
+      if (bMax !== aMax) return bMax - aMax;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }, [zones]);
 
   const resetForm = () => {
     setForm({ ...emptyForm });
@@ -80,7 +92,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
       await api.deleteZoneGroup(id);
       fetchZones();
     } catch (err) {
-      console.error('Failed to delete zone group:', err);
+      console.error('Failed to delete order group:', err);
     }
   };
 
@@ -102,7 +114,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
       resetForm();
       fetchZones();
     } catch (err) {
-      console.error('Failed to save zone group:', err);
+      console.error('Failed to save order group:', err);
     }
   };
 
@@ -112,21 +124,21 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl mx-4">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">Zone Groups</h3>
+          <h3 className="text-lg font-bold">Order Groups</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
         </div>
 
         {showForm && (
           <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <h4 className="font-semibold text-sm mb-3">{editingId ? 'Edit Zone' : 'New Zone'}</h4>
+            <h4 className="font-semibold text-sm mb-3">{editingId ? 'Edit Group' : 'New Group'}</h4>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Group/Zone Name</label>
+                <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Group Name</label>
                 <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border rounded px-2 py-1.5 text-sm" />
               </div>
               <div>
-                <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Max Orders</label>
-                <input type="number" step="1" value={form.max_orders} onChange={(e) => setForm({ ...form, max_orders: e.target.value })} className="w-full border rounded px-2 py-1.5 text-sm" placeholder="nullable" />
+                <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Max Orders <span className="font-normal lowercase text-gray-400">(∞ if empty)</span></label>
+                <input type="number" step="1" value={form.max_orders} onChange={(e) => setForm({ ...form, max_orders: e.target.value })} className="w-full border rounded px-2 py-1.5 text-sm" placeholder="leave empty = unlimited" />
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Min Price</label>
@@ -142,8 +154,8 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-3">
-              <button onClick={resetForm} className="px-3 py-1.5 text-xs border rounded hover:bg-gray-50">Cancel</button>
-              <button onClick={handleSave} className="px-3 py-1.5 text-xs bg-black text-white rounded hover:bg-gray-800">
+              <button onClick={resetForm} className="px-4 py-2 text-xs font-medium border rounded hover:bg-gray-100 transition-colors">Cancel</button>
+              <button onClick={handleSave} className="px-4 py-2 text-xs font-bold bg-black text-white rounded hover:bg-gray-800 transition-colors">
                 {editingId ? 'Update' : 'Create'}
               </button>
             </div>
@@ -152,13 +164,13 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
 
         {loading ? (
           <p className="text-gray-500 text-sm py-4 text-center">Loading...</p>
-        ) : zones.length === 0 && !showForm ? (
-          <p className="text-gray-500 text-sm py-4 text-center">No zone groups defined yet.</p>
+        ) : sortedZones.length === 0 && !showForm ? (
+          <p className="text-gray-500 text-sm py-4 text-center">No order groups defined yet.</p>
         ) : (
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="pb-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Zone</th>
+                <th className="pb-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Group</th>
                 <th className="pb-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Max Orders</th>
                 <th className="pb-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Min Price</th>
                 <th className="pb-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Max Price</th>
@@ -167,16 +179,26 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
               </tr>
             </thead>
             <tbody>
-              {zones.map((zone) => (
+              {sortedZones.map((zone) => (
                 <tr key={zone.id} className="border-b border-gray-100">
                   <td className="py-3 font-semibold text-sm">{zone.name}</td>
-                  <td className="py-3 text-sm text-right">{zone.max_orders ?? '-'}</td>
+                  <td className="py-3 text-sm text-right">{zone.max_orders != null ? zone.max_orders : '∞'}</td>
                   <td className="py-3 text-sm text-right">{zone.min_price != null ? `$${zone.min_price.toLocaleString()}` : '-'}</td>
                   <td className="py-3 text-sm text-right">{zone.max_price != null ? `$${zone.max_price.toLocaleString()}` : '-'}</td>
                   <td className="py-3 text-sm text-right">{zone.range != null ? `$${zone.range.toLocaleString()}` : '-'}</td>
-                  <td className="py-3 text-right">
-                    <button onClick={() => handleEdit(zone)} className="text-xs text-gray-500 hover:text-black mr-2">Edit</button>
-                    <button onClick={() => handleDelete(zone.id)} className="text-xs text-red-400 hover:text-red-600">Del</button>
+                  <td className="py-3 text-right whitespace-nowrap">
+                    <button onClick={() => handleEdit(zone)} className="inline-flex items-center justify-center p-1.5 text-gray-400 hover:text-black transition-colors" title="Edit">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                    <button onClick={() => handleDelete(zone.id)} className="inline-flex items-center justify-center p-1.5 text-red-300 hover:text-red-500 transition-colors" title="Delete">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -184,13 +206,13 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
           </table>
         )}
 
-        <div className="flex justify-between mt-6">
+        <div className="flex items-center justify-between mt-6">
           {!showForm && (
-            <button onClick={handleAdd} className="px-4 py-2 text-xs bg-black text-white rounded-full hover:bg-gray-800">
-              + Add Zone
+            <button onClick={handleAdd} className="px-4 py-2 text-xs font-bold bg-black text-white rounded hover:bg-gray-800 transition-colors">
+              + Add Group
             </button>
           )}
-          <button onClick={onClose} className="px-4 py-2 text-sm border rounded hover:bg-gray-50 ml-auto">
+          <button onClick={onClose} className="ml-auto px-5 py-2 text-sm font-medium border rounded hover:bg-gray-100 transition-colors">
             Close
           </button>
         </div>

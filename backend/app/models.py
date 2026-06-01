@@ -37,7 +37,7 @@ class Portfolio(Base):
     nav_history = relationship("PortfolioNavHistory", back_populates="portfolio")
     simulation_models = relationship("SimulationModels", back_populates="portfolio")
     trade_history = relationship("TradeHistory", back_populates="portfolio")
-    zone_groups = relationship("ZoneGroup", back_populates="portfolio")
+    orders_groups = relationship("OrdersGroup", back_populates="portfolio")
     # Note: No direct transaction relationship due to ambiguity with source/destination FKs
 
 class TradePlan(Base):
@@ -77,7 +77,7 @@ class ActiveOrder(Base):
     margin_rate = Column(Numeric(20, 8))
     order_status = Column(String, default='pending_sync')
     sl_price = Column(Numeric(20, 8))
-    grid_group_id = Column(String)
+    group_id = Column(String)
     zone = Column(String)  # Zone grouping: ZONE A, ZONE B, etc.
     spread_pair_id = Column(String)
     executed_by = Column(String)
@@ -141,6 +141,7 @@ class TradeHistory(Base):
     portfolio_id = Column(Integer, ForeignKey('portfolios.portfolio_id'), nullable=False)
     order_id = Column(String, nullable=True)
     close_order_id = Column(String, nullable=True)
+    group_id = Column(String, nullable=True)
     type = Column(String, nullable=False)
     asset = Column(String, nullable=False)
     amount = Column(Numeric(20, 8), nullable=True)
@@ -257,8 +258,8 @@ class AiAgentState(Base):
     agent = relationship("AiAgent", back_populates="state")
 
 
-class ZoneGroup(Base):
-    __tablename__ = 'zone_groups'
+class OrdersGroup(Base):
+    __tablename__ = 'orders_groups'
 
     id = Column(Integer, primary_key=True)
     portfolio_id = Column(Integer, ForeignKey('portfolios.portfolio_id'), nullable=False)
@@ -269,4 +270,4 @@ class ZoneGroup(Base):
     range = Column(Numeric(20, 8), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    portfolio = relationship("Portfolio", back_populates="zone_groups")
+    portfolio = relationship("Portfolio", back_populates="orders_groups")
