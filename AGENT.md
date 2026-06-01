@@ -47,8 +47,8 @@
 - **15 SQLAlchemy models** in `models.py`: Portfolio, TradePlan, ActiveOrder, OptionDetails, PortfolioNavHistory, SimulationModels, TradeHistory, Transaction, DecisionJournal, WhitelistAssets, Watchlist, AiAgent, AiActionLog, AiAgentState, ZoneGroup
 - **Key endpoints**:
   - `GET /api/v1/analytics/performance/{portfolio_id}` — equity curve (cumulative realized P/L), payoff bars, total P/L
-  - `GET /api/v1/analytics/portfolio-grid?portfolio_id=` — full grid data with cash details, orders, tags, trade plan, internal notes
-  - `PUT /api/v1/portfolios/{id}` — update `trade_plan_md`, `internal_notes`, `tags`
+  - `GET /api/v1/analytics/portfolio-grid?portfolio_id=` — full grid data with cash details, `risk_score` (0–100), tags, trade plan, internal notes
+  - `PUT /api/v1/portfolios/{id}` — update `portfolio_name`, `current_nav`, `margin_locked`, `cash_buffer_limit`, `available_cash`, `money_market`, `trade_plan_md`, `internal_notes`, `tags`
   - `POST /api/v1/orders/` — create order with optional UUID `order_id`
   - `POST /api/v1/orders/{order_id}/close` — close order with exit price/P&L, creates TradeHistory record
 - `redirect_slashes=False` — trailing slash matters on routes
@@ -56,9 +56,10 @@
 
 ### Frontend (React 18 + TypeScript + Vite)
 - **PortfolioGrid.tsx** — slim orchestrator (~241 lines, down from 1194) composing sub-components
+- **Screen modals** in `src/screens/`: `AddOrderModal` (editable UUID order_id), `CloseOrderModal` (auto Close ID), `EditOrderModal`, `EditPortfolioModal` (name, NAV, margin, buffer, cash, MM, tags), `ZoneEditModal`, `ZoneGroupModal`
 - **Screen components** in `src/screens/components/`:
   - `PortfolioHeader.tsx` — breadcrumb, title, Refresh + teal Add Order button
-  - `SummaryCard.tsx` — 3-col values (Total Value, Total P/L, Available Cash), Cash Details (Total Notional, MM, Margin, Buffer), Risk gauge, Asset Allocation donut (real data from orders), Metadata Tags
+  - `SummaryCard.tsx` — 3-col values (Total Value, Total P/L, Available Cash), Cash Details (Total Notional, MM, Margin, Buffer), Risk gauge (dynamic via 3-branch formula), Asset Allocation donut (real data from active orders, excludes cash), Metadata Tags, triple-dot edit button
   - `StrategyNotes.tsx` — Trade Plan + Internal Notes (both inline-editable, yellow sticky style, border-yellow-300 on Primary Strategy)
   - `TagsSection.tsx` — metadata tag pills
   - `PerformanceSection.tsx` — chart wrapper + Equity/Payoff toggle
@@ -85,8 +86,17 @@
 - **Total Notional** (Cash Details) = `Σ(qty × entry_price)` across active orders — shows market exposure deployed
 - **Asset Allocation** = computed from active orders by `asset_type` grouped by notional value, sorted descending; excludes Cash
 - **Performance equity curve** uses cumulative realized P/L from trade history (no `initial_funding`)
+- **Risk Level gauge** (3-branch formula, mirrored on frontend + backend `_compute_risk_score()`):
+  - `cashBufferLimit ≠ 0`: `((availableCash − marginLocked) / cashBufferLimit) × 100` (capped at 100)
+  - `cashBufferLimit = 0`: `((availableCash − marginLocked) / marginLocked) × 100` (capped at 100)
+  - Both $0$: returns `100` (Safe — no exposure)
+  - Color: teal (`≥100%` Safe), yellow (`≥50%` Warning), red (`<50%` Danger)
 
-## 8. Common Pitfalls
+## 8. Design Conventions
+- **Global Focus Ring**: All `<input>`, `<select>`, `<textarea>` use `ink` (#1c1c1e) ring via `index.css` — no per-component focus classes needed across AddOrder, EditOrder, CloseOrder, EditPortfolio, Zone modals
+- **Tailwind CDN** in `index.html` extended with all project colors (ink, brand-teal, brand-coral, brand-blue, hairline, surface, slate) — no separate `tailwind.config.js`
+
+## 9. Common Pitfalls
 - **esbuild scanner** cannot handle HTML/JSX tags inside `{...}` expressions in JSX. Extract all conditional JSX (ternaries, `&&` with tags, `.map()` returning JSX) into separate components or pre-computed variables.
 - **React Hooks before early returns** — all hooks must precede any `if (loading) return ...` guard.
 - **`<div>` inside `<p>`** is invalid HTML. Tooltip elements with block children must use `<div>` not `<p>`.
