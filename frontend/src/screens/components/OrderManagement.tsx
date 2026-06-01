@@ -100,10 +100,10 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                   className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-full border transition-all ${
                     contractFilter === tab.value
                       ? tab.value === 'spot'
-                        ? 'bg-blue-600 text-white border-blue-600'
+                        ? 'bg-indigo-600 text-white border-indigo-600'
                         : tab.value === 'future'
-                        ? 'bg-teal-600 text-white border-teal-600'
-                        : 'bg-amber-500 text-white border-amber-500'
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-purple-600 text-white border-purple-600'
                       : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300 hover:text-gray-500'
                   }`}
                 >
@@ -127,7 +127,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-surface border-y border-hairline">
-              <th className="p-4 w-8" />
+              <th className="p-4 w-12" />
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">ID</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Asset</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Side</th>
@@ -165,7 +165,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-3 py-2 w-8" />
+              <th className="px-3 py-2 w-12" />
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">ID</th>
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Asset</th>
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Side</th>
@@ -192,22 +192,34 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
               const showGray = isSpot && contractFilter !== 'spot';
               return (
                 <tr key={order.order_id} className={`border-b border-hairline-soft group ${showGray ? 'bg-gray-50' : 'bg-white hover:bg-surface/50'}`}>
-                  <td className="pl-3 py-2 w-8">
-                    <span
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, order)}
-                      className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-gray-500 transition-opacity"
-                      title="Drag to assign group or close"
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                        <circle cx="9" cy="6" r="1.5" />
-                        <circle cx="15" cy="6" r="1.5" />
-                        <circle cx="9" cy="12" r="1.5" />
-                        <circle cx="15" cy="12" r="1.5" />
-                        <circle cx="9" cy="18" r="1.5" />
-                        <circle cx="15" cy="18" r="1.5" />
-                      </svg>
-                    </span>
+                  <td className="pl-3 py-2 w-12">
+                    <div className="flex items-center gap-2">
+                      <span
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, order)}
+                        className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-gray-500 transition-opacity"
+                        title="Drag to assign group or close"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                          <circle cx="9" cy="6" r="1.5" />
+                          <circle cx="15" cy="6" r="1.5" />
+                          <circle cx="9" cy="12" r="1.5" />
+                          <circle cx="15" cy="12" r="1.5" />
+                          <circle cx="9" cy="18" r="1.5" />
+                          <circle cx="15" cy="18" r="1.5" />
+                        </svg>
+                      </span>
+                      <button
+                        onClick={() => {}}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-blue-50 rounded transition-colors text-gray-300 hover:text-blue-600"
+                        title="Link Order"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                        </svg>
+                      </button>
+                    </div>
                   </td>
                   <td draggable={false} className="px-3 py-2 text-xs text-gray-500 font-mono">#{order.order_id}</td>
                   <td draggable={false} className="px-3 py-2 font-medium text-sm">{order.asset_type}</td>
@@ -258,12 +270,6 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => {}} className="p-1 hover:bg-blue-50 rounded transition-colors text-gray-400 hover:text-blue-600" title="Link Order">
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                        </svg>
-                      </button>
                       <button onClick={() => onEditOrder(order)} className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-400 hover:text-gray-600" title="Edit">
                         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />

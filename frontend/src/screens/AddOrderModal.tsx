@@ -94,9 +94,9 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Contract Type</label>
             <ToggleBtn
               options={[
-                { value: 'spot', label: 'Spot', activeClass: 'bg-blue-600 text-white border-blue-600' },
-                { value: 'future', label: 'Future', activeClass: 'bg-teal-600 text-white border-teal-600' },
-                { value: 'option', label: 'Option', activeClass: 'bg-amber-500 text-white border-amber-500' },
+                { value: 'spot', label: 'Spot', activeClass: 'bg-indigo-600 text-white border-indigo-600' },
+                { value: 'future', label: 'Future', activeClass: 'bg-blue-600 text-white border-blue-600' },
+                { value: 'option', label: 'Option', activeClass: 'bg-purple-600 text-white border-purple-600' },
               ]}
               value={formData.contract_type}
               onChange={(v) => onChange('contract_type', v)}

@@ -142,22 +142,34 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
             onDrop={handleGroupDrop}
             style={isDragOver ? { borderLeft: '3px solid #3b82f6' } : undefined}
           >
-            <td className="pl-4 py-4 w-8">
-              <span
-                draggable
-                onDragStart={(e) => handleDragStart(e, order)}
-                className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-gray-500 transition-opacity"
-                title="Drag to assign group or close"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                  <circle cx="9" cy="6" r="1.5" />
-                  <circle cx="15" cy="6" r="1.5" />
-                  <circle cx="9" cy="12" r="1.5" />
-                  <circle cx="15" cy="12" r="1.5" />
-                  <circle cx="9" cy="18" r="1.5" />
-                  <circle cx="15" cy="18" r="1.5" />
-                </svg>
-              </span>
+            <td className="pl-4 py-4 w-12">
+              <div className="flex items-center gap-2">
+                <span
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, order)}
+                  className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-gray-500 transition-opacity"
+                  title="Drag to assign group or close"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="9" cy="6" r="1.5" />
+                    <circle cx="15" cy="6" r="1.5" />
+                    <circle cx="9" cy="12" r="1.5" />
+                    <circle cx="15" cy="12" r="1.5" />
+                    <circle cx="9" cy="18" r="1.5" />
+                    <circle cx="15" cy="18" r="1.5" />
+                  </svg>
+                </span>
+                <button
+                  onClick={() => {}}
+                  className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-blue-50 rounded transition-colors text-gray-300 hover:text-blue-600"
+                  title="Link Order"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                  </svg>
+                </button>
+              </div>
             </td>
             <td draggable={false} className="py-4 font-bold text-xs">#{order.order_id}</td>
             <td draggable={false} className="py-4 font-bold text-xs uppercase">{order.asset_type}</td>
@@ -202,18 +214,8 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
             <td className="pr-6 text-right py-4">
               <div className="flex items-center justify-end gap-1">
                 <button
-                  onClick={() => {}}
-                  className="p-1.5 hover:bg-blue-50 rounded-full transition-colors text-slate hover:text-blue-600 border border-hairline"
-                  title="Link Order"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                  </svg>
-                </button>
-                <button
                   onClick={() => onEdit(order)}
-                  className="p-1.5 hover:bg-white rounded-full transition-colors text-slate border border-hairline"
+                  className="p-1.5 hover:bg-white rounded-full transition-colors text-slate"
                   title="Edit"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -224,7 +226,7 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                 {onClose && (
                   <button
                     onClick={() => onClose(order)}
-                    className="p-1.5 hover:bg-red-50 rounded-full transition-colors text-red-300 hover:text-red-500 border border-hairline"
+                    className="p-1.5 hover:bg-red-50 rounded-full transition-colors text-red-300 hover:text-red-500"
                     title="Close Order"
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
