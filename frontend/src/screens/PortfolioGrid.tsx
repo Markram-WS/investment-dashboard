@@ -20,6 +20,7 @@ import SummaryCard from "./components/SummaryCard";
 import StrategyNotes from "./components/StrategyNotes";
 import PerformanceSection from "./components/PerformanceSection";
 import OrderManagement from "./components/OrderManagement";
+import ToastAlert from "./components/ToastAlert";
 
 interface PortfolioGridProps {
   portfolioId?: number | string;
@@ -44,6 +45,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const [closingOrder, setClosingOrder] = useState<SpreadOrder | null>(null);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showEditPortfolioModal, setShowEditPortfolioModal] = useState(false);
+  const [alertMsg, setAlertMsg] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const [viewMode, setViewMode] = useState<"equity" | "payoff">("equity");
@@ -94,6 +96,19 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     }
   }, [selectedPortfolio?.portfolio_id]);
 
+  const activeOrders = useMemo(
+    () => (selectedPortfolio?.active_orders || []).filter((o) => o.order_status !== "closed"),
+    [selectedPortfolio?.active_orders],
+  );
+
+  const groupOrderCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    activeOrders.forEach((o) => {
+      if (o.group_id != null) counts[o.group_id] = (counts[o.group_id] || 0) + 1;
+    });
+    return counts;
+  }, [activeOrders]);
+
   const handleCloseOrder = useCallback((order: SpreadOrder) => {
     const status = (order.order_status || "").toUpperCase();
     if (status === "PENDING") {
@@ -108,6 +123,46 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       setShowCloseModal(true);
     }
   }, [fetchAnalyticsData, selectedPortfolio]);
+
+  const handleAssignGroup = useCallback(async (orderId: string, groupId: number | null) => {
+    if (!selectedPortfolio) return;
+    const currentOrder = activeOrders.find(o => o.order_id === orderId);
+    if (currentOrder && currentOrder.group_id === groupId) return;
+    const warnings: string[] = [];
+    if (groupId != null && currentOrder) {
+      const groupDef = groups.find(g => g.id === groupId);
+      if (!groupDef) return;
+      if (groupDef.max_orders != null) {
+        const currentCount = groupOrderCounts[groupId] || 0;
+        if (currentCount >= groupDef.max_orders) {
+          warnings.push(`Group "${groupDef.name}" is at maximum capacity (${groupDef.max_orders}).`);
+        }
+      }
+      if (groupDef.min_price != null && currentOrder.entry_price != null && currentOrder.entry_price < groupDef.min_price) {
+        warnings.push(`Entry price ($${currentOrder.entry_price.toLocaleString()}) is below the group minimum price ($${groupDef.min_price.toLocaleString()}).`);
+      }
+      if (groupDef.max_price != null && currentOrder.entry_price != null && currentOrder.entry_price > groupDef.max_price) {
+        warnings.push(`Entry price ($${currentOrder.entry_price.toLocaleString()}) exceeds the group maximum price ($${groupDef.max_price.toLocaleString()}).`);
+      }
+    }
+    if (warnings.length > 0) {
+      setAlertMsg(warnings.join(" "));
+    }
+    try {
+      await api.updateOrder(orderId, { group_id: groupId });
+      fetchAnalyticsData();
+      api.getTradeHistory(selectedPortfolio.portfolio_id).then(setTradeHistory).catch(() => {});
+    } catch (err) {
+      console.error("Failed to assign group:", err);
+    }
+  }, [selectedPortfolio, activeOrders, groups, groupOrderCounts, fetchAnalyticsData]);
+
+  const handleDropOnTradeHistory = useCallback((orderId: string) => {
+    const order = activeOrders.find(o => o.order_id === orderId);
+    if (order) {
+      handleCloseOrder(order);
+    }
+  }, [activeOrders, handleCloseOrder]);
 
   const handleConfirmClose = useCallback(
     async (orderId: string, closeOrderId: string, exitPrice: number | null, realizedPl: number | null) => {
@@ -126,11 +181,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       }
     },
     [fetchAnalyticsData, selectedPortfolio],
-  );
-
-  const activeOrders = useMemo(
-    () => (selectedPortfolio?.active_orders || []).filter((o) => o.order_status !== "closed"),
-    [selectedPortfolio?.active_orders],
   );
 
   const zoneGroups = useMemo(() => {
@@ -156,16 +206,8 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       if (bMax !== aMax) return bMax - aMax;
       return (a.group_name || '').localeCompare(b.group_name || '');
     });
-    return [...sortedGroups, ...(ungrouped.length > 0 ? [{ group_id: null as any, group_name: 'Ungrouped Orders', mainOrders: ungrouped, pendingCloseOrders: [] as SpreadOrder[] }] : [])];
+    return [...sortedGroups, { group_id: null as any, group_name: 'Ungrouped Orders', mainOrders: ungrouped, pendingCloseOrders: [] as SpreadOrder[] }];
   }, [activeOrders, groups]);
-
-  const groupOrderCounts = useMemo(() => {
-    const counts: Record<number, number> = {};
-    activeOrders.forEach((o) => {
-      if (o.group_id != null) counts[o.group_id] = (counts[o.group_id] || 0) + 1;
-    });
-    return counts;
-  }, [activeOrders]);
 
   const { renderMarkdown, isGridType } = useMarkdownRenderer();
 
@@ -215,7 +257,9 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   };
 
   return (
-    <div className="px-10 py-6 min-h-screen max-w-[1800px] mx-auto">
+    <>
+      {alertMsg && <ToastAlert message={alertMsg} type="warning" onClose={() => setAlertMsg(null)} key={alertMsg} />}
+      <div className="px-10 py-6 min-h-screen max-w-[1800px] mx-auto">
       <PortfolioHeader
         portfolioName={selectedPortfolio.portfolio_name}
         lastUpdated={lastUpdated}
@@ -270,6 +314,8 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onShowZoneGroupModal={() => setShowZoneGroupModal(true)}
         showHistory={showHistory}
         onToggleHistory={() => setShowHistory(!showHistory)}
+        onAssignGroup={handleAssignGroup}
+        onDropOnTradeHistory={handleDropOnTradeHistory}
       />
 
       <EditOrderModal
@@ -330,6 +376,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onDeleted={() => navigate("/")}
       />
     </div>
+    </>
   );
 };
 

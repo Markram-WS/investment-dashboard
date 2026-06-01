@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { SpreadOrder, GroupOption } from '../../types';
 
 interface OrderGroupRowProps {
@@ -11,6 +11,7 @@ interface OrderGroupRowProps {
   groups: GroupOption[];
   onEdit: (order: SpreadOrder) => void;
   onClose?: (order: SpreadOrder) => void;
+  onAssignGroup?: (orderId: string, groupId: number | null) => void;
 }
 
 const formatDate = (dateStr: string | null): string => {
@@ -24,7 +25,7 @@ const getSideBadgeClass = (side: string): string => {
     : 'bg-coralLight text-brandCoral border border-brandCoral/20 uppercase';
 };
 
-export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups, onEdit, onClose }) => {
+export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups, onEdit, onClose, onAssignGroup }) => {
   const isUngrouped = groupInfo.group_id === null;
   const groupDef = groups.find(g => g.id === groupInfo.group_id);
   const groupLabel = groupDef
@@ -33,11 +34,50 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
   const maxOrders = groupDef?.max_orders;
   const count = groupInfo.mainOrders.length;
 
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleDragStart = useCallback((e: React.DragEvent, orderId: string) => {
+    e.dataTransfer.setData('text/plain', orderId);
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const handleDragEnter = useCallback(() => {
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    const target = e.currentTarget;
+    const related = e.relatedTarget as Node;
+    if (!target.contains(related)) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const orderId = e.dataTransfer.getData('text/plain');
+    if (orderId && onAssignGroup) {
+      onAssignGroup(orderId, groupInfo.group_id);
+    }
+  }, [onAssignGroup, groupInfo.group_id]);
+
   return (
     <>
-      {/* Group header row */}
-      <tr className={`${isUngrouped ? 'bg-gray-50' : 'bg-surface'} border-b border-hairline`}>
-        <td className="pl-8 py-3" colSpan={12}>
+      <tr
+        className={`${isUngrouped ? 'bg-gray-50' : 'bg-surface'} border-b border-hairline transition-colors ${isDragOver ? 'bg-blue-50' : ''}`}
+        onDragOver={handleDragOver}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        style={isDragOver ? { borderLeft: '3px solid #3b82f6' } : undefined}
+      >
+        <td className="pl-8 py-3" colSpan={13}>
           <div className="flex items-center gap-2">
             {isUngrouped && (
               <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">──</span>
@@ -48,19 +88,41 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
             {maxOrders != null && (
               <span className="text-[10px] text-slate font-medium">{count}/{maxOrders}</span>
             )}
+            {isDragOver && (
+              <span className="text-[10px] text-blue-600 font-semibold ml-2">Drop to assign</span>
+            )}
           </div>
         </td>
       </tr>
 
-      {/* Main orders in this group */}
       {groupInfo.mainOrders.map((order) => {
         const pl = order.current_price && order.entry_price
           ? (order.current_price - order.entry_price) * Number(order.qty)
           : 0;
 
         return (
-          <tr key={order.order_id} className="border-b border-hairline hover:bg-surface/50 transition-colors trade-group-border">
-            <td className="pl-8 py-4 font-bold text-xs">#{order.order_id}</td>
+          <tr
+            key={order.order_id}
+            className="border-b border-hairline hover:bg-surface/50 transition-colors trade-group-border group"
+          >
+            <td className="pl-4 py-4 w-8">
+              <span
+                draggable
+                onDragStart={(e) => handleDragStart(e, order.order_id)}
+                className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-gray-500 transition-opacity"
+                title="Drag to assign group or close"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="9" cy="6" r="1.5" />
+                  <circle cx="15" cy="6" r="1.5" />
+                  <circle cx="9" cy="12" r="1.5" />
+                  <circle cx="15" cy="12" r="1.5" />
+                  <circle cx="9" cy="18" r="1.5" />
+                  <circle cx="15" cy="18" r="1.5" />
+                </svg>
+              </span>
+            </td>
+            <td className="font-bold text-xs">#{order.order_id}</td>
             <td className="py-4 text-xs text-slate font-medium">{groupInfo.group_name}</td>
             <td className="py-4 font-bold text-xs uppercase">{order.asset_type}</td>
             <td className="py-4">

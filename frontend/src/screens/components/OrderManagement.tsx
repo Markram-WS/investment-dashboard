@@ -20,13 +20,22 @@ interface OrderManagementProps {
   onShowZoneGroupModal: () => void;
   showHistory: boolean;
   onToggleHistory: () => void;
+  onAssignGroup?: (orderId: string, groupId: number | null) => void;
+  onDropOnTradeHistory?: (orderId: string) => void;
 }
 
 const OrderManagement: React.FC<OrderManagementProps> = ({
   activeOrders, zoneGroups, groups, groupByZone, onGroupByZoneToggle, isGridType,
   tradeHistory, onEditOrder, onEditZone, onCloseOrder,
   onAddOrder, onShowZoneGroupModal, showHistory, onToggleHistory,
-}) => (
+  onAssignGroup, onDropOnTradeHistory,
+}) => {
+  const handleDragStart = (e: React.DragEvent, orderId: string) => {
+    e.dataTransfer.setData('text/plain', orderId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  return (
   <section className="bg-white rounded-xl border border-hairline overflow-hidden mb-6">
     {/* Header */}
     <div className="p-8 flex justify-between items-center">
@@ -69,13 +78,14 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             </tr>
           </thead>
           <tbody className="text-sm text-ink">
-            {zoneGroups.map((groupInfo) => (
+              {zoneGroups.map((groupInfo) => (
               <OrderGroupRow
                 key={groupInfo.group_id ?? '__ungrouped__'}
                 groupInfo={groupInfo}
                 groups={groups}
                 onEdit={onEditOrder}
                 onClose={onCloseOrder}
+                onAssignGroup={onAssignGroup}
               />
             ))}
           </tbody>
@@ -84,6 +94,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-3 py-2 w-8" />
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">ID</th>
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Asset</th>
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Side</th>
@@ -101,7 +112,24 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             {activeOrders.map((order) => {
               const openDate = order.created_at ? order.created_at.slice(0, 10) : "-";
               return (
-                <tr key={order.order_id} className="border-b border-hairline-soft bg-white hover:bg-surface/50">
+                <tr key={order.order_id} className="border-b border-hairline-soft bg-white hover:bg-surface/50 group">
+                  <td className="pl-3 py-2 w-8">
+                    <span
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, order.order_id)}
+                      className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-gray-500 transition-opacity"
+                      title="Drag to assign group or close"
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="9" cy="6" r="1.5" />
+                        <circle cx="15" cy="6" r="1.5" />
+                        <circle cx="9" cy="12" r="1.5" />
+                        <circle cx="15" cy="12" r="1.5" />
+                        <circle cx="9" cy="18" r="1.5" />
+                        <circle cx="15" cy="18" r="1.5" />
+                      </svg>
+                    </span>
+                  </td>
                   <td className="px-3 py-2 text-xs text-gray-500 font-mono">#{order.order_id}</td>
                   <td className="px-3 py-2 font-medium text-sm">{order.asset_type}</td>
                   <td className="px-3 py-2">
@@ -160,8 +188,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
       </div>
     </div>
 
-    <TradeHistoryTable tradeHistory={tradeHistory} showHistory={showHistory} onToggleHistory={onToggleHistory} />
+    <TradeHistoryTable tradeHistory={tradeHistory} showHistory={showHistory} onToggleHistory={onToggleHistory} onDropOnTradeHistory={onDropOnTradeHistory} />
   </section>
-);
+  );
+};
 
 export default OrderManagement;

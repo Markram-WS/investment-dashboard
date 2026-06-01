@@ -60,6 +60,9 @@ open http://localhost:8000/docs
 > `portfolios.tags` is a JSONB map of key→bool for metadata filtering.
 > `available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit` are returned in the portfolio-grid analytics response.
 > `risk_score` (0–100) is computed server-side from `available_cash`, `margin_locked`, `cash_buffer_limit` — matching the frontend risk gauge logic.
+> `active_orders.group_id` is an **Integer FK** to `orders_groups.id` (renamed from `ZoneGroup`; the `zone` column was removed).
+> `trade_history.group_id` is a plain **Integer** (not FK) — stores the group reference at close/cancel time.
+> Order status values are uppercase: `PENDING`, `FILLED`, `CLOSE`, `CANCELED`. PENDING/FILLED are non-terminal; CLOSE/CANCELED are terminal.
 > All services auto-restart unless stopped. Logs: `podman compose logs -f backend`.
 
 ---
@@ -85,7 +88,7 @@ open http://localhost:8000/docs
 | `POST` | `/api/v1/portfolios/` | Create a new portfolio |
 | `GET` | `/api/v1/portfolios/{id}` | Retrieve portfolio by ID |
 | `PUT` | `/api/v1/portfolios/{id}` | Update portfolio fields (`trade_plan_md`, `internal_notes`, `tags`, etc.) |
-| `DELETE` | `/api/v1/portfolios/{id}` | Delete portfolio |
+| `DELETE` | `/api/v1/portfolios/{id}` | Delete portfolio with cascade (FK-safe order: decision_journals → trade_history → active_orders → trade_plans → nav_history → simulation_models → orders_groups → transactions → portfolio) |
 
 ### Trade Plans
 | Method | Endpoint | Description |
@@ -101,11 +104,13 @@ open http://localhost:8000/docs
 | `POST` | `/api/v1/orders/` | Place a new order (optional `order_id` UUID; auto-generated if omitted) |
 | `GET` | `/api/v1/orders/` | List orders (optional query: `portfolio_id`) |
 | `GET` | `/api/v1/orders/{order_id}` | Get order details |
-| `PUT` | `/api/v1/orders/{order_id}` | Update order fields |
-| `PATCH` | `/api/v1/orders/{order_id}/status` | Update order status |
-| `POST` | `/api/v1/orders/{order_id}/close` | Close order: marks `closed`, creates `TradeHistory` record with exit price/P-L |
+| `PUT` | `/api/v1/orders/{order_id}` | Update order fields (including `group_id` for group assignment) |
+| `PATCH` | `/api/v1/orders/{order_id}/status` | Change order status: send `{"new_status": "CANCELED"}` → deletes from `active_orders` + creates trade history with `{"note":"Canceled"}` |
+| `POST` | `/api/v1/orders/{order_id}/close` | Close order: deletes from `active_orders`, creates `TradeHistory` record with exit price/P-L. Status set to `CLOSE`. |
 
-> `order_id` is a UUID string (e.g., `a1b2c3d4-e5f6-...`). All path params use string type.
+> `order_id` is a UUID string (e.g., `a1b2c3d4-e5f6-...`).  
+> Order status values: `PENDING`, `FILLED` (non-terminal); `CLOSE`, `CANCELED` (terminal — order removed from `active_orders`).  
+> `group_id` is an Integer FK to `orders_groups.id`.
 
 ### Analytics
 | Method | Endpoint | Description |
@@ -125,13 +130,17 @@ open http://localhost:8000/docs
 | `GET` | `/api/v1/trade-history/` | List trade history records (optional query: `portfolio_id`) |
 | `POST` | `/api/v1/trade-history/` | Create a trade history record (manual entry or bot sync) |
 
-### Zone Groups
+### Orders Groups (was Zone Groups)
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
-| `GET` | `/api/v1/zone-groups/?portfolio_id=` | List zone group definitions for a portfolio |
-| `POST` | `/api/v1/zone-groups/?portfolio_id=` | Create a zone group |
-| `PUT` | `/api/v1/zone-groups/{id}` | Update a zone group |
-| `DELETE` | `/api/v1/zone-groups/{id}` | Delete a zone group |
+| `GET` | `/api/v1/orders-groups/?portfolio_id=` | List group definitions for a portfolio |
+| `POST` | `/api/v1/orders-groups/?portfolio_id=` | Create a group (fields: `name`, `max_orders`, `min_price`, `max_price`, `range`) |
+| `PUT` | `/api/v1/orders-groups/{id}` | Update a group |
+| `DELETE` | `/api/v1/orders-groups/{id}` | Delete a group |
+
+> Groups are sorted by `min_price DESC`, `max_price DESC`, `name ASC`.  
+> Orders within a group are sorted by `entry_price DESC`.  
+> `max_orders` = null means unlimited. `min_price`/`max_price` are validated client-side on drag-and-drop.
 
 ### AI Agents
 | Method | Endpoint | Description |
@@ -165,7 +174,7 @@ backend/
 │       ├── journal.py        # Decision journal
 │       ├── ai_agents.py      # AI autonomy (scan, plan, execute)
 │       ├── assets.py         # Whitelist assets
-│       ├── zone_groups.py    # Zone group CRUD
+│       ├── orders_groups.py  # Orders group CRUD (was zone_groups)
 │       └── etl_sync.py       # ETL sync utilities
 ├── tests/
 ├── requirements.txt

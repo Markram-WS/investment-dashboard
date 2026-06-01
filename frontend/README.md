@@ -56,27 +56,29 @@ frontend/
 │   │   └── PortfolioAnalyticsDetail.tsx # Dynamic layout router
 │   │
 │   ├── screens/            # Secondary layouts (detail screens)
-│   │   ├── PortfolioGrid.tsx        # Slim orchestrator (~241 lines) composing sub-components
+│   │   ├── PortfolioGrid.tsx        # Slim orchestrator (~327 lines) composing sub-components
 │   │   ├── PortfolioSpread.tsx      # Spread pairing: pairs + payoff
 │   │   ├── PortfolioMutualFund.tsx  # Managed fund: allocation, rebalance, NAV
-│   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID UUID, asset, side, qty, TP/SL, zone, status)
+│   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID UUID, asset, side, qty, TP/SL, group combobox, status)
 │   │   ├── CloseOrderModal.tsx     # Close order form (editable Close ID UUID, exit price, P/L, auto-calc)
-│   │   ├── EditOrderModal.tsx       # Order edit modal
-│   │   ├── EditPortfolioModal.tsx   # Portfolio field editor: name, NAV, margin, buffer, cash, MM, tags
+│   │   ├── EditOrderModal.tsx       # Order edit modal (group combobox, validation warnings)
+│   │   ├── EditPortfolioModal.tsx   # Portfolio field editor: name, NAV, margin, buffer, cash, MM, tags; Danger Zone delete
 │   │   ├── ZoneEditModal.tsx        # Zone edit modal
-│   │   ├── ZoneGroupModal.tsx       # Zone group CRUD (add/edit/delete zone definitions)
+│   │   ├── ZoneGroupModal.tsx       # Orders Group CRUD (add/edit/delete), "Group" column, bottom-left add
 │   │   └── components/
-│   │       ├── PortfolioHeader.tsx    # Breadcrumb, title, Refresh + Add Order buttons
+│   │       ├── PortfolioHeader.tsx    # Breadcrumb, title, Refresh button (no Add Order in header)
 │   │       ├── SummaryCard.tsx        # 3-col values, Cash Details (Total Notional), Risk gauge (dynamic), Asset Allocation (real data), Tags, triple-dot edit
 │   │       ├── StrategyNotes.tsx      # Trade Plan + Internal Notes (both inline-editable, yellow sticky)
 │   │       ├── TagsSection.tsx        # Metadata tag pills
 │   │       ├── PerformanceSection.tsx # Performance wrapper + Equity/Payoff toggle
 │   │       ├── PerformanceChart.tsx   # Dynamic SVG: equity line chart or payoff bar chart
-│   │       ├── OrderManagement.tsx    # Active orders table (zone-grouped or flat), toggle, footer
-│   │       ├── TradeHistoryTable.tsx  # Collapsible closed-orders table
+│   │       ├── OrderManagement.tsx    # Active orders table (grouped or flat), Group toggle, footer; drag-and-drop support
+│   │       ├── TradeHistoryTable.tsx  # Collapsible closed-orders table; drop target (even when collapsed)
 │   │       ├── TradePlanView.tsx      # Trade plan markdown display (click-to-edit, Save/Cancel)
 │   │       ├── QuickStatsView.tsx     # Active pairs/positions stats
-│   │       ├── ZoneGroupRow.tsx       # Zone-grouped order row with edit/close buttons
+│   │       ├── ZoneGroupRow.tsx       # Grouped order row (exports OrderGroupRow) with edit/close buttons, drag handle, drop target
+│   │       ├── GroupCombobox.tsx      # Searchable combobox dropdown for group selection in modals
+│   │       ├── ToastAlert.tsx         # Fixed-position dismissible toast notifications (auto-dismiss 4s)
 │   │       └── HistoricalGridView.tsx # Historical trades accordion
 │   │
 │   └── assets/             # SVG icons (Material Symbols style)
@@ -137,10 +139,11 @@ frontend/
 | Orders | `/api/v1/orders/` | POST (create with optional UUID order_id) |
 | Orders | `/api/v1/orders` | GET (list) |
 | Orders | `/api/v1/orders/{order_id}/close` | POST (close + trade history) |
-| Orders | `/api/v1/orders/{order_id}` | PUT (update) |
+| Orders | `/api/v1/orders/{order_id}` | PUT (update, including `group_id`) |
+| Orders | `/api/v1/orders/{order_id}/status` | PATCH (cancel → `{"new_status":"CANCELED"}`) |
 | Trade History | `/api/v1/trade-history/` | GET (list, optional `?portfolio_id=`) |
-| Zone Groups | `/api/v1/zone-groups/?portfolio_id=` | GET/POST |
-| Zone Groups | `/api/v1/zone-groups/{id}` | PUT/DELETE |
+| Orders Groups | `/api/v1/orders-groups/?portfolio_id=` | GET/POST (was zone-groups) |
+| Orders Groups | `/api/v1/orders-groups/{id}` | PUT/DELETE |
 | Spread Pairs | `/api/v1/spread-pairs/` | POST/DELETE |
 
 ## 🎨 UI Architecture (from DESIGN.md spec)
@@ -190,13 +193,23 @@ Portfolio Grid (xl:grid-cols-2 on desktop)
 
 ### Risk Level Gauge (Portfolio Summary)
 
-The risk donut is computed dynamically from cash data:
+The risk donut and gauge are computed dynamically from cash data (both client and server):
 
 - **`cashBufferLimit ≠ 0`**: `((availableCash − marginLocked) / cashBufferLimit) × 100` (capped at 100)
 - **`cashBufferLimit = 0`**: `((availableCash − marginLocked) / marginLocked) × 100` (capped at 100)
 - **Both $0$**: returns `100` (Safe — no exposure)
 - Color: 🟢 teal (`≥100%` Safe), 🟡 yellow (`≥50%` Warning), 🔴 red (`<50%` Danger)
-- `risk_score` is also computed server-side via `analytics.py` → `_compute_risk_score()`
+- `risk_score` is also computed server-side via `analytics.py` → `_compute_risk_score()`; returned in portfolio-grid API response as `risk_score`
+
+### Group Validation on Drag-and-Drop
+
+When dragging an order onto a group header, non-blocking toast alerts fire for:
+
+- **`max_orders`**: if the group is at capacity (null = unlimited)
+- **`min_price`**: if `entry_price < min_price` (skip if null)
+- **`max_price`**: if `entry_price > max_price` (skip if null)
+
+Toast notifications slide in from the right, auto-dismiss after 4 seconds, and the group assignment proceeds regardless.
 
 ### Global Focus Ring
 
@@ -261,7 +274,7 @@ No per-component focus classes needed — every modal (AddOrder, EditOrder, Clos
 | `/all-assets` | AllAssets | pages/AllAssets.tsx | Asset listing table |
 | `/risk-analytics` | RiskAnalytics | pages/RiskAnalytics.tsx | Risk metrics (Sharpe, VaR, Drawdown) |
 | `/analytics` | AnalyticsDashboard | pages/AnalyticsDashboard.tsx | NAV time series + summary |
-| `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | pages/PortfolioAnalyticsDetail.tsx | **Dynamic Layout** - auto-selects based on port_type (spread/grid/managed-fund) |
+| `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | pages/PortfolioAnalyticsDetail.tsx | **Dynamic Layout** - auto-selects based on port_type (spread/grid/managed-fund). Grid type renders PortfolioGrid with 12-col layout: Left SummaryCard + StrategyNotes, PerformanceSection, OrderManagement, TradeHistory |
 | `/analytics/detail` | PortfolioAnalytics | screens/PortfolioAnalytics.tsx | **Grid View** - Split view: Left Orders+Payoff, Right Sticky Notes (Canary Yellow) |
 | `/spread-pairing` | SpreadPairing | screens/SpreadPairing.tsx | **Spread View** - Order Pairs table + Payoff chart, Side-by-side Long/Short legs |
 | `/managed-fund/{portfolioId}` | ManagedFund | screens/ManagedFund.tsx | **Managed Fund View** - Asset Allocation (Target vs Current) + Rebalance + NAV History |
@@ -375,6 +388,16 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
 4. **Portfolio Grid**: คลิกเข้าสู่ analytics ของแต่ละพอร์ต
 5. **Spread Pairing**: จัดคู่ออเดอร์แบบ 1:1 พร้อม zone grouping
 6. **Rebalance**: คำนวณและแสดงคำแนะนำการทำซ้ำ (rebalance)
+7. **Orders Groups**: จัดกลุ่มออเดอร์ด้วย Orders Groups (rename from Zone Groups) — group_id FK to orders_groups
+8. **Drag & Drop Assign Group**: ลากออเดอร์ไปวางบน Group header, Ungrouped section, หรือ Trade History
+   - Drag handle (6-dot grip icon) visible on hover — เฉพาะ icon เท่านั้นที่ draggable
+   - Drop บน Group header → กำหนด group_id
+   - Drop บน Ungrouped section → ยกเลิก group assignment
+   - Drop บน Trade History (even when collapsed) → close (FILLED) หรือ cancel (PENDING)
+   - Group validation alerts (non-blocking toast): max_orders, min_price, max_price
+9. **Ungrouped Orders section**: Always visible (drop target for unassigning)
+10. **Order status**: PENDING / FILLED / CLOSE / CANCELED (uppercase)
+11. **Portfolio Delete**: Cascade cleanup with activeOrderCount guard
 
 ## ⚙️ Technical Details
 
@@ -456,7 +479,8 @@ All shared types are defined in `src/types/index.ts`:
 | Domain | Key Interfaces | Notes |
 |--------|---------------|-------|
 | **Portfolio Overview** | `PortfolioOverviewItem`, `OverviewResponse` | |
-| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` | `order_id` is **string** (UUID); `risk_score` (0–100) computed server-side |
+| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` | `order_id` is **string** (UUID); `risk_score` (0–100) computed server-side; `group_id` is `number | null` |
+| **Orders Groups** | `GroupOption` | Fields: `id`, `name`, `max_orders` (null = ∞), `min_price`, `max_price` |
 | **Managed Fund** | `FundPortfolio`, `TradePlan`, `TradeRecommendation`, `NavHistoryRecord` | |
 | **Spread Pairing** | `PortfolioSpreadsData` | |
 | **Transactions** | `Transaction` | Includes `order_id` and `close_order_id` (both string) |

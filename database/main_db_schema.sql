@@ -78,8 +78,7 @@ CREATE TABLE IF NOT EXISTS active_orders (
     leverage NUMERIC(20,8),
     margin_rate NUMERIC(20,8),
     order_status TEXT DEFAULT 'pending_sync',
-    group_id TEXT,
-    zone TEXT,
+    group_id INTEGER REFERENCES orders_groups(id) ON DELETE SET NULL,
     spread_pair_id TEXT,
     executed_by TEXT,
     option_id INTEGER REFERENCES option_details(option_id),
@@ -98,13 +97,13 @@ CREATE TABLE IF NOT EXISTS simulation_models (
     UNIQUE(portfolio_id, model_name)
 );
 
--- 7. Trade History & Audit (order_id references active_orders; close_order_id is UUID from close action)
+-- 7. Trade History & Audit (order_id references active_orders; close_order_id is UUID from close action; group_id stores group at close/cancel time)
 CREATE TABLE IF NOT EXISTS trade_history (
     history_id SERIAL PRIMARY KEY,
     portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
     order_id TEXT,  -- reference only, FK removed
     close_order_id TEXT,
-    group_id TEXT,
+    group_id INTEGER,  -- group reference at time of close/cancel
     type TEXT NOT NULL,
     asset TEXT NOT NULL,
     amount NUMERIC(20,8),
