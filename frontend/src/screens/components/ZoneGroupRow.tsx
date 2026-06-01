@@ -159,20 +159,20 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                 </svg>
               </span>
             </td>
-            <td className="py-4 font-bold text-xs">#{order.order_id}</td>
-            <td className="py-4 font-bold text-xs uppercase">{order.asset_type}</td>
-            <td className="py-4">
+            <td draggable={false} className="py-4 font-bold text-xs">#{order.order_id}</td>
+            <td draggable={false} className="py-4 font-bold text-xs uppercase">{order.asset_type}</td>
+            <td draggable={false} className="py-4">
               <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${getSideBadgeClass(order.side)}`}>
                 {order.side}
               </span>
             </td>
             {showDir && (
-              <td className="py-4 text-[10px] text-slate">{order.direction || '-'}</td>
+              <td draggable={false} className="py-4 text-[10px] text-slate">{order.direction || '-'}</td>
             )}
-            <td className="py-4 text-[10px] text-slate">{formatDate(order.created_at)}</td>
-            <td className="py-4 text-xs font-medium">${order.entry_price ? order.entry_price.toLocaleString() : '-'}</td>
-            <td className="py-4 text-xs font-medium">{order.qty}</td>
-            <td className="py-4 text-xs font-medium">${order.current_price ? order.current_price.toLocaleString() : '-'}</td>
+            <td draggable={false} className="py-4 text-[10px] text-slate">{formatDate(order.created_at)}</td>
+            <td draggable={false} className="py-4 text-xs font-medium">${order.entry_price ? order.entry_price.toLocaleString() : '-'}</td>
+            <td draggable={false} className="py-4 text-xs font-medium">{order.qty}</td>
+            <td draggable={false} className="py-4 text-xs font-medium">${order.current_price ? order.current_price.toLocaleString() : '-'}</td>
             {showLev && (
               <td className="py-4 text-xs font-medium">{order.leverage != null ? `${order.leverage}x` : '-'}</td>
             )}
@@ -185,12 +185,12 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
             {showStrikePrice && (
               <td className="py-4 text-xs font-medium">${order.strike_price != null ? order.strike_price.toLocaleString() : '-'}</td>
             )}
-            <td className="py-4 text-xs font-medium">${order.tp_price ? order.tp_price.toLocaleString() : '-'}</td>
-            <td className="py-4 text-xs font-medium">${order.sl_price ? order.sl_price.toLocaleString() : '-'}</td>
-            <td className={`py-4 text-xs font-bold ${pl >= 0 ? 'text-brandTeal' : 'text-brandCoral'}`}>
+            <td draggable={false} className="py-4 text-xs font-medium">${order.tp_price ? order.tp_price.toLocaleString() : '-'}</td>
+            <td draggable={false} className="py-4 text-xs font-medium">${order.sl_price ? order.sl_price.toLocaleString() : '-'}</td>
+            <td draggable={false} className={`py-4 text-xs font-bold ${pl >= 0 ? 'text-brandTeal' : 'text-brandCoral'}`}>
               {pl >= 0 ? '+' : ''}${pl.toFixed(2)}
             </td>
-            <td className="py-4">
+            <td draggable={false} className="py-4">
               <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
                 (order.order_status || "").toUpperCase() === "FILLED" ? "bg-green-100 text-green-700" :
                 (order.order_status || "").toUpperCase() === "PENDING" ? "bg-yellow-100 text-yellow-700" :
@@ -201,6 +201,16 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
             </td>
             <td className="pr-6 text-right py-4">
               <div className="flex items-center justify-end gap-1">
+                <button
+                  onClick={() => {}}
+                  className="p-1.5 hover:bg-blue-50 rounded-full transition-colors text-slate hover:text-blue-600 border border-hairline"
+                  title="Link Order"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                  </svg>
+                </button>
                 <button
                   onClick={() => onEdit(order)}
                   className="p-1.5 hover:bg-white rounded-full transition-colors text-slate border border-hairline"

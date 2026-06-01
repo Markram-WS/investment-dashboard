@@ -209,18 +209,18 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                       </svg>
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-xs text-gray-500 font-mono">#{order.order_id}</td>
-                  <td className="px-3 py-2 font-medium text-sm">{order.asset_type}</td>
-                  <td className="px-3 py-2">
+                  <td draggable={false} className="px-3 py-2 text-xs text-gray-500 font-mono">#{order.order_id}</td>
+                  <td draggable={false} className="px-3 py-2 font-medium text-sm">{order.asset_type}</td>
+                  <td draggable={false} className="px-3 py-2">
                     <span className={`text-xs px-1 rounded ${order.side === "BUY" || order.side === "Buy" ? "bg-teal-light text-brand-teal" : "bg-coral-light text-brand-coral"}`}>{order.side}</span>
                   </td>
                   {showDir && (
-                    <td className="px-3 py-2 text-xs">{order.direction || '-'}</td>
+                    <td draggable={false} className="px-3 py-2 text-xs">{order.direction || '-'}</td>
                   )}
-                  <td className="px-3 py-2 text-xs text-gray-500">{openDate}</td>
-                  <td className="px-3 py-2 text-right text-xs">{order.qty}</td>
-                  <td className="px-3 py-2 text-right text-xs">${order.entry_price || "-"}</td>
-                  <td className="px-3 py-2 text-right text-xs">${order.current_price || "-"}</td>
+                  <td draggable={false} className="px-3 py-2 text-xs text-gray-500">{openDate}</td>
+                  <td draggable={false} className="px-3 py-2 text-right text-xs">{order.qty}</td>
+                  <td draggable={false} className="px-3 py-2 text-right text-xs">${order.entry_price || "-"}</td>
+                  <td draggable={false} className="px-3 py-2 text-right text-xs">${order.current_price || "-"}</td>
                   {showLev && (
                     <td className="px-3 py-2 text-right text-xs">{order.leverage != null ? `${order.leverage}x` : '-'}</td>
                   )}
@@ -233,9 +233,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                   {showStrikePrice && (
                     <td className="px-3 py-2 text-right text-xs">${order.strike_price != null ? order.strike_price : '-'}</td>
                   )}
-                  <td className="px-3 py-2 text-right text-xs">${order.tp_price || "-"}</td>
-                  <td className="px-3 py-2 text-right text-xs">${order.sl_price || "-"}</td>
-                  <td className={`px-3 py-2 text-right text-xs font-bold ${(() => {
+                  <td draggable={false} className="px-3 py-2 text-right text-xs">${order.tp_price || "-"}</td>
+                  <td draggable={false} className="px-3 py-2 text-right text-xs">${order.sl_price || "-"}</td>
+                  <td draggable={false} className={`px-3 py-2 text-right text-xs font-bold ${(() => {
                     const pl = order.current_price && order.entry_price ? (order.current_price - order.entry_price) * Number(order.qty) : 0;
                     return pl >= 0 ? 'text-emerald-600' : 'text-red-500';
                   })()}`}>
@@ -247,7 +247,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                       return pl.toFixed(2);
                     })()}
                   </td>
-                  <td className="px-3 py-2">
+                  <td draggable={false} className="px-3 py-2">
                     <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${
                       (order.order_status || "").toUpperCase() === "FILLED" ? "bg-green-100 text-green-700" :
                       (order.order_status || "").toUpperCase() === "PENDING" ? "bg-yellow-100 text-yellow-700" :
@@ -258,6 +258,12 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
+                      <button onClick={() => {}} className="p-1 hover:bg-blue-50 rounded transition-colors text-gray-400 hover:text-blue-600" title="Link Order">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                        </svg>
+                      </button>
                       <button onClick={() => onEditOrder(order)} className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-400 hover:text-gray-600" title="Edit">
                         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />

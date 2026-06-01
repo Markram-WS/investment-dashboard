@@ -29,6 +29,7 @@ services:
     db_main:
         image: postgres:15-alpine
         container_name: investment_db_main
+        shm_size: 256mb
         ports:
             - "5432:5432"
         env_file:
@@ -46,6 +47,7 @@ services:
     db_ai:
         image: postgres:15-alpine
         container_name: investment_db_ai
+        shm_size: 256mb
         ports:
             - "5433:5432"
         env_file:
