@@ -38,7 +38,16 @@ export interface SpreadOrder {
   executed_by: string;
   created_at: string | null;
   spread_pair_id: string | null;
-  zone: string | null;
+  group_id: number | null;
+  group_name: string | null;
+}
+
+export interface GroupOption {
+  id: number;
+  name: string;
+  max_orders: number | null;
+  min_price: number | null;
+  max_price: number | null;
 }
 
 export interface SpreadPair {

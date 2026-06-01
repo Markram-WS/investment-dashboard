@@ -1,4 +1,6 @@
 import React from 'react';
+import { GroupOption } from '../types';
+import { GroupCombobox } from './components/GroupCombobox';
 
 interface AddOrderForm {
   order_id: string;
@@ -8,7 +10,7 @@ interface AddOrderForm {
   entry_price: number | string;
   tp_price: number | string;
   sl_price: number | string;
-  zone: string;
+  group_id: number | null;
   order_status: string;
 }
 
@@ -18,7 +20,7 @@ interface AddOrderModalProps {
   onClose: () => void;
   onSave: () => Promise<void>;
   onChange: (field: keyof AddOrderForm, value: any) => void;
-  zones: string[];
+  groups: GroupOption[];
 }
 
 export const AddOrderModal: React.FC<AddOrderModalProps> = ({
@@ -27,7 +29,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   onClose,
   onSave,
   onChange,
-  zones,
+  groups,
 }) => {
   if (!showModal) return null;
 
@@ -108,18 +110,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           </div>
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Group</label>
-              <select
-                value={formData.zone}
-                onChange={(e) => onChange('zone', e.target.value)}
-                className="w-full border rounded px-3 py-2 text-sm"
-              >
-                <option value="">-- No Group --</option>
-              {zones.map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
-              ))}
-            </select>
+            <GroupCombobox groups={groups} value={formData.group_id} onChange={(v) => onChange('group_id', v)} />
           </div>
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Status</label>

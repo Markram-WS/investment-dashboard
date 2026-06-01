@@ -11,7 +11,7 @@ import { useAddOrder } from "../hooks/useAddOrder";
 import { usePortfolioManager } from "../hooks/usePortfolioManager";
 import { useZoneEditor } from "../hooks/useZoneEditor";
 import { useMarkdownRenderer } from "../hooks/useMarkdownRenderer";
-import { SpreadOrder, AllocationItem } from "../types";
+import { SpreadOrder, AllocationItem, GroupOption } from "../types";
 import { api } from "../lib/api";
 import { allocationColors } from "../constants/colors";
 
@@ -38,6 +38,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
 
   const [groupByZone, setGroupByZone] = useState(true);
   const [showZoneGroupModal, setShowZoneGroupModal] = useState(false);
+  const [groups, setGroups] = useState<GroupOption[]>([]);
   const [tradeHistory, setTradeHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [closingOrder, setClosingOrder] = useState<SpreadOrder | null>(null);
@@ -51,6 +52,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   React.useEffect(() => {
     if (selectedPortfolio) {
       api.getPerformance(selectedPortfolio.portfolio_id).then(setPerformanceData).catch(() => {});
+      api.getZoneGroups(selectedPortfolio.portfolio_id).then(setGroups).catch(() => {});
     }
   }, [selectedPortfolio?.portfolio_id]);
 
@@ -132,16 +134,30 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   );
 
   const zoneGroups = useMemo(() => {
-    const groups: Record<string, any> = {};
     const sorted = [...activeOrders].sort((a, b) => (b.entry_price ?? 0) - (a.entry_price ?? 0));
+    const groupMap: Record<number, { group_id: number; group_name: string; mainOrders: SpreadOrder[]; pendingCloseOrders: SpreadOrder[] }> = {};
+    const ungrouped: SpreadOrder[] = [];
     sorted.forEach((order) => {
-      const zone = order.zone || "ZONE A";
-      if (!groups[zone]) groups[zone] = { zone, mainOrders: [], pendingCloseOrders: [] };
-      if (order.order_status === "filled") groups[zone].mainOrders.push(order);
-      else if (order.order_status === "pending_sync") groups[zone].pendingCloseOrders.push(order);
+      if (order.group_id != null && order.group_name) {
+        if (!groupMap[order.group_id]) groupMap[order.group_id] = { group_id: order.group_id, group_name: order.group_name, mainOrders: [], pendingCloseOrders: [] };
+        groupMap[order.group_id].mainOrders.push(order);
+      } else {
+        ungrouped.push(order);
+      }
     });
-    return Object.values(groups);
-  }, [activeOrders]);
+    const sortedGroups = Object.values(groupMap).sort((a, b) => {
+      const ga = groups.find(g => g.id === a.group_id);
+      const gb = groups.find(g => g.id === b.group_id);
+      const aMin = ga?.min_price ?? Number.NEGATIVE_INFINITY;
+      const bMin = gb?.min_price ?? Number.NEGATIVE_INFINITY;
+      if (bMin !== aMin) return bMin - aMin;
+      const aMax = ga?.max_price ?? Number.NEGATIVE_INFINITY;
+      const bMax = gb?.max_price ?? Number.NEGATIVE_INFINITY;
+      if (bMax !== aMax) return bMax - aMax;
+      return (a.group_name || '').localeCompare(b.group_name || '');
+    });
+    return [...sortedGroups, ...(ungrouped.length > 0 ? [{ group_id: null as any, group_name: 'Ungrouped Orders', mainOrders: ungrouped, pendingCloseOrders: [] as SpreadOrder[] }] : [])];
+  }, [activeOrders, groups]);
 
   const { renderMarkdown, isGridType } = useMarkdownRenderer();
 
@@ -234,6 +250,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       <OrderManagement
         activeOrders={activeOrders}
         zoneGroups={zoneGroups}
+        groups={groups}
         groupByZone={groupByZone}
         onGroupByZoneToggle={() => setGroupByZone(!groupByZone)}
         isGridType={isGridType(selectedPortfolio)}
@@ -254,7 +271,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onClose={closeModal}
         onSave={async () => { await handleSaveOrder(); fetchAnalyticsData(); }}
         onChange={handleFormChange}
-        zones={zoneGroups.map((g) => g.zone)}
+        groups={groups}
       />
       <ZoneEditModal
         orders={editingZoneOrders}
@@ -265,7 +282,12 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       />
       <ZoneGroupModal
         showModal={showZoneGroupModal}
-        onClose={() => setShowZoneGroupModal(false)}
+        onClose={() => {
+          setShowZoneGroupModal(false);
+          if (selectedPortfolio) {
+            api.getZoneGroups(selectedPortfolio.portfolio_id).then(setGroups).catch(() => {});
+          }
+        }}
         portfolioId={selectedPortfolio.portfolio_id}
       />
       <CloseOrderModal
@@ -280,7 +302,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onClose={closeAddModal}
         onSave={async () => { await handleCreateOrder(selectedPortfolio.portfolio_id); fetchAnalyticsData(); }}
         onChange={handleAddFormChange}
-        zones={zoneGroups.map((g) => g.zone)}
+        groups={groups}
       />
       <EditPortfolioModal
         portfolioId={selectedPortfolio.portfolio_id}

@@ -15,6 +15,7 @@ interface ZoneGroupModalProps {
   showModal: boolean;
   onClose: () => void;
   portfolioId: number;
+  onSaved?: () => void;
 }
 
 const emptyForm = {
@@ -91,6 +92,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
     try {
       await api.deleteZoneGroup(id);
       fetchZones();
+      onSaved?.();
     } catch (err) {
       console.error('Failed to delete order group:', err);
     }
@@ -113,6 +115,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
       }
       resetForm();
       fetchZones();
+      onSaved?.();
     } catch (err) {
       console.error('Failed to save order group:', err);
     }

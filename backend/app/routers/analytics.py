@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, func, and_, or_
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import Portfolio, ActiveOrder, TradePlan, AiActionLog, TradeHistory, AiAgent
@@ -187,6 +188,7 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
         # Get active orders for this portfolio
         active_orders_result = await db.execute(
             select(ActiveOrder)
+            .options(selectinload(ActiveOrder.group))
             .where(ActiveOrder.portfolio_id == portfolio.portfolio_id)
             .order_by(ActiveOrder.created_at.desc())
         )
@@ -328,12 +330,7 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
         
         for order in active_orders:
             if order.order_id not in spread_order_ids:
-                # Calculate zone based on trade plan entry_zone
                 entry_price_val = _to_float(order.entry_price)
-                order_zone = order.zone or _calculate_zone(
-                    entry_price_val if entry_price_val is not None else 0.0, 
-                    trade_plan_entry_zone if trade_plan_entry_zone else None
-                )
                 active_orders_list.append({
                     "order_id": order.order_id,
                     "plan_id": order.plan_id,
@@ -349,7 +346,7 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
                     "order_status": order.order_status,
                     "executed_by": order.executed_by,
                     "group_id": order.group_id,
-                    "zone": order_zone,
+                    "group_name": order.group.name if order.group else None,
                     "spread_pair_id": order.spread_pair_id,
                     "created_at": order.created_at.isoformat() if order.created_at else None
                 })
@@ -399,6 +396,7 @@ async def get_portfolio_detail(
     # Get active orders for this portfolio
     active_orders_result = await db.execute(
         select(ActiveOrder)
+        .options(selectinload(ActiveOrder.group))
         .where(ActiveOrder.portfolio_id == portfolio_id)
         .order_by(ActiveOrder.created_at.desc())
     )
@@ -524,16 +522,9 @@ async def get_portfolio_detail(
     active_orders_list = []
     spread_order_ids = {order.order_id for order in spread_orders}
     
-    trade_plan_entry_zone = getattr(trade_plan, 'entry_zone', None) if trade_plan else None
-    
     for order in active_orders:
         if order.order_id not in spread_order_ids:
-            # Calculate zone based on trade plan entry_zone
             entry_price_float = _to_float(order.entry_price)
-            order_zone = order.zone or _calculate_zone(
-                entry_price_float if entry_price_float is not None else 0.0, 
-                trade_plan_entry_zone if trade_plan_entry_zone else None
-            )
             active_orders_list.append({
                 "order_id": order.order_id,
                 "plan_id": order.plan_id,
@@ -549,7 +540,7 @@ async def get_portfolio_detail(
                 "order_status": order.order_status,
                 "executed_by": order.executed_by,
                 "group_id": order.group_id,
-                "zone": order_zone,
+                "group_name": order.group.name if order.group else None,
                 "spread_pair_id": order.spread_pair_id,
                 "created_at": order.created_at.isoformat() if order.created_at else None
             })

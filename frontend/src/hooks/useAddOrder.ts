@@ -9,7 +9,7 @@ interface AddOrderForm {
   entry_price: number | string;
   tp_price: number | string;
   sl_price: number | string;
-  zone: string;
+  group_id: number | null;
   order_status: string;
 }
 
@@ -33,7 +33,7 @@ const defaultForm: AddOrderForm = {
   entry_price: '',
   tp_price: '',
   sl_price: '',
-  zone: '',
+  group_id: null,
   order_status: 'FILLED',
 };
 
@@ -67,7 +67,7 @@ export const useAddOrder = (): UseAddOrderReturn => {
         entry_price: formData.entry_price !== '' ? parseFloat(formData.entry_price as string) : null,
         tp_price: formData.tp_price !== '' ? parseFloat(formData.tp_price as string) : null,
         sl_price: formData.sl_price !== '' ? parseFloat(formData.sl_price as string) : null,
-        zone: formData.zone || null,
+        group_id: formData.group_id,
         order_status: formData.order_status,
       });
       if (onCreatedRef.current) {

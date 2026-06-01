@@ -23,8 +23,7 @@ class ActiveOrderCreate(BaseModel):
     sl_price: Optional[float] = None
     leverage: Optional[float] = None
     margin_rate: Optional[float] = None
-    zone: Optional[str] = None
-    group_id: Optional[str] = None
+    group_id: Optional[int] = None
     order_status: Optional[str] = None
     spread_pair_id: Optional[str] = None
 
@@ -40,8 +39,7 @@ class ActiveOrderUpdate(BaseModel):
     leverage: Optional[float] = None
     margin_rate: Optional[float] = None
     order_status: Optional[str] = None
-    zone: Optional[str] = None
-    group_id: Optional[str] = None
+    group_id: Optional[int] = None
     spread_pair_id: Optional[str] = None
 
 
@@ -60,7 +58,7 @@ class ActiveOrderResponse(BaseModel):
     margin_rate: Optional[float]
     order_status: str
     spread_pair_id: Optional[str]
-    group_id: Optional[str] = None
+    group_id: Optional[int] = None
     created_at: Optional[datetime] = None
 
     class Config:

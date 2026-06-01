@@ -77,8 +77,7 @@ class ActiveOrder(Base):
     margin_rate = Column(Numeric(20, 8))
     order_status = Column(String, default='pending_sync')
     sl_price = Column(Numeric(20, 8))
-    group_id = Column(String)
-    zone = Column(String)  # Zone grouping: ZONE A, ZONE B, etc.
+    group_id = Column(Integer, ForeignKey('orders_groups.id'), nullable=True)
     spread_pair_id = Column(String)
     executed_by = Column(String)
     option_id = Column(Integer, ForeignKey('option_details.option_id'))
@@ -91,6 +90,7 @@ class ActiveOrder(Base):
     plan = relationship("TradePlan", back_populates="active_orders")
     portfolio = relationship("Portfolio", back_populates="active_orders")
     option = relationship("OptionDetails", back_populates="active_orders")
+    group = relationship("OrdersGroup", back_populates="active_orders")
 
 class OptionDetails(Base):
     __tablename__ = 'option_details'
@@ -141,7 +141,7 @@ class TradeHistory(Base):
     portfolio_id = Column(Integer, ForeignKey('portfolios.portfolio_id'), nullable=False)
     order_id = Column(String, nullable=True)
     close_order_id = Column(String, nullable=True)
-    group_id = Column(String, nullable=True)
+    group_id = Column(Integer, nullable=True)
     type = Column(String, nullable=False)
     asset = Column(String, nullable=False)
     amount = Column(Numeric(20, 8), nullable=True)
@@ -271,3 +271,4 @@ class OrdersGroup(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     portfolio = relationship("Portfolio", back_populates="orders_groups")
+    active_orders = relationship("ActiveOrder", back_populates="group")

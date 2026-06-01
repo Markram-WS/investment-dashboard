@@ -1,5 +1,6 @@
 import React from 'react';
-import { SpreadOrder } from '../types';
+import { SpreadOrder, GroupOption } from '../types';
+import { GroupCombobox } from './components/GroupCombobox';
 
 interface EditOrderModalProps {
   order: SpreadOrder | null;
@@ -8,7 +9,7 @@ interface EditOrderModalProps {
   onClose: () => void;
   onSave: () => Promise<void>;
   onChange: (field: keyof typeof formData, value: any) => void;
-  zones: string[];
+  groups: GroupOption[];
 }
 
 export const EditOrderModal: React.FC<EditOrderModalProps> = ({
@@ -18,7 +19,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   onClose,
   onSave,
   onChange,
-  zones,
+  groups,
 }) => {
   if (!showModal || !order) return null;
 
@@ -89,18 +90,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
           </div>
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Group</label>
-            <select
-              value={formData.zone || ''}
-              onChange={(e) => onChange('zone', e.target.value || null)}
-              className="w-full border rounded px-3 py-2 text-sm"
-            >
-              <option value="">-- No Group --</option>
-              {zones.map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
-              ))}
-            </select>
+            <GroupCombobox groups={groups} value={formData.group_id ?? null} onChange={(v) => onChange('group_id', v)} />
           </div>
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Status</label>

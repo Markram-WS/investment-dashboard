@@ -1,13 +1,14 @@
 import React from "react";
-import { SpreadOrder, ZoneGroup } from "../../types";
-import { ZoneGroupRow } from "./ZoneGroupRow";
+import { SpreadOrder, GroupOption } from "../../types";
+import { OrderGroupRow } from "./ZoneGroupRow";
 import { IconAdd } from "../../components/icons/IconAdd";
 import { IconLayers } from "../../components/icons/IconLayers";
 import TradeHistoryTable from "./TradeHistoryTable";
 
 interface OrderManagementProps {
   activeOrders: SpreadOrder[];
-  zoneGroups: ZoneGroup[];
+  zoneGroups: { group_id: number | null; group_name: string; mainOrders: SpreadOrder[]; pendingCloseOrders: SpreadOrder[] }[];
+  groups: GroupOption[];
   groupByZone: boolean;
   onGroupByZoneToggle: () => void;
   isGridType: boolean;
@@ -22,7 +23,7 @@ interface OrderManagementProps {
 }
 
 const OrderManagement: React.FC<OrderManagementProps> = ({
-  activeOrders, zoneGroups, groupByZone, onGroupByZoneToggle, isGridType,
+  activeOrders, zoneGroups, groups, groupByZone, onGroupByZoneToggle, isGridType,
   tradeHistory, onEditOrder, onEditZone, onCloseOrder,
   onAddOrder, onShowZoneGroupModal, showHistory, onToggleHistory,
 }) => (
@@ -36,28 +37,26 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
         </span>
       </div>
       <div className="flex items-center gap-6">
-        {isGridType && (
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Group by Zone</span>
-            <button
-              onClick={onGroupByZoneToggle}
-              className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${groupByZone ? "bg-brand-teal" : "bg-gray-300"}`}
-            >
-              <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${groupByZone ? "translate-x-4" : "translate-x-0"}`} />
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Group</span>
+          <button
+            onClick={onGroupByZoneToggle}
+            className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${groupByZone ? "bg-brand-teal" : "bg-gray-300"}`}
+          >
+            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${groupByZone ? "translate-x-4" : "translate-x-0"}`} />
+          </button>
+        </div>
       </div>
     </div>
 
     {/* Table */}
     <div className="overflow-x-auto">
-      {isGridType && zoneGroups.length > 0 && groupByZone ? (
+      {zoneGroups.length > 0 && groupByZone ? (
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-surface border-y border-hairline">
               <th className="p-4 pl-8 text-[10px] font-bold text-slate uppercase tracking-widest">ID</th>
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Zone</th>
+              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Group</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Asset</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Side</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry</th>
@@ -70,12 +69,12 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             </tr>
           </thead>
           <tbody className="text-sm text-ink">
-            {zoneGroups.map((zoneGroup) => (
-              <ZoneGroupRow
-                key={zoneGroup.zone}
-                zoneGroup={zoneGroup}
+            {zoneGroups.map((groupInfo) => (
+              <OrderGroupRow
+                key={groupInfo.group_id ?? '__ungrouped__'}
+                groupInfo={groupInfo}
+                groups={groups}
                 onEdit={onEditOrder}
-                onEditZone={onEditZone}
                 onClose={onCloseOrder}
               />
             ))}
