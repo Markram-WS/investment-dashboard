@@ -30,6 +30,7 @@ export const useOrderEdit = (): UseOrderEditReturn => {
       tp_price: order.tp_price,
       sl_price: order.sl_price,
       zone: order.zone,
+      order_status: order.order_status,
     });
     setShowModal(true);
   }, []);

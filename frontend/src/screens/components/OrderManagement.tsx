@@ -115,7 +115,13 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                   <td className="px-3 py-2 text-right text-xs">${order.tp_price || "-"}</td>
                   <td className="px-3 py-2 text-right text-xs">${order.sl_price || "-"}</td>
                   <td className="px-3 py-2">
-                    <span className={`text-xs ${order.order_status === "filled" ? "text-green-600" : "text-gray-500"}`}>{order.order_status}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${
+                      (order.order_status || "").toUpperCase() === "FILLED" ? "bg-green-100 text-green-700" :
+                      (order.order_status || "").toUpperCase() === "PENDING" ? "bg-yellow-100 text-yellow-700" :
+                      (order.order_status || "").toUpperCase() === "CLOSE" ? "bg-red-100 text-red-700" :
+                      (order.order_status || "").toUpperCase() === "CANCELED" ? "bg-gray-100 text-gray-500" :
+                      "text-gray-500"
+                    }`}>{order.order_status}</span>
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">

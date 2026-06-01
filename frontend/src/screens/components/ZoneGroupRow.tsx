@@ -99,7 +99,15 @@ export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit, o
             <td className={`py-4 text-xs font-bold ${pl >= 0 ? 'text-brandTeal' : 'text-brandCoral'}`}>
               {pl >= 0 ? '+' : ''}${pl.toFixed(2)}
             </td>
-            <td className="py-4 text-[10px] text-slate font-bold uppercase tracking-wider">{order.order_status}</td>
+            <td className="py-4">
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                (order.order_status || "").toUpperCase() === "FILLED" ? "bg-green-100 text-green-700" :
+                (order.order_status || "").toUpperCase() === "PENDING" ? "bg-yellow-100 text-yellow-700" :
+                (order.order_status || "").toUpperCase() === "CLOSE" ? "bg-red-100 text-red-700" :
+                (order.order_status || "").toUpperCase() === "CANCELED" ? "bg-gray-100 text-gray-500" :
+                "text-slate"
+              }`}>{order.order_status}</span>
+            </td>
             <td className="pr-6 text-right py-4">
               <div className="flex items-center justify-end gap-1">
                 <button
@@ -142,7 +150,11 @@ export const ZoneGroupRow: React.FC<ZoneGroupRowProps> = ({ zoneGroup, onEdit, o
           <td className="py-2 text-[10px] font-medium text-slate/60">-</td>
           <td className="py-2 text-[10px] font-medium text-slate/60">-</td>
           <td className="py-2 text-slate/40 font-bold text-[10px]">-</td>
-          <td className="py-2 text-[9px] text-slate font-bold uppercase tracking-wider">Pending</td>
+          <td className="py-2">
+            <span className="text-[9px] px-1 py-0.5 rounded font-bold bg-yellow-100 text-yellow-700">
+              {(order.order_status || "PENDING").toUpperCase()}
+            </span>
+          </td>
           <td className="pr-6 text-right py-2">
             {onClose && (
               <button

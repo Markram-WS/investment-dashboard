@@ -194,19 +194,6 @@ async def delete_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
 
-    # Block deletion if any active (non-closed) orders remain
-    active = await db.execute(
-        select(ActiveOrder).where(
-            ActiveOrder.portfolio_id == portfolio_id,
-            ActiveOrder.order_status != "closed",
-        )
-    )
-    if active.scalars().first():
-        raise HTTPException(
-            status_code=400,
-            detail="Clear all active orders before deleting portfolio",
-        )
-
     # Cascade-delete all related records in FK-safe order
     await db.execute(
         DecisionJournal.__table__.delete().where(DecisionJournal.portfolio_id == portfolio_id)

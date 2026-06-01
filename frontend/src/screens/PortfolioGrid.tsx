@@ -93,9 +93,19 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   }, [selectedPortfolio?.portfolio_id]);
 
   const handleCloseOrder = useCallback((order: SpreadOrder) => {
-    setClosingOrder(order);
-    setShowCloseModal(true);
-  }, []);
+    const status = (order.order_status || "").toUpperCase();
+    if (status === "PENDING") {
+      api.cancelOrder(order.order_id).then(() => {
+        fetchAnalyticsData();
+        if (selectedPortfolio) {
+          api.getTradeHistory(selectedPortfolio.portfolio_id).then(setTradeHistory).catch(() => {});
+        }
+      }).catch((err) => console.error("Failed to cancel order:", err));
+    } else {
+      setClosingOrder(order);
+      setShowCloseModal(true);
+    }
+  }, [fetchAnalyticsData, selectedPortfolio]);
 
   const handleConfirmClose = useCallback(
     async (orderId: string, closeOrderId: string, exitPrice: number | null, realizedPl: number | null) => {

@@ -128,9 +128,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               onChange={(e) => onChange('order_status', e.target.value)}
               className="w-full border rounded px-3 py-2 text-sm"
             >
-              <option value="PENDING">PENDING</option>
               <option value="FILLED">FILLED</option>
-              <option value="CANCELED">CANCELED</option>
+              <option value="PENDING">PENDING</option>
             </select>
           </div>
         </div>

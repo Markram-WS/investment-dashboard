@@ -91,7 +91,6 @@ class ActiveOrder(Base):
     plan = relationship("TradePlan", back_populates="active_orders")
     portfolio = relationship("Portfolio", back_populates="active_orders")
     option = relationship("OptionDetails", back_populates="active_orders")
-    trade_history = relationship("TradeHistory", back_populates="order")
 
 class OptionDetails(Base):
     __tablename__ = 'option_details'
@@ -140,7 +139,7 @@ class TradeHistory(Base):
     
     history_id = Column(Integer, primary_key=True)
     portfolio_id = Column(Integer, ForeignKey('portfolios.portfolio_id'), nullable=False)
-    order_id = Column(String, ForeignKey('active_orders.order_id'), nullable=True)
+    order_id = Column(String, nullable=True)
     close_order_id = Column(String, nullable=True)
     type = Column(String, nullable=False)
     asset = Column(String, nullable=False)
@@ -159,7 +158,6 @@ class TradeHistory(Base):
     data_source = Column(String, default='Manual', check_constraint="data_source IN ('Manual', 'Bot')")
     
     portfolio = relationship("Portfolio", back_populates="trade_history")
-    order = relationship("ActiveOrder", back_populates="trade_history")
 
 # Transaction Model (Consolidated Ledger)
 class Transaction(Base):

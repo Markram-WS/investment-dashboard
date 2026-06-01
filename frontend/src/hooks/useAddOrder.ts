@@ -34,7 +34,7 @@ const defaultForm: AddOrderForm = {
   tp_price: '',
   sl_price: '',
   zone: '',
-  order_status: 'PENDING',
+  order_status: 'FILLED',
 };
 
 export const useAddOrder = (): UseAddOrderReturn => {

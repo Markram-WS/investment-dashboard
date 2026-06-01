@@ -102,6 +102,17 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
               ))}
             </select>
           </div>
+          <div>
+            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Status</label>
+            <select
+              value={formData.order_status || ''}
+              onChange={(e) => onChange('order_status', e.target.value)}
+              className="w-full border rounded px-3 py-2 text-sm"
+            >
+              <option value="FILLED">FILLED</option>
+              <option value="PENDING">PENDING</option>
+            </select>
+          </div>
         </div>
         <div className="flex justify-end gap-2 mt-6">
           <button

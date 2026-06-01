@@ -35,6 +35,7 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                 <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Entry</th>
                 <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Exit</th>
                 <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">P/L</th>
+                <th className="px-3 py-1.5 text-left font-medium text-[10px] uppercase tracking-wider">Status</th>
                 <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Open Date</th>
                 <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Close Date</th>
               </tr>
@@ -57,6 +58,13 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                     <td className="px-3 py-1.5 text-right">{h.exit_price != null ? `$${Number(h.exit_price).toLocaleString()}` : "-"}</td>
                     <td className={`px-3 py-1.5 text-right font-medium ${(h.realized_pl ?? 0) >= 0 ? "text-green-600" : "text-red-500"}`}>
                       {h.realized_pl != null ? `$${Number(h.realized_pl).toLocaleString()}` : "-"}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                        h.comments?.note === "Canceled"
+                          ? "bg-gray-100 text-gray-500"
+                          : "bg-red-100 text-red-700"
+                      }`}>{h.comments?.note === "Canceled" ? "CANCELED" : "CLOSE"}</span>
                     </td>
                     <td className="px-3 py-1.5 text-right text-gray-500">{fmt(h.entry_date)}</td>
                     <td className="px-3 py-1.5 text-right text-gray-500">{fmt(h.exit_date)}</td>

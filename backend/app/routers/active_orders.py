@@ -108,18 +108,40 @@ async def get_order(order_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.patch("/{order_id}/status", tags=["orders"])
 async def update_order_status(order_id: str, payload: Dict[str, Any], db: AsyncSession = Depends(get_db)):
-    """Update order status."""
+    """Update order status. If CANCELED, delete from active_orders and create trade history."""
     result = await db.execute(select(ActiveOrder).where(ActiveOrder.order_id == order_id))
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
+
     new_status = payload.get("new_status")
-    if new_status:
-        order.order_status = new_status
+    if not new_status:
+        return {"order_id": order.order_id, "order_status": order.order_status}
+
+    if new_status.upper() == "CANCELED":
+        now = datetime.utcnow()
+        history = TradeHistory(
+            portfolio_id=order.portfolio_id,
+            order_id=order.order_id,
+            type=order.side,
+            asset=order.asset_type,
+            amount=float(order.qty) if order.qty else None,
+            entry_price=float(order.entry_price) if order.entry_price else None,
+            executed_by=order.executed_by or "Manual",
+            entry_date=order.created_at or now,
+            exit_date=now,
+            comments={"note": "Canceled"},
+        )
+        db.add(history)
+        await db.delete(order)
         await db.commit()
-        await db.refresh(order)
-    
+        await db.refresh(history)
+        return {"order_id": order.order_id, "order_status": "CANCELED", "history_id": history.history_id}
+
+    order.order_status = new_status
+    await db.commit()
+    await db.refresh(order)
+
     return {"order_id": order.order_id, "order_status": order.order_status}
 
 
@@ -150,13 +172,12 @@ class CloseOrderRequest(BaseModel):
 
 @router.post("/{order_id}/close", tags=["orders"])
 async def close_order(order_id: str, req: CloseOrderRequest, db: AsyncSession = Depends(get_db)):
-    """Close an active order: mark status as closed and create a trade history record."""
+    """Close an active order: delete from active_orders and create a trade history record."""
     result = await db.execute(select(ActiveOrder).where(ActiveOrder.order_id == order_id))
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    order.order_status = "closed"
     now = datetime.utcnow()
 
     history = TradeHistory(
@@ -177,11 +198,12 @@ async def close_order(order_id: str, req: CloseOrderRequest, db: AsyncSession = 
     )
 
     db.add(history)
+    await db.delete(order)
     await db.commit()
-    await db.refresh(order)
+    await db.refresh(history)
 
     return {
         "order_id": order.order_id,
-        "order_status": order.order_status,
+        "order_status": "CLOSE",
         "history_id": history.history_id,
     }
