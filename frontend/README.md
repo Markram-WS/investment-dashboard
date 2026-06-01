@@ -72,13 +72,13 @@ frontend/
 │   │       ├── TagsSection.tsx        # Metadata tag pills
 │   │       ├── PerformanceSection.tsx # Performance wrapper + Equity/Payoff toggle
 │   │       ├── PerformanceChart.tsx   # Dynamic SVG: equity line chart or payoff bar chart
-│   │       ├── OrderManagement.tsx    # Active orders table (grouped or flat), Group toggle, footer; drag-and-drop support
-│   │       ├── TradeHistoryTable.tsx  # Collapsible closed-orders table; drop target (even when collapsed)
+│   │       ├── OrderManagement.tsx    # Active orders table (grouped or flat), Group toggle, two-row header with Add Order pill, drag-and-drop support
+│   │       ├── TradeHistoryTable.tsx  # Collapsible closed-orders table (bg-gray-50 pill badge matching Ungrouped style); drop target (even when collapsed)
 │   │       ├── TradePlanView.tsx      # Trade plan markdown display (click-to-edit, Save/Cancel)
 │   │       ├── QuickStatsView.tsx     # Active pairs/positions stats
-│   │       ├── ZoneGroupRow.tsx       # Grouped order row (exports OrderGroupRow) with edit/close buttons, drag handle, drop target
+│   │       ├── ZoneGroupRow.tsx       # Grouped order row (exports OrderGroupRow) with edit/close buttons, drag handle, drop target (counter-ref prevents flicker), custom drag ghost pill
 │   │       ├── GroupCombobox.tsx      # Searchable combobox dropdown for group selection in modals
-│   │       ├── ToastAlert.tsx         # Fixed-position dismissible toast notifications (auto-dismiss 4s)
+│   │       ├── ToastAlert.tsx         # Fixed-position dismissible toast (z-[9999], below nav bar, auto-dismiss 4s)
 │   │       └── HistoricalGridView.tsx # Historical trades accordion
 │   │
 │   └── assets/             # SVG icons (Material Symbols style)
@@ -391,6 +391,8 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
 7. **Orders Groups**: จัดกลุ่มออเดอร์ด้วย Orders Groups (rename from Zone Groups) — group_id FK to orders_groups
 8. **Drag & Drop Assign Group**: ลากออเดอร์ไปวางบน Group header, Ungrouped section, หรือ Trade History
    - Drag handle (6-dot grip icon) visible on hover — เฉพาะ icon เท่านั้นที่ draggable
+   - Custom drag ghost: dark pill badge แสดง `#id | ASSET | SIDE | $price`
+   - Drop area expanded to all order rows in group (ไม่ใช่แค่ header), counter-ref ป้องกัน flicker
    - Drop บน Group header → กำหนด group_id
    - Drop บน Ungrouped section → ยกเลิก group assignment
    - Drop บน Trade History (even when collapsed) → close (FILLED) หรือ cancel (PENDING)
@@ -398,6 +400,9 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
 9. **Ungrouped Orders section**: Always visible (drop target for unassigning)
 10. **Order status**: PENDING / FILLED / CLOSE / CANCELED (uppercase)
 11. **Portfolio Delete**: Cascade cleanup with activeOrderCount guard
+12. **Header layout**: Two-row header — title + ACTIVE badge (row 1), Order Groups icon + Group toggle (row 2), Add Order pill button centered vertically on right
+13. **Trade History styling**: Matches Ungrouped Orders section — `bg-gray-50` with pill badge, `border border-hairline`, `rounded-b-xl`
+14. **ToastAlert position**: Centered below nav bar (`top-20 left-1/2 -translate-x-1/2 z-[9999]`)
 
 ## ⚙️ Technical Details
 
