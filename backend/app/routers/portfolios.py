@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.models import Portfolio, ActiveOrder, TradeHistory
+from app.models import Portfolio, ActiveOrder, TradeHistory, TradePlan, OptionDetails, PortfolioNavHistory, SimulationModels, DecisionJournal, Transaction, ZoneGroup
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from datetime import date
@@ -187,11 +187,68 @@ async def update_portfolio(portfolio_id: int, update: PortfolioUpdate, db: Async
 
 @router.delete("/{portfolio_id}", tags=["portfolios"])
 async def delete_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)):
-    """Delete a portfolio by ID."""
+    """Delete a portfolio by ID. Fails if active (non-closed) orders exist."""
+    # Verify portfolio exists
     result = await db.execute(select(Portfolio).where(Portfolio.portfolio_id == portfolio_id))
     portfolio = result.scalar_one_or_none()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    # Block deletion if any active (non-closed) orders remain
+    active = await db.execute(
+        select(ActiveOrder).where(
+            ActiveOrder.portfolio_id == portfolio_id,
+            ActiveOrder.order_status != "closed",
+        )
+    )
+    if active.scalars().first():
+        raise HTTPException(
+            status_code=400,
+            detail="Clear all active orders before deleting portfolio",
+        )
+
+    # Cascade-delete all related records in FK-safe order
+    await db.execute(
+        DecisionJournal.__table__.delete().where(DecisionJournal.portfolio_id == portfolio_id)
+    )
+
+    await db.execute(
+        TradeHistory.__table__.delete().where(TradeHistory.portfolio_id == portfolio_id)
+    )
+
+    # Break FK chain: active_orders → option_details before deleting orders
+    await db.execute(
+        ActiveOrder.__table__.update()
+        .where(ActiveOrder.portfolio_id == portfolio_id)
+        .values(option_id=None)
+    )
+    await db.execute(
+        ActiveOrder.__table__.delete().where(ActiveOrder.portfolio_id == portfolio_id)
+    )
+
+    await db.execute(
+        TradePlan.__table__.delete().where(TradePlan.portfolio_id == portfolio_id)
+    )
+
+    await db.execute(
+        PortfolioNavHistory.__table__.delete().where(PortfolioNavHistory.portfolio_id == portfolio_id)
+    )
+
+    await db.execute(
+        SimulationModels.__table__.delete().where(SimulationModels.portfolio_id == portfolio_id)
+    )
+
+    await db.execute(
+        ZoneGroup.__table__.delete().where(ZoneGroup.portfolio_id == portfolio_id)
+    )
+
+    await db.execute(
+        Transaction.__table__.delete().where(
+            (Transaction.source_portfolio_id == portfolio_id) |
+            (Transaction.destination_portfolio_id == portfolio_id)
+        )
+    )
+
     await db.delete(portfolio)
     await db.commit()
     return {"detail": "Portfolio deleted"}

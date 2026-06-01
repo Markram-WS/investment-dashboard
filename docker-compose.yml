@@ -1,67 +1,69 @@
 services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - BACKEND_API_BASE_URL=http://localhost:8000
-      - VITE_API_BASE_URL=
-    network_mode: "host"
-    restart: unless-stopped
+    frontend:
+        build:
+            context: ./frontend
+            dockerfile: Dockerfile
+        ports:
+            - "5173:5173"
+        volumes:
+            - ./frontend:/app
+            - /app/node_modules
+        environment:
+            - BACKEND_API_BASE_URL=http://localhost:8000
+            - VITE_API_BASE_URL=
+        network_mode: "host"
+        restart: unless-stopped
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    networks:
-      - investment-network
-    restart: unless-stopped
+    backend:
+        build:
+            context: ./backend
+            dockerfile: Dockerfile
+        ports:
+            - "8000:8000"
+        env_file:
+            - .env
+        networks:
+            - investment-network
+        restart: unless-stopped
 
-  db_main:
-    image: postgres:15-alpine
-    container_name: investment_db_main
-    env_file:
-      - .env
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: investment_main
-    volumes:
-      - postgres_main_data:/var/lib/postgresql/data
-    networks:
-      - investment-network
-    restart: unless-stopped
+    db_main:
+        image: postgres:15-alpine
+        container_name: investment_db_main
+        ports:
+            - "5432:5432"
+        env_file:
+            - .env
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            POSTGRES_DB: investment_main
+        volumes:
+            - postgres_main_data:/var/lib/postgresql/data
+        networks:
+            - investment-network
+        restart: unless-stopped
 
-  db_ai:
-    image: postgres:15-alpine
-    container_name: investment_db_ai
-    ports:
-      - "5433:5432"
-    env_file:
-      - .env
-    environment:
-      POSTGRES_USER: ${AI_POSTGRES_USER}
-      POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD}
-      POSTGRES_DB: investment_ai
-    volumes:
-      - postgres_ai_data:/var/lib/postgresql/data
-    networks:
-      - investment-network
-    restart: unless-stopped
+    db_ai:
+        image: postgres:15-alpine
+        container_name: investment_db_ai
+        ports:
+            - "5433:5432"
+        env_file:
+            - .env
+        environment:
+            POSTGRES_USER: ${AI_POSTGRES_USER}
+            POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD}
+            POSTGRES_DB: investment_ai
+        volumes:
+            - postgres_ai_data:/var/lib/postgresql/data
+        networks:
+            - investment-network
+        restart: unless-stopped
 
 networks:
-  investment-network:
-    driver: bridge
+    investment-network:
+        driver: bridge
 
 volumes:
-  postgres_main_data:
-  postgres_ai_data:
+    postgres_main_data:
+    postgres_ai_data:

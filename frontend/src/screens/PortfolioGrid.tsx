@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { EditOrderModal } from "./EditOrderModal";
 import { AddOrderModal } from "./AddOrderModal";
 import { ZoneEditModal } from "./ZoneEditModal";
@@ -20,7 +21,11 @@ import StrategyNotes from "./components/StrategyNotes";
 import PerformanceSection from "./components/PerformanceSection";
 import OrderManagement from "./components/OrderManagement";
 
-const PortfolioGrid: React.FC = () => {
+interface PortfolioGridProps {
+  portfolioId?: number | string;
+}
+
+const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const {
     portfolios,
     selectedPortfolio,
@@ -29,7 +34,7 @@ const PortfolioGrid: React.FC = () => {
     error,
     lastUpdated,
     fetchAnalyticsData,
-  } = usePortfolioManager();
+  } = usePortfolioManager(portfolioId);
 
   const [groupByZone, setGroupByZone] = useState(true);
   const [showZoneGroupModal, setShowZoneGroupModal] = useState(false);
@@ -38,6 +43,7 @@ const PortfolioGrid: React.FC = () => {
   const [closingOrder, setClosingOrder] = useState<SpreadOrder | null>(null);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showEditPortfolioModal, setShowEditPortfolioModal] = useState(false);
+  const navigate = useNavigate();
 
   const [viewMode, setViewMode] = useState<"equity" | "payoff">("equity");
   const [performanceData, setPerformanceData] = useState<any>(null);
@@ -180,7 +186,6 @@ const PortfolioGrid: React.FC = () => {
         portfolioName={selectedPortfolio.portfolio_name}
         lastUpdated={lastUpdated}
         onRefresh={handleRefresh}
-        onAddOrder={openModal}
       />
 
       <section className="grid grid-cols-12 gap-6 mb-6">
@@ -279,6 +284,8 @@ const PortfolioGrid: React.FC = () => {
         showModal={showEditPortfolioModal}
         onClose={() => setShowEditPortfolioModal(false)}
         onSaved={fetchAnalyticsData}
+        activeOrderCount={activeOrders.length}
+        onDeleted={() => navigate("/")}
       />
     </div>
   );

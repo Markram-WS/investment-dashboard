@@ -70,11 +70,11 @@ export default function PortfolioAnalyticsDetail() {
   // Route to appropriate layout component based on port_type
   switch (layoutType) {
     case "spread":
-      return <PortfolioSpread />;
+      return <PortfolioSpread portfolioId={portfolio_id} />;
     case "managed-fund":
       return <PortfolioMutualFund portfolioId={portfolio_id} />;
     case "grid":
     default:
-      return <PortfolioGrid />;
+      return <PortfolioGrid portfolioId={portfolio_id} />;
   }
 }
