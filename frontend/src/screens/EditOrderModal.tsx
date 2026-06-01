@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { SpreadOrder, GroupOption } from '../types';
 import { GroupCombobox } from './components/GroupCombobox';
 
@@ -10,6 +10,7 @@ interface EditOrderModalProps {
   onSave: () => Promise<void>;
   onChange: (field: keyof typeof formData, value: any) => void;
   groups: GroupOption[];
+  groupOrderCounts: Record<number, number>;
 }
 
 export const EditOrderModal: React.FC<EditOrderModalProps> = ({
@@ -20,7 +21,31 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   onSave,
   onChange,
   groups,
+  groupOrderCounts,
 }) => {
+  const entryPrice = parseFloat(formData.entry_price as string) || 0;
+  const groupId = formData.group_id ?? null;
+  const selectedGroup = groups.find(g => g.id === groupId);
+
+  const groupWarnings = useMemo(() => {
+    if (!selectedGroup || groupId == null) return [];
+    const warnings: string[] = [];
+    if (selectedGroup.min_price != null && entryPrice < selectedGroup.min_price) {
+      warnings.push(`Min price for this group is $${selectedGroup.min_price.toLocaleString()}`);
+    }
+    if (selectedGroup.max_price != null && entryPrice > selectedGroup.max_price) {
+      warnings.push(`Max price for this group is $${selectedGroup.max_price.toLocaleString()}`);
+    }
+    if (selectedGroup.max_orders != null) {
+      const currentCount = groupOrderCounts[groupId] || 0;
+      const isEditingOwn = order?.group_id === groupId;
+      const actualCount = isEditingOwn ? currentCount - 1 : currentCount;
+      if (actualCount >= selectedGroup.max_orders) {
+        warnings.push(`Group is full (${actualCount + 1}/${selectedGroup.max_orders})`);
+      }
+    }
+    return warnings;
+  }, [selectedGroup, entryPrice, groupId, groupOrderCounts, order?.group_id]);
   if (!showModal || !order) return null;
 
   return (
@@ -91,6 +116,16 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Group</label>
             <GroupCombobox groups={groups} value={formData.group_id ?? null} onChange={(v) => onChange('group_id', v)} />
+            {groupWarnings.length > 0 && (
+              <div className="mt-1 space-y-0.5">
+                {groupWarnings.map((w, i) => (
+                  <p key={i} className="text-[11px] text-red-500 font-medium flex items-center gap-1">
+                    <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                    {w}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Status</label>

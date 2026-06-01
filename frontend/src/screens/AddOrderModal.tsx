@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { GroupOption } from '../types';
 import { GroupCombobox } from './components/GroupCombobox';
 
@@ -21,6 +21,7 @@ interface AddOrderModalProps {
   onSave: () => Promise<void>;
   onChange: (field: keyof AddOrderForm, value: any) => void;
   groups: GroupOption[];
+  groupOrderCounts: Record<number, number>;
 }
 
 export const AddOrderModal: React.FC<AddOrderModalProps> = ({
@@ -30,7 +31,29 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   onSave,
   onChange,
   groups,
+  groupOrderCounts,
 }) => {
+  const entryPrice = parseFloat(formData.entry_price as string) || 0;
+  const selectedGroup = groups.find(g => g.id === formData.group_id);
+
+  const groupWarnings = useMemo(() => {
+    if (!selectedGroup || !formData.group_id) return [];
+    const warnings: string[] = [];
+    if (selectedGroup.min_price != null && entryPrice < selectedGroup.min_price) {
+      warnings.push(`Min price for this group is $${selectedGroup.min_price.toLocaleString()}`);
+    }
+    if (selectedGroup.max_price != null && entryPrice > selectedGroup.max_price) {
+      warnings.push(`Max price for this group is $${selectedGroup.max_price.toLocaleString()}`);
+    }
+    if (selectedGroup.max_orders != null) {
+      const currentCount = groupOrderCounts[formData.group_id] || 0;
+      if (currentCount >= selectedGroup.max_orders) {
+        warnings.push(`Group is full (${currentCount}/${selectedGroup.max_orders})`);
+      }
+    }
+    return warnings;
+  }, [selectedGroup, entryPrice, formData.group_id, groupOrderCounts]);
+
   if (!showModal) return null;
 
   return (
@@ -111,6 +134,16 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Group</label>
             <GroupCombobox groups={groups} value={formData.group_id} onChange={(v) => onChange('group_id', v)} />
+            {groupWarnings.length > 0 && (
+              <div className="mt-1 space-y-0.5">
+                {groupWarnings.map((w, i) => (
+                  <p key={i} className="text-[11px] text-red-500 font-medium flex items-center gap-1">
+                    <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                    {w}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Status</label>

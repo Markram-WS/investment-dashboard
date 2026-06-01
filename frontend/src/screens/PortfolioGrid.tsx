@@ -159,6 +159,14 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     return [...sortedGroups, ...(ungrouped.length > 0 ? [{ group_id: null as any, group_name: 'Ungrouped Orders', mainOrders: ungrouped, pendingCloseOrders: [] as SpreadOrder[] }] : [])];
   }, [activeOrders, groups]);
 
+  const groupOrderCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    activeOrders.forEach((o) => {
+      if (o.group_id != null) counts[o.group_id] = (counts[o.group_id] || 0) + 1;
+    });
+    return counts;
+  }, [activeOrders]);
+
   const { renderMarkdown, isGridType } = useMarkdownRenderer();
 
   const assetAllocation: AllocationItem[] = useMemo(() => {
@@ -272,6 +280,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onSave={async () => { await handleSaveOrder(); fetchAnalyticsData(); }}
         onChange={handleFormChange}
         groups={groups}
+        groupOrderCounts={groupOrderCounts}
       />
       <ZoneEditModal
         orders={editingZoneOrders}
@@ -303,6 +312,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onSave={async () => { await handleCreateOrder(selectedPortfolio.portfolio_id); fetchAnalyticsData(); }}
         onChange={handleAddFormChange}
         groups={groups}
+        groupOrderCounts={groupOrderCounts}
       />
       <EditPortfolioModal
         portfolioId={selectedPortfolio.portfolio_id}
