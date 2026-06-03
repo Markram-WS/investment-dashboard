@@ -72,7 +72,7 @@ frontend/
 │   │       ├── StrategyNotes.tsx      # Trade Plan + Internal Notes (both inline-editable, yellow sticky)
 │   │       ├── TagsSection.tsx        # Metadata tag pills
 │   │       ├── PerformanceSection.tsx # Performance wrapper + Equity/Payoff toggle
-│   │       ├── PerformanceChart.tsx   # Dynamic SVG: equity line chart or payoff bar chart
+│   │       ├── PerformanceChart.tsx   # Dynamic SVG: equity line chart (cumulative P/L) or payoff bar chart (grouped by month with summed realized_pl)
 │   │       ├── OrderManagement.tsx    # Active orders table (grouped or flat), Group toggle, two-row header with Add Order pill, drag-and-drop support, Link Order button in left column, contract_type filter tabs (indigo/blue/purple)
 │   │       ├── TradeHistoryTable.tsx  # Collapsible closed-orders table (bg-gray-50 pill badge matching Ungrouped style); drop target (even when collapsed)
 │   │       ├── TradePlanView.tsx      # Trade plan markdown display (click-to-edit, Save/Cancel)
@@ -133,7 +133,7 @@ frontend/
 | Risk | `/api/v1/risk/analytics` | GET |
 | Risk | `/api/v1/risk/pool-health` | GET |
 | Analytics | `/api/v1/analytics/portfolio-grid` | GET |
-| Analytics | `/api/v1/analytics/performance/{portfolio_id}` | GET (equity curve, payoff bars, total P/L) |
+| Analytics | `/api/v1/analytics/performance/{portfolio_id}` | GET (equity curve, payoff bars grouped by month with summed P/L, total P/L) |
 | Rebalance | `/api/v1/rebalance/recommend` | POST |
 | AI | `/api/v1/ai/status?portfolio_id` | GET |
 | Trade Plans | `/api/v1/trade-plans` | GET/POST |
@@ -391,7 +391,8 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
 4. **Portfolio Grid**: คลิกเข้าสู่ analytics ของแต่ละพอร์ต
 5. **Spread Pairing**: จัดคู่ออเดอร์แบบ 1:1 พร้อม zone grouping
 6. **Rebalance**: คำนวณและแสดงคำแนะนำการทำซ้ำ (rebalance)
-7. **Orders Groups**: จัดกลุ่มออเดอร์ด้วย Orders Groups (rename from Zone Groups) — group_id FK to orders_groups
+7. **Payoff chart groups by month**: Payoff bars are grouped by month with summed `realized_pl` — one bar per month instead of per trade. Date labels show YYYY-MM format.
+8. **Orders Groups**: จัดกลุ่มออเดอร์ด้วย Orders Groups (rename from Zone Groups) — group_id FK to orders_groups
 8. **Drag & Drop Assign Group**: ลากออเดอร์ไปวางบน Group header, Ungrouped section, หรือ Trade History
    - Drag handle (6-dot grip icon) visible on hover — เฉพาะ icon เท่านั้นที่ draggable
    - Custom drag ghost: dark pill badge แสดง `#id | ASSET | SIDE | $price`
@@ -403,6 +404,7 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
 9. **Contract Type Filter Tabs**: Filter orders by `contract_type` (Spot=indigo, Future=blue, Option=purple) in the order table header
 10. **Link Order Button**: Chain-link icon (`IconLink`) in the left column (next to drag handle) — links orders via `linked_order_id` using `POST /api/v1/orders/{id}/link`
 11. **EditOrderModal unlink**: Hovering the linked order info row shows a ghost link icon; clicking toggles a red broken-link icon with "Will unlink" label. On Save, calls `POST /api/v1/orders/{order_id}/unlink` before saving other changes.
+12. **Active orders sorted by Asset asc, Entry desc**: Both grouped and flat views sort active orders by asset_type ascending, then entry_price descending.
 12. **Tier Spread / Link Types**: Each order has `link_type` field:
     - `"spread"` — cross-linked (A↔B), forms a spread pair
     - `"pending_close"` — one-way sub-order (B→A, B is a pending close of A)

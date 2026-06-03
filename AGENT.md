@@ -53,7 +53,7 @@
 - **16 routers** in `backend/app/routers/`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `assets.py`, `etl_sync.py`, `journal.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py`, `orders_groups.py`
 - **15 SQLAlchemy models** in `models.py`: Portfolio, TradePlan, ActiveOrder, OptionDetails, PortfolioNavHistory, SimulationModels, TradeHistory, Transaction, DecisionJournal, WhitelistAssets, Watchlist, AiAgent, AiActionLog, AiAgentState, OrdersGroup
 - **Key endpoints**:
-  - `GET /api/v1/analytics/performance/{portfolio_id}` — equity curve (cumulative realized P/L), payoff bars, total P/L
+  - `GET /api/v1/analytics/performance/{portfolio_id}` — equity curve (cumulative realized P/L), payoff bars (grouped by month with summed realized_pl — one bar per month), total P/L
   - `GET /api/v1/analytics/portfolio-grid?portfolio_id=` — full grid data with cash details, `risk_score` (0–100), tags, trade plan, internal notes
   - `PUT /api/v1/portfolios/{id}` — update `portfolio_name`, `current_nav`, `margin_locked`, `cash_buffer_limit`, `available_cash`, `money_market`, `trade_plan_md`, `internal_notes`, `tags`
   - `POST /api/v1/orders/` — create order with optional UUID `order_id`, `contract_type`, `linked_order_id`, `direction`, `expiry_date`, `strike_price`
@@ -72,7 +72,7 @@
   - `StrategyNotes.tsx` — Trade Plan + Internal Notes (both inline-editable, yellow sticky style, border-yellow-300 on Primary Strategy)
   - `TagsSection.tsx` — metadata tag pills
   - `PerformanceSection.tsx` — chart wrapper + Equity/Payoff toggle
-  - `PerformanceChart.tsx` — dynamic SVG: equity line chart (cumulative P/L) or payoff bar chart
+  - `PerformanceChart.tsx` — dynamic SVG: equity line chart (cumulative P/L) or payoff bar chart (grouped by month with summed realized_pl)
   - `OrderManagement.tsx` — active orders table (zone-grouped or flat), Group-by-Zone toggle, contract_type filter tabs (indigo/blue/purple), Link Order button in left column, footer Add Order + Zone Group buttons
   - `TradeHistoryTable.tsx` — collapsible closed-orders table
   - `TradePlanView.tsx` — click-to-edit markdown with Save/Cancel
@@ -82,7 +82,8 @@
 - **Tailwind CDN** loaded in `index.html` with custom config for all project colors (ink, brand-teal, brand-coral, brand-blue, hairline, surface, slate, etc.)
 
 ### Database (`database/`)
-- `main_db_schema.sql` — 11 tables for Manual/Bot data
+- `README.md` — full documentation of both schemas
+- `main_db_schema.sql` — 12 tables (11 main + decision_journals) for Manual/Bot data
   - `portfolios` has `internal_notes TEXT` and `tags JSONB` columns
   - `active_orders.order_id` is TEXT (UUID, not auto-increment INT); `linked_order_id` TEXT (replaces old `spread_pair_id`) — supports one-way (pending close) and two-way cross-linking (spread pair); `contract_type` ('spot'/'future'/'option'), `direction`, `expiry_date`, `strike_price`, `cost` columns added
   - `active_orders.option_id` references `option_details` table (greeks & pricing)
@@ -103,6 +104,8 @@
 - **Available Cash** = `totalCash + P/L − money_market − margin_locked − cash_buffer_limit`
 - **Total Notional** (Cash Details) = `Σ(qty × entry_price)` across active orders — shows market exposure deployed
 - **Asset Allocation** = computed from active orders by `asset_type` grouped by notional value, sorted descending; excludes Cash
+- **Active orders sorted** by `asset_type ASC`, then `entry_price DESC` — both grouped and flat views
+- **Payoff bars** are grouped by month with summed `realized_pl` — one bar per month, not per trade (date format `YYYY-MM-01`)
 - **Performance equity curve** uses cumulative realized P/L from trade history (no `initial_funding`)
 - **Risk Level gauge** (3-branch formula, mirrored on frontend + backend `_compute_risk_score()`):
   - `cashBufferLimit ≠ 0`: `((availableCash − marginLocked) / cashBufferLimit) × 100` (capped at 100)
@@ -175,7 +178,7 @@ requirement\UI\UI-LAYOUT-MANAGED-FUND.md
 
 ## backend detail : D:\InvestmentDashboard\backend\README.md
 ## fontend detail : D:\InvestmentDashboard\frontend\README.md
-## database : D:\InvestmentDashboard\database
+## database : D:\InvestmentDashboard\database\README.md
 
 requirement
 requirement\Detailed-Functional-Requirements.md

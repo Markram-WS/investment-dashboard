@@ -98,7 +98,11 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   }, [selectedPortfolio?.portfolio_id]);
 
   const activeOrders = useMemo(
-    () => (selectedPortfolio?.active_orders || []).filter((o) => o.order_status !== "closed"),
+    () => (selectedPortfolio?.active_orders || []).filter((o) => o.order_status !== "closed").sort((a, b) => {
+      const cmp = (a.asset_type || '').localeCompare(b.asset_type || '');
+      if (cmp !== 0) return cmp;
+      return (b.entry_price ?? 0) - (a.entry_price ?? 0);
+    }),
     [selectedPortfolio?.active_orders],
   );
 
@@ -215,7 +219,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   );
 
   const zoneGroups = useMemo(() => {
-    const sorted = [...activeOrders].sort((a, b) => (b.entry_price ?? 0) - (a.entry_price ?? 0));
+    const sorted = [...activeOrders];
     const orderMap: Record<string, SpreadOrder> = {};
     sorted.forEach(o => orderMap[o.order_id] = o);
 

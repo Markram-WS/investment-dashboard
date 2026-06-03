@@ -371,6 +371,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                             y2={linkInfo?.linkType === 'spread' && linkInfo?.isLastInGroup ? '50%' : linkInfo?.linkType === 'pending_close' ? '50%' : '100%'}
                             stroke={linkInfo?.linkType === 'spread' ? '#93c5fd' : '#fde047'}
                             strokeWidth="2"
+                            style={{ animation: 'linkLineGlow 1.2s ease-out forwards' }}
                           />
                         </svg>
                       </>

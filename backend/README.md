@@ -66,6 +66,7 @@ open http://localhost:8000/docs
 > `active_orders.direction`, `expiry_date`, `strike_price` — option/future-specific fields.
 > `active_orders.cost` — cost basis for the order.
 > `active_orders.option_id` references `option_details` (greeks & pricing).
+> `GET /api/v1/analytics/performance/{portfolio_id}` returns `payoff_data[]` with items grouped by **month** (YYYY-MM-01 date) and `realized_pl` summed per month — one bar per month, not per trade. E.g., 10 trades in January appear as a single bar with the sum. The `asset` field was removed from `PayoffBar` (no longer per-trade).  
 > `trade_history.group_id` is a plain **Integer** (not FK) — stores the group reference at close/cancel time.
 > Order status values are uppercase: `PENDING`, `FILLED`, `CLOSE`, `CANCELED`. PENDING/FILLED are non-terminal; CLOSE/CANCELED are terminal.
 > All services auto-restart unless stopped. Logs: `podman compose logs -f backend`.
@@ -126,7 +127,7 @@ open http://localhost:8000/docs
 |--------|-----------|-------------|
 | `GET` | `/api/v1/analytics/nav/{portfolio_id}` | NAV time-series |
 | `GET` | `/api/v1/analytics/risk/{portfolio_id}` | Risk summary |
-| `GET` | `/api/v1/analytics/performance/{portfolio_id}` | Performance data: equity curve (cumulative realized P/L), payoff bars, total P/L |
+| `GET` | `/api/v1/analytics/performance/{portfolio_id}` | Performance data: equity curve (cumulative realized P/L, date cumulative_pl), payoff bars (grouped by month with summed realized_pl, no per-trade bars), total P/L |
 
 ### Portfolio Grid
 | Method | Endpoint | Description |
@@ -173,7 +174,7 @@ backend/
 │       ├── trade_plans.py    # Trade plan CRUD
 │       ├── active_orders.py  # Order management (create, update, close)
 │       ├── analytics.py      # Portfolio grid + detail analytics
-│       ├── performance.py    # Equity curve, payoff data, total P/L
+│       ├── performance.py    # Equity curve (cumulative realized P/L), payoff bars (grouped by month with summed realized_pl), total P/L
 │       ├── overview.py       # Global dashboard overview
 │       ├── risk.py           # Pool health, money reserve, safety
 │       ├── rebalance.py      # Dual-mode rebalancing engine

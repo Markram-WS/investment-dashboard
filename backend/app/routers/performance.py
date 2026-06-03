@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import Portfolio, TradeHistory
 from pydantic import BaseModel
-from typing import List
+from typing import List, Dict
 from datetime import datetime
 
 router = APIRouter()
@@ -18,7 +18,6 @@ class EquityPoint(BaseModel):
 class PayoffBar(BaseModel):
     date: str
     realized_pl: float
-    asset: str
 
 
 class PerformanceResponse(BaseModel):
@@ -56,24 +55,29 @@ async def get_performance(portfolio_id: int, db: AsyncSession = Depends(get_db))
         ).isoformat()
         equity_curve.append(EquityPoint(date=first_date, cumulative_pl=0.0))
 
+    month_buckets: Dict[str, float] = {}
+
     for trade in trades:
         pl = float(trade.realized_pl or 0)
         cumulative += pl
         trade_date = (
-            trade.exit_date.isoformat()
+            trade.exit_date
             if trade.exit_date
-            else (
-                trade.entry_date.isoformat()
-                if trade.entry_date
-                else datetime.utcnow().isoformat()
-            )
+            else (trade.entry_date if trade.entry_date else datetime.utcnow())
         )
         equity_curve.append(
-            EquityPoint(date=trade_date, cumulative_pl=round(cumulative, 2))
+            EquityPoint(
+                date=trade_date.isoformat(),
+                cumulative_pl=round(cumulative, 2),
+            )
         )
-        payoff_data.append(
-            PayoffBar(date=trade_date, realized_pl=round(pl, 2), asset=trade.asset)
-        )
+        month_key = trade_date.strftime("%Y-%m")
+        month_buckets[month_key] = month_buckets.get(month_key, 0) + pl
+
+    payoff_data = [
+        PayoffBar(date=f"{month}-01", realized_pl=round(total, 2))
+        for month, total in sorted(month_buckets.items())
+    ]
 
     return PerformanceResponse(
         equity_curve=equity_curve,

@@ -106,7 +106,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
             <div className="relative flex items-center justify-center w-40 h-40 shrink-0">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                 <circle cx="18" cy="18" fill="transparent" r="16" stroke="#f0f0f0" strokeWidth="3" />
-                <circle cx="18" cy="18" fill="transparent" r="16"
+                <circle cx="18" cy="18" fill="transparent" r="16" className="donut-animate"
                   stroke={riskPercent >= 100 ? "#0fbcb0" : riskPercent >= 50 ? "#ffd02f" : "#e74c3c"}
                   strokeDasharray={`${(riskPercent / 100) * CIRCUMFERENCE} ${CIRCUMFERENCE}`}
                   strokeDashoffset="0" strokeWidth="4" strokeLinecap="round" />
@@ -145,7 +145,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
                   const segOffset = offset;
                   offset -= dashLen;
                   return (
-                    <circle key={a.label} cx="18" cy="18" fill="transparent" r="16"
+                    <circle key={a.label} cx="18" cy="18" fill="transparent" r="16" className="donut-animate"
                       stroke={a.color} strokeDasharray={`${dashLen} ${gapLen}`}
                       strokeDashoffset={segOffset} strokeWidth="4" />
                   );
