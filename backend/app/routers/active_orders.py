@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 from app.database import get_db
@@ -190,9 +190,9 @@ class CloseOrderRequest(BaseModel):
 
 @router.post("/{order_id}/close", tags=["orders"])
 async def close_order(order_id: str, req: CloseOrderRequest, db: AsyncSession = Depends(get_db)):
-    """Close an active order: delete from active_orders and create a trade history record.
-    If the order has a linked_order_id referencing a pending-close linked order (one-way),
-    also close that linked order automatically."""
+    """Close an active order: delete from active_orders and create trade history record(s).
+    Auto-closes all sub-orders that one-way link to this order (linked_order_id == this order_id).
+    If this order is cross-linked (spread pair), signals frontend for the paired order."""
     result = await db.execute(select(ActiveOrder).where(ActiveOrder.order_id == order_id))
     order = result.scalar_one_or_none()
     if not order:
@@ -220,26 +220,27 @@ async def close_order(order_id: str, req: CloseOrderRequest, db: AsyncSession = 
             comments={"cost": float(req.cost or 0)},
         )
 
-    also_closed = None
-
-    # Check if this is a pending-close link (one-way)
-    if order.linked_order_id:
-        linked_result = await db.execute(
-            select(ActiveOrder).where(ActiveOrder.order_id == order.linked_order_id)
+    # Find all sub-orders with linked_order_id == this order's ID (one-way links into this)
+    sub_result = await db.execute(
+        select(ActiveOrder).where(
+            and_(ActiveOrder.linked_order_id == order_id, ActiveOrder.order_id != order_id)
         )
-        linked = linked_result.scalar_one_or_none()
-        # One-way: linked order has no reciprocal linked_order_id
-        if linked and linked.linked_order_id != order.order_id:
-            linked_history = make_history(linked, req.exit_price, req.realized_pl, None, req.decision_note)
-            db.add(linked_history)
-            await db.delete(linked)
-            await db.flush()
-            also_closed = {
-                "order_id": linked.order_id,
-                "history_id": linked_history.history_id,
-            }
-        # Spread (mutual): close only this order; frontend will open second modal
+    )
+    sub_orders = sub_result.scalars().all()
 
+    # Auto-close sub-orders that are NOT cross-linked with this order
+    auto_closed = []
+    for sub in sub_orders:
+        # Skip if cross-linked (spread pair) — handled via paired_order_id below
+        if order.linked_order_id == sub.order_id:
+            continue
+        sub_history = make_history(sub, req.exit_price, req.realized_pl, None, req.decision_note)
+        db.add(sub_history)
+        await db.delete(sub)
+        await db.flush()
+        auto_closed.append({"order_id": sub.order_id, "history_id": sub_history.history_id})
+
+    # Create history for the main order and delete it
     history = make_history(order, req.exit_price, req.realized_pl, req.close_order_id, req.decision_note)
     db.add(history)
     await db.delete(order)
@@ -251,16 +252,18 @@ async def close_order(order_id: str, req: CloseOrderRequest, db: AsyncSession = 
         "order_status": "CLOSE",
         "history_id": history.history_id,
     }
-    if also_closed:
-        resp["also_closed"] = also_closed
-    # Signal frontend to open second modal for spread pair
+    if auto_closed:
+        resp["auto_closed"] = auto_closed
+
+    # Check if this order is cross-linked (spread pair) — signal frontend to close partner
     if order.linked_order_id:
-        linked_check = await db.execute(
+        partner_result = await db.execute(
             select(ActiveOrder).where(ActiveOrder.order_id == order.linked_order_id)
         )
-        linked_alive = linked_check.scalar_one_or_none()
-        if linked_alive and linked_alive.linked_order_id == order.order_id:
-            resp["paired_order_id"] = linked_alive.order_id
+        partner = partner_result.scalar_one_or_none()
+        if partner and partner.linked_order_id == order.order_id:
+            resp["paired_order_id"] = partner.order_id
+
     return resp
 
 

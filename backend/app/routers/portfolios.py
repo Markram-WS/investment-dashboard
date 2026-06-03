@@ -272,81 +272,83 @@ async def get_portfolio_spreads(portfolio_id: int, db: AsyncSession = Depends(ge
     )
     active_orders = active_orders_result.scalars().all()
 
-    # Group orders by linked_order_id
-    spread_orders = [order for order in active_orders if order.linked_order_id]
-    spread_pairs_dict = {}
-    for order in spread_orders:
-        if order.linked_order_id not in spread_pairs_dict:
-            spread_pairs_dict[order.linked_order_id] = []
-        spread_pairs_dict[order.linked_order_id].append(order)
+    # Build order_id lookup for cross-link detection
+    order_map = {o.order_id: o for o in active_orders}
 
-    # Create spread pairs
+    # Detect cross-linked spread pairs: A.linked_order_id == B.order_id AND B.linked_order_id == A.order_id
+    spread_pair_legs = set()
     spread_pairs = []
-    for pair_id, orders in spread_pairs_dict.items():
-        if len(orders) >= 2:
-            leg_a = orders[0]
-            leg_b = orders[1]
 
-            # Calculate net P/L
-            leg_a_pl = 0.0
-            leg_b_pl = 0.0
-            for order in [leg_a, leg_b]:
-                trade_history_result = await db.execute(
-                    select(TradeHistory).where(TradeHistory.order_id == order.order_id)
-                )
-                trade_history = trade_history_result.scalar_one_or_none()
-                if trade_history and trade_history.realized_pl is not None:
-                    if order == leg_a:
-                        leg_a_pl = trade_history.realized_pl
-                    else:
-                        leg_b_pl = trade_history.realized_pl
+    for a in active_orders:
+        if a.linked_order_id and a.linked_order_id in order_map:
+            b = order_map[a.linked_order_id]
+            if b.linked_order_id == a.order_id:  # cross-linked
+                pair_key = tuple(sorted([a.order_id, b.order_id]))
+                if pair_key not in spread_pair_legs:
+                    spread_pair_legs.add(pair_key)
 
-            net_pl = leg_a_pl + leg_b_pl
-            spread_diff = None
-            if leg_a.entry_price and leg_b.entry_price:
-                spread_diff = leg_b.entry_price - leg_a.entry_price
+                    leg_a_pl = 0.0
+                    leg_b_pl = 0.0
+                    for order in [a, b]:
+                        tr = await db.execute(
+                            select(TradeHistory).where(TradeHistory.order_id == order.order_id)
+                        )
+                        th = tr.scalar_one_or_none()
+                        if th and th.realized_pl is not None:
+                            if order == a:
+                                leg_a_pl = th.realized_pl
+                            else:
+                                leg_b_pl = th.realized_pl
 
-            zone = calculate_zone(spread_diff)
+                    net_pl = float(leg_a_pl or 0) + float(leg_b_pl or 0)
+                    spread_diff = None
+                    if a.entry_price and b.entry_price:
+                        spread_diff = b.entry_price - a.entry_price
 
-            spread_pairs.append(SpreadPairResponse(
-                pair_id=pair_id,
-                leg_a={
-                    "order_id": leg_a.order_id,
-                    "asset_type": leg_a.asset_type,
-                    "side": leg_a.side,
-                    "qty": leg_a.qty,
-                    "entry_price": leg_a.entry_price,
-                    "current_price": leg_a.current_price,
-                    "tp_price": leg_a.tp_price,
-                    "leverage": leg_a.leverage,
-                    "margin_rate": leg_a.margin_rate,
-                    "order_status": leg_a.order_status,
-                    "executed_by": leg_a.executed_by,
-                    "created_at": leg_a.created_at.isoformat() if leg_a.created_at else None,
-                    "linked_order_id": leg_a.linked_order_id,
-                },
-                leg_b={
-                    "order_id": leg_b.order_id,
-                    "asset_type": leg_b.asset_type,
-                    "side": leg_b.side,
-                    "qty": leg_b.qty,
-                    "entry_price": leg_b.entry_price,
-                    "current_price": leg_b.current_price,
-                    "tp_price": leg_b.tp_price,
-                    "leverage": leg_b.leverage,
-                    "margin_rate": leg_b.margin_rate,
-                    "order_status": leg_b.order_status,
-                    "executed_by": leg_b.executed_by,
-                    "created_at": leg_b.created_at.isoformat() if leg_b.created_at else None,
-                    "linked_order_id": leg_b.linked_order_id,
-                },
-                net_pl=net_pl,
-                spread_diff=spread_diff,
-                zone=zone,
-            ))
+                    zone = calculate_zone(spread_diff)
 
-    # Get unpaired orders (orders with linked_order_id that don't have a matching pair)
+                    spread_pairs.append(SpreadPairResponse(
+                        pair_id=a.linked_order_id,
+                        leg_a={
+                            "order_id": a.order_id,
+                            "asset_type": a.asset_type,
+                            "side": a.side,
+                            "qty": a.qty,
+                            "entry_price": a.entry_price,
+                            "current_price": a.current_price,
+                            "tp_price": a.tp_price,
+                            "leverage": a.leverage,
+                            "margin_rate": a.margin_rate,
+                            "order_status": a.order_status,
+                            "executed_by": a.executed_by,
+                            "created_at": a.created_at.isoformat() if a.created_at else None,
+                            "linked_order_id": a.linked_order_id,
+                        },
+                        leg_b={
+                            "order_id": b.order_id,
+                            "asset_type": b.asset_type,
+                            "side": b.side,
+                            "qty": b.qty,
+                            "entry_price": b.entry_price,
+                            "current_price": b.current_price,
+                            "tp_price": b.tp_price,
+                            "leverage": b.leverage,
+                            "margin_rate": b.margin_rate,
+                            "order_status": b.order_status,
+                            "executed_by": b.executed_by,
+                            "created_at": b.created_at.isoformat() if b.created_at else None,
+                            "linked_order_id": b.linked_order_id,
+                        },
+                        net_pl=net_pl,
+                        spread_diff=spread_diff,
+                        zone=zone,
+                    ))
+
+    # Get unpaired orders (orders with one-way linked_order_id that aren't cross-linked)
+    # Unpaired = orders with one-way linked_order_id (not cross-linked, not paired)
     paired_order_ids = set()
+    for pair_key in spread_pair_legs:
+        paired_order_ids.update(pair_key)
     for pair in spread_pairs:
         paired_order_ids.add(pair.leg_a["order_id"])
         paired_order_ids.add(pair.leg_b["order_id"])
@@ -366,7 +368,8 @@ async def get_portfolio_spreads(portfolio_id: int, db: AsyncSession = Depends(ge
             "linked_order_id": order.linked_order_id,
             "created_at": order.created_at.isoformat() if order.created_at else None,
         }
-        for order in spread_orders if order.order_id not in paired_order_ids
+        for order in active_orders
+        if order.linked_order_id and order.order_id not in paired_order_ids
     ]
 
     return PortfolioSpreadsResponse(

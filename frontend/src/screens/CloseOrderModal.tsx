@@ -35,21 +35,16 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
     ? activeOrders.find(o => o.order_id === order.linked_order_id)
     : null;
 
-  const isPendingClose = linkedOrder && linkedOrder.linked_order_id !== order?.order_id;
+  const isSpreadLeg = order?.link_type === 'spread';
+  const isSubOrder = order?.link_type === 'pending_close';
+  const linkedInfo = isSpreadLeg && linkedOrder ? linkedOrder : isSubOrder && linkedOrder ? linkedOrder : null;
 
   useEffect(() => {
     if (showModal && order) {
-      if (isPendingClose && linkedOrder) {
-        setCloseId(linkedOrder.order_id);
-        setExitPrice(String(linkedOrder.entry_price ?? ''));
-        const totalCost = (order.cost || 0) + (linkedOrder.cost || 0);
-        setCost(String(totalCost));
-      } else {
-        setCloseId(`CLS-${Math.random().toString(36).slice(2, 8).toUpperCase()}`);
-        setExitPrice("");
-      }
+      setCloseId(`CLS-${Math.random().toString(36).slice(2, 8).toUpperCase()}`);
+      setExitPrice("");
       setRealizedPl("");
-      setCost(c => c);
+      setCost(String(order.cost || 0));
       lastEdited.current = null;
     }
   }, [showModal, order?.order_id]);
@@ -111,7 +106,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
         <h3 className="text-lg font-bold mb-4">
-          Close Order {isPendingClose && linkedOrder ? `(linked to #${linkedOrder.order_id?.slice(0, 8)})` : ''}
+          Close Order {linkedInfo ? `(linked to #${linkedInfo.order_id?.slice(0, 8)})` : ''}
         </h3>
 
         <div className="space-y-3">
@@ -139,15 +134,15 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
               <span className="text-gray-500">Entry Price</span>
               <span className="font-semibold">${entryPrice.toLocaleString()}</span>
             </div>
-            {isPendingClose && linkedOrder && (
+            {linkedInfo && (
               <>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Linked Order</span>
-                  <span className="font-semibold">#{linkedOrder.order_id?.slice(0, 8)} &middot; {linkedOrder.asset_type} &middot; {linkedOrder.side}</span>
+                  <span className="font-semibold">#{linkedInfo.order_id?.slice(0, 8)} &middot; {linkedInfo.asset_type} &middot; {linkedInfo.side}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Linked Entry</span>
-                  <span className="font-semibold">${linkedOrder.entry_price?.toLocaleString() || '-'}</span>
+                  <span className="font-semibold">${linkedInfo.entry_price?.toLocaleString() || '-'}</span>
                 </div>
               </>
             )}
@@ -202,7 +197,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
             disabled={saving}
             className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
           >
-            {saving ? "Closing..." : isPendingClose ? "Close Both" : "Close Order"}
+            {saving ? "Closing..." : "Close Order"}
           </button>
         </div>
       </div>

@@ -61,7 +61,7 @@ open http://localhost:8000/docs
 > `available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit` are returned in the portfolio-grid analytics response.
 > `risk_score` (0–100) is computed server-side from `available_cash`, `margin_locked`, `cash_buffer_limit` — matching the frontend risk gauge logic.
 > `active_orders.group_id` is an **Integer FK** to `orders_groups.id` (renamed from `ZoneGroup`; the `zone` column was removed).
-> `active_orders.linked_order_id` is a **TEXT** column (was `spread_pair_id`) — used for one-way link (pending close) or two-way spread pair.
+> `active_orders.linked_order_id` is a **TEXT** column (was `spread_pair_id`) — one-way link (pending close) or two-way cross-link (spread pair). A cross-linked pair is detected when `A.linked_order_id == B.order_id AND B.linked_order_id == A.order_id`. Spread legs appear with `link_type: "spread"` and one-way subs with `link_type: "pending_close"`. Orders with subs linking to them get `link_type: "primary"`.
 > `active_orders.contract_type` is `'spot'`, `'future'`, or `'option'` — controls per-column visibility in the order table.
 > `active_orders.direction`, `expiry_date`, `strike_price` — option/future-specific fields.
 > `active_orders.cost` — cost basis for the order.
@@ -111,13 +111,13 @@ open http://localhost:8000/docs
 | `GET` | `/api/v1/orders/{order_id}` | Get order details |
 | `PUT` | `/api/v1/orders/{order_id}` | Update order fields (`group_id`, `linked_order_id`, `contract_type`, `direction`, `expiry_date`, `strike_price`, `cost`, etc.) |
 | `PATCH` | `/api/v1/orders/{order_id}/status` | Change order status: send `{"new_status": "CANCELED"}` → deletes from `active_orders` + creates trade history with `{"note":"Canceled"}` |
-| `POST` | `/api/v1/orders/{order_id}/close` | Close order: deletes from `active_orders`, creates `TradeHistory` record with exit price/P-L. Status set to `CLOSE`. |
-| `POST` | `/api/v1/orders/{order_id}/link` | Link order to a target order via `linked_order_id` (one-way = pending close); spread pair requires reciprocal link. |
+| `POST` | `/api/v1/orders/{order_id}/close` | Close order: deletes from `active_orders`, creates `TradeHistory` record with exit price/P-L. **Auto-closes all sub-orders** (orders one-way linking to this order via `linked_order_id`). Returns `auto_closed[]` with each sub's ID and history_id. Returns `paired_order_id` if the closed order is cross-linked (spread pair partner still alive). |
+| `POST` | `/api/v1/orders/{order_id}/link` | Link order to a target order via `linked_order_id` (one-way = pending close); spread pair requires reciprocal link (target must link back for two-way). |
 
 > `order_id` is a UUID string (e.g., `a1b2c3d4-e5f6-...`).  
 > Order status values: `PENDING`, `FILLED` (non-terminal); `CLOSE`, `CANCELED` (terminal — order removed from `active_orders`).  
 > `group_id` is an Integer FK to `orders_groups.id`.
-> `linked_order_id` replaces the old `spread_pair_id` — supports both one-way (pending close) and two-way (spread pair) linking.
+> `linked_order_id` replaces the old `spread_pair_id` — one-way link = pending close (B→A), two-way cross-link = spread pair (A↔B). On close: primary order auto-closes its one-way subs; spread pair signals `paired_order_id` for the frontend to handle the partner.
 
 ### Analytics
 | Method | Endpoint | Description |
@@ -129,7 +129,7 @@ open http://localhost:8000/docs
 ### Portfolio Grid
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
-| `GET` | `/api/v1/analytics/portfolio-grid?portfolio_id=` | Full grid data: orders, cash details (`available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit`), `risk_score`, tags, trade plan, internal notes |
+| `GET` | `/api/v1/analytics/portfolio-grid?portfolio_id=` | Full grid data: orders (each with `link_type`: `"spread"`, `"pending_close"`, `"primary"`, or `"none"`), cash details (`available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit`), `risk_score`, tags, trade plan, internal notes, spread pairs (cross-linked), recent trades |
 
 ### Trade History
 | Method | Endpoint | Description |

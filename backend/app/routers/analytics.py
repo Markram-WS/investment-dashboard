@@ -220,82 +220,89 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
             # Extract risk insight from reasoning or use a placeholder
             ai_risk_insight = "Risk metrics based on recent AI analysis" if ai_log.reasoning else None
         
-        # Get spread pairs (orders with linked_order_id set)
-        spread_orders = [order for order in active_orders if order.linked_order_id]
-        spread_pairs_dict = {}
+        # Build order_id lookup for link detection
+        order_map = {o.order_id: o for o in active_orders}
         
-        # Group orders by linked_order_id
-        for order in spread_orders:
-            if order.linked_order_id not in spread_pairs_dict:
-                spread_pairs_dict[order.linked_order_id] = []
-            spread_pairs_dict[order.linked_order_id].append(order)
-        
-        # Create spread pairs (expecting pairs of orders)
+        # Detect cross-linked spread pairs: A.linked_order_id == B.order_id AND B.linked_order_id == A.order_id
+        spread_pair_legs = set()
         spread_pairs = []
-        for pair_id, orders in spread_pairs_dict.items():
-            if len(orders) >= 2:
-                # Take first two orders as the pair
-                leg_a = orders[0]
-                leg_b = orders[1]
-                
-                # Calculate net P/L for the spread (simplified)
-                leg_a_pl = 0.0
-                leg_b_pl = 0.0
-                
-                # Get realized P/L from trade history if available
-                for order in [leg_a, leg_b]:
-                    trade_history_result = await db.execute(
-                        select(TradeHistory).where(TradeHistory.order_id == order.order_id)
-                    )
-                    trade_history = trade_history_result.scalar_one_or_none()
-                    if trade_history and trade_history.realized_pl is not None:
-                        pl_value = _to_float(trade_history.realized_pl)
-                        if order == leg_a:
-                            leg_a_pl = pl_value
-                        else:
-                            leg_b_pl = pl_value
-                
-                net_pl = float(leg_a_pl or 0) + float(leg_b_pl or 0)
-                
-                # Calculate spread difference (simplified)
-                spread_diff = None
-                if leg_a.entry_price and leg_b.entry_price:
-                    spread_diff = float(leg_b.entry_price or 0) - float(leg_a.entry_price or 0)
-                
-                spread_pairs.append(SpreadPair(
-                    pair_id=pair_id,
-                    leg_a={
-                        "order_id": leg_a.order_id,
-                        "asset_type": leg_a.asset_type,
-                        "side": leg_a.side,
-                        "qty": leg_a.qty,
-                        "entry_price": leg_a.entry_price,
-                        "current_price": leg_a.current_price,
-                        "tp_price": leg_a.tp_price,
-                        "leverage": leg_a.leverage,
-                        "margin_rate": leg_a.margin_rate,
-                        "order_status": leg_a.order_status,
-                        "executed_by": leg_a.executed_by,
-                        "created_at": leg_a.created_at.isoformat() if leg_a.created_at else None
-                    },
-                    leg_b={
-                        "order_id": leg_b.order_id,
-                        "asset_type": leg_b.asset_type,
-                        "side": leg_b.side,
-                        "qty": leg_b.qty,
-                        "entry_price": leg_b.entry_price,
-                        "current_price": leg_b.current_price,
-                        "tp_price": leg_b.tp_price,
-                        "leverage": leg_b.leverage,
-                        "margin_rate": leg_b.margin_rate,
-                        "order_status": leg_b.order_status,
-                        "executed_by": leg_b.executed_by,
-                        "created_at": leg_b.created_at.isoformat() if leg_b.created_at else None
-                    },
-                    net_pl=net_pl,
-                    spread_diff=spread_diff,
-                    zone="Active"  # Default zone based on order status
-                ))
+        
+        for a in active_orders:
+            if a.linked_order_id and a.linked_order_id in order_map:
+                b = order_map[a.linked_order_id]
+                if b.linked_order_id == a.order_id:  # cross-linked
+                    pair_key = tuple(sorted([a.order_id, b.order_id]))
+                    if pair_key not in spread_pair_legs:
+                        spread_pair_legs.add(pair_key)
+                        
+                        # Calculate net P/L
+                        leg_a_pl = 0.0
+                        leg_b_pl = 0.0
+                        for order in [a, b]:
+                            tr = await db.execute(
+                                select(TradeHistory).where(TradeHistory.order_id == order.order_id)
+                            )
+                            th = tr.scalar_one_or_none()
+                            if th and th.realized_pl is not None:
+                                pl_val = _to_float(th.realized_pl)
+                                if order == a:
+                                    leg_a_pl = pl_val
+                                else:
+                                    leg_b_pl = pl_val
+                        
+                        net_pl = float(leg_a_pl or 0) + float(leg_b_pl or 0)
+                        spread_diff = None
+                        if a.entry_price and b.entry_price:
+                            spread_diff = float(b.entry_price or 0) - float(a.entry_price or 0)
+                        
+                        def _serialize_leg(o):
+                            return {
+                                "order_id": o.order_id,
+                                "asset_type": o.asset_type,
+                                "side": o.side,
+                                "qty": o.qty,
+                                "entry_price": o.entry_price,
+                                "current_price": o.current_price,
+                                "tp_price": o.tp_price,
+                                "leverage": o.leverage,
+                                "margin_rate": o.margin_rate,
+                                "order_status": o.order_status,
+                                "executed_by": o.executed_by,
+                                "created_at": o.created_at.isoformat() if o.created_at else None
+                            }
+                        
+                        spread_pairs.append(SpreadPair(
+                            pair_id=a.linked_order_id,
+                            leg_a=_serialize_leg(a),
+                            leg_b=_serialize_leg(b),
+                            net_pl=net_pl,
+                            spread_diff=spread_diff,
+                            zone="Active"
+                        ))
+        
+        # Compute link_type for each order
+        # "spread" = cross-linked, "pending_close" = one-way link, "primary" = has subs linking here, "none"
+        linked_order_ids_set = {o.order_id for o in active_orders if o.linked_order_id}
+        cross_linked_ids = set()
+        for pair_key in spread_pair_legs:
+            cross_linked_ids.update(pair_key)
+        
+        sub_order_targets = set()
+        for o in active_orders:
+            if o.linked_order_id and o.linked_order_id in order_map:
+                if order_map[o.linked_order_id].linked_order_id != o.order_id:  # not cross-linked
+                    sub_order_targets.add(o.linked_order_id)
+        
+        def _link_type(o):
+            if o.order_id in cross_linked_ids:
+                return "spread"
+            if o.linked_order_id and o.linked_order_id in order_map:
+                target = order_map[o.linked_order_id]
+                if target.linked_order_id != o.order_id:  # not reciprocal
+                    return "pending_close"
+            if not o.linked_order_id and o.order_id in sub_order_targets:
+                return "primary"
+            return "none"
         
         # Get recent trades (last 5)
         recent_trades_result = await db.execute(
@@ -321,42 +328,39 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
                 "exit_date": trade.exit_date.isoformat() if trade.exit_date else None
             })
         
-        # Build active orders list (excluding spread legs to avoid duplication)
+        # Build active orders list (spread legs stay in active_orders with link_type field)
         active_orders_list = []
-        spread_order_ids = {order.order_id for order in spread_orders}
-        
-        # Get entry_zone from trade plan for zone calculation
         trade_plan_entry_zone = getattr(trade_plan, 'entry_zone', None) if trade_plan else None
         
         for order in active_orders:
-            if order.order_id not in spread_order_ids:
-                entry_price_val = _to_float(order.entry_price)
-                exercise_price = _to_float(order.option.strike_price) if order.option else None
-                active_orders_list.append({
-                    "order_id": order.order_id,
-                    "plan_id": order.plan_id,
-                    "asset_type": order.asset_type,
-                    "side": order.side,
-                    "qty": order.qty,
-                    "entry_price": entry_price_val,
-                    "current_price": _to_float(order.current_price),
-                    "tp_price": _to_float(order.tp_price),
-                    "sl_price": _to_float(order.sl_price),
-                    "leverage": order.leverage,
-                    "margin_rate": order.margin_rate,
-                    "order_status": order.order_status,
-                    "executed_by": order.executed_by,
-                    "group_id": order.group_id,
-                    "group_name": order.group.name if order.group else None,
-                    "linked_order_id": order.linked_order_id,
-                    "contract_type": order.contract_type,
-                    "direction": order.direction,
-                    "expiry_date": order.expiry_date.isoformat() if order.expiry_date else None,
-                    "strike_price": _to_float(order.strike_price),
-                    "exercise_price": exercise_price,
-                    "cost": _to_float(order.cost) if order.cost else 0,
-                    "created_at": order.created_at.isoformat() if order.created_at else None
-                })
+            entry_price_val = _to_float(order.entry_price)
+            exercise_price = _to_float(order.option.strike_price) if order.option else None
+            active_orders_list.append({
+                "order_id": order.order_id,
+                "plan_id": order.plan_id,
+                "asset_type": order.asset_type,
+                "side": order.side,
+                "qty": order.qty,
+                "entry_price": entry_price_val,
+                "current_price": _to_float(order.current_price),
+                "tp_price": _to_float(order.tp_price),
+                "sl_price": _to_float(order.sl_price),
+                "leverage": order.leverage,
+                "margin_rate": order.margin_rate,
+                "order_status": order.order_status,
+                "executed_by": order.executed_by,
+                "group_id": order.group_id,
+                "group_name": order.group.name if order.group else None,
+                "linked_order_id": order.linked_order_id,
+                "contract_type": order.contract_type,
+                "direction": order.direction,
+                "expiry_date": order.expiry_date.isoformat() if order.expiry_date else None,
+                "strike_price": _to_float(order.strike_price),
+                "exercise_price": exercise_price,
+                "cost": _to_float(order.cost) if order.cost else 0,
+                "link_type": _link_type(order),
+                "created_at": order.created_at.isoformat() if order.created_at else None
+            })
         
         grid_data.append(PortfolioGridData(
             portfolio_id=portfolio.portfolio_id,
@@ -433,73 +437,95 @@ async def get_portfolio_detail(
         ai_reasoning = ai_log.reasoning
         ai_risk_insight = "Risk metrics based on recent AI analysis" if ai_log.reasoning else None
     
-    # Get spread pairs
-    spread_orders = [order for order in active_orders if order.linked_order_id]
-    spread_pairs_dict = {}
-    for order in spread_orders:
-        if order.linked_order_id not in spread_pairs_dict:
-            spread_pairs_dict[order.linked_order_id] = []
-        spread_pairs_dict[order.linked_order_id].append(order)
+    # Build order_id lookup for link detection
+    order_map = {o.order_id: o for o in active_orders}
     
+    # Detect cross-linked spread pairs
+    spread_pair_legs = set()
     spread_pairs = []
-    for pair_id, orders in spread_pairs_dict.items():
-        if len(orders) >= 2:
-            leg_a = orders[0]
-            leg_b = orders[1]
-            
-            leg_a_pl = 0.0
-            leg_b_pl = 0.0
-            
-            for order in [leg_a, leg_b]:
-                trade_history_result = await db.execute(
-                    select(TradeHistory).where(TradeHistory.order_id == order.order_id)
-                )
-                trade_history = trade_history_result.scalar_one_or_none()
-                if trade_history and trade_history.realized_pl is not None:
-                    pl_value = _to_float(trade_history.realized_pl)
-                    if order == leg_a:
-                        leg_a_pl = pl_value
-                    else:
-                        leg_b_pl = pl_value
-            
-            net_pl = leg_a_pl + leg_b_pl
-            spread_diff = None
-            if leg_a.entry_price and leg_b.entry_price:
-                spread_diff = _to_float(leg_b.entry_price) - _to_float(leg_a.entry_price)
-            
-            spread_pairs.append(SpreadPair(
-                pair_id=pair_id,
-                leg_a={
-                    "order_id": leg_a.order_id,
-                    "asset_type": leg_a.asset_type,
-                    "side": leg_a.side,
-                    "qty": leg_a.qty,
-                    "entry_price": _to_float(leg_a.entry_price),
-                    "current_price": _to_float(leg_a.current_price),
-                    "tp_price": _to_float(leg_a.tp_price),
-                    "leverage": leg_a.leverage,
-                    "margin_rate": leg_a.margin_rate,
-                    "order_status": leg_a.order_status,
-                    "executed_by": leg_a.executed_by,
-                    "created_at": leg_a.created_at.isoformat() if leg_a.created_at else None
-                },
-                leg_b={
-                    "order_id": leg_b.order_id,
-                    "asset_type": leg_b.asset_type,
-                    "side": leg_b.side,
-                    "qty": leg_b.qty,
-                    "entry_price": _to_float(leg_b.entry_price),
-                    "current_price": _to_float(leg_b.current_price),
-                    "tp_price": _to_float(leg_b.tp_price),
-                    "leverage": leg_b.leverage,
-                    "margin_rate": leg_b.margin_rate,
-                    "order_status": leg_b.order_status,
-                    "executed_by": leg_b.executed_by,
-                    "created_at": leg_b.created_at.isoformat() if leg_b.created_at else None
-                },
-                net_pl=net_pl,
-                spread_diff=spread_diff
-            ))
+    
+    for a in active_orders:
+        if a.linked_order_id and a.linked_order_id in order_map:
+            b = order_map[a.linked_order_id]
+            if b.linked_order_id == a.order_id:
+                pair_key = tuple(sorted([a.order_id, b.order_id]))
+                if pair_key not in spread_pair_legs:
+                    spread_pair_legs.add(pair_key)
+                    
+                    leg_a_pl = 0.0
+                    leg_b_pl = 0.0
+                    for order in [a, b]:
+                        tr = await db.execute(
+                            select(TradeHistory).where(TradeHistory.order_id == order.order_id)
+                        )
+                        th = tr.scalar_one_or_none()
+                        if th and th.realized_pl is not None:
+                            pl_val = _to_float(th.realized_pl)
+                            if order == a:
+                                leg_a_pl = pl_val
+                            else:
+                                leg_b_pl = pl_val
+                    
+                    net_pl = leg_a_pl + leg_b_pl
+                    spread_diff = None
+                    if a.entry_price and b.entry_price:
+                        spread_diff = _to_float(b.entry_price) - _to_float(a.entry_price)
+                    
+                    spread_pairs.append(SpreadPair(
+                        pair_id=a.linked_order_id,
+                        leg_a={
+                            "order_id": a.order_id,
+                            "asset_type": a.asset_type,
+                            "side": a.side,
+                            "qty": a.qty,
+                            "entry_price": _to_float(a.entry_price),
+                            "current_price": _to_float(a.current_price),
+                            "tp_price": _to_float(a.tp_price),
+                            "leverage": a.leverage,
+                            "margin_rate": a.margin_rate,
+                            "order_status": a.order_status,
+                            "executed_by": a.executed_by,
+                            "created_at": a.created_at.isoformat() if a.created_at else None
+                        },
+                        leg_b={
+                            "order_id": b.order_id,
+                            "asset_type": b.asset_type,
+                            "side": b.side,
+                            "qty": b.qty,
+                            "entry_price": _to_float(b.entry_price),
+                            "current_price": _to_float(b.current_price),
+                            "tp_price": _to_float(b.tp_price),
+                            "leverage": b.leverage,
+                            "margin_rate": b.margin_rate,
+                            "order_status": b.order_status,
+                            "executed_by": b.executed_by,
+                            "created_at": b.created_at.isoformat() if b.created_at else None
+                        },
+                        net_pl=net_pl,
+                        spread_diff=spread_diff
+                    ))
+    
+    # Compute link_type for each order
+    cross_linked_ids = set()
+    for pair_key in spread_pair_legs:
+        cross_linked_ids.update(pair_key)
+    
+    sub_order_targets = set()
+    for o in active_orders:
+        if o.linked_order_id and o.linked_order_id in order_map:
+            if order_map[o.linked_order_id].linked_order_id != o.order_id:
+                sub_order_targets.add(o.linked_order_id)
+    
+    def _link_type(o):
+        if o.order_id in cross_linked_ids:
+            return "spread"
+        if o.linked_order_id and o.linked_order_id in order_map:
+            target = order_map[o.linked_order_id]
+            if target.linked_order_id != o.order_id:
+                return "pending_close"
+        if not o.linked_order_id and o.order_id in sub_order_targets:
+            return "primary"
+        return "none"
     
     # Get recent trades
     recent_trades_result = await db.execute(
@@ -527,37 +553,36 @@ async def get_portfolio_detail(
     
     # Build active orders list
     active_orders_list = []
-    spread_order_ids = {order.order_id for order in spread_orders}
     
     for order in active_orders:
-        if order.order_id not in spread_order_ids:
-            entry_price_float = _to_float(order.entry_price)
-            exercise_price = _to_float(order.option.strike_price) if order.option else None
+        entry_price_float = _to_float(order.entry_price)
+        exercise_price = _to_float(order.option.strike_price) if order.option else None
         active_orders_list.append({
-                "order_id": order.order_id,
-                "plan_id": order.plan_id,
-                "asset_type": order.asset_type,
-                "side": order.side,
-                "qty": order.qty,
-                "entry_price": entry_price_float,
-                "current_price": _to_float(order.current_price),
-                "tp_price": _to_float(order.tp_price),
-                "sl_price": _to_float(order.sl_price),
-                "leverage": order.leverage,
-                "margin_rate": order.margin_rate,
-                "order_status": order.order_status,
-                    "executed_by": order.executed_by,
-                    "group_id": order.group_id,
-                    "group_name": order.group.name if order.group else None,
-                    "linked_order_id": order.linked_order_id,
-                    "contract_type": order.contract_type,
-                    "direction": order.direction,
-                    "expiry_date": order.expiry_date.isoformat() if order.expiry_date else None,
-                    "strike_price": _to_float(order.strike_price),
-                    "exercise_price": exercise_price,
-                    "cost": _to_float(order.cost) if order.cost else 0,
-                "created_at": order.created_at.isoformat() if order.created_at else None
-            })
+            "order_id": order.order_id,
+            "plan_id": order.plan_id,
+            "asset_type": order.asset_type,
+            "side": order.side,
+            "qty": order.qty,
+            "entry_price": entry_price_float,
+            "current_price": _to_float(order.current_price),
+            "tp_price": _to_float(order.tp_price),
+            "sl_price": _to_float(order.sl_price),
+            "leverage": order.leverage,
+            "margin_rate": order.margin_rate,
+            "order_status": order.order_status,
+            "executed_by": order.executed_by,
+            "group_id": order.group_id,
+            "group_name": order.group.name if order.group else None,
+            "linked_order_id": order.linked_order_id,
+            "contract_type": order.contract_type,
+            "direction": order.direction,
+            "expiry_date": order.expiry_date.isoformat() if order.expiry_date else None,
+            "strike_price": _to_float(order.strike_price),
+            "exercise_price": exercise_price,
+            "cost": _to_float(order.cost) if order.cost else 0,
+            "link_type": _link_type(order),
+            "created_at": order.created_at.isoformat() if order.created_at else None
+        })
     
     return PortfolioGridData(
         portfolio_id=portfolio.portfolio_id,

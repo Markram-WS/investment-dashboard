@@ -61,7 +61,7 @@ frontend/
 │   │   ├── PortfolioSpread.tsx      # Spread pairing: pairs + payoff
 │   │   ├── PortfolioMutualFund.tsx  # Managed fund: allocation, rebalance, NAV
 │   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID UUID, asset, side, qty, TP/SL, group combobox, status, contract_type toggle indigo/blue/purple)
-│   │   ├── CloseOrderModal.tsx     # Close order form (editable Close ID UUID, exit price, P/L, auto-calc, linked_order_id)
+│   │   ├── CloseOrderModal.tsx     # Close order form (editable Close ID UUID, exit price, P/L, auto-calc, shows linked order info for spread/pending_close via link_type)
 │   │   ├── EditOrderModal.tsx       # Order edit modal (group combobox, contract_type toggle indigo/blue/purple, validation warnings)
 │   │   ├── EditPortfolioModal.tsx   # Portfolio field editor: name, NAV, margin, buffer, cash, MM, tags; Danger Zone delete
 │   │   ├── ZoneEditModal.tsx        # Zone edit modal
@@ -399,13 +399,19 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
    - Drop บน Trade History (even when collapsed) → close (FILLED) หรือ cancel (PENDING)
    - Group validation alerts (non-blocking toast): max_orders, min_price, max_price
 9. **Contract Type Filter Tabs**: Filter orders by `contract_type` (Spot=indigo, Future=blue, Option=purple) in the order table header
-10. **Link Order Button**: Chain-link icon (`IconLink`) in the left column (next to drag handle) — opens link order modal for pairing orders via `linked_order_id`
-11. **Ungrouped Orders section**: Always visible (drop target for unassigning)
-12. **Order status**: PENDING / FILLED / CLOSE / CANCELED (uppercase)
-13. **Portfolio Delete**: Cascade cleanup with activeOrderCount guard
-14. **Header layout**: Two-row header — title + ACTIVE badge (row 1), Order Groups icon + Group toggle (row 2), Add Order pill button centered vertically on right
-15. **Trade History styling**: Matches Ungrouped Orders section — `bg-gray-50` with pill badge, `border border-hairline`, `rounded-b-xl`
-16. **ToastAlert position**: Centered below nav bar (`top-20 left-1/2 -translate-x-1/2 z-[9999]`)
+10. **Link Order Button**: Chain-link icon (`IconLink`) in the left column (next to drag handle) — links orders via `linked_order_id` using `POST /api/v1/orders/{id}/link`
+11. **Tier Spread / Link Types**: Each order has `link_type` field:
+    - `"spread"` — cross-linked (A↔B), forms a spread pair
+    - `"pending_close"` — one-way sub-order (B→A, B is a pending close of A)
+    - `"primary"` — no link but has sub-orders linking to it (A with C→A)
+    - `"none"` — no linking
+12. **Close auto-closes subs**: Closing a primary order (or a spread leg) auto-closes all its one-way sub-orders server-side; response includes `auto_closed[]`. For spread pair legs, returns `paired_order_id` to auto-open close modal for the partner.
+13. **Ungrouped Orders section**: Always visible (drop target for unassigning)
+14. **Order status**: PENDING / FILLED / CLOSE / CANCELED (uppercase)
+15. **Portfolio Delete**: Cascade cleanup with activeOrderCount guard
+16. **Header layout**: Two-row header — title + ACTIVE badge (row 1), Order Groups icon + Group toggle (row 2), Add Order pill button centered vertically on right
+17. **Trade History styling**: Matches Ungrouped Orders section — `bg-gray-50` with pill badge, `border border-hairline`, `rounded-b-xl`
+18. **ToastAlert position**: Centered below nav bar (`top-20 left-1/2 -translate-x-1/2 z-[9999]`)
 
 ## ⚙️ Technical Details
 
@@ -487,7 +493,7 @@ All shared types are defined in `src/types/index.ts`:
 | Domain | Key Interfaces | Notes |
 |--------|---------------|-------|
 | **Portfolio Overview** | `PortfolioOverviewItem`, `OverviewResponse` | |
-| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` | `order_id` is **string** (UUID); `risk_score` (0–100) computed server-side; `group_id` is `number | null`; `linked_order_id` replaces `spread_pair_id`; `contract_type`, `direction`, `expiry_date`, `strike_price`, `exercise_price` added |
+| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` | `order_id` is **string** (UUID); `risk_score` (0–100) computed server-side; `group_id` is `number | null`; `linked_order_id` replaces `spread_pair_id`; `contract_type`, `direction`, `expiry_date`, `strike_price`, `exercise_price`, `cost` added; `link_type`: `"spread"` (cross-linked), `"pending_close"` (one-way sub), `"primary"` (has subs), `"none"` |
 | **Orders Groups** | `GroupOption` | Fields: `id`, `name`, `max_orders` (null = ∞), `min_price`, `max_price` |
 | **Managed Fund** | `FundPortfolio`, `TradePlan`, `TradeRecommendation`, `NavHistoryRecord` | |
 | **Spread Pairing** | `PortfolioSpreadsData` | |

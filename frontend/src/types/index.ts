@@ -46,6 +46,7 @@ export interface SpreadOrder {
   strike_price?: number | null;
   exercise_price?: number | null;
   cost?: number;
+  link_type?: 'spread' | 'pending_close' | 'primary' | 'none';
 }
 
 export interface GroupOption {

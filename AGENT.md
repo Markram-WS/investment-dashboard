@@ -50,14 +50,14 @@
   - `GET /api/v1/analytics/portfolio-grid?portfolio_id=` — full grid data with cash details, `risk_score` (0–100), tags, trade plan, internal notes
   - `PUT /api/v1/portfolios/{id}` — update `portfolio_name`, `current_nav`, `margin_locked`, `cash_buffer_limit`, `available_cash`, `money_market`, `trade_plan_md`, `internal_notes`, `tags`
   - `POST /api/v1/orders/` — create order with optional UUID `order_id`, `contract_type`, `linked_order_id`, `direction`, `expiry_date`, `strike_price`
-  - `POST /api/v1/orders/{order_id}/close` — close order with exit price/P&L, creates TradeHistory record
+  - `POST /api/v1/orders/{order_id}/close` — close order with exit price/P&L, creates TradeHistory record; auto-closes all sub-orders (one-way links to this order) server-side; returns `auto_closed[]` and `paired_order_id` for cross-linked spread partner
   - `POST /api/v1/orders/{order_id}/link` — link order to target via `linked_order_id` (one-way = pending close; reciprocal = spread pair)
 - `redirect_slashes=False` — trailing slash matters on routes
 - Two PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
 
 ### Frontend (React 18 + TypeScript + Vite)
 - **PortfolioGrid.tsx** — slim orchestrator (~241 lines, down from 1194) composing sub-components
-- **Screen modals** in `src/screens/`: `AddOrderModal` (editable UUID order_id, contract_type toggle indigo/blue/purple), `CloseOrderModal` (auto Close ID, linked_order_id), `EditOrderModal` (contract_type toggle, linked_order_id), `EditPortfolioModal` (name, NAV, margin, buffer, cash, MM, tags), `ZoneEditModal`, `ZoneGroupModal`
+- **Screen modals** in `src/screens/`: `AddOrderModal` (editable UUID order_id, contract_type toggle indigo/blue/purple), `CloseOrderModal` (auto Close ID, uses `link_type` to show spread/pending_close linked order info), `EditOrderModal` (contract_type toggle, linked_order_id), `EditPortfolioModal` (name, NAV, margin, buffer, cash, MM, tags), `ZoneEditModal`, `ZoneGroupModal`
 - **Screen components** in `src/screens/components/`:
   - `PortfolioHeader.tsx` — breadcrumb, title, Refresh + teal Add Order button
   - `SummaryCard.tsx` — 3-col values (Total Value, Total P/L, Available Cash), Cash Details (Total Notional, MM, Margin, Buffer), Risk gauge (dynamic via 3-branch formula), Asset Allocation donut (real data from active orders, excludes cash), Metadata Tags, triple-dot edit button
@@ -76,10 +76,18 @@
 ### Database (`database/`)
 - `main_db_schema.sql` — 11 tables for Manual/Bot data
   - `portfolios` has `internal_notes TEXT` and `tags JSONB` columns
-  - `active_orders.order_id` is TEXT (UUID, not auto-increment INT); `linked_order_id` TEXT (replaces old `spread_pair_id`); `contract_type` ('spot'/'future'/'option'), `direction`, `expiry_date`, `strike_price`, `cost` columns added
+  - `active_orders.order_id` is TEXT (UUID, not auto-increment INT); `linked_order_id` TEXT (replaces old `spread_pair_id`) — supports one-way (pending close) and two-way cross-linking (spread pair); `contract_type` ('spot'/'future'/'option'), `direction`, `expiry_date`, `strike_price`, `cost` columns added
   - `active_orders.option_id` references `option_details` table (greeks & pricing)
+  - `active_orders` API now includes computed `link_type` field: `"spread"` (cross-linked), `"pending_close"` (one-way sub), `"primary"` (has subs), `"none"`
   - `trade_history.close_order_id` stores UUID from close action
 - `ai_db_schema.sql` — 3 tables for AI agent state (agents, action logs, agent state)
+
+### Link / Tier Spread Logic
+- **One-way link (pending close):** `B.linked_order_id = A`, `A.linked_order_id = null` → B is a pending-close sub-order of A. Closing A auto-closes B.
+- **Two-way cross-link (spread pair):** `A.linked_order_id = B` AND `B.linked_order_id = A` → A and B form a spread pair. Closing one signals `paired_order_id` for frontend to handle the other.
+- **Tier spread:** A can be both a spread partner of B (A↔B) AND have its own pending-close sub-order C (C→A). Closing A auto-closes C and signals frontend for spread partner B.
+- **`link_type` field** in order API responses: `"spread"` (cross-linked), `"pending_close"` (one-way sub), `"primary"` (has subs), `"none"` (no linking).
+- Spread pair detection uses **reciprocal linking**, not shared `linked_order_id` value (old `spread_pair_id` behavior).
 
 ## 7. Key Business Logic
 - **Total Value** = `(available_cash + money_market) + cumulativeP/L`
