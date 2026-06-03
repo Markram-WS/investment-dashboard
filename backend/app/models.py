@@ -1,9 +1,15 @@
+import os
 import uuid
 from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime, Boolean, ForeignKey, CheckConstraint, Numeric, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, configure_mappers
 from datetime import datetime
 from decimal import Decimal
+
+
+def _generate_order_id() -> str:
+    length = int(os.getenv("ORDER_ID_LENGTH", "10"))
+    return uuid.uuid4().hex[:length]
 
 Base = declarative_base()
 
@@ -64,7 +70,7 @@ class TradePlan(Base):
 class ActiveOrder(Base):
     __tablename__ = 'active_orders'
     
-    order_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(String, primary_key=True, default=_generate_order_id)
     plan_id = Column(Integer, ForeignKey('trade_plans.plan_id'), nullable=False)
     portfolio_id = Column(Integer, ForeignKey('portfolios.portfolio_id'), nullable=False)
     asset_type = Column(String, nullable=False)
@@ -78,7 +84,7 @@ class ActiveOrder(Base):
     order_status = Column(String, default='pending_sync')
     sl_price = Column(Numeric(20, 8))
     group_id = Column(Integer, ForeignKey('orders_groups.id'), nullable=True)
-    spread_pair_id = Column(String)
+    linked_order_id = Column(String)
     executed_by = Column(String)
     option_id = Column(Integer, ForeignKey('option_details.option_id'))
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -88,6 +94,7 @@ class ActiveOrder(Base):
     direction = Column(String, nullable=True)
     expiry_date = Column(DateTime, nullable=True)
     strike_price = Column(Numeric(20, 8), nullable=True)
+    cost = Column(Numeric(20, 8), default=0.0)
     # ETL sync marker
     etl_synced = Column(Boolean, default=False)
     

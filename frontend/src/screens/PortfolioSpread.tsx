@@ -59,7 +59,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
               order_status: "CLOSED",
               executed_by: "Manual",
               created_at: "2024-01-10T00:00:00Z",
-              spread_pair_id: null,
+              linked_order_id: null,
             },
             leg_b: {
               order_id: 102,
@@ -74,7 +74,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
               order_status: "CLOSED",
               executed_by: "Manual",
               created_at: "2024-01-10T00:00:00Z",
-              spread_pair_id: null,
+              linked_order_id: null,
             },
             net_pl: 50.0,
             spread_diff: 1.5,
@@ -95,7 +95,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
             order_status: "ACTIVE",
             executed_by: "Bot",
             created_at: "2024-01-15T00:00:00Z",
-            spread_pair_id: null,
+            linked_order_id: null,
           },
         ],
       });
@@ -323,7 +323,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
               </table>
             ) : (
               <div className="p-8 text-center text-gray-500">
-                No spread pairs found. Create pairs by linking orders with matching spread_pair_id.
+                No spread pairs found. Create pairs by linking orders with matching linked_order_id.
               </div>
             )}
           </div>
@@ -391,7 +391,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
           <div className="bg-white rounded-lg p-6 w-96">
             <h3 className="font-bold text-lg mb-4">Link Order to Spread Pair</h3>
             <p className="text-sm text-gray-600 mb-3">
-              Enter the existing spread_pair_id to link this order:
+              Enter the existing linked_order_id to link this order:
             </p>
             <input
               type="text"
@@ -455,7 +455,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
                   </span>
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
-                  Qty: {order.qty} | ID: {order.spread_pair_id || 'unpaired'}
+                  Qty: {order.qty} | ID: {order.linked_order_id || 'unpaired'}
                 </div>
                 <button
                   onClick={() => handleCreatePair(order.order_id)}

@@ -61,6 +61,11 @@ open http://localhost:8000/docs
 > `available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit` are returned in the portfolio-grid analytics response.
 > `risk_score` (0–100) is computed server-side from `available_cash`, `margin_locked`, `cash_buffer_limit` — matching the frontend risk gauge logic.
 > `active_orders.group_id` is an **Integer FK** to `orders_groups.id` (renamed from `ZoneGroup`; the `zone` column was removed).
+> `active_orders.linked_order_id` is a **TEXT** column (was `spread_pair_id`) — used for one-way link (pending close) or two-way spread pair.
+> `active_orders.contract_type` is `'spot'`, `'future'`, or `'option'` — controls per-column visibility in the order table.
+> `active_orders.direction`, `expiry_date`, `strike_price` — option/future-specific fields.
+> `active_orders.cost` — cost basis for the order.
+> `active_orders.option_id` references `option_details` (greeks & pricing).
 > `trade_history.group_id` is a plain **Integer** (not FK) — stores the group reference at close/cancel time.
 > Order status values are uppercase: `PENDING`, `FILLED`, `CLOSE`, `CANCELED`. PENDING/FILLED are non-terminal; CLOSE/CANCELED are terminal.
 > All services auto-restart unless stopped. Logs: `podman compose logs -f backend`.
@@ -104,13 +109,15 @@ open http://localhost:8000/docs
 | `POST` | `/api/v1/orders/` | Place a new order (optional `order_id` UUID; auto-generated if omitted) |
 | `GET` | `/api/v1/orders/` | List orders (optional query: `portfolio_id`) |
 | `GET` | `/api/v1/orders/{order_id}` | Get order details |
-| `PUT` | `/api/v1/orders/{order_id}` | Update order fields (including `group_id` for group assignment) |
+| `PUT` | `/api/v1/orders/{order_id}` | Update order fields (`group_id`, `linked_order_id`, `contract_type`, `direction`, `expiry_date`, `strike_price`, `cost`, etc.) |
 | `PATCH` | `/api/v1/orders/{order_id}/status` | Change order status: send `{"new_status": "CANCELED"}` → deletes from `active_orders` + creates trade history with `{"note":"Canceled"}` |
 | `POST` | `/api/v1/orders/{order_id}/close` | Close order: deletes from `active_orders`, creates `TradeHistory` record with exit price/P-L. Status set to `CLOSE`. |
+| `POST` | `/api/v1/orders/{order_id}/link` | Link order to a target order via `linked_order_id` (one-way = pending close); spread pair requires reciprocal link. |
 
 > `order_id` is a UUID string (e.g., `a1b2c3d4-e5f6-...`).  
 > Order status values: `PENDING`, `FILLED` (non-terminal); `CLOSE`, `CANCELED` (terminal — order removed from `active_orders`).  
 > `group_id` is an Integer FK to `orders_groups.id`.
+> `linked_order_id` replaces the old `spread_pair_id` — supports both one-way (pending close) and two-way (spread pair) linking.
 
 ### Analytics
 | Method | Endpoint | Description |
@@ -158,7 +165,7 @@ backend/
 ├── app/
 │   ├── main.py              # FastAPI app + lifespan (auto-create tables)
 │   ├── database.py           # Async engine + session factories
-│   ├── models.py             # SQLAlchemy ORM models (14 tables)
+│   ├── models.py             # SQLAlchemy ORM models (15 tables, incl. OptionDetails)
 │   └── routers/
 │       ├── portfolios.py     # Portfolio CRUD + types
 │       ├── trade_plans.py    # Trade plan CRUD

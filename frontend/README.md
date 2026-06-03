@@ -42,7 +42,8 @@ frontend/
 │   │       ├── IconAdd.tsx
 │   │       ├── IconClose.tsx
 │   │       ├── IconEdit.tsx
-│   │       └── IconLayers.tsx
+│   │       ├── IconLayers.tsx
+│   │       └── IconLink.tsx
 │   │
 │   ├── pages/              # Main routes (pages)
 │   │   ├── PortfolioOverview.tsx    # Hero Card + Pool Health (SVG) + Grid
@@ -59,9 +60,9 @@ frontend/
 │   │   ├── PortfolioGrid.tsx        # Slim orchestrator (~327 lines) composing sub-components
 │   │   ├── PortfolioSpread.tsx      # Spread pairing: pairs + payoff
 │   │   ├── PortfolioMutualFund.tsx  # Managed fund: allocation, rebalance, NAV
-│   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID UUID, asset, side, qty, TP/SL, group combobox, status)
-│   │   ├── CloseOrderModal.tsx     # Close order form (editable Close ID UUID, exit price, P/L, auto-calc)
-│   │   ├── EditOrderModal.tsx       # Order edit modal (group combobox, validation warnings)
+│   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID UUID, asset, side, qty, TP/SL, group combobox, status, contract_type toggle indigo/blue/purple)
+│   │   ├── CloseOrderModal.tsx     # Close order form (editable Close ID UUID, exit price, P/L, auto-calc, linked_order_id)
+│   │   ├── EditOrderModal.tsx       # Order edit modal (group combobox, contract_type toggle indigo/blue/purple, validation warnings)
 │   │   ├── EditPortfolioModal.tsx   # Portfolio field editor: name, NAV, margin, buffer, cash, MM, tags; Danger Zone delete
 │   │   ├── ZoneEditModal.tsx        # Zone edit modal
 │   │   ├── ZoneGroupModal.tsx       # Orders Group CRUD (add/edit/delete), "Group" column, bottom-left add
@@ -72,11 +73,11 @@ frontend/
 │   │       ├── TagsSection.tsx        # Metadata tag pills
 │   │       ├── PerformanceSection.tsx # Performance wrapper + Equity/Payoff toggle
 │   │       ├── PerformanceChart.tsx   # Dynamic SVG: equity line chart or payoff bar chart
-│   │       ├── OrderManagement.tsx    # Active orders table (grouped or flat), Group toggle, two-row header with Add Order pill, drag-and-drop support
+│   │       ├── OrderManagement.tsx    # Active orders table (grouped or flat), Group toggle, two-row header with Add Order pill, drag-and-drop support, Link Order button in left column, contract_type filter tabs (indigo/blue/purple)
 │   │       ├── TradeHistoryTable.tsx  # Collapsible closed-orders table (bg-gray-50 pill badge matching Ungrouped style); drop target (even when collapsed)
 │   │       ├── TradePlanView.tsx      # Trade plan markdown display (click-to-edit, Save/Cancel)
 │   │       ├── QuickStatsView.tsx     # Active pairs/positions stats
-│   │       ├── ZoneGroupRow.tsx       # Grouped order row (exports OrderGroupRow) with edit/close buttons, drag handle, drop target (counter-ref prevents flicker), custom drag ghost pill
+│   │       ├── ZoneGroupRow.tsx       # Grouped order row (exports OrderGroupRow) with edit/close buttons (no borders), drag handle, Link Order button in left column, drop target (counter-ref prevents flicker), custom drag ghost pill
 │   │       ├── GroupCombobox.tsx      # Searchable combobox dropdown for group selection in modals
 │   │       ├── ToastAlert.tsx         # Fixed-position dismissible toast (z-[9999], below nav bar, auto-dismiss 4s)
 │   │       └── HistoricalGridView.tsx # Historical trades accordion
@@ -291,20 +292,20 @@ Portfolio Analytics มี 3 รูปแบบใหญ่ ๆ ที่เล�
   - **Right Panel (Strategy & Notes)**: Canary Yellow Sticky Note Panel (350px)
     - Trade Plan (Markdown)
     - Quick Stats (active pairs / unpaired count)
-    - Decision Journal (completed cycles from orders with spread_pair_id)
+    - Decision Journal (completed cycles from orders with linked_order_id)
 - **Mock Data (Binance Futures)**:
   ```typescript
   active_orders: [
     { order_id: 101, asset_type: "BTC", side: "BUY", qty: 0.5, status: "ACTIVE" },
     { order_id: 102, asset_type: "ETH", side: "SELL", qty: 2.0, status: "ACTIVE" },
-    { order_id: 103, asset_type: "SOL", side: "BUY", qty: 10, status: "CLOSED", spread_pair_id: "shsojvp" }
+    { order_id: 103, asset_type: "SOL", side: "BUY", qty: 10, status: "CLOSED", linked_order_id: "shsojvp" }
   ]
   ```
 - **Features**:
   - Active Orders table with Side/Status color coding
   - Manual Refresh with timestamp
   - Risk Status Header with info tooltip (ⓘ)
-  - Decision Journal from closed orders with spread_pair_id
+  - Decision Journal from closed orders with linked_order_id
 
 ### 2. Spread View (`/spread-pairing`)
 - **Port Type**: `spread*`
@@ -397,12 +398,14 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
    - Drop บน Ungrouped section → ยกเลิก group assignment
    - Drop บน Trade History (even when collapsed) → close (FILLED) หรือ cancel (PENDING)
    - Group validation alerts (non-blocking toast): max_orders, min_price, max_price
-9. **Ungrouped Orders section**: Always visible (drop target for unassigning)
-10. **Order status**: PENDING / FILLED / CLOSE / CANCELED (uppercase)
-11. **Portfolio Delete**: Cascade cleanup with activeOrderCount guard
-12. **Header layout**: Two-row header — title + ACTIVE badge (row 1), Order Groups icon + Group toggle (row 2), Add Order pill button centered vertically on right
-13. **Trade History styling**: Matches Ungrouped Orders section — `bg-gray-50` with pill badge, `border border-hairline`, `rounded-b-xl`
-14. **ToastAlert position**: Centered below nav bar (`top-20 left-1/2 -translate-x-1/2 z-[9999]`)
+9. **Contract Type Filter Tabs**: Filter orders by `contract_type` (Spot=indigo, Future=blue, Option=purple) in the order table header
+10. **Link Order Button**: Chain-link icon (`IconLink`) in the left column (next to drag handle) — opens link order modal for pairing orders via `linked_order_id`
+11. **Ungrouped Orders section**: Always visible (drop target for unassigning)
+12. **Order status**: PENDING / FILLED / CLOSE / CANCELED (uppercase)
+13. **Portfolio Delete**: Cascade cleanup with activeOrderCount guard
+14. **Header layout**: Two-row header — title + ACTIVE badge (row 1), Order Groups icon + Group toggle (row 2), Add Order pill button centered vertically on right
+15. **Trade History styling**: Matches Ungrouped Orders section — `bg-gray-50` with pill badge, `border border-hairline`, `rounded-b-xl`
+16. **ToastAlert position**: Centered below nav bar (`top-20 left-1/2 -translate-x-1/2 z-[9999]`)
 
 ## ⚙️ Technical Details
 
@@ -484,7 +487,7 @@ All shared types are defined in `src/types/index.ts`:
 | Domain | Key Interfaces | Notes |
 |--------|---------------|-------|
 | **Portfolio Overview** | `PortfolioOverviewItem`, `OverviewResponse` | |
-| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` | `order_id` is **string** (UUID); `risk_score` (0–100) computed server-side; `group_id` is `number | null` |
+| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` | `order_id` is **string** (UUID); `risk_score` (0–100) computed server-side; `group_id` is `number | null`; `linked_order_id` replaces `spread_pair_id`; `contract_type`, `direction`, `expiry_date`, `strike_price`, `exercise_price` added |
 | **Orders Groups** | `GroupOption` | Fields: `id`, `name`, `max_orders` (null = ∞), `min_price`, `max_price` |
 | **Managed Fund** | `FundPortfolio`, `TradePlan`, `TradeRecommendation`, `NavHistoryRecord` | |
 | **Spread Pairing** | `PortfolioSpreadsData` | |

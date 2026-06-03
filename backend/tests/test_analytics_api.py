@@ -41,7 +41,7 @@ def active_order_payload(plan_id, portfolio_id):
         "margin_rate": 0.2,
         "order_status": "filled",
         "executed_by": "Manual",
-        "spread_pair_id": "spread_1",
+        "linked_order_id": "spread_1",
     }
 
 def ai_agent_payload(target_portfolio_id):
@@ -122,14 +122,14 @@ async def test_portfolio_grid_endpoint_with_data(async_client):
     assert portfolio_data["portfolio_name"] == "Test Portfolio"
     assert portfolio_data["port_type"] == "Active Trading"
     assert portfolio_data["risk_status"] == "Safe"
-    # Check that we have an active order (note: the endpoint filters out spread legs, but we have a spread_pair_id set)
-    # Since we set spread_pair_id, the order might be considered a spread leg and excluded from active_orders_list.
+    # Check that we have an active order (note: the endpoint filters out spread legs, but we have a linked_order_id set)
+    # Since we set linked_order_id, the order might be considered a spread leg and excluded from active_orders_list.
     # We'll adjust the test to not rely on the exact count of active orders for now.
-    # Instead, we'll check that the spread_pairs list contains our order (if the endpoint groups by spread_pair_id).
-    # We set spread_pair_id to "spread_1", and we have only one order with that spread_pair_id, so it won't form a pair.
+    # Instead, we'll check that the spread_pairs list contains our order (if the endpoint groups by linked_order_id).
+    # We set linked_order_id to "spread_1", and we have only one order with that linked_order_id, so it won't form a pair.
     # Therefore, we expect spread_pairs to be empty.
     assert isinstance(portfolio_data["spread_pairs"], list)
-    # We have only one order with spread_pair_id, so no pair is formed.
+    # We have only one order with linked_order_id, so no pair is formed.
     assert len(portfolio_data["spread_pairs"]) == 0
     # Check that the trade_plan_md is set to the entry_reason
     assert portfolio_data["trade_plan_md"] == "Test entry reason"

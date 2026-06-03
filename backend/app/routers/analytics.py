@@ -220,15 +220,15 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
             # Extract risk insight from reasoning or use a placeholder
             ai_risk_insight = "Risk metrics based on recent AI analysis" if ai_log.reasoning else None
         
-        # Get spread pairs (orders with spread_pair_id set)
-        spread_orders = [order for order in active_orders if order.spread_pair_id]
+        # Get spread pairs (orders with linked_order_id set)
+        spread_orders = [order for order in active_orders if order.linked_order_id]
         spread_pairs_dict = {}
         
-        # Group orders by spread_pair_id
+        # Group orders by linked_order_id
         for order in spread_orders:
-            if order.spread_pair_id not in spread_pairs_dict:
-                spread_pairs_dict[order.spread_pair_id] = []
-            spread_pairs_dict[order.spread_pair_id].append(order)
+            if order.linked_order_id not in spread_pairs_dict:
+                spread_pairs_dict[order.linked_order_id] = []
+            spread_pairs_dict[order.linked_order_id].append(order)
         
         # Create spread pairs (expecting pairs of orders)
         spread_pairs = []
@@ -348,12 +348,13 @@ async def get_portfolio_grid_data(db: AsyncSession = Depends(get_db)):
                     "executed_by": order.executed_by,
                     "group_id": order.group_id,
                     "group_name": order.group.name if order.group else None,
-                    "spread_pair_id": order.spread_pair_id,
+                    "linked_order_id": order.linked_order_id,
                     "contract_type": order.contract_type,
                     "direction": order.direction,
                     "expiry_date": order.expiry_date.isoformat() if order.expiry_date else None,
                     "strike_price": _to_float(order.strike_price),
                     "exercise_price": exercise_price,
+                    "cost": _to_float(order.cost) if order.cost else 0,
                     "created_at": order.created_at.isoformat() if order.created_at else None
                 })
         
@@ -433,12 +434,12 @@ async def get_portfolio_detail(
         ai_risk_insight = "Risk metrics based on recent AI analysis" if ai_log.reasoning else None
     
     # Get spread pairs
-    spread_orders = [order for order in active_orders if order.spread_pair_id]
+    spread_orders = [order for order in active_orders if order.linked_order_id]
     spread_pairs_dict = {}
     for order in spread_orders:
-        if order.spread_pair_id not in spread_pairs_dict:
-            spread_pairs_dict[order.spread_pair_id] = []
-        spread_pairs_dict[order.spread_pair_id].append(order)
+        if order.linked_order_id not in spread_pairs_dict:
+            spread_pairs_dict[order.linked_order_id] = []
+        spread_pairs_dict[order.linked_order_id].append(order)
     
     spread_pairs = []
     for pair_id, orders in spread_pairs_dict.items():
@@ -545,14 +546,16 @@ async def get_portfolio_detail(
                 "leverage": order.leverage,
                 "margin_rate": order.margin_rate,
                 "order_status": order.order_status,
-                "executed_by": order.executed_by,
-                "group_id": order.group_id,
-                "group_name": order.group.name if order.group else None,
-                "spread_pair_id": order.spread_pair_id,
-                "contract_type": order.contract_type,
-                "direction": order.direction,
-                "expiry_date": order.expiry_date.isoformat() if order.expiry_date else None,
-                "exercise_price": exercise_price,
+                    "executed_by": order.executed_by,
+                    "group_id": order.group_id,
+                    "group_name": order.group.name if order.group else None,
+                    "linked_order_id": order.linked_order_id,
+                    "contract_type": order.contract_type,
+                    "direction": order.direction,
+                    "expiry_date": order.expiry_date.isoformat() if order.expiry_date else None,
+                    "strike_price": _to_float(order.strike_price),
+                    "exercise_price": exercise_price,
+                    "cost": _to_float(order.cost) if order.cost else 0,
                 "created_at": order.created_at.isoformat() if order.created_at else None
             })
     

@@ -99,7 +99,7 @@ async def test_portfolio_spreads_endpoint_with_pairs(async_client):
     assert plan_resp.status_code == 201
     plan_id = plan_resp.json()["plan_id"]
 
-    # Create two orders with the same spread_pair_id to form a pair
+    # Create two orders with the same linked_order_id to form a pair
     for i in range(2):
         order_resp = await async_client.post("/api/v1/orders/", json={
             "plan_id": plan_id,
@@ -109,7 +109,7 @@ async def test_portfolio_spreads_endpoint_with_pairs(async_client):
             "qty": 1.0,
             "entry_price": 100.0 + i,
             "tp_price": 115.0,
-            "spread_pair_id": "spread_test_1",
+            "linked_order_id": "spread_test_1",
         })
         assert order_resp.status_code == 201
 

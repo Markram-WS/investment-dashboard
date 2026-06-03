@@ -199,6 +199,19 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           )}
           <div className="flex gap-4">
             <div className="flex-1">
+              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Cost (spread/commission)</label>
+              <input
+                type="number"
+                step="any"
+                value={formData.cost}
+                onChange={(e) => onChange('cost', e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="flex-1" />
+          </div>
+          <div className="flex gap-4">
+            <div className="flex-1">
               <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Status</label>
               <ToggleBtn
                 options={[

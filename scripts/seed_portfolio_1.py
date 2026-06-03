@@ -48,7 +48,7 @@ active_orders = [
         "tp_price": 102000,
         "leverage": 10,
         "margin_rate": 0.02,
-        "spread_pair_id": None,  # Active grid order
+        "linked_order_id": None,  # Active grid order
     },
     {
         "plan_id": PLAN_ID,
@@ -61,7 +61,7 @@ active_orders = [
         "tp_price": 96000,
         "leverage": 10,
         "margin_rate": 0.02,
-        "spread_pair_id": None,  # Active grid order
+        "linked_order_id": None,  # Active grid order
     },
     # ETH Orders  
     {
@@ -75,7 +75,7 @@ active_orders = [
         "tp_price": 3900,
         "leverage": 5,
         "margin_rate": 0.01,
-        "spread_pair_id": None,
+        "linked_order_id": None,
     },
     {
         "plan_id": PLAN_ID,
@@ -88,7 +88,7 @@ active_orders = [
         "tp_price": 3500,
         "leverage": 5,
         "margin_rate": 0.01,
-        "spread_pair_id": None,
+        "linked_order_id": None,
     },
     # SOL Order (closed)
     {
@@ -102,7 +102,7 @@ active_orders = [
         "tp_price": 245,
         "leverage": 3,
         "margin_rate": 0.015,
-        "spread_pair_id": "shsojvp",  # Will link with another for spread demo
+        "linked_order_id": "shsojvp",  # Will link with another for spread demo
     },
 ]
 

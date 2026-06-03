@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS active_orders (
     margin_rate NUMERIC(20,8),
     order_status TEXT DEFAULT 'pending_sync',
     group_id INTEGER REFERENCES orders_groups(id) ON DELETE SET NULL,
-    spread_pair_id TEXT,
+    linked_order_id TEXT,
     executed_by TEXT,
     option_id INTEGER REFERENCES option_details(option_id),
     data_source TEXT DEFAULT 'Manual' CHECK (data_source IN ('Manual', 'Bot')),
@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS active_orders (
     direction TEXT,
     expiry_date TIMESTAMP,
     strike_price NUMERIC(20,8),
+    cost NUMERIC(20,8) DEFAULT 0,
     etl_synced BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

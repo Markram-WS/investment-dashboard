@@ -12,6 +12,7 @@ interface OrderGroupRowProps {
   onEdit: (order: SpreadOrder) => void;
   onClose?: (order: SpreadOrder) => void;
   onAssignGroup?: (orderId: string, groupId: number | null) => void;
+  onLinkOrder?: (sourceOrderId: string, targetOrderId: string) => void;
   contractFilter: 'spot' | 'future' | 'option';
 }
 
@@ -26,7 +27,7 @@ const getSideBadgeClass = (side: string): string => {
     : 'bg-coralLight text-brandCoral border border-brandCoral/20 uppercase';
 };
 
-export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups, onEdit, onClose, onAssignGroup, contractFilter }) => {
+export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups, onEdit, onClose, onAssignGroup, onLinkOrder, contractFilter }) => {
   const isUngrouped = groupInfo.group_id === null;
   const groupDef = groups.find(g => g.id === groupInfo.group_id);
   const groupLabel = groupDef
@@ -79,11 +80,31 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
     e.preventDefault();
     dragCounter.current = 0;
     setIsDragOver(false);
+    const isLink = e.dataTransfer.getData('text/x-link');
+    if (isLink) {
+      const linkOrderId = e.dataTransfer.getData('text/plain');
+      if (linkOrderId && onLinkOrder && groupInfo.mainOrders.length > 0) {
+        onLinkOrder(linkOrderId, groupInfo.mainOrders[0].order_id);
+      }
+      return;
+    }
     const orderId = e.dataTransfer.getData('text/plain');
     if (orderId && onAssignGroup) {
       onAssignGroup(orderId, groupInfo.group_id);
     }
-  }, [onAssignGroup, groupInfo.group_id]);
+  }, [onAssignGroup, onLinkOrder, groupInfo.group_id, groupInfo.mainOrders]);
+
+  const handleLinkDragStart = useCallback((e: React.DragEvent, order: SpreadOrder) => {
+    e.dataTransfer.effectAllowed = 'link';
+    e.dataTransfer.setData('text/plain', order.order_id);
+    e.dataTransfer.setData('text/x-link', '1');
+    const ghost = document.createElement('div');
+    ghost.textContent = `Link: ${order.asset_type}`;
+    ghost.style.cssText = 'position:absolute;top:-1000px;left:-1000px;padding:6px 14px;background:#4262ff;color:#fff;border-radius:9999px;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 4px 16px rgba(66,98,255,0.3)';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, 20);
+    setTimeout(() => document.body.removeChild(ghost), 0);
+  }, []);
 
   const handleDragStart = useCallback((e: React.DragEvent, order: SpreadOrder) => {
     e.dataTransfer.setData('text/plain', order.order_id);
@@ -96,7 +117,8 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    const types = Array.from(e.dataTransfer.types);
+    e.dataTransfer.dropEffect = types.indexOf('text/x-link') !== -1 ? 'link' : 'move';
   }, []);
 
   return (
@@ -159,16 +181,17 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                     <circle cx="15" cy="18" r="1.5" />
                   </svg>
                 </span>
-                <button
-                  onClick={() => {}}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-blue-50 rounded transition-colors text-gray-300 hover:text-blue-600"
-                  title="Link Order"
+                <span
+                  draggable="true"
+                  onDragStart={(e) => handleLinkDragStart(e, order)}
+                  className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-blue-600 transition-opacity"
+                  title="Drag to link order"
                 >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" draggable="false">
                     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
                   </svg>
-                </button>
+                </span>
               </div>
             </td>
             <td draggable={false} className="py-4 font-bold text-xs">#{order.order_id}</td>

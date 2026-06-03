@@ -15,6 +15,7 @@ export interface AddOrderForm {
   direction: string;
   expiry_date: string;
   strike_price: number | string;
+  cost: number | string;
 }
 
 interface UseAddOrderReturn {
@@ -43,6 +44,7 @@ const defaultForm: AddOrderForm = {
   direction: '',
   expiry_date: '',
   strike_price: '',
+  cost: '',
 };
 
 export const useAddOrder = (): UseAddOrderReturn => {
@@ -81,6 +83,7 @@ export const useAddOrder = (): UseAddOrderReturn => {
         direction: formData.direction || undefined,
         expiry_date: formData.expiry_date ? new Date(formData.expiry_date).toISOString() : undefined,
         strike_price: formData.strike_price !== '' ? parseFloat(formData.strike_price as string) : undefined,
+        cost: formData.cost !== '' ? parseFloat(formData.cost as string) : 0,
       });
       if (onCreatedRef.current) {
         await onCreatedRef.current();

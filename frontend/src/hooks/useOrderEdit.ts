@@ -35,6 +35,7 @@ export const useOrderEdit = (): UseOrderEditReturn => {
       direction: order.direction,
       expiry_date: order.expiry_date,
       strike_price: order.strike_price,
+      cost: order.cost,
     });
     setShowModal(true);
   }, []);

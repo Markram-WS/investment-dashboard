@@ -55,7 +55,7 @@ tags:
     - `leverage`, `margin_rate`.
     - `order_status`: (pending_sync, filled, cancel_pending).
     - `grid_group_id`: ID สำหรับจัดกลุ่มออเดอร์ในโซนเดียวกัน (Zone Consolidation).
-    - `spread_pair_id`: ID เชื่อมโยงคู่ขา 1:1 สำหรับ Spread Strategy.
+    - `linked_order_id`: ID เชื่อมโยงคู่ขา 1:1 สำหรับ Spread Strategy.
     - **`executed_by`**: บ่งบอกที่มา (Manual, Bot, AI).
     - `option_id` (FK, nullable): เชื่อมโยงรายละเอียด Option.
 

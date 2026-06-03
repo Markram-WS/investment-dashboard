@@ -172,10 +172,19 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     }
   }, [activeOrders, handleCloseOrder]);
 
+  const handleLinkOrder = useCallback(async (sourceOrderId: string, targetOrderId: string) => {
+    try {
+      await api.linkOrder(sourceOrderId, targetOrderId);
+      fetchAnalyticsData();
+    } catch (err) {
+      console.error("Failed to link order:", err);
+    }
+  }, [fetchAnalyticsData]);
+
   const handleConfirmClose = useCallback(
-    async (orderId: string, closeOrderId: string, exitPrice: number | null, realizedPl: number | null) => {
+    async (orderId: string, closeOrderId: string, exitPrice: number | null, realizedPl: number | null, cost?: number) => {
       try {
-        await api.closeOrder(orderId, { close_order_id: closeOrderId, exit_price: exitPrice, realized_pl: realizedPl });
+        const resp = await api.closeOrder(orderId, { close_order_id: closeOrderId, exit_price: exitPrice, realized_pl: realizedPl, cost });
         setShowCloseModal(false);
         setClosingOrder(null);
         fetchAnalyticsData();
@@ -184,11 +193,19 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           setTradeHistory(data);
           api.getPerformance(selectedPortfolio.portfolio_id).then(setPerformanceData).catch(() => {});
         }
+        // If spread pair (mutual link), auto-open close modal for the paired order
+        if (resp.paired_order_id) {
+          const pairedOrder = activeOrders.find(o => o.order_id === resp.paired_order_id);
+          if (pairedOrder) {
+            setClosingOrder(pairedOrder);
+            setShowCloseModal(true);
+          }
+        }
       } catch (err) {
         console.error("Failed to close order:", err);
       }
     },
-    [fetchAnalyticsData, selectedPortfolio],
+    [fetchAnalyticsData, selectedPortfolio, activeOrders],
   );
 
   const zoneGroups = useMemo(() => {
@@ -324,6 +341,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onToggleHistory={() => setShowHistory(!showHistory)}
         onAssignGroup={handleAssignGroup}
         onDropOnTradeHistory={handleDropOnTradeHistory}
+        onLinkOrder={handleLinkOrder}
         contractFilter={contractFilter}
         onContractFilterChange={setContractFilter}
       />
@@ -361,6 +379,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         showModal={showCloseModal}
         onClose={() => { setShowCloseModal(false); setClosingOrder(null); }}
         onConfirm={handleConfirmClose}
+        activeOrders={activeOrders}
       />
       <AddOrderModal
         formData={addFormData}

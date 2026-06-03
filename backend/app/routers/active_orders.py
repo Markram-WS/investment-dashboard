@@ -25,11 +25,12 @@ class ActiveOrderCreate(BaseModel):
     margin_rate: Optional[float] = None
     group_id: Optional[int] = None
     order_status: Optional[str] = None
-    spread_pair_id: Optional[str] = None
+    linked_order_id: Optional[str] = None
     contract_type: Optional[str] = 'spot'
     direction: Optional[str] = None
     expiry_date: Optional[datetime] = None
     strike_price: Optional[float] = None
+    cost: Optional[float] = 0.0
 
 
 class ActiveOrderUpdate(BaseModel):
@@ -44,11 +45,12 @@ class ActiveOrderUpdate(BaseModel):
     margin_rate: Optional[float] = None
     order_status: Optional[str] = None
     group_id: Optional[int] = None
-    spread_pair_id: Optional[str] = None
+    linked_order_id: Optional[str] = None
     contract_type: Optional[str] = None
     direction: Optional[str] = None
     expiry_date: Optional[datetime] = None
     strike_price: Optional[float] = None
+    cost: Optional[float] = None
 
 
 class ActiveOrderResponse(BaseModel):
@@ -65,12 +67,13 @@ class ActiveOrderResponse(BaseModel):
     leverage: Optional[float]
     margin_rate: Optional[float]
     order_status: str
-    spread_pair_id: Optional[str]
+    linked_order_id: Optional[str]
     group_id: Optional[int] = None
     contract_type: Optional[str] = 'spot'
     direction: Optional[str] = None
     expiry_date: Optional[datetime] = None
     strike_price: Optional[float] = None
+    cost: Optional[float] = 0.0
     created_at: Optional[datetime] = None
 
     class Config:
@@ -182,11 +185,14 @@ class CloseOrderRequest(BaseModel):
     realized_pl: Optional[float] = None
     decision_note: Optional[str] = None
     close_order_id: Optional[str] = None
+    cost: Optional[float] = 0.0
 
 
 @router.post("/{order_id}/close", tags=["orders"])
 async def close_order(order_id: str, req: CloseOrderRequest, db: AsyncSession = Depends(get_db)):
-    """Close an active order: delete from active_orders and create a trade history record."""
+    """Close an active order: delete from active_orders and create a trade history record.
+    If the order has a linked_order_id referencing a pending-close linked order (one-way),
+    also close that linked order automatically."""
     result = await db.execute(select(ActiveOrder).where(ActiveOrder.order_id == order_id))
     order = result.scalar_one_or_none()
     if not order:
@@ -194,31 +200,88 @@ async def close_order(order_id: str, req: CloseOrderRequest, db: AsyncSession = 
 
     now = datetime.utcnow()
 
-    history = TradeHistory(
-        portfolio_id=order.portfolio_id,
-        order_id=order.order_id,
-        close_order_id=req.close_order_id,
-        group_id=order.group_id,
-        type=order.side,
-        asset=order.asset_type,
-        amount=float(order.qty) if order.qty else None,
-        entry_price=float(order.entry_price) if order.entry_price else None,
-        exit_price=req.exit_price or (float(order.current_price) if order.current_price else None),
-        realized_pl=req.realized_pl,
-        executed_by=order.executed_by or "Manual",
-        decision_note=req.decision_note,
-        entry_date=order.created_at or now,
-        exit_date=now,
-        comments={},
-    )
+    def make_history(o: ActiveOrder, exit_price: Optional[float], realized_pl: Optional[float],
+                     close_order_id: Optional[str], decision_note: Optional[str]) -> TradeHistory:
+        return TradeHistory(
+            portfolio_id=o.portfolio_id,
+            order_id=o.order_id,
+            close_order_id=close_order_id,
+            group_id=o.group_id,
+            type=o.side,
+            asset=o.asset_type,
+            amount=float(o.qty) if o.qty else None,
+            entry_price=float(o.entry_price) if o.entry_price else None,
+            exit_price=exit_price or (float(o.current_price) if o.current_price else None),
+            realized_pl=realized_pl,
+            executed_by=o.executed_by or "Manual",
+            decision_note=decision_note,
+            entry_date=o.created_at or now,
+            exit_date=now,
+            comments={"cost": float(req.cost or 0)},
+        )
 
+    also_closed = None
+
+    # Check if this is a pending-close link (one-way)
+    if order.linked_order_id:
+        linked_result = await db.execute(
+            select(ActiveOrder).where(ActiveOrder.order_id == order.linked_order_id)
+        )
+        linked = linked_result.scalar_one_or_none()
+        # One-way: linked order has no reciprocal linked_order_id
+        if linked and linked.linked_order_id != order.order_id:
+            linked_history = make_history(linked, req.exit_price, req.realized_pl, None, req.decision_note)
+            db.add(linked_history)
+            await db.delete(linked)
+            await db.flush()
+            also_closed = {
+                "order_id": linked.order_id,
+                "history_id": linked_history.history_id,
+            }
+        # Spread (mutual): close only this order; frontend will open second modal
+
+    history = make_history(order, req.exit_price, req.realized_pl, req.close_order_id, req.decision_note)
     db.add(history)
     await db.delete(order)
     await db.commit()
     await db.refresh(history)
 
-    return {
+    resp = {
         "order_id": order.order_id,
         "order_status": "CLOSE",
         "history_id": history.history_id,
     }
+    if also_closed:
+        resp["also_closed"] = also_closed
+    # Signal frontend to open second modal for spread pair
+    if order.linked_order_id:
+        linked_check = await db.execute(
+            select(ActiveOrder).where(ActiveOrder.order_id == order.linked_order_id)
+        )
+        linked_alive = linked_check.scalar_one_or_none()
+        if linked_alive and linked_alive.linked_order_id == order.order_id:
+            resp["paired_order_id"] = linked_alive.order_id
+    return resp
+
+
+class LinkOrderRequest(BaseModel):
+    target_order_id: str
+
+
+@router.post("/{order_id}/link", tags=["orders"])
+async def link_order(order_id: str, req: LinkOrderRequest, db: AsyncSession = Depends(get_db)):
+    """Link order to a target order by setting linked_order_id (one-way = pending close).
+    For two-way (spread), the target order must also link back."""
+    result = await db.execute(select(ActiveOrder).where(ActiveOrder.order_id == order_id))
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    result = await db.execute(select(ActiveOrder).where(ActiveOrder.order_id == req.target_order_id))
+    target = result.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target order not found")
+
+    order.linked_order_id = req.target_order_id
+    await db.commit()
+    await db.refresh(order)
+    return {"order_id": order.order_id, "linked_order_id": order.linked_order_id}

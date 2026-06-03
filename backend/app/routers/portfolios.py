@@ -272,13 +272,13 @@ async def get_portfolio_spreads(portfolio_id: int, db: AsyncSession = Depends(ge
     )
     active_orders = active_orders_result.scalars().all()
 
-    # Group orders by spread_pair_id
-    spread_orders = [order for order in active_orders if order.spread_pair_id]
+    # Group orders by linked_order_id
+    spread_orders = [order for order in active_orders if order.linked_order_id]
     spread_pairs_dict = {}
     for order in spread_orders:
-        if order.spread_pair_id not in spread_pairs_dict:
-            spread_pairs_dict[order.spread_pair_id] = []
-        spread_pairs_dict[order.spread_pair_id].append(order)
+        if order.linked_order_id not in spread_pairs_dict:
+            spread_pairs_dict[order.linked_order_id] = []
+        spread_pairs_dict[order.linked_order_id].append(order)
 
     # Create spread pairs
     spread_pairs = []
@@ -323,7 +323,7 @@ async def get_portfolio_spreads(portfolio_id: int, db: AsyncSession = Depends(ge
                     "order_status": leg_a.order_status,
                     "executed_by": leg_a.executed_by,
                     "created_at": leg_a.created_at.isoformat() if leg_a.created_at else None,
-                    "spread_pair_id": leg_a.spread_pair_id,
+                    "linked_order_id": leg_a.linked_order_id,
                 },
                 leg_b={
                     "order_id": leg_b.order_id,
@@ -338,14 +338,14 @@ async def get_portfolio_spreads(portfolio_id: int, db: AsyncSession = Depends(ge
                     "order_status": leg_b.order_status,
                     "executed_by": leg_b.executed_by,
                     "created_at": leg_b.created_at.isoformat() if leg_b.created_at else None,
-                    "spread_pair_id": leg_b.spread_pair_id,
+                    "linked_order_id": leg_b.linked_order_id,
                 },
                 net_pl=net_pl,
                 spread_diff=spread_diff,
                 zone=zone,
             ))
 
-    # Get unpaired orders (orders with spread_pair_id that don't have a matching pair)
+    # Get unpaired orders (orders with linked_order_id that don't have a matching pair)
     paired_order_ids = set()
     for pair in spread_pairs:
         paired_order_ids.add(pair.leg_a["order_id"])
@@ -363,7 +363,7 @@ async def get_portfolio_spreads(portfolio_id: int, db: AsyncSession = Depends(ge
             "margin_rate": order.margin_rate,
             "order_status": order.order_status,
             "executed_by": order.executed_by,
-            "spread_pair_id": order.spread_pair_id,
+            "linked_order_id": order.linked_order_id,
             "created_at": order.created_at.isoformat() if order.created_at else None,
         }
         for order in spread_orders if order.order_id not in paired_order_ids

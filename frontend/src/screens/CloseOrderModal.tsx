@@ -10,7 +10,9 @@ interface CloseOrderModalProps {
     closeOrderId: string,
     exitPrice: number | null,
     realizedPl: number | null,
+    cost: number,
   ) => Promise<void>;
+  activeOrders: SpreadOrder[];
 }
 
 type LastEdited = "exitPrice" | "pl" | null;
@@ -20,6 +22,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
   showModal,
   onClose,
   onConfirm,
+  activeOrders,
 }) => {
   const [closeId, setCloseId] = useState("");
   const [exitPrice, setExitPrice] = useState("");
@@ -28,12 +31,25 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
   const [saving, setSaving] = useState(false);
   const lastEdited = useRef<LastEdited>(null);
 
+  const linkedOrder = order?.linked_order_id
+    ? activeOrders.find(o => o.order_id === order.linked_order_id)
+    : null;
+
+  const isPendingClose = linkedOrder && linkedOrder.linked_order_id !== order?.order_id;
+
   useEffect(() => {
-    if (showModal) {
-      setCloseId(`CLS-${Math.random().toString(36).slice(2, 8).toUpperCase()}`);
-      setExitPrice("");
+    if (showModal && order) {
+      if (isPendingClose && linkedOrder) {
+        setCloseId(linkedOrder.order_id);
+        setExitPrice(String(linkedOrder.entry_price ?? ''));
+        const totalCost = (order.cost || 0) + (linkedOrder.cost || 0);
+        setCost(String(totalCost));
+      } else {
+        setCloseId(`CLS-${Math.random().toString(36).slice(2, 8).toUpperCase()}`);
+        setExitPrice("");
+      }
       setRealizedPl("");
-      setCost("0");
+      setCost(c => c);
       lastEdited.current = null;
     }
   }, [showModal, order?.order_id]);
@@ -84,6 +100,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
         closeId || String(order.order_id),
         exitPrice !== "" ? parseFloat(exitPrice) : null,
         realizedPl !== "" ? parseFloat(realizedPl) : null,
+        parseFloat(cost) || 0,
       );
     } finally {
       setSaving(false);
@@ -93,7 +110,9 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
-        <h3 className="text-lg font-bold mb-4">Close Order</h3>
+        <h3 className="text-lg font-bold mb-4">
+          Close Order {isPendingClose && linkedOrder ? `(linked to #${linkedOrder.order_id?.slice(0, 8)})` : ''}
+        </h3>
 
         <div className="space-y-3">
           <div>
@@ -120,11 +139,23 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
               <span className="text-gray-500">Entry Price</span>
               <span className="font-semibold">${entryPrice.toLocaleString()}</span>
             </div>
+            {isPendingClose && linkedOrder && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Linked Order</span>
+                  <span className="font-semibold">#{linkedOrder.order_id?.slice(0, 8)} &middot; {linkedOrder.asset_type} &middot; {linkedOrder.side}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Linked Entry</span>
+                  <span className="font-semibold">${linkedOrder.entry_price?.toLocaleString() || '-'}</span>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="border-t pt-3 space-y-3">
             <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Cost</label>
+              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Cost (spread/commission)</label>
               <input
                 type="number"
                 step="any"
@@ -171,7 +202,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
             disabled={saving}
             className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
           >
-            {saving ? "Closing..." : "Close Order"}
+            {saving ? "Closing..." : isPendingClose ? "Close Both" : "Close Order"}
           </button>
         </div>
       </div>

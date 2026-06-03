@@ -33,7 +33,7 @@ const mockPortfolioData = [
           order_status: 'ACTIVE',
           executed_by: 'AI',
           created_at: '2024-01-15T10:00:00Z',
-          spread_pair_id: null
+          linked_order_id: null
         },
         leg_b: {
           order_id: 2,
@@ -48,7 +48,7 @@ const mockPortfolioData = [
           order_status: 'ACTIVE',
           executed_by: 'AI',
           created_at: '2024-01-15T10:00:00Z',
-          spread_pair_id: null
+          linked_order_id: null
         },
         net_pl: 50.0,
         spread_diff: 150.0,
