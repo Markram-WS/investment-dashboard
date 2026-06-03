@@ -188,6 +188,28 @@ class CloseOrderRequest(BaseModel):
     cost: Optional[float] = 0.0
 
 
+@router.post("/{order_id}/unlink", tags=["orders"])
+async def unlink_order(order_id: str, db: AsyncSession = Depends(get_db)):
+    """Unlink an order from its linked partner. Clears linked_order_id on both sides."""
+    result = await db.execute(select(ActiveOrder).where(ActiveOrder.order_id == order_id))
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    partner_id = order.linked_order_id
+    order.linked_order_id = None
+
+    if partner_id:
+        result2 = await db.execute(select(ActiveOrder).where(ActiveOrder.order_id == partner_id))
+        partner = result2.scalar_one_or_none()
+        if partner and partner.linked_order_id == order_id:
+            partner.linked_order_id = None
+
+    await db.commit()
+    await db.refresh(order)
+    return {"order_id": order.order_id, "linked_order_id": None, "unlinked_partner": partner_id}
+
+
 @router.post("/{order_id}/close", tags=["orders"])
 async def close_order(order_id: str, req: CloseOrderRequest, db: AsyncSession = Depends(get_db)):
     """Close an active order: delete from active_orders and create trade history record(s).
@@ -284,6 +306,8 @@ async def link_order(order_id: str, req: LinkOrderRequest, db: AsyncSession = De
     if not target:
         raise HTTPException(status_code=404, detail="Target order not found")
 
+    if req.target_order_id == order_id:
+        raise HTTPException(status_code=400, detail="Cannot link order to itself")
     order.linked_order_id = req.target_order_id
     await db.commit()
     await db.refresh(order)

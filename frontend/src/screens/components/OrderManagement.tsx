@@ -1,5 +1,5 @@
-import React from "react";
-import { SpreadOrder, GroupOption } from "../../types";
+import React, { useMemo } from "react";
+import { SpreadOrder, GroupOption, OrderLinkGroup } from "../../types";
 import { OrderGroupRow } from "./ZoneGroupRow";
 import { IconAdd } from "../../components/icons/IconAdd";
 import { IconLayers } from "../../components/icons/IconLayers";
@@ -7,7 +7,7 @@ import TradeHistoryTable from "./TradeHistoryTable";
 
 interface OrderManagementProps {
   activeOrders: SpreadOrder[];
-  zoneGroups: { group_id: number | null; group_name: string; mainOrders: SpreadOrder[]; pendingCloseOrders: SpreadOrder[] }[];
+  zoneGroups: { group_id: number | null; group_name: string; mainOrders: SpreadOrder[]; pendingCloseOrders: SpreadOrder[]; linkGroups: OrderLinkGroup[] }[];
   groups: GroupOption[];
   groupByZone: boolean;
   onGroupByZoneToggle: () => void;
@@ -20,7 +20,7 @@ interface OrderManagementProps {
   onShowZoneGroupModal: () => void;
   showHistory: boolean;
   onToggleHistory: () => void;
-  onAssignGroup?: (orderId: string, groupId: number | null) => void;
+  onAssignGroup?: (orderIds: string[], groupId: number | null) => void;
   onDropOnTradeHistory?: (orderId: string) => void;
   onLinkOrder?: (sourceOrderId: string, targetOrderId: string) => void;
   contractFilter: 'spot' | 'future' | 'option';
@@ -58,6 +58,16 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
   const handleDragStart = (e: React.DragEvent, order: SpreadOrder) => {
     e.dataTransfer.setData('text/plain', order.order_id);
     e.dataTransfer.effectAllowed = 'move';
+    // Carry linked children in flat view
+    const linkedIds: string[] = [];
+    for (const o of activeOrders) {
+      if (o.linked_order_id === order.order_id && o.link_type === 'pending_close') {
+        linkedIds.push(o.order_id);
+      }
+    }
+    if (linkedIds.length > 0) {
+      e.dataTransfer.setData('text/x-linked-ids', linkedIds.join(','));
+    }
     const ghost = createDragGhost(order);
     document.body.appendChild(ghost);
     e.dataTransfer.setDragImage(ghost, 30, 20);
@@ -69,10 +79,18 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
     e.dataTransfer.setData('text/plain', order.order_id);
     e.dataTransfer.setData('text/x-link', '1');
     const ghost = document.createElement('div');
-    ghost.textContent = `Link: ${order.asset_type}`;
-    ghost.style.cssText = 'position:absolute;top:-1000px;left:-1000px;padding:6px 14px;background:#4262ff;color:#fff;border-radius:9999px;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 4px 16px rgba(66,98,255,0.3)';
+    ghost.innerHTML = `
+      <span style="display:inline-flex;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35))">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        </svg>
+      </span>
+      <span style="font-size:10px;font-weight:600;color:#374151">#${order.order_id?.slice(0, 8) || ''}</span>
+    `;
+    ghost.style.cssText = 'position:absolute;top:-1000px;left:-1000px;display:flex;align-items:center;gap:6px;white-space:nowrap;font-family:inherit';
     document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, 20);
+    e.dataTransfer.setDragImage(ghost, 6, 6);
     setTimeout(() => document.body.removeChild(ghost), 0);
   };
 
@@ -81,7 +99,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
     const isLink = e.dataTransfer.getData('text/x-link');
     if (isLink) {
       const sourceOrderId = e.dataTransfer.getData('text/plain');
-      if (sourceOrderId && onLinkOrder) {
+      if (sourceOrderId && onLinkOrder && sourceOrderId !== targetOrder.order_id) {
         onLinkOrder(sourceOrderId, targetOrder.order_id);
       }
     }
@@ -106,6 +124,71 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
   const showLev = contractFilter !== 'spot';
   const showExp = contractFilter !== 'spot';
   const showStrikePrice = contractFilter === 'option';
+
+  // Flat view link group computation
+  const { flatSortedOrders, flatLinkInfoMap } = useMemo(() => {
+    const orderMap: Record<string, SpreadOrder> = {};
+    activeOrders.forEach(o => orderMap[o.order_id] = o);
+    const infoMap: Record<string, { isSub: boolean; showLine: boolean; linkType: string; isFirstInGroup: boolean; isLastInGroup: boolean }> = {};
+    const used = new Set<string>();
+    const groups: Record<string, { primary: SpreadOrder; subs: SpreadOrder[]; spreadPartner?: SpreadOrder; partnerSubs?: SpreadOrder[] }> = {};
+
+    for (const a of activeOrders) {
+      if (used.has(a.order_id)) continue;
+      if (a.link_type === 'pending_close') continue;
+
+      if (a.link_type === 'spread' && a.linked_order_id && orderMap[a.linked_order_id]) {
+        const b = orderMap[a.linked_order_id];
+        if (b.link_type === 'spread' && b.linked_order_id === a.order_id) {
+          used.add(a.order_id); used.add(b.order_id);
+          const aSubs = activeOrders.filter(o => o.link_type === 'pending_close' && o.linked_order_id === a.order_id && !used.has(o.order_id));
+          const bSubs = activeOrders.filter(o => o.link_type === 'pending_close' && o.linked_order_id === b.order_id && !used.has(o.order_id));
+          const all = [a, ...aSubs, b, ...bSubs];
+          all.forEach((m, idx) => {
+            const isSub = aSubs.includes(m) || bSubs.includes(m);
+            infoMap[m.order_id] = {
+              isSub,
+              showLine: true,
+              linkType: m.link_type || '',
+              isFirstInGroup: idx === 0,
+              isLastInGroup: idx === all.length - 1,
+            };
+            used.add(m.order_id);
+          });
+          groups[[a.order_id, b.order_id].sort().join('|')] = { primary: a, subs: aSubs, spreadPartner: b, partnerSubs: bSubs };
+          continue;
+        }
+      }
+
+      const aSubs = activeOrders.filter(o => o.link_type === 'pending_close' && o.linked_order_id === a.order_id && !used.has(o.order_id));
+      const all = [a, ...aSubs];
+      all.forEach((m, idx) => {
+        const isSub = aSubs.includes(m);
+        infoMap[m.order_id] = {
+          isSub,
+          showLine: isSub,
+          linkType: m.link_type || '',
+          isFirstInGroup: idx === 0,
+          isLastInGroup: idx === all.length - 1,
+        };
+        used.add(m.order_id);
+      });
+    }
+
+    const reordered: SpreadOrder[] = [];
+    for (const g of Object.values(groups)) {
+      reordered.push(g.primary);
+      for (const s of g.subs) reordered.push(s);
+      if (g.spreadPartner) {
+        reordered.push(g.spreadPartner);
+        for (const s of g.partnerSubs || []) reordered.push(s);
+      }
+    }
+    for (const o of activeOrders) {
+      if (!reordered.find(r => r.order_id === o.order_id)) reordered.push(o);
+    }
+    return { flatSortedOrders: reordered, flatLinkInfoMap: infoMap };
+  }, [activeOrders]);
 
   return (
   <section className="bg-white rounded-xl border border-hairline overflow-hidden mb-6">
@@ -166,7 +249,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-surface border-y border-hairline">
-              <th className="p-4 w-12" />
+              <th className="p-4 w-8" />
+              <th className="p-4 w-8" />
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">ID</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Asset</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Side</th>
@@ -205,7 +289,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-3 py-2 w-12" />
+              <th className="px-3 py-2 w-8" />
+              <th className="px-3 py-2 w-8" />
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">ID</th>
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Asset</th>
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Side</th>
@@ -226,10 +311,12 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             </tr>
           </thead>
           <tbody>
-            {activeOrders.map((order) => {
+            {flatSortedOrders.map((order) => {
               const openDate = order.created_at ? order.created_at.slice(0, 10) : "-";
               const isSpot = (order.contract_type || 'spot') === 'spot';
               const showGray = isSpot && contractFilter !== 'spot';
+              const linkInfo = flatLinkInfoMap[order.order_id];
+              const isLinked = order.link_type && order.link_type !== 'none';
               return (
                 <tr
                   key={order.order_id}
@@ -238,35 +325,71 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                   onDragLeave={handleRowDragLeave}
                   onDrop={(e) => handleLinkDrop(e, order)}
                 >
-                  <td className="pl-3 py-2 w-12">
-                    <div className="flex items-center gap-2">
-                      <span
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, order)}
-                        className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-gray-500 transition-opacity"
-                        title="Drag to assign group or close"
-                      >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                          <circle cx="9" cy="6" r="1.5" />
-                          <circle cx="15" cy="6" r="1.5" />
-                          <circle cx="9" cy="12" r="1.5" />
-                          <circle cx="15" cy="12" r="1.5" />
-                          <circle cx="9" cy="18" r="1.5" />
-                          <circle cx="15" cy="18" r="1.5" />
+                  <td className="pl-3 py-2 w-8 text-center">
+                    <span
+                      draggable={!linkInfo?.isSub && !(linkInfo?.linkType === 'spread' && !linkInfo?.isFirstInGroup)}
+                      onDragStart={(e) => handleDragStart(e, order)}
+                      className={`${linkInfo?.isSub || (linkInfo?.linkType === 'spread' && !linkInfo?.isFirstInGroup) ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'} cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-gray-500 transition-opacity`}
+                      title="Drag to assign group or close"
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="9" cy="6" r="1.5" />
+                        <circle cx="15" cy="6" r="1.5" />
+                        <circle cx="9" cy="12" r="1.5" />
+                        <circle cx="15" cy="12" r="1.5" />
+                        <circle cx="9" cy="18" r="1.5" />
+                        <circle cx="15" cy="18" r="1.5" />
+                      </svg>
+                    </span>
+                  </td>
+                  <td className={`py-2 w-8 relative ${linkInfo?.showLine ? '' : ''}`}>
+                    {linkInfo?.showLine && (
+                      <>
+                        <span
+                          draggable="true"
+                          onDragStart={(e) => handleLinkDragStart(e, order)}
+                          className="absolute z-10 cursor-grab active:cursor-grabbing inline-flex items-center justify-center"
+                          style={{ left: '8px', top: '50%', transform: 'translateY(-50%)' }}
+                          title="Drag to link order"
+                        >
+                          <span className={`bg-white rounded-full p-0.5 inline-flex items-center justify-center shadow-sm ${linkInfo?.linkType === 'spread' ? 'text-blue-600' : 'text-yellow-500'}`}>
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" draggable="false">
+                              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                            </svg>
+                          </span>
+                        </span>
+                        <svg
+                          className="absolute pointer-events-none"
+                          style={{ left: '10px', top: '0', height: '100%', width: '12px' }}
+                          preserveAspectRatio="none"
+                        >
+                          <line
+                            x1="6"
+                            y1={linkInfo?.linkType === 'spread' && linkInfo?.isFirstInGroup ? '50%' : '0'}
+                            x2="6"
+                            y2={linkInfo?.linkType === 'spread' && linkInfo?.isLastInGroup ? '50%' : linkInfo?.linkType === 'pending_close' ? '50%' : '100%'}
+                            stroke={linkInfo?.linkType === 'spread' ? '#93c5fd' : '#fde047'}
+                            strokeWidth="2"
+                          />
                         </svg>
-                      </span>
+                      </>
+                    )}
+                    {!linkInfo?.showLine && (
                       <span
                         draggable="true"
                         onDragStart={(e) => handleLinkDragStart(e, order)}
-                        className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-blue-600 transition-opacity"
+                        className={`${isLinked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} cursor-grab active:cursor-grabbing inline-flex items-center justify-center transition-opacity`}
                         title="Drag to link order"
                       >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" draggable="false">
-                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                        </svg>
+                        <span className={`bg-white rounded-full p-0.5 inline-flex items-center justify-center ${linkInfo?.linkType === 'spread' ? 'text-blue-600' : linkInfo?.linkType === 'pending_close' ? 'text-yellow-500' : 'text-gray-300'}`}>
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" draggable="false">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                          </svg>
+                        </span>
                       </span>
-                    </div>
+                    )}
                   </td>
                   <td draggable={false} className="px-3 py-2 text-xs text-gray-500 font-mono">#{order.order_id}</td>
                   <td draggable={false} className="px-3 py-2 font-medium text-sm">{order.asset_type}</td>

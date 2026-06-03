@@ -113,11 +113,13 @@ open http://localhost:8000/docs
 | `PATCH` | `/api/v1/orders/{order_id}/status` | Change order status: send `{"new_status": "CANCELED"}` → deletes from `active_orders` + creates trade history with `{"note":"Canceled"}` |
 | `POST` | `/api/v1/orders/{order_id}/close` | Close order: deletes from `active_orders`, creates `TradeHistory` record with exit price/P-L. **Auto-closes all sub-orders** (orders one-way linking to this order via `linked_order_id`). Returns `auto_closed[]` with each sub's ID and history_id. Returns `paired_order_id` if the closed order is cross-linked (spread pair partner still alive). |
 | `POST` | `/api/v1/orders/{order_id}/link` | Link order to a target order via `linked_order_id` (one-way = pending close); spread pair requires reciprocal link (target must link back for two-way). |
+| `POST` | `/api/v1/orders/{order_id}/unlink` | Unlink order: clears `linked_order_id` on both sides (A and B). Returns `{ order_id, unlinked_partner }`. |
 
 > `order_id` is a UUID string (e.g., `a1b2c3d4-e5f6-...`).  
 > Order status values: `PENDING`, `FILLED` (non-terminal); `CLOSE`, `CANCELED` (terminal — order removed from `active_orders`).  
 > `group_id` is an Integer FK to `orders_groups.id`.
 > `linked_order_id` replaces the old `spread_pair_id` — one-way link = pending close (B→A), two-way cross-link = spread pair (A↔B). On close: primary order auto-closes its one-way subs; spread pair signals `paired_order_id` for the frontend to handle the partner.
+> `POST /{order_id}/unlink` clears `linked_order_id` on both sides — used by EditOrderModal's unlink-on-save flow.
 
 ### Analytics
 | Method | Endpoint | Description |

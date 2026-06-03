@@ -222,6 +222,14 @@ export interface PortfolioGridData {
   recent_trades: any[];
 }
 
+// === Link Order Grouping ===
+export interface OrderLinkGroup {
+  primary: SpreadOrder;
+  subs: SpreadOrder[];
+  spreadPartner?: SpreadOrder;
+  partnerSubs?: SpreadOrder[];
+}
+
 // === API response wrapper ===
 export interface ApiError {
   status: number;

@@ -8,6 +8,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        safelist: [
+          'opacity-0',
+          'opacity-100',
+          'group-hover:opacity-100',
+          'hover:text-blue-600',
+          'hover:text-gray-500',
+          'text-gray-300',
+        ],
         theme: {
           extend: {
             colors: {

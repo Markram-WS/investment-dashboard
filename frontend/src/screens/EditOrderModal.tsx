@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { SpreadOrder, GroupOption } from '../types';
 import { GroupCombobox } from './components/GroupCombobox';
+import { api } from '../lib/api';
 
 interface EditOrderModalProps {
   order: SpreadOrder | null;
@@ -12,6 +13,8 @@ interface EditOrderModalProps {
   groups: GroupOption[];
   groupOrderCounts: Record<number, number>;
   assetTypeOptions: string[];
+  activeOrders?: SpreadOrder[];
+  onRefresh?: () => void;
 }
 
 function ToggleBtn({ options, value, onChange }: {
@@ -52,10 +55,18 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   groups,
   groupOrderCounts,
   assetTypeOptions,
+  activeOrders,
 }) => {
   const entryPrice = parseFloat(formData.entry_price as string) || 0;
   const groupId = formData.group_id ?? null;
   const selectedGroup = groups.find(g => g.id === groupId);
+
+  const [pendingUnlink, setPendingUnlink] = useState(false);
+  const linkType = order?.link_type;
+  const showLinkDetail = linkType === 'spread' || linkType === 'pending_close';
+  const linkedPartner = order?.linked_order_id
+    ? (activeOrders || []).find(o => o.order_id === order.linked_order_id)
+    : null;
 
   const groupWarnings = useMemo(() => {
     if (!selectedGroup || groupId == null) return [];
@@ -203,7 +214,17 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
                 className="w-full border rounded px-3 py-2 text-sm"
               />
             </div>
-            <div className="flex-1" />
+            {contractType !== 'spot' && (
+              <div className="flex-1">
+                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Expiry Date</label>
+                <input
+                  type="date"
+                  value={formData.expiry_date ? (formData.expiry_date as string).slice(0, 10) : ''}
+                  onChange={(e) => onChange('expiry_date', e.target.value)}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+            )}
           </div>
           <div className="flex gap-4">
             <div className="flex-1">
@@ -217,15 +238,50 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
                 onChange={(v) => onChange('order_status', v)}
               />
             </div>
-            {contractType !== 'spot' && (
+            {showLinkDetail && (
               <div className="flex-1">
-                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Expiry Date</label>
-                <input
-                  type="date"
-                  value={formData.expiry_date ? (formData.expiry_date as string).slice(0, 10) : ''}
-                  onChange={(e) => onChange('expiry_date', e.target.value)}
-                  className="w-full border rounded px-3 py-2 text-sm"
-                />
+                <div className="flex items-center gap-2 py-2 px-3">
+                  <span
+                    className="cursor-pointer inline-flex items-center justify-center transition-colors"
+                    title={pendingUnlink ? 'Will unlink on save' : 'Click to unlink'}
+                    onClick={() => setPendingUnlink(true)}
+                    onMouseEnter={(e) => {
+                      if (!pendingUnlink) {
+                        const svg = e.currentTarget.querySelector('svg');
+                        if (svg) svg.style.opacity = '0.3';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!pendingUnlink) {
+                        const svg = e.currentTarget.querySelector('svg');
+                        if (svg) svg.style.opacity = '1';
+                      }
+                    }}
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ color: pendingUnlink ? '#ef4444' : linkType === 'spread' ? '#2563eb' : '#eab308' }}
+                    >
+                      {pendingUnlink ? (
+                        <>
+                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" />
+                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" />
+                          <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" strokeWidth="2" />
+                        </>
+                      ) : (
+                        <>
+                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" fill="none" />
+                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" fill="none" />
+                        </>
+                      )}
+                    </svg>
+                  </span>
+                  <span className="text-sm font-mono text-gray-600">
+                    #{order?.linked_order_id || 'unknown'}
+                  </span>
+                  {pendingUnlink && (
+                    <span className="text-[10px] text-red-500 font-semibold ml-auto">Will unlink</span>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -252,7 +308,17 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             Cancel
           </button>
           <button
-            onClick={onSave}
+            onClick={async () => {
+              if (pendingUnlink && order?.order_id) {
+                try {
+                  await api.unlinkOrder(order.order_id);
+                  setPendingUnlink(false);
+                } catch (e) {
+                  console.error('Unlink failed:', e);
+                }
+              }
+              await onSave();
+            }}
             className="px-4 py-2 text-sm bg-teal-600 text-white rounded hover:bg-teal-700"
           >
             Save Changes

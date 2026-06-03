@@ -11,7 +11,7 @@ import { useAddOrder } from "../hooks/useAddOrder";
 import { usePortfolioManager } from "../hooks/usePortfolioManager";
 import { useZoneEditor } from "../hooks/useZoneEditor";
 import { useMarkdownRenderer } from "../hooks/useMarkdownRenderer";
-import { SpreadOrder, AllocationItem, GroupOption } from "../types";
+import { SpreadOrder, AllocationItem, GroupOption, OrderLinkGroup } from "../types";
 import { api } from "../lib/api";
 import { allocationColors } from "../constants/colors";
 
@@ -132,32 +132,38 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     }
   }, [fetchAnalyticsData, selectedPortfolio]);
 
-  const handleAssignGroup = useCallback(async (orderId: string, groupId: number | null) => {
-    if (!selectedPortfolio) return;
-    const currentOrder = activeOrders.find(o => o.order_id === orderId);
-    if (currentOrder && currentOrder.group_id === groupId) return;
+  const handleAssignGroup = useCallback(async (orderIds: string[], groupId: number | null) => {
+    if (!selectedPortfolio || orderIds.length === 0) return;
     const warnings: string[] = [];
-    if (groupId != null && currentOrder) {
-      const groupDef = groups.find(g => g.id === groupId);
-      if (!groupDef) return;
-      if (groupDef.max_orders != null) {
-        const currentCount = groupOrderCounts[groupId] || 0;
-        if (currentCount >= groupDef.max_orders) {
-          warnings.push(`Group "${groupDef.name}" is at maximum capacity (${groupDef.max_orders}).`);
+    for (const orderId of orderIds) {
+      const currentOrder = activeOrders.find(o => o.order_id === orderId);
+      if (!currentOrder || currentOrder.group_id === groupId) continue;
+      if (groupId != null) {
+        const groupDef = groups.find(g => g.id === groupId);
+        if (!groupDef) return;
+        if (groupDef.max_orders != null) {
+          const currentCount = groupOrderCounts[groupId] || 0;
+          if (currentCount >= groupDef.max_orders) {
+            warnings.push(`Group "${groupDef.name}" is at maximum capacity (${groupDef.max_orders}).`);
+          }
         }
-      }
-      if (groupDef.min_price != null && currentOrder.entry_price != null && currentOrder.entry_price < groupDef.min_price) {
-        warnings.push(`Entry price ($${currentOrder.entry_price.toLocaleString()}) is below the group minimum price ($${groupDef.min_price.toLocaleString()}).`);
-      }
-      if (groupDef.max_price != null && currentOrder.entry_price != null && currentOrder.entry_price > groupDef.max_price) {
-        warnings.push(`Entry price ($${currentOrder.entry_price.toLocaleString()}) exceeds the group maximum price ($${groupDef.max_price.toLocaleString()}).`);
+        if (groupDef.min_price != null && currentOrder.entry_price != null && currentOrder.entry_price < groupDef.min_price) {
+          warnings.push(`Entry price ($${currentOrder.entry_price.toLocaleString()}) is below the group minimum price ($${groupDef.min_price.toLocaleString()}).`);
+        }
+        if (groupDef.max_price != null && currentOrder.entry_price != null && currentOrder.entry_price > groupDef.max_price) {
+          warnings.push(`Entry price ($${currentOrder.entry_price.toLocaleString()}) exceeds the group maximum price ($${groupDef.max_price.toLocaleString()}).`);
+        }
       }
     }
     if (warnings.length > 0) {
       setAlertMsg(warnings.join(" "));
     }
     try {
-      await api.updateOrder(orderId, { group_id: groupId });
+      for (const orderId of orderIds) {
+        const currentOrder = activeOrders.find(o => o.order_id === orderId);
+        if (!currentOrder || currentOrder.group_id === groupId) continue;
+        await api.updateOrder(orderId, { group_id: groupId });
+      }
       fetchAnalyticsData();
       api.getTradeHistory(selectedPortfolio.portfolio_id).then(setTradeHistory).catch(() => {});
     } catch (err) {
@@ -210,16 +216,67 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
 
   const zoneGroups = useMemo(() => {
     const sorted = [...activeOrders].sort((a, b) => (b.entry_price ?? 0) - (a.entry_price ?? 0));
-    const groupMap: Record<number, { group_id: number; group_name: string; mainOrders: SpreadOrder[]; pendingCloseOrders: SpreadOrder[] }> = {};
+    const orderMap: Record<string, SpreadOrder> = {};
+    sorted.forEach(o => orderMap[o.order_id] = o);
+
+    function computeLinkGroup(mainList: SpreadOrder[]) {
+      const linked: Record<string, { primary: SpreadOrder; subs: SpreadOrder[]; spreadPartner?: SpreadOrder; partnerSubs?: SpreadOrder[] }> = {};
+      const used = new Set<string>();
+
+      for (const a of mainList) {
+        if (used.has(a.order_id)) continue;
+        if (a.link_type === 'pending_close') continue;
+
+        if (a.link_type === 'spread' && a.linked_order_id && orderMap[a.linked_order_id]) {
+          const b = orderMap[a.linked_order_id];
+          if (b.link_type === 'spread' && b.linked_order_id === a.order_id) {
+            used.add(a.order_id); used.add(b.order_id);
+            const aSubs = mainList.filter(o => o.link_type === 'pending_close' && o.linked_order_id === a.order_id && !used.has(o.order_id));
+            aSubs.forEach(s => used.add(s.order_id));
+            const bSubs = mainList.filter(o => o.link_type === 'pending_close' && o.linked_order_id === b.order_id && !used.has(o.order_id));
+            bSubs.forEach(s => used.add(s.order_id));
+            const key = [a.order_id, b.order_id].sort().join('|');
+            linked[key] = { primary: a, subs: aSubs, spreadPartner: b, partnerSubs: bSubs };
+            continue;
+          }
+        }
+
+        const aSubs = mainList.filter(o => o.link_type === 'pending_close' && o.linked_order_id === a.order_id && !used.has(o.order_id));
+        aSubs.forEach(s => used.add(s.order_id));
+        used.add(a.order_id);
+        linked[a.order_id] = { primary: a, subs: aSubs };
+      }
+
+      // Reorder: primaries + their subs interleaved
+      const reordered: SpreadOrder[] = [];
+      for (const entry of Object.values(linked)) {
+        reordered.push(entry.primary);
+        for (const s of entry.subs) reordered.push(s);
+        if (entry.spreadPartner) {
+          reordered.push(entry.spreadPartner);
+          for (const s of entry.partnerSubs || []) reordered.push(s);
+        }
+      }
+      // Append any remaining (should not happen, but safety)
+      for (const o of mainList) {
+        if (!used.has(o.order_id) && !reordered.find(r => r.order_id === o.order_id)) {
+          reordered.push(o);
+        }
+      }
+      return { reordered, linkGroups: Object.values(linked) as OrderLinkGroup[] };
+    }
+
+    const groupMap: Record<number, { group_id: number; group_name: string; mainOrders: SpreadOrder[]; pendingCloseOrders: SpreadOrder[]; linkGroups: OrderLinkGroup[] }> = {};
     const ungrouped: SpreadOrder[] = [];
     sorted.forEach((order) => {
       if (order.group_id != null && order.group_name) {
-        if (!groupMap[order.group_id]) groupMap[order.group_id] = { group_id: order.group_id, group_name: order.group_name, mainOrders: [], pendingCloseOrders: [] };
+        if (!groupMap[order.group_id]) groupMap[order.group_id] = { group_id: order.group_id, group_name: order.group_name, mainOrders: [], pendingCloseOrders: [], linkGroups: [] };
         groupMap[order.group_id].mainOrders.push(order);
       } else {
         ungrouped.push(order);
       }
     });
+
     const sortedGroups = Object.values(groupMap).sort((a, b) => {
       const ga = groups.find(g => g.id === a.group_id);
       const gb = groups.find(g => g.id === b.group_id);
@@ -231,7 +288,15 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       if (bMax !== aMax) return bMax - aMax;
       return (a.group_name || '').localeCompare(b.group_name || '');
     });
-    return [...sortedGroups, { group_id: null as any, group_name: 'Ungrouped Orders', mainOrders: ungrouped, pendingCloseOrders: [] as SpreadOrder[] }];
+
+    // Compute link groups & reorder for each zone group
+    for (const g of sortedGroups) {
+      const result = computeLinkGroup(g.mainOrders);
+      g.mainOrders = result.reordered;
+      g.linkGroups = result.linkGroups;
+    }
+    const ungroupedResult = computeLinkGroup(ungrouped);
+    return [...sortedGroups, { group_id: null as any, group_name: 'Ungrouped Orders', mainOrders: ungroupedResult.reordered, pendingCloseOrders: [] as SpreadOrder[], linkGroups: ungroupedResult.linkGroups }];
   }, [activeOrders, groups]);
 
   const { renderMarkdown, isGridType } = useMarkdownRenderer();
@@ -356,6 +421,8 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         groups={groups}
         groupOrderCounts={groupOrderCounts}
         assetTypeOptions={assetTypeOptions}
+        activeOrders={activeOrders}
+        onRefresh={fetchAnalyticsData}
       />
       <ZoneEditModal
         orders={editingZoneOrders}

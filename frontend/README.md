@@ -142,6 +142,8 @@ frontend/
 | Orders | `/api/v1/orders/{order_id}/close` | POST (close + trade history) |
 | Orders | `/api/v1/orders/{order_id}` | PUT (update, including `group_id`) |
 | Orders | `/api/v1/orders/{order_id}/status` | PATCH (cancel → `{"new_status":"CANCELED"}`) |
+| Orders | `/api/v1/orders/{order_id}/unlink` | POST (unlink order + partner) |
+| Orders | `/api/v1/orders/{order_id}/link` | POST (link to target order) |
 | Trade History | `/api/v1/trade-history/` | GET (list, optional `?portfolio_id=`) |
 | Orders Groups | `/api/v1/orders-groups/?portfolio_id=` | GET/POST (was zone-groups) |
 | Orders Groups | `/api/v1/orders-groups/{id}` | PUT/DELETE |
@@ -400,18 +402,20 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
    - Group validation alerts (non-blocking toast): max_orders, min_price, max_price
 9. **Contract Type Filter Tabs**: Filter orders by `contract_type` (Spot=indigo, Future=blue, Option=purple) in the order table header
 10. **Link Order Button**: Chain-link icon (`IconLink`) in the left column (next to drag handle) — links orders via `linked_order_id` using `POST /api/v1/orders/{id}/link`
-11. **Tier Spread / Link Types**: Each order has `link_type` field:
+11. **EditOrderModal unlink**: Hovering the linked order info row shows a ghost link icon; clicking toggles a red broken-link icon with "Will unlink" label. On Save, calls `POST /api/v1/orders/{order_id}/unlink` before saving other changes.
+12. **Tier Spread / Link Types**: Each order has `link_type` field:
     - `"spread"` — cross-linked (A↔B), forms a spread pair
     - `"pending_close"` — one-way sub-order (B→A, B is a pending close of A)
     - `"primary"` — no link but has sub-orders linking to it (A with C→A)
     - `"none"` — no linking
-12. **Close auto-closes subs**: Closing a primary order (or a spread leg) auto-closes all its one-way sub-orders server-side; response includes `auto_closed[]`. For spread pair legs, returns `paired_order_id` to auto-open close modal for the partner.
-13. **Ungrouped Orders section**: Always visible (drop target for unassigning)
-14. **Order status**: PENDING / FILLED / CLOSE / CANCELED (uppercase)
-15. **Portfolio Delete**: Cascade cleanup with activeOrderCount guard
-16. **Header layout**: Two-row header — title + ACTIVE badge (row 1), Order Groups icon + Group toggle (row 2), Add Order pill button centered vertically on right
-17. **Trade History styling**: Matches Ungrouped Orders section — `bg-gray-50` with pill badge, `border border-hairline`, `rounded-b-xl`
-18. **ToastAlert position**: Centered below nav bar (`top-20 left-1/2 -translate-x-1/2 z-[9999]`)
+13. **Close auto-closes subs**: Closing a primary order (or a spread leg) auto-closes all its one-way sub-orders server-side; response includes `auto_closed[]`. For spread pair legs, returns `paired_order_id` to auto-open close modal for the partner.
+14. **Link UI (✅ Working)**: Link icon in white circle (`bg-white rounded-full p-0.5`, no border, `shadow-sm`) with per-type color (blue `text-blue-600` for spread, yellow `text-yellow-500` for pending_close, gray `text-gray-300` for unlinked). Icon is **absolutely positioned** at `top: 0` aligned to the SVG line center — sits at the front/start of the vertical connecting line. SVG vertical lines: spread pair = blue (`#93c5fd`) continuous line from first icon to bottom (`y1="0"→y2="100%"`), last icon sits alone (`y1="0"→y2="0"`); pending_close = yellow (`#fde047`) from top to middle (`y1="0"→y2="50%"`). SVG constrained to content area via explicit `top: 0; height: 100%`. 6-dot grip hidden + non-draggable on sub-orders. Drag parent carries linked children via `text/x-linked-ids`.
+15. **Ungrouped Orders section**: Always visible (drop target for unassigning)
+16. **Order status**: PENDING / FILLED / CLOSE / CANCELED (uppercase)
+17. **Portfolio Delete**: Cascade cleanup with activeOrderCount guard
+18. **Header layout**: Two-row header — title + ACTIVE badge (row 1), Order Groups icon + Group toggle (row 2), Add Order pill button centered vertically on right
+19. **Trade History styling**: Matches Ungrouped Orders section — `bg-gray-50` with pill badge, `border border-hairline`, `rounded-b-xl`
+20. **ToastAlert position**: Centered below nav bar (`top-20 left-1/2 -translate-x-1/2 z-[9999]`)
 
 ## ⚙️ Technical Details
 

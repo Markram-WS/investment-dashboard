@@ -2,14 +2,20 @@
 
 ## 1. System Environment & Execution Constraints
 - **OS:** Windows 11 (Native Execution)
-- **Containerization:** Podman Desktop / Podman CLI (Windows Native)
+- **Containerization:** Docker inside WSL (Ubuntu-26.04) — `docker compose` commands run from WSL shell
+  - Podman Desktop was retired after the Podman machine SSH connection broke repeatedly
+  - WSL Docker uses `network_mode: "host"` for frontend (Vite HMR directly on WSL host network)
+- **Port Forwarding:** Windows → WSL via `netsh interface portproxy`:
+  - `127.0.0.1:8000` → WSL_IP:8000 (backend)
+  - `127.0.0.1:5173` → WSL_IP:5173 (frontend)
+  - `127.0.0.1:5432` → WSL_IP:5432 (PostgreSQL main)
+  - Check current WSL IP with `wsl -- hostname -I`
 - **Shell Preference:** Bash-like Syntax ONLY (via Git Bash, MinGW, or equivalent).
 - **Command Constraints:** 
   - ALWAYS use `/` for paths in code and commands.
   - NEVER recommend PowerShell-specific cmdlets (e.g., `Get-ChildItem`).
-  - Use `podman` instead of `docker` commands.
-- **Workflow:** Verify Before Done (VBD). AI must check if the service is up via `podman ps` after changes.
-- **Disk Space:** If backend crashes with `DiskFullError` / `No space left on device`, run `podman system prune -f` to reclaim space.
+- **Workflow:** Verify Before Done (VBD). AI must check if the service is up after changes.
+- **Disk Space:** If backend crashes with disk full, run `docker system prune -f` inside WSL.
 
 ## 2. Coding Philosophy: SOLID & Modularization
 - **Core Principle:** Strictly follow SOLID principles.
@@ -35,10 +41,11 @@
 - **R2 (Direct Action):** Minor logic fixes and unit test updates.
 
 ## 5. Deployment & Testing
-- Use `podman-compose` for local orchestration.
+- Run `docker compose up -d` from WSL (Ubuntu 26.04) at `D:\InvestmentDashboard` (mounted as `/mnt/d/InvestmentDashboard`).
 - Ensure every new component has a corresponding unit test file (e.g., `*.test.ts`) to maintain Data Integrity.
 - `npm run test` uses Vitest; frontend has volume mount (`./frontend:/app`) for live HMR.
-- Backend has NO volume mount — code changes require `podman compose build backend && podman compose up -d backend`.
+- Backend has NO volume mount — code changes require `docker compose build backend && docker compose up -d backend` inside WSL.
+- Verify WSL Docker status: `wsl -- docker compose ps`.
 
 ## 6. Architecture Overview (Post-Refactor)
 
@@ -52,6 +59,7 @@
   - `POST /api/v1/orders/` — create order with optional UUID `order_id`, `contract_type`, `linked_order_id`, `direction`, `expiry_date`, `strike_price`
   - `POST /api/v1/orders/{order_id}/close` — close order with exit price/P&L, creates TradeHistory record; auto-closes all sub-orders (one-way links to this order) server-side; returns `auto_closed[]` and `paired_order_id` for cross-linked spread partner
   - `POST /api/v1/orders/{order_id}/link` — link order to target via `linked_order_id` (one-way = pending close; reciprocal = spread pair)
+  - `POST /api/v1/orders/{order_id}/unlink` — clear `linked_order_id` on both sides; used by EditOrderModal
 - `redirect_slashes=False` — trailing slash matters on routes
 - Two PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
 
@@ -111,6 +119,45 @@
 - **React Hooks before early returns** — all hooks must precede any `if (loading) return ...` guard.
 - **`<div>` inside `<p>`** is invalid HTML. Tooltip elements with block children must use `<div>` not `<p>`.
 - **Container restarts needed** for backend code changes (no volume mount). Frontend auto-reloads via Vite HMR.
+- **npm install on WSL** with mounted Windows drives (`/mnt/d/`) requires `--no-bin-links` flag to avoid EPERM symlink errors. Vite build works via `node node_modules/vite/bin/vite.js build`.
+
+## 10. Link Feature Implementation Status
+
+### Backend (✅ Complete)
+- `POST /api/v1/orders/{order_id}/link` — sets one-way `linked_order_id` (source → target). Two-way spread requires reciprocal drag.
+- `POST /api/v1/orders/{order_id}/unlink` — clears `linked_order_id` on both sides (order + partner). Used by EditOrderModal unlink-on-save flow.
+- `analytics.py` `_link_type(o)` — computes `"spread"` (cross-linked), `"pending_close"` (one-way sub), `"primary"` (has subs), `"none"` for every order in API responses.
+- Cross-link detection: reciprocal check `A.linked == B AND B.linked == A` (not shared ID value).
+- Close endpoint auto-closes all one-way sub-orders of the closed primary; returns `auto_closed[]` and `paired_order_id` for spread partner.
+- Both `get_portfolio_grid_data` and `get_portfolio_detail` endpoints include `link_type` in each order dict.
+
+### Frontend (✅ Working)
+- **Link icon**: chain-link SVG inside `bg-white rounded-full p-0.5` (white circle, no border, `shadow-sm`). Per-type color: blue (`text-blue-600`) for spread, yellow (`text-yellow-500`) for pending_close, gray (`text-gray-300`) for unlinked.
+- **Link icon positioning**: **Absolutely positioned** at `top: 0` (front of SVG line), `left: 36px` (spread) / `68px` (sub), aligned to SVG line center with `z-10`. Fallback inline icon in flex flow when no line shown.
+- **Link icon visibility**: `opacity-100` when `link_type !== 'none'`, else `opacity-0 group-hover:opacity-100`.
+- **SVG vertical lines**: Spread pair = blue (`#93c5fd`): first row `y1="0"`→`y2="100%"` (icon at top, line to bottom), last row `y1="0"`→`y2="0"` (no segment, icon alone). Pending-close = yellow (`#fde047`) `y1="0"`→`y2="50%"` (icon at top, line to middle). SVG constrained to content area via `top: 0; height: 100%`.
+- **Sub-order**: 6-dot grip hidden + non-draggable (`draggable={!linkInfo?.isSub}`, `opacity-0`). Only link icon gets `ml-8` indent.
+- **Parent drag carries children**: Dragging a primary order includes all linked children via `text/x-linked-ids`.
+- **Link drop target**: Per-row `handleLinkDrop` on both grouped (`ZoneGroupRow.tsx`) and flat (`OrderManagement.tsx`) views. Requires `text/x-link` MIME type.
+- **`computeLinkGroup()`** in `PortfolioGrid.tsx` — groups orders by link relationships, reorders primaries with sub-orders interleaved.
+- **Flat view** (`OrderManagement.tsx`): same link group/reorder logic via `useMemo`.
+- **`CloseOrderModal`** uses `link_type` to show linked order info.
+- **`EditOrderModal` unlink**: Hover linked order row → ghost link icon; click → red broken-link icon + "Will unlink" label. On Save → `POST /orders/{id}/unlink` + parent save.
+
+### Files involved
+| File | Role |
+|------|------|
+| `backend/app/routers/analytics.py` | `_link_type()` computation + response dict |
+| `backend/app/routers/active_orders.py` | `POST /{id}/link` + `POST /{id}/unlink` endpoints |
+| `frontend/src/types/index.ts` | `OrderLinkGroup`, `link_type` in `SpreadOrder` |
+| `frontend/src/lib/api.ts` | `linkOrder()`, `unlinkOrder()` API calls |
+| `frontend/src/hooks/usePortfolioManager.ts` | `fetchAnalyticsData()` — fetches + sets state |
+| `frontend/src/screens/PortfolioGrid.tsx` | `handleLinkOrder`, `zoneGroups` useMemo with `computeLinkGroup` |
+| `frontend/src/screens/components/OrderManagement.tsx` | Flat view link groups + reorder |
+| `frontend/src/screens/components/ZoneGroupRow.tsx` | Row-level link icon, SVG lines, drop handler |
+| `frontend/src/screens/EditOrderModal.tsx` | Unlink-on-save flow |
+| `frontend/src/screens/CloseOrderModal.tsx` | Link type display in close form |
+| `database/main_db_schema.sql` | `linked_order_id TEXT` column |
 
 ## requirement
 requirement\Detailed-Functional-Requirements.md
