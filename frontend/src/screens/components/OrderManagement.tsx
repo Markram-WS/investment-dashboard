@@ -22,11 +22,12 @@ interface OrderManagementProps {
   onAssignGroup?: (orderIds: string[], groupId: number | null) => void;
   onDropOnTradeHistory?: (orderId: string) => void;
   onLinkOrder?: (sourceOrderId: string, targetOrderId: string) => void;
-  contractFilter: 'spot' | 'future' | 'option';
-  onContractFilterChange: (v: 'spot' | 'future' | 'option') => void;
+  contractFilter: 'all' | 'spot' | 'future' | 'option';
+  onContractFilterChange: (v: 'all' | 'spot' | 'future' | 'option') => void;
 }
 
 const CONTRACT_TABS = [
+  { value: 'all' as const, label: 'All' },
   { value: 'spot' as const, label: 'Spot' },
   { value: 'future' as const, label: 'Futures' },
   { value: 'option' as const, label: 'Options' },
@@ -119,20 +120,58 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
     (e.currentTarget as HTMLElement).style.outlineOffset = '';
   };
 
-  const showDir = contractFilter !== 'spot';
-  const showLev = contractFilter !== 'spot';
-  const showExp = contractFilter !== 'spot';
-  const showStrikePrice = contractFilter === 'option';
+  const hasFutureOrders = activeOrders.some(o => o.contract_type === 'future' || (o.leverage != null && o.leverage > 0));
+  const hasOptionOrders = activeOrders.some(o => o.contract_type === 'option' || o.strike_price != null || o.option_type != null);
 
-  // Flat view link group computation
+  const showLev = contractFilter === 'all'
+    ? hasFutureOrders || hasOptionOrders
+    : contractFilter !== 'spot';
+  const showExp = contractFilter === 'all'
+    ? hasFutureOrders || hasOptionOrders
+    : contractFilter !== 'spot';
+  const showStrikePrice = contractFilter === 'all'
+    ? hasOptionOrders
+    : contractFilter === 'option';
+
+  // Filter orders by contract type when a specific tab is selected
+  const filteredActiveOrders = useMemo(() => {
+    if (contractFilter === 'all') return activeOrders;
+    return activeOrders.filter(o => (o.contract_type || 'spot') === contractFilter);
+  }, [activeOrders, contractFilter]);
+
+  const filteredZoneGroups = useMemo(() => {
+    if (contractFilter === 'all') return zoneGroups;
+    return zoneGroups.reduce<{ group_id: number | null; group_name: string; mainOrders: SpreadOrder[]; pendingCloseOrders: SpreadOrder[]; linkGroups: OrderLinkGroup[] }[]>((acc, g) => {
+      const mainOrders = g.mainOrders.filter(o => (o.contract_type || 'spot') === contractFilter);
+      const pendingCloseOrders = g.pendingCloseOrders.filter(o => (o.contract_type || 'spot') === contractFilter);
+      const linkGroups = g.linkGroups.reduce<OrderLinkGroup[]>((links, lg) => {
+        const subs = lg.subs.filter(o => (o.contract_type || 'spot') === contractFilter);
+        const spreadPartner = lg.spreadPartner && (lg.spreadPartner.contract_type || 'spot') === contractFilter ? lg.spreadPartner : undefined;
+        const partnerSubs = lg.partnerSubs?.filter(o => (o.contract_type || 'spot') === contractFilter) || [];
+        if ((lg.primary?.contract_type || 'spot') !== contractFilter && subs.length === 0 && !spreadPartner) return links;
+        links.push({
+          primary: lg.primary && (lg.primary.contract_type || 'spot') === contractFilter ? lg.primary : subs[0] || spreadPartner!,
+          subs,
+          spreadPartner,
+          partnerSubs,
+        });
+        return links;
+      }, []);
+      if (mainOrders.length === 0 && linkGroups.length === 0) return acc;
+      acc.push({ ...g, mainOrders, pendingCloseOrders, linkGroups });
+      return acc;
+    }, []);
+  }, [zoneGroups, contractFilter]);
+
+  // Flat view link group computation (uses filtered orders)
   const { flatSortedOrders, flatLinkInfoMap } = useMemo(() => {
     const orderMap: Record<string, SpreadOrder> = {};
-    activeOrders.forEach(o => orderMap[o.order_id] = o);
+    filteredActiveOrders.forEach(o => orderMap[o.order_id] = o);
     const infoMap: Record<string, { isSub: boolean; showLine: boolean; linkType: string; isFirstInGroup: boolean; isLastInGroup: boolean }> = {};
     const used = new Set<string>();
     const groups: Record<string, { primary: SpreadOrder; subs: SpreadOrder[]; spreadPartner?: SpreadOrder; partnerSubs?: SpreadOrder[] }> = {};
 
-    for (const a of activeOrders) {
+    for (const a of filteredActiveOrders) {
       if (used.has(a.order_id)) continue;
       if (a.link_type === 'pending_close') continue;
 
@@ -140,8 +179,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
         const b = orderMap[a.linked_order_id];
         if (b.link_type === 'spread' && b.linked_order_id === a.order_id) {
           used.add(a.order_id); used.add(b.order_id);
-          const aSubs = activeOrders.filter(o => o.link_type === 'pending_close' && o.linked_order_id === a.order_id && !used.has(o.order_id));
-          const bSubs = activeOrders.filter(o => o.link_type === 'pending_close' && o.linked_order_id === b.order_id && !used.has(o.order_id));
+          const aSubs = filteredActiveOrders.filter(o => o.link_type === 'pending_close' && o.linked_order_id === a.order_id && !used.has(o.order_id));
+          const bSubs = filteredActiveOrders.filter(o => o.link_type === 'pending_close' && o.linked_order_id === b.order_id && !used.has(o.order_id));
           const all = [a, ...aSubs, b, ...bSubs];
           all.forEach((m, idx) => {
             const isSub = aSubs.includes(m) || bSubs.includes(m);
@@ -159,7 +198,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
         }
       }
 
-      const aSubs = activeOrders.filter(o => o.link_type === 'pending_close' && o.linked_order_id === a.order_id && !used.has(o.order_id));
+      const aSubs = filteredActiveOrders.filter(o => o.link_type === 'pending_close' && o.linked_order_id === a.order_id && !used.has(o.order_id));
       const all = [a, ...aSubs];
       all.forEach((m, idx) => {
         const isSub = aSubs.includes(m);
@@ -183,11 +222,11 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
         for (const s of g.partnerSubs || []) reordered.push(s);
       }
     }
-    for (const o of activeOrders) {
+    for (const o of filteredActiveOrders) {
       if (!reordered.find(r => r.order_id === o.order_id)) reordered.push(o);
     }
     return { flatSortedOrders: reordered, flatLinkInfoMap: infoMap };
-  }, [activeOrders]);
+  }, [filteredActiveOrders]);
 
   return (
   <section className="bg-white rounded-xl border border-hairline overflow-hidden mb-6">
@@ -197,7 +236,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
         <div className="flex items-center gap-4">
           <h3 className="text-[11px] font-bold text-ink uppercase tracking-widest">Order Management</h3>
           <span className="px-2 py-0.5 bg-ink text-[10px] text-white font-bold rounded-full uppercase tracking-tighter">
-            {activeOrders.length} ACTIVE
+            {filteredActiveOrders.length} ACTIVE
           </span>
         </div>
           <div className="flex items-center gap-4">
@@ -220,7 +259,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                   onClick={() => onContractFilterChange(tab.value)}
                   className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-full border transition-all ${
                     contractFilter === tab.value
-                      ? tab.value === 'spot'
+                      ? tab.value === 'all'
+                        ? 'bg-ink text-white border-ink'
+                        : tab.value === 'spot'
                         ? 'bg-indigo-600 text-white border-indigo-600'
                         : tab.value === 'future'
                         ? 'bg-blue-600 text-white border-blue-600'
@@ -244,7 +285,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
 
     {/* Table */}
     <div className="overflow-x-auto">
-      {zoneGroups.length > 0 && groupByZone ? (
+      {filteredZoneGroups.length > 0 && groupByZone ? (
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-surface border-y border-hairline">
@@ -253,7 +294,6 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">ID</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Asset</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Side</th>
-              {showDir && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Direction</th>}
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry Date</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry Price</th>
               <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Qty</th>
@@ -270,7 +310,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             </tr>
           </thead>
           <tbody className="text-sm text-ink">
-              {zoneGroups.map((groupInfo) => (
+              {filteredZoneGroups.map((groupInfo) => (
               <OrderGroupRow
                 key={groupInfo.group_id ?? '__ungrouped__'}
                 groupInfo={groupInfo}
@@ -280,11 +320,14 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                 onAssignGroup={onAssignGroup}
                 onLinkOrder={onLinkOrder}
                 contractFilter={contractFilter}
+                showLev={showLev}
+                showExp={showExp}
+                showStrikePrice={showStrikePrice}
               />
             ))}
           </tbody>
         </table>
-      ) : activeOrders.length > 0 ? (
+      ) : filteredActiveOrders.length > 0 ? (
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
@@ -293,7 +336,6 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">ID</th>
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Asset</th>
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Side</th>
-              {showDir && <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Direction</th>}
               <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Open Date</th>
               <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Qty</th>
               <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Entry</th>
@@ -313,7 +355,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             {flatSortedOrders.map((order) => {
               const openDate = order.created_at ? order.created_at.slice(0, 10) : "-";
               const isSpot = (order.contract_type || 'spot') === 'spot';
-              const showGray = isSpot && contractFilter !== 'spot';
+              const showGray = isSpot && contractFilter !== 'spot' && contractFilter !== 'all';
               const linkInfo = flatLinkInfoMap[order.order_id];
               const isLinked = order.link_type && order.link_type !== 'none';
               return (
@@ -394,11 +436,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                   <td draggable={false} className="px-3 py-2 text-xs text-gray-500 font-mono">#{order.order_id}</td>
                   <td draggable={false} className="px-3 py-2 font-medium text-sm">{order.asset_type}</td>
                   <td draggable={false} className="px-3 py-2">
-                    <span className={`text-xs px-1 rounded ${order.side === "BUY" || order.side === "Buy" ? "bg-teal-light text-brand-teal" : "bg-coral-light text-brand-coral"}`}>{order.side}</span>
+                    <span className={`text-xs px-1 rounded ${order.side === "BUY" || order.side === "Buy" || order.side === "LONG" ? "bg-teal-light text-brand-teal" : "bg-coral-light text-brand-coral"}`}>{order.side}</span>
                   </td>
-                  {showDir && (
-                    <td draggable={false} className="px-3 py-2 text-xs">{order.direction || '-'}</td>
-                  )}
                   <td draggable={false} className="px-3 py-2 text-xs text-gray-500">{openDate}</td>
                   <td draggable={false} className="px-3 py-2 text-right text-xs">{order.qty}</td>
                   <td draggable={false} className="px-3 py-2 text-right text-xs">${order.entry_price || "-"}</td>

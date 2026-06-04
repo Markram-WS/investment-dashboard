@@ -13,6 +13,7 @@ export interface AddOrderForm {
   order_status: string;
   contract_type: 'spot' | 'future' | 'option';
   direction: string;
+  option_type: string;
   expiry_date: string;
   strike_price: number | string;
   cost: number | string;
@@ -42,6 +43,7 @@ const defaultForm: AddOrderForm = {
   order_status: 'FILLED',
   contract_type: 'spot',
   direction: '',
+  option_type: '',
   expiry_date: '',
   strike_price: '',
   cost: '',
@@ -81,6 +83,7 @@ export const useAddOrder = (): UseAddOrderReturn => {
         order_status: formData.order_status,
         contract_type: formData.contract_type,
         direction: formData.direction || undefined,
+        option_type: formData.option_type || undefined,
         expiry_date: formData.expiry_date ? new Date(formData.expiry_date).toISOString() : undefined,
         strike_price: formData.strike_price !== '' ? parseFloat(formData.strike_price as string) : undefined,
         cost: formData.cost !== '' ? parseFloat(formData.cost as string) : 0,

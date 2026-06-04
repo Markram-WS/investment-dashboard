@@ -119,24 +119,31 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             <div className="flex-1">
               <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Side</label>
               <ToggleBtn
-                options={[
-                  { value: 'BUY', label: 'BUY', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
-                  { value: 'SELL', label: 'SELL', activeClass: 'bg-red-500 text-white border-red-500' },
-                ]}
+                options={
+                  formData.contract_type === 'spot'
+                    ? [
+                        { value: 'BUY', label: 'BUY', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
+                        { value: 'SELL', label: 'SELL', activeClass: 'bg-red-500 text-white border-red-500' },
+                      ]
+                    : [
+                        { value: 'LONG', label: 'LONG', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
+                        { value: 'SHORT', label: 'SHORT', activeClass: 'bg-red-500 text-white border-red-500' },
+                      ]
+                }
                 value={formData.side}
                 onChange={(v) => onChange('side', v)}
               />
             </div>
-            {formData.contract_type !== 'spot' && (
+            {formData.contract_type === 'option' && (
               <div className="flex-1">
-                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Direction</label>
+                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Option Type</label>
                 <ToggleBtn
                   options={[
-                    { value: 'LONG', label: 'LONG', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
-                    { value: 'SHORT', label: 'SHORT', activeClass: 'bg-red-500 text-white border-red-500' },
+                    { value: 'Call', label: 'CALL', activeClass: 'bg-purple-600 text-white border-purple-600' },
+                    { value: 'Put', label: 'PUT', activeClass: 'bg-purple-600 text-white border-purple-600' },
                   ]}
-                  value={formData.direction || 'LONG'}
-                  onChange={(v) => onChange('direction', v)}
+                  value={formData.option_type}
+                  onChange={(v) => onChange('option_type', v)}
                 />
               </div>
             )}

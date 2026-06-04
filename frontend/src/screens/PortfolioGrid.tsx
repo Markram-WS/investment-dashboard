@@ -48,7 +48,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const [alertMsg, setAlertMsg] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const [contractFilter, setContractFilter] = useState<'spot' | 'future' | 'option'>('spot');
+  const [contractFilter, setContractFilter] = useState<'all' | 'spot' | 'future' | 'option'>('all');
   const [viewMode, setViewMode] = useState<"equity" | "payoff">("equity");
   const [performanceData, setPerformanceData] = useState<any>(null);
 
@@ -101,7 +101,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     () => (selectedPortfolio?.active_orders || []).filter((o) => o.order_status !== "closed").sort((a, b) => {
       const cmp = (a.asset_type || '').localeCompare(b.asset_type || '');
       if (cmp !== 0) return cmp;
-      return (b.entry_price ?? 0) - (a.entry_price ?? 0);
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     }),
     [selectedPortfolio?.active_orders],
   );

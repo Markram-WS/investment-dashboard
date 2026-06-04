@@ -42,6 +42,7 @@ export interface SpreadOrder {
   group_name: string | null;
   contract_type?: 'spot' | 'future' | 'option';
   direction?: string | null;
+  option_type?: string | null;
   expiry_date?: string | null;
   strike_price?: number | null;
   exercise_price?: number | null;

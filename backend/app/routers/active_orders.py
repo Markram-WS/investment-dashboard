@@ -28,6 +28,7 @@ class ActiveOrderCreate(BaseModel):
     linked_order_id: Optional[str] = None
     contract_type: Optional[str] = 'spot'
     direction: Optional[str] = None
+    option_type: Optional[str] = None
     expiry_date: Optional[datetime] = None
     strike_price: Optional[float] = None
     cost: Optional[float] = 0.0
@@ -55,6 +56,7 @@ class ActiveOrderUpdate(BaseModel):
     linked_order_id: Optional[str] = None
     contract_type: Optional[str] = None
     direction: Optional[str] = None
+    option_type: Optional[str] = None
     expiry_date: Optional[datetime] = None
     strike_price: Optional[float] = None
     cost: Optional[float] = None
@@ -85,6 +87,7 @@ class ActiveOrderResponse(BaseModel):
     group_id: Optional[int] = None
     contract_type: Optional[str] = 'spot'
     direction: Optional[str] = None
+    option_type: Optional[str] = None
     expiry_date: Optional[datetime] = None
     strike_price: Optional[float] = None
     cost: Optional[float] = 0.0

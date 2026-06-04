@@ -14,7 +14,10 @@ interface OrderGroupRowProps {
   onClose?: (order: SpreadOrder) => void;
   onAssignGroup?: (orderIds: string[], groupId: number | null) => void;
   onLinkOrder?: (sourceOrderId: string, targetOrderId: string) => void;
-  contractFilter: 'spot' | 'future' | 'option';
+  contractFilter: 'all' | 'spot' | 'future' | 'option';
+  showLev: boolean;
+  showExp: boolean;
+  showStrikePrice: boolean;
 }
 
 const formatDate = (dateStr: string | null): string => {
@@ -23,12 +26,12 @@ const formatDate = (dateStr: string | null): string => {
 };
 
 const getSideBadgeClass = (side: string): string => {
-  return (side === 'BUY' || side === 'Buy' || side === 'buy')
+  return (side === 'BUY' || side === 'Buy' || side === 'buy' || side === 'LONG' || side === 'Long')
     ? 'bg-tealLight text-brandTeal border border-brandTeal/20 uppercase'
     : 'bg-coralLight text-brandCoral border border-brandCoral/20 uppercase';
 };
 
-export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups, onEdit, onClose, onAssignGroup, onLinkOrder, contractFilter }) => {
+export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups, onEdit, onClose, onAssignGroup, onLinkOrder, contractFilter, showLev, showExp, showStrikePrice }) => {
   const isUngrouped = groupInfo.group_id === null;
   const groupDef = groups.find(g => g.id === groupInfo.group_id);
   const groupLabel = groupDef
@@ -40,12 +43,7 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounter = useRef(0);
 
-  const showDir = contractFilter !== 'spot';
-  const showLev = contractFilter !== 'spot';
-  const showExp = contractFilter !== 'spot';
-  const showStrikePrice = contractFilter === 'option';
-
-  const extraCols = (showDir ? 1 : 0) + (showLev ? 2 : 0) + (showExp ? 1 : 0) + (showStrikePrice ? 1 : 0);
+  const extraCols = (showLev ? 2 : 0) + (showExp ? 1 : 0) + (showStrikePrice ? 1 : 0);
   const baseCols = 14;
   const totalCols = baseCols + extraCols;
 
@@ -204,7 +202,7 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
           : 0;
 
         const isSpot = (order.contract_type || 'spot') === 'spot';
-        const showGray = isSpot && contractFilter !== 'spot';
+        const showGray = isSpot && contractFilter !== 'spot' && contractFilter !== 'all';
         const linkInfo = linkInfoMap[order.order_id];
         const isLinked = order.link_type && order.link_type !== 'none';
 
@@ -292,9 +290,6 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                 {order.side}
               </span>
             </td>
-            {showDir && (
-              <td draggable={false} className="py-4 text-[10px] text-slate">{order.direction || '-'}</td>
-            )}
             <td draggable={false} className="py-4 text-[10px] text-slate">{formatDate(order.created_at)}</td>
             <td draggable={false} className="py-4 text-xs font-medium">${order.entry_price ? order.entry_price.toLocaleString() : '-'}</td>
             <td draggable={false} className="py-4 text-xs font-medium">{order.qty}</td>

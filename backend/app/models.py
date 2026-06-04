@@ -92,6 +92,7 @@ class ActiveOrder(Base):
     data_source = Column(String, default='Manual', check_constraint="data_source IN ('Manual', 'Bot')")
     contract_type = Column(String, default='spot')
     direction = Column(String, nullable=True)
+    option_type = Column(String, nullable=True)
     expiry_date = Column(DateTime, nullable=True)
     strike_price = Column(Numeric(20, 8), nullable=True)
     cost = Column(Numeric(20, 8), default=0.0)
