@@ -76,7 +76,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   if (!showModal) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[110]">
       <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
         <h3 className="text-lg font-bold mb-4">Add Order</h3>
         <div className="space-y-4">
@@ -165,6 +165,32 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           </div>
           <div className="flex gap-4">
             <div className="flex-1">
+              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Cost (spread/commission)</label>
+              <input
+                type="number"
+                step="any"
+                value={formData.cost}
+                onChange={(e) => onChange('cost', e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              />
+            </div>
+            {formData.contract_type === 'option' ? (
+              <div className="flex-1">
+                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Strike Price</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={formData.strike_price}
+                  onChange={(e) => onChange('strike_price', e.target.value)}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+            ) : (
+              <div className="flex-1" />
+            )}
+          </div>
+          <div className="flex gap-4">
+            <div className="flex-1">
               <label className="block text-xs font-bold uppercase text-gray-500 mb-1">TP Price</label>
               <input
                 type="number"
@@ -184,31 +210,6 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 className="w-full border rounded px-3 py-2 text-sm"
               />
             </div>
-          </div>
-          {formData.contract_type === 'option' && (
-            <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Strike Price</label>
-              <input
-                type="number"
-                step="any"
-                value={formData.strike_price}
-                onChange={(e) => onChange('strike_price', e.target.value)}
-                className="w-full border rounded px-3 py-2 text-sm"
-              />
-            </div>
-          )}
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Cost (spread/commission)</label>
-              <input
-                type="number"
-                step="any"
-                value={formData.cost}
-                onChange={(e) => onChange('cost', e.target.value)}
-                className="w-full border rounded px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="flex-1" />
           </div>
           <div className="flex gap-4">
             <div className="flex-1">

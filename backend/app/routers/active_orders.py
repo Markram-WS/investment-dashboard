@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 from app.database import get_db
 from app.models import ActiveOrder, TradePlan, TradeHistory
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, Dict, Any, List
 
 router = APIRouter()
@@ -32,6 +32,13 @@ class ActiveOrderCreate(BaseModel):
     strike_price: Optional[float] = None
     cost: Optional[float] = 0.0
 
+    @field_validator('expiry_date', mode='after')
+    @classmethod
+    def strip_tz(cls, v):
+        if isinstance(v, datetime):
+            return v.replace(tzinfo=None)
+        return v
+
 
 class ActiveOrderUpdate(BaseModel):
     asset_type: Optional[str] = None
@@ -51,6 +58,13 @@ class ActiveOrderUpdate(BaseModel):
     expiry_date: Optional[datetime] = None
     strike_price: Optional[float] = None
     cost: Optional[float] = None
+
+    @field_validator('expiry_date', mode='after')
+    @classmethod
+    def strip_tz(cls, v):
+        if isinstance(v, datetime):
+            return v.replace(tzinfo=None)
+        return v
 
 
 class ActiveOrderResponse(BaseModel):

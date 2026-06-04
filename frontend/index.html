@@ -66,6 +66,12 @@
         from { opacity: 0; transform: translateY(8px); }
         to { opacity: 1; transform: translateY(0); }
       }
+      .nav-icon-hover {
+        transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s ease;
+      }
+      .nav-icon-hover:hover {
+        transform: scale(1.12);
+      }
     </style>
     <script type="module" src="/src/main.tsx"></script>
   </head>

@@ -1,8 +1,7 @@
 import React, { useMemo } from "react";
 import { SpreadOrder, GroupOption, OrderLinkGroup } from "../../types";
 import { OrderGroupRow } from "./ZoneGroupRow";
-import { IconAdd } from "../../components/icons/IconAdd";
-import { IconLayers } from "../../components/icons/IconLayers";
+import { IconPlus, IconLayers } from "../../components/icons";
 import TradeHistoryTable from "./TradeHistoryTable";
 
 interface OrderManagementProps {
@@ -237,7 +236,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
       </div>
       <div className="flex items-center">
         <button onClick={onAddOrder} className="h-9 px-4 rounded-full bg-brand-teal text-white text-xs font-bold shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5" title="Add Order">
-          <IconAdd className="w-4 h-4" />
+          <IconPlus className="w-4 h-4" />
           Add Order
         </button>
       </div>
