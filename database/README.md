@@ -12,7 +12,7 @@ Two PostgreSQL databases power the system:
 | `portfolio_nav_history` | NAV time-series per portfolio |
 | `trade_plans` | Per-portfolio trade plan: entry/exit zones, leverage, margin rate, TP/SL levels |
 | `option_details` | Greeks & pricing: strike, premium, delta, IV, theta, gamma, vega, rho |
-| `active_orders` | Open positions: `order_id` TEXT (UUID), `group_id` FK→`orders_groups`, `linked_order_id` TEXT, `contract_type` (spot/future/option), `direction`, `expiry_date`, `strike_price`, `cost`, `option_id` FK→`option_details`. `link_type` is computed server-side (not stored) |
+| `active_orders` | Open positions: `order_id` TEXT (UUID), `group_id` FK→`orders_groups`, `linked_order_id` TEXT, `contract_type` (spot/future/option), `option_type` (Call/Put), `expiry_date`, `strike_price`, `cost`, `option_id` FK→`option_details`. Side: `BUY`/`SELL` for spot, `LONG`/`SHORT` for futures/options (`direction` field removed). `link_type` is computed server-side (not stored) |
 | `simulation_models` | Draft rebalance/simulation data per portfolio |
 | `trade_history` | Closed/canceled order records: `order_id`, `close_order_id`, `group_id`, `realized_pl`, `exit_price`, timestamps |
 | `orders_groups` | Group definitions: `name`, `max_orders`, `min_price`, `max_price`, `range` (was Zone Groups) |
@@ -27,7 +27,8 @@ Two PostgreSQL databases power the system:
 - `linked_order_id TEXT` — one-way link (pending close) or cross-link (spread pair). Cross-link detected when `A.linked_order_id = B.order_id AND B.linked_order_id = A.order_id`
 - `group_id INTEGER FK → orders_groups(id)` — zone grouping
 - `contract_type TEXT` — `'spot'`, `'future'`, or `'option'`
-- `direction TEXT` — long/short for futures/options
+- `option_type TEXT` — `'Call'` or `'Put'` for options
+- `side TEXT` — `'BUY'`/`'SELL'` for spot, `'LONG'`/`'SHORT'` for futures/options (`direction` field removed)
 - `expiry_date TIMESTAMP` — for futures/options
 - `strike_price NUMERIC(20,8)` — for options
 - `cost NUMERIC(20,8)` — cost basis

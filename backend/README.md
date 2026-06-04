@@ -62,8 +62,10 @@ open http://localhost:8000/docs
 > `risk_score` (0–100) is computed server-side from `available_cash`, `margin_locked`, `cash_buffer_limit` — matching the frontend risk gauge logic.
 > `active_orders.group_id` is an **Integer FK** to `orders_groups.id` (renamed from `ZoneGroup`; the `zone` column was removed).
 > `active_orders.linked_order_id` is a **TEXT** column (was `spread_pair_id`) — one-way link (pending close) or two-way cross-link (spread pair). A cross-linked pair is detected when `A.linked_order_id == B.order_id AND B.linked_order_id == A.order_id`. Spread legs appear with `link_type: "spread"` and one-way subs with `link_type: "pending_close"`. Orders with subs linking to them get `link_type: "primary"`.
-> `active_orders.contract_type` is `'spot'`, `'future'`, or `'option'` — controls per-column visibility in the order table.
-> `active_orders.direction`, `expiry_date`, `strike_price` — option/future-specific fields.
+> `active_orders.contract_type` is `'spot'`, `'future'`, or `'option'` — controls order filtering in the order table. The **All** tab adapts columns dynamically based on which contract types exist.
+> `active_orders.side` — `'BUY'`/`'SELL'` for spot, `'LONG'`/`'SHORT'` for futures/options (direction field was removed).
+> `active_orders.option_type` — `'Call'` or `'Put'` for options.
+> `active_orders.expiry_date`, `strike_price` — option/future-specific fields.
 > `active_orders.cost` — cost basis for the order.
 > `active_orders.option_id` references `option_details` (greeks & pricing).
 > `GET /api/v1/analytics/performance/{portfolio_id}` returns `payoff_data[]` with items grouped by **month** (YYYY-MM-01 date) and `realized_pl` summed per month — one bar per month, not per trade. E.g., 10 trades in January appear as a single bar with the sum. The `asset` field was removed from `PayoffBar` (no longer per-trade).  
@@ -107,10 +109,10 @@ open http://localhost:8000/docs
 ### Active Orders
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
-| `POST` | `/api/v1/orders/` | Place a new order (optional `order_id` UUID; auto-generated if omitted) |
+| `POST` | `/api/v1/orders/` | Place a new order (optional `order_id` UUID; auto-generated if omitted). Side: `BUY`/`SELL` for spot, `LONG`/`SHORT` for futures/options. Fields: `contract_type`, `option_type` (`Call`/`Put`), `expiry_date`, `strike_price`, `cost` |
 | `GET` | `/api/v1/orders/` | List orders (optional query: `portfolio_id`) |
 | `GET` | `/api/v1/orders/{order_id}` | Get order details |
-| `PUT` | `/api/v1/orders/{order_id}` | Update order fields (`group_id`, `linked_order_id`, `contract_type`, `direction`, `expiry_date`, `strike_price`, `cost`, etc.) |
+| `PUT` | `/api/v1/orders/{order_id}` | Update order fields (`group_id`, `linked_order_id`, `contract_type`, `side`, `option_type`, `expiry_date`, `strike_price`, `cost`, etc.) |
 | `PATCH` | `/api/v1/orders/{order_id}/status` | Change order status: send `{"new_status": "CANCELED"}` → deletes from `active_orders` + creates trade history with `{"note":"Canceled"}` |
 | `POST` | `/api/v1/orders/{order_id}/close` | Close order: deletes from `active_orders`, creates `TradeHistory` record with exit price/P-L. **Auto-closes all sub-orders** (orders one-way linking to this order via `linked_order_id`). Returns `auto_closed[]` with each sub's ID and history_id. Returns `paired_order_id` if the closed order is cross-linked (spread pair partner still alive). |
 | `POST` | `/api/v1/orders/{order_id}/link` | Link order to a target order via `linked_order_id` (one-way = pending close); spread pair requires reciprocal link (target must link back for two-way). |
@@ -119,6 +121,7 @@ open http://localhost:8000/docs
 > `order_id` is a UUID string (e.g., `a1b2c3d4-e5f6-...`).  
 > Order status values: `PENDING`, `FILLED` (non-terminal); `CLOSE`, `CANCELED` (terminal — order removed from `active_orders`).  
 > `group_id` is an Integer FK to `orders_groups.id`.
+> `option_type` is `'Call'` or `'Put'` for option orders.
 > `linked_order_id` replaces the old `spread_pair_id` — one-way link = pending close (B→A), two-way cross-link = spread pair (A↔B). On close: primary order auto-closes its one-way subs; spread pair signals `paired_order_id` for the frontend to handle the partner.
 > `POST /{order_id}/unlink` clears `linked_order_id` on both sides — used by EditOrderModal's unlink-on-save flow.
 
@@ -132,7 +135,7 @@ open http://localhost:8000/docs
 ### Portfolio Grid
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
-| `GET` | `/api/v1/analytics/portfolio-grid?portfolio_id=` | Full grid data: orders (each with `link_type`: `"spread"`, `"pending_close"`, `"primary"`, or `"none"`), cash details (`available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit`), `risk_score`, tags, trade plan, internal notes, spread pairs (cross-linked), recent trades |
+| `GET` | `/api/v1/analytics/portfolio-grid?portfolio_id=` | Full grid data: orders (each with `link_type`: `"spread"`, `"pending_close"`, `"primary"`, or `"none"`), cash details (`available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit`), `risk_score`, tags, trade plan, internal notes, spread pairs (cross-linked), recent trades. Orders include `contract_type`, `option_type`, `side` (LONG/SHORT for futures/options), `strike_price`, `expiry_date`, `cost` |
 
 ### Trade History
 | Method | Endpoint | Description |

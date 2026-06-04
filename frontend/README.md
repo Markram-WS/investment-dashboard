@@ -37,13 +37,9 @@ frontend/
 │   │   └── useMarkdownRenderer.ts # Simple markdown → HTML + risk status
 │   │
 │   ├── components/
-│   │   ├── Navigation.tsx  # Sticky nav with SVG icons + dropdown
-│   │   └── icons/          # Inline SVG icon components
-│   │       ├── IconAdd.tsx
-│   │       ├── IconClose.tsx
-│   │       ├── IconEdit.tsx
-│   │       ├── IconLayers.tsx
-│   │       └── IconLink.tsx
+│   │   ├── Navigation.tsx  # Sticky nav with feather-style SVG icons (w-5 h-5, hover animate-pulse) + dropdown
+│   │   └── icons/          # Unified barrel export (index.tsx), feather-style inline SVGs
+│   │       └── index.tsx   # IconDashboard, IconTransactions, IconAdd, IconClose, IconEdit, IconLayers, IconLink, IconPlus, etc.
 │   │
 │   ├── pages/              # Main routes (pages)
 │   │   ├── PortfolioOverview.tsx    # Hero Card + Pool Health (SVG) + Grid
@@ -60,7 +56,7 @@ frontend/
 │   │   ├── PortfolioGrid.tsx        # Slim orchestrator (~327 lines) composing sub-components
 │   │   ├── PortfolioSpread.tsx      # Spread pairing: pairs + payoff
 │   │   ├── PortfolioMutualFund.tsx  # Managed fund: allocation, rebalance, NAV
-│   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID UUID, asset, side, qty, TP/SL, group combobox, status, contract_type toggle indigo/blue/purple)
+│   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID UUID, asset, side BUY/SELL spot or LONG/SHORT future/option, option_type dropdown Call/Put for options, qty, Cost above TP/SL, Strike on same row as Cost, group combobox, status, contract_type toggle indigo/blue/purple)
 │   │   ├── CloseOrderModal.tsx     # Close order form (editable Close ID UUID, exit price, P/L, auto-calc, shows linked order info for spread/pending_close via link_type)
 │   │   ├── EditOrderModal.tsx       # Order edit modal (group combobox, contract_type toggle indigo/blue/purple, validation warnings)
 │   │   ├── EditPortfolioModal.tsx   # Portfolio field editor: name, NAV, margin, buffer, cash, MM, tags; Danger Zone delete
@@ -73,11 +69,11 @@ frontend/
 │   │       ├── TagsSection.tsx        # Metadata tag pills
 │   │       ├── PerformanceSection.tsx # Performance wrapper + Equity/Payoff toggle
 │   │       ├── PerformanceChart.tsx   # Dynamic SVG: equity line chart (cumulative P/L) or payoff bar chart (grouped by month with summed realized_pl)
-│   │       ├── OrderManagement.tsx    # Active orders table (grouped or flat), Group toggle, two-row header with Add Order pill, drag-and-drop support, Link Order button in left column, contract_type filter tabs (indigo/blue/purple)
+│   │       ├── OrderManagement.tsx    # Active orders table (grouped or flat), Group toggle, two-row header with Add Order pill, drag-and-drop support, Link Order button in left column, contract_type filter tabs (indigo/blue/purple) that actually filter orders. All tab adapts columns dynamically based on which contract types exist (spot-only → basic cols, has futures → lev/margin/expiry, has options → all cols)
 │   │       ├── TradeHistoryTable.tsx  # Collapsible closed-orders table (bg-gray-50 pill badge matching Ungrouped style); drop target (even when collapsed)
 │   │       ├── TradePlanView.tsx      # Trade plan markdown display (click-to-edit, Save/Cancel)
 │   │       ├── QuickStatsView.tsx     # Active pairs/positions stats
-│   │       ├── ZoneGroupRow.tsx       # Grouped order row (exports OrderGroupRow) with edit/close buttons (no borders), drag handle, Link Order button in left column, drop target (counter-ref prevents flicker), custom drag ghost pill
+│   │       ├── ZoneGroupRow.tsx       # Grouped order row (exports OrderGroupRow) with edit/close buttons (no borders), drag handle, Link Order button in left column, drop target (counter-ref prevents flicker), custom drag ghost pill. Receives showLev/showExp/showStrikePrice as props from parent (no longer computes internally)
 │   │       ├── GroupCombobox.tsx      # Searchable combobox dropdown for group selection in modals
 │   │       ├── ToastAlert.tsx         # Fixed-position dismissible toast (z-[9999], below nav bar, auto-dismiss 4s)
 │   │       └── HistoricalGridView.tsx # Historical trades accordion
@@ -401,10 +397,10 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
    - Drop บน Ungrouped section → ยกเลิก group assignment
    - Drop บน Trade History (even when collapsed) → close (FILLED) หรือ cancel (PENDING)
    - Group validation alerts (non-blocking toast): max_orders, min_price, max_price
-9. **Contract Type Filter Tabs**: Filter orders by `contract_type` (Spot=indigo, Future=blue, Option=purple) in the order table header
+9. **Contract Type Filter Tabs**: Filter orders by `contract_type` (Spot=indigo, Future=blue, Option=purple) in the order table header. Tabs actually filter displayed orders (not just columns). **All** tab adapts columns dynamically: spot-only → basic cols, has futures → lev/margin/expiry, has options → all cols (lev/margin/expiry/strike)
 10. **Link Order Button**: Chain-link icon (`IconLink`) in the left column (next to drag handle) — links orders via `linked_order_id` using `POST /api/v1/orders/{id}/link`
 11. **EditOrderModal unlink**: Hovering the linked order info row shows a ghost link icon; clicking toggles a red broken-link icon with "Will unlink" label. On Save, calls `POST /api/v1/orders/{order_id}/unlink` before saving other changes.
-12. **Active orders sorted by Asset asc, Entry desc**: Both grouped and flat views sort active orders by asset_type ascending, then entry_price descending.
+12. **Active orders sorted by Asset asc, Entry desc**: Both grouped and flat views sort active orders by asset_type ascending, then created_at (entry date) descending.
 12. **Tier Spread / Link Types**: Each order has `link_type` field:
     - `"spread"` — cross-linked (A↔B), forms a spread pair
     - `"pending_close"` — one-way sub-order (B→A, B is a pending close of A)
@@ -499,7 +495,7 @@ All shared types are defined in `src/types/index.ts`:
 | Domain | Key Interfaces | Notes |
 |--------|---------------|-------|
 | **Portfolio Overview** | `PortfolioOverviewItem`, `OverviewResponse` | |
-| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` | `order_id` is **string** (UUID); `risk_score` (0–100) computed server-side; `group_id` is `number | null`; `linked_order_id` replaces `spread_pair_id`; `contract_type`, `direction`, `expiry_date`, `strike_price`, `exercise_price`, `cost` added; `link_type`: `"spread"` (cross-linked), `"pending_close"` (one-way sub), `"primary"` (has subs), `"none"` |
+| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` | `order_id` is **string** (UUID); `risk_score` (0–100) computed server-side; `group_id` is `number | null`; `linked_order_id` replaces `spread_pair_id`; `contract_type`, `option_type` (Call/Put), `expiry_date`, `strike_price`, `exercise_price`, `cost` added; `side`: `BUY`/`SELL` for spot, `LONG`/`SHORT` for futures/options (direction field removed); `link_type`: `"spread"` (cross-linked), `"pending_close"` (one-way sub), `"primary"` (has subs), `"none"` |
 | **Orders Groups** | `GroupOption` | Fields: `id`, `name`, `max_orders` (null = ∞), `min_price`, `max_price` |
 | **Managed Fund** | `FundPortfolio`, `TradePlan`, `TradeRecommendation`, `NavHistoryRecord` | |
 | **Spread Pairing** | `PortfolioSpreadsData` | |

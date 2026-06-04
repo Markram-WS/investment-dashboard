@@ -54,9 +54,9 @@
 - **15 SQLAlchemy models** in `models.py`: Portfolio, TradePlan, ActiveOrder, OptionDetails, PortfolioNavHistory, SimulationModels, TradeHistory, Transaction, DecisionJournal, WhitelistAssets, Watchlist, AiAgent, AiActionLog, AiAgentState, OrdersGroup
 - **Key endpoints**:
   - `GET /api/v1/analytics/performance/{portfolio_id}` — equity curve (cumulative realized P/L), payoff bars (grouped by month with summed realized_pl — one bar per month), total P/L
-  - `GET /api/v1/analytics/portfolio-grid?portfolio_id=` — full grid data with cash details, `risk_score` (0–100), tags, trade plan, internal notes
+  - `GET /api/v1/analytics/portfolio-grid?portfolio_id=` — full grid data with cash details, `risk_score` (0–100), tags, trade plan, internal notes; orders include `contract_type`, `option_type`, `side` (LONG/SHORT for futures/options), `strike_price`, `expiry_date`, `cost`
   - `PUT /api/v1/portfolios/{id}` — update `portfolio_name`, `current_nav`, `margin_locked`, `cash_buffer_limit`, `available_cash`, `money_market`, `trade_plan_md`, `internal_notes`, `tags`
-  - `POST /api/v1/orders/` — create order with optional UUID `order_id`, `contract_type`, `linked_order_id`, `direction`, `expiry_date`, `strike_price`
+  - `POST /api/v1/orders/` — create order with optional UUID `order_id`, `contract_type`, `option_type` (Call/Put), `side` (LONG/SHORT for futures/options), `linked_order_id`, `expiry_date`, `strike_price`, `cost`. `direction` field removed.
   - `POST /api/v1/orders/{order_id}/close` — close order with exit price/P&L, creates TradeHistory record; auto-closes all sub-orders (one-way links to this order) server-side; returns `auto_closed[]` and `paired_order_id` for cross-linked spread partner
   - `POST /api/v1/orders/{order_id}/link` — link order to target via `linked_order_id` (one-way = pending close; reciprocal = spread pair)
   - `POST /api/v1/orders/{order_id}/unlink` — clear `linked_order_id` on both sides; used by EditOrderModal
@@ -65,7 +65,7 @@
 
 ### Frontend (React 18 + TypeScript + Vite)
 - **PortfolioGrid.tsx** — slim orchestrator (~241 lines, down from 1194) composing sub-components
-- **Screen modals** in `src/screens/`: `AddOrderModal` (editable UUID order_id, contract_type toggle indigo/blue/purple), `CloseOrderModal` (auto Close ID, uses `link_type` to show spread/pending_close linked order info), `EditOrderModal` (contract_type toggle, linked_order_id), `EditPortfolioModal` (name, NAV, margin, buffer, cash, MM, tags), `ZoneEditModal`, `ZoneGroupModal`
+- **Screen modals** in `src/screens/`: `AddOrderModal` (editable UUID order_id, contract_type toggle indigo/blue/purple, side BUY/SELL spot or LONG/SHORT future/option, option_type dropdown Call/Put for options, Cost above TP/SL, Strike on same row as Cost), `CloseOrderModal` (auto Close ID, uses `link_type` to show spread/pending_close linked order info), `EditOrderModal` (contract_type toggle, linked_order_id, option_type), `EditPortfolioModal` (name, NAV, margin, buffer, cash, MM, tags), `ZoneEditModal`, `ZoneGroupModal`
 - **Screen components** in `src/screens/components/`:
   - `PortfolioHeader.tsx` — breadcrumb, title, Refresh + teal Add Order button
   - `SummaryCard.tsx` — 3-col values (Total Value, Total P/L, Available Cash), Cash Details (Total Notional, MM, Margin, Buffer), Risk gauge (dynamic via 3-branch formula), Asset Allocation donut (real data from active orders, excludes cash), Metadata Tags, triple-dot edit button
@@ -73,10 +73,12 @@
   - `TagsSection.tsx` — metadata tag pills
   - `PerformanceSection.tsx` — chart wrapper + Equity/Payoff toggle
   - `PerformanceChart.tsx` — dynamic SVG: equity line chart (cumulative P/L) or payoff bar chart (grouped by month with summed realized_pl)
-  - `OrderManagement.tsx` — active orders table (zone-grouped or flat), Group-by-Zone toggle, contract_type filter tabs (indigo/blue/purple), Link Order button in left column, footer Add Order + Zone Group buttons
+  - `OrderManagement.tsx` — active orders table (zone-grouped or flat), Group-by-Zone toggle, contract_type filter tabs (indigo/blue/purple) that actually filter orders (not just columns), All tab adapts columns dynamically based on existing contract types, Link Order button in left column, footer Add Order + Zone Group buttons
   - `TradeHistoryTable.tsx` — collapsible closed-orders table
   - `TradePlanView.tsx` — click-to-edit markdown with Save/Cancel
-  - `ZoneGroupRow.tsx` — zone-grouped order row with edit/close buttons (no borders), Link Order button in left column, drag handle
+  - `ZoneGroupRow.tsx` — zone-grouped order row with edit/close buttons (no borders), Link Order button in left column, drag handle. Receives showLev/showExp/showStrikePrice as props (no longer computes internally)
+- **Navigation.tsx** — Sticky nav with feather-style SVG icons (w-5 h-5, hover animate-pulse), IconDashboard (grid layout) + IconTransactions added
+- **icons/index.tsx** — Unified barrel export of all feather-style inline SVG icons (replaced individual Icon*.tsx files)
 - **Custom hooks** in `src/hooks/`: `useOrderEdit`, `useAddOrder`, `usePortfolioManager`, `useZoneEditor`, `useMarkdownRenderer`
 - **API layer** (`src/lib/api.ts`): 44 exported endpoints, centralized `fetchJson<T>()` wrapper, Vite proxy `/api/*` → `localhost:8000`
 - **Tailwind CDN** loaded in `index.html` with custom config for all project colors (ink, brand-teal, brand-coral, brand-blue, hairline, surface, slate, etc.)
@@ -85,7 +87,7 @@
 - `README.md` — full documentation of both schemas
 - `main_db_schema.sql` — 12 tables (11 main + decision_journals) for Manual/Bot data
   - `portfolios` has `internal_notes TEXT` and `tags JSONB` columns
-  - `active_orders.order_id` is TEXT (UUID, not auto-increment INT); `linked_order_id` TEXT (replaces old `spread_pair_id`) — supports one-way (pending close) and two-way cross-linking (spread pair); `contract_type` ('spot'/'future'/'option'), `direction`, `expiry_date`, `strike_price`, `cost` columns added
+  - `active_orders.order_id` is TEXT (UUID, not auto-increment INT); `linked_order_id` TEXT (replaces old `spread_pair_id`) — supports one-way (pending close) and two-way cross-linking (spread pair); `contract_type` ('spot'/'future'/'option'), `option_type` (Call/Put), `expiry_date`, `strike_price`, `cost`, `option_id` FK to `option_details` added. Side: `BUY`/`SELL` for spot, `LONG`/`SHORT` for futures/options (`direction` field removed).
   - `active_orders.option_id` references `option_details` table (greeks & pricing)
   - `active_orders` API now includes computed `link_type` field: `"spread"` (cross-linked), `"pending_close"` (one-way sub), `"primary"` (has subs), `"none"`
   - `trade_history.close_order_id` stores UUID from close action
@@ -104,7 +106,7 @@
 - **Available Cash** = `totalCash + P/L − money_market − margin_locked − cash_buffer_limit`
 - **Total Notional** (Cash Details) = `Σ(qty × entry_price)` across active orders — shows market exposure deployed
 - **Asset Allocation** = computed from active orders by `asset_type` grouped by notional value, sorted descending; excludes Cash
-- **Active orders sorted** by `asset_type ASC`, then `entry_price DESC` — both grouped and flat views
+- **Active orders sorted** by `asset_type ASC`, then `created_at DESC` (entry date descending) — both grouped and flat views
 - **Payoff bars** are grouped by month with summed `realized_pl` — one bar per month, not per trade (date format `YYYY-MM-01`)
 - **Performance equity curve** uses cumulative realized P/L from trade history (no `initial_funding`)
 - **Risk Level gauge** (3-branch formula, mirrored on frontend + backend `_compute_risk_score()`):
@@ -161,6 +163,11 @@
 | `frontend/src/screens/EditOrderModal.tsx` | Unlink-on-save flow |
 | `frontend/src/screens/CloseOrderModal.tsx` | Link type display in close form |
 | `database/main_db_schema.sql` | `linked_order_id TEXT` column |
+| `frontend/src/components/icons/index.tsx` | Unified barrel export for feather-style SVG icons |
+| `frontend/src/screens/AddOrderModal.tsx` | Option type (Call/Put) dropdown, LONG/SHORT side, field reorder |
+| `frontend/src/screens/EditOrderModal.tsx` | Option type field for options |
+| `frontend/src/screens/components/OrderManagement.tsx` | Dynamic column visibility (All tab adaptive), contract_filter actual filtering, show booleans passed to ZoneGroupRow |
+| `frontend/src/screens/components/ZoneGroupRow.tsx` | Receives showLev/showExp/showStrikePrice as props, removed internal computation |
 
 ## requirement
 requirement\Detailed-Functional-Requirements.md
