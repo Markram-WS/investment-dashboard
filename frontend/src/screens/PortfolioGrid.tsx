@@ -415,7 +415,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const cumulativePl = performanceData?.total_pl || 0;
   const marginLocked = selectedPortfolio?.margin_locked || 0;
   const cashBufferLimit = selectedPortfolio?.cash_buffer_limit || 0;
-  const totalValue = (selectedPortfolio?.available_cash || 0) + cumulativePl + marginLocked + cashBufferLimit + (selectedPortfolio?.money_market || 0);
+  const totalValue = (selectedPortfolio?.available_cash || 0) + cumulativePl + marginLocked + cashBufferLimit + (selectedPortfolio?.money_market || 0) + totalNotional;
   const plPercent = totalCash > 0 ? (cumulativePl / totalCash) * 100 : 0;
   const availableCash = (selectedPortfolio?.available_cash || 0) + cumulativePl;
 
@@ -448,6 +448,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           totalValue={totalValue}
           totalCash={totalCash}
           totalNotional={totalNotional}
+          cashAvailable={selectedPortfolio?.available_cash || 0}
           cumulativePl={cumulativePl}
           plPercent={plPercent}
           availableCash={availableCash}
@@ -574,7 +575,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         tags={selectedPortfolio.tags}
         showModal={showEditPortfolioModal}
         onClose={() => setShowEditPortfolioModal(false)}
-        onSaved={fetchAnalyticsData}
+        onSaved={() => { fetchAnalyticsData(); }}
         onDepositWithdraw={(msg) => setAlertMsg({ msg, type: "success" })}
         activeOrderCount={activeOrders.length}
         onDeleted={() => {

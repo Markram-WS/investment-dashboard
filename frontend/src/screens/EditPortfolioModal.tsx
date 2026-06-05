@@ -32,6 +32,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
     tags: tags ? Object.keys(tags).join(", ") : "",
   });
   const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
@@ -46,6 +47,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
       setDeleting(false);
       setDwAmount("");
       setDwError("");
+      setSaveErr("");
     }
   }, [showModal]);
 
@@ -54,26 +56,36 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
   };
 
   const handleSave = async () => {
+    setSaveErr("");
+    const newMargin = parseFloat(form.margin_locked as any) || 0;
+    const newBuffer = parseFloat(form.cash_buffer_limit as any) || 0;
+    const newMM = parseFloat(form.money_market as any) || 0;
+
+    if (newMargin > rawAvailableCash) { setSaveErr(`Margin Locked max is $${rawAvailableCash.toLocaleString()}`); return; }
+    if (newBuffer > rawAvailableCash) { setSaveErr(`Cash Buffer Limit max is $${rawAvailableCash.toLocaleString()}`); return; }
+    if (newMM > rawAvailableCash) { setSaveErr(`Money Market max is $${rawAvailableCash.toLocaleString()}`); return; }
+
     setSaving(true);
     try {
       const tagsObj: Record<string, boolean> = {};
       form.tags.split(",").map((t) => t.trim()).filter(Boolean).forEach((t) => { tagsObj[t] = true; });
 
-      const newMargin = parseFloat(form.margin_locked as any) || 0;
-      const newBuffer = parseFloat(form.cash_buffer_limit as any) || 0;
-      const newMM = parseFloat(form.money_market as any) || 0;
+      const totalDiff = (newMargin - marginLocked) + (newBuffer - cashBufferLimit) + (newMM - moneyMarket);
+      const newAvailable = Math.max(0, rawAvailableCash - totalDiff);
 
       await api.updatePortfolio(portfolioId, {
         portfolio_name: form.portfolio_name || undefined,
-        margin_locked: newMargin || undefined,
-        cash_buffer_limit: newBuffer || undefined,
-        money_market: newMM || undefined,
+        margin_locked: newMargin,
+        cash_buffer_limit: newBuffer,
+        money_market: newMM,
+        available_cash: newAvailable,
         tags: Object.keys(tagsObj).length > 0 ? tagsObj : undefined,
       });
       onSaved();
       onClose();
     } catch (err) {
       console.error("Failed to save portfolio:", err);
+      setSaveErr(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
     }
@@ -152,7 +164,12 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
 
   if (!showModal) return null;
 
-  const baseEquity = rawAvailableCash + cumulativePl;
+  const projectedMargin = parseFloat(form.margin_locked as any) || 0;
+  const projectedBuffer = parseFloat(form.cash_buffer_limit as any) || 0;
+  const projectedMM = parseFloat(form.money_market as any) || 0;
+  const projectedDiff = (projectedMargin - marginLocked) + (projectedBuffer - cashBufferLimit) + (projectedMM - moneyMarket);
+  const projectedAvailableCash = Math.max(0, rawAvailableCash - projectedDiff);
+  const displayEquity = projectedAvailableCash + cumulativePl;
 
   return (
     <>
@@ -176,7 +193,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
             <div>
               <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Available Cash</label>
               <div className="w-full px-3 py-2 text-sm border border-hairline rounded-lg bg-gray-50 text-ink font-semibold">
-                ${(baseEquity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ${displayEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -223,6 +240,10 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
           </div>
 
           <hr className="my-6 border-hairline" />
+
+          {saveErr && (
+            <p className="text-xs text-red-600 mb-4">{saveErr}</p>
+          )}
 
           <div className="flex items-center justify-between">
             <div>

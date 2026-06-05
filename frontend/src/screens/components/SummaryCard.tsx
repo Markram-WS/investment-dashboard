@@ -6,6 +6,7 @@ interface SummaryCardProps {
   totalValue: number;
   totalCash: number;
   totalNotional: number;
+  cashAvailable: number;
   cumulativePl: number;
   plPercent: number;
   availableCash: number;
@@ -22,7 +23,7 @@ interface SummaryCardProps {
 const R = 16, CIRCUMFERENCE = 2 * Math.PI * R;
 
 const SummaryCard: React.FC<SummaryCardProps> = ({
-  totalValue, totalCash, totalNotional, cumulativePl, plPercent, availableCash,
+  totalValue, totalCash, totalNotional, cashAvailable, cumulativePl, plPercent, availableCash,
   marginLocked, cashBufferLimit, moneyMarket, riskStatus, riskPercent, tags, assetAllocation,
   onEditPortfolio,
 }) => {
@@ -43,7 +44,16 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
 
     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 pb-8 border-b border-hairline">
       <div className="flex flex-col">
-        <p className="text-xs font-medium text-gray-500 mb-2">Total Value</p>
+        <div className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+          Total Value
+          <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
+            i
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 px-3 py-2 bg-ink text-white text-[10px] leading-relaxed rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+              Cash + P/L + MM + Margin + Buffer + Notional
+              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 bg-ink rotate-45"></div>
+            </div>
+          </span>
+        </div>
         <p className="text-3xl font-bold leading-none">${totalValue.toLocaleString()}</p>
         <p className="text-brand-teal text-sm font-semibold mt-2 flex items-center gap-1">
           {plPercent >= 0 ? "+" : ""}{plPercent.toFixed(1)}%
@@ -62,17 +72,16 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
       </div>
       <div className="flex flex-col">
         <div className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
-          Available Cash
+          Cash
           <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
             i
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 px-3 py-2 bg-ink text-white text-[10px] leading-relaxed rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-              Available Cash + P/L
+              Cash + P/L = Net Available
               <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 bg-ink rotate-45"></div>
             </div>
           </span>
         </div>
         <p className="text-3xl font-bold leading-none text-ink">${Math.max(0, availableCash).toLocaleString()}</p>
-        <p className="text-slate text-xs mt-2">Liquid after deductions</p>
       </div>
     </div>
 
@@ -80,8 +89,17 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
       <p className="text-[11px] font-bold text-gray-500 mb-4 uppercase tracking-widest">Cash Details</p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         <div>
-          <p className="text-[10px] font-medium text-gray-500 mb-1">Total Notional</p>
-          <p className="text-lg font-bold">${totalNotional.toLocaleString()}</p>
+          <div className="text-[10px] font-medium text-gray-500 mb-1 flex items-center gap-1">
+            Available Cash
+            <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
+              i
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-3 py-2 bg-ink text-white text-[10px] leading-relaxed rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                Available Cash = Cash + Total P/L
+                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 bg-ink rotate-45"></div>
+              </div>
+            </span>
+          </div>
+          <p className="text-lg font-bold">${cashAvailable.toLocaleString()}</p>
         </div>
         <div>
           <p className="text-[10px] font-medium text-gray-500 mb-1">Money Market (T+3)</p>
@@ -101,7 +119,16 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
     <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
       <div className="flex border-r border-hairline pr-8">
         <div className="flex flex-col w-full">
-          <p className="text-[11px] font-bold text-gray-500 mb-6 uppercase tracking-widest">Risk Level</p>
+          <div className="text-[11px] font-bold text-gray-500 mb-6 uppercase tracking-widest flex items-center gap-1">
+            Risk Level
+            <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
+              i
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 px-3 py-2 bg-ink text-white text-[10px] leading-relaxed rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                min(100%, (Cash − Margin) ÷ max(Buffer, Margin) × 100)
+                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 bg-ink rotate-45"></div>
+              </div>
+            </span>
+          </div>
           <div className="flex items-center gap-8 md:gap-12">
             <div className="relative flex items-center justify-center w-40 h-40 shrink-0">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
