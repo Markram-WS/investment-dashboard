@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { SpreadOrder, GroupOption, OrderLinkGroup } from "../../types";
 import { OrderGroupRow } from "./ZoneGroupRow";
 import { IconPlus, IconLayers, IconContract } from "../../components/icons";
 import OptionsStrategyTable from "./OptionsStrategyTable";
+import type { OptionRow } from "./OptionsStrategyTable";
 import TradeHistoryTable from "./TradeHistoryTable";
 
 interface OrderManagementProps {
@@ -25,6 +26,18 @@ interface OrderManagementProps {
   onLinkOrder?: (sourceOrderId: string, targetOrderId: string) => void;
   contractFilter: 'all' | 'spot' | 'future' | 'option';
   onContractFilterChange: (v: 'all' | 'spot' | 'future' | 'option') => void;
+  // Payoff controls
+  strategyRows?: OptionRow[];
+  onStrategyRowsChange?: (rows: OptionRow[]) => void;
+  ivMode?: boolean;
+  onIvModeChange?: (v: boolean) => void;
+  payoffMinPrice?: number;
+  payoffMaxPrice?: number;
+  onPayoffMinMaxChange?: (min: number, max: number) => void;
+  activeIVs?: Record<string, number>;
+  onActiveIVChange?: (orderId: string, iv: number) => void;
+  payoffCurrentPrice?: number;
+  onPayoffCurrentPriceChange?: (v: number) => void;
 }
 
 const CONTRACT_TABS = [
@@ -40,6 +53,10 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
   onAddOrder, onShowZoneGroupModal, showHistory, onToggleHistory,
   onAssignGroup, onDropOnTradeHistory, onLinkOrder,
   contractFilter, onContractFilterChange,
+  strategyRows, onStrategyRowsChange, ivMode, onIvModeChange,
+  payoffMinPrice, payoffMaxPrice, onPayoffMinMaxChange,
+  activeIVs, onActiveIVChange,
+  payoffCurrentPrice, onPayoffCurrentPriceChange,
 }) => {
   const createDragGhost = (order: SpreadOrder): HTMLElement => {
     const el = document.createElement('div');
@@ -122,6 +139,24 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
   };
 
   const [showOptionsStrategy, setShowOptionsStrategy] = useState(false);
+
+  // Local string state for min/max inputs (fixes controlled number input issue)
+  const [minStr, setMinStr] = useState(() => payoffMinPrice != null ? String(payoffMinPrice) : "");
+  const [maxStr, setMaxStr] = useState(() => payoffMaxPrice != null ? String(payoffMaxPrice) : "");
+  const prevMinRef = useRef(payoffMinPrice);
+  const prevMaxRef = useRef(payoffMaxPrice);
+  useEffect(() => {
+    if (prevMinRef.current !== payoffMinPrice) {
+      setMinStr(payoffMinPrice != null ? String(payoffMinPrice) : "");
+      prevMinRef.current = payoffMinPrice;
+    }
+  }, [payoffMinPrice]);
+  useEffect(() => {
+    if (prevMaxRef.current !== payoffMaxPrice) {
+      setMaxStr(payoffMaxPrice != null ? String(payoffMaxPrice) : "");
+      prevMaxRef.current = payoffMaxPrice;
+    }
+  }, [payoffMaxPrice]);
 
   const hasFutureOrders = activeOrders.some(o => o.contract_type === 'future' || (o.leverage != null && o.leverage > 0));
   const hasOptionOrders = activeOrders.some(o => o.contract_type === 'option' || o.strike_price != null || o.option_type != null);
@@ -297,7 +332,119 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
       </div>
     </div>
 
-    <OptionsStrategyTable visible={showOptionsStrategy} onClose={() => setShowOptionsStrategy(false)} />
+    {showOptionsStrategy && (
+      <div className="flex gap-4 mb-4">
+        <div className="w-4/6">
+          <OptionsStrategyTable
+            visible={true}
+            onClose={() => setShowOptionsStrategy(false)}
+            onRowsChange={onStrategyRowsChange}
+          />
+        </div>
+        <div className="w-2/6 border border-gray-200 rounded-xl p-3 bg-white">
+          <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">Controls</div>
+
+          {/* IV Mode toggle */}
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] text-gray-600 font-medium">BS IV Mode</span>
+            <button
+              onClick={() => onIvModeChange?.(!ivMode)}
+              className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${ivMode ? "bg-purple-600" : "bg-gray-300"}`}
+            >
+              <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${ivMode ? "translate-x-3.5" : "translate-x-0.5"}`} />
+            </button>
+          </div>
+
+          {/* Min/Max Price — same row */}
+          <div className="mb-3">
+            <label className="text-[9px] text-gray-500 font-medium block mb-1">Price Range</label>
+            <div className="flex gap-2 items-center">
+              <input
+                type="number"
+                step={100}
+                placeholder="Min"
+                value={minStr}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setMinStr(raw);
+                  if (raw === "") return;
+                  const num = parseFloat(raw);
+                  if (!isNaN(num)) onPayoffMinMaxChange?.(num, parseFloat(maxStr) || 0);
+                }}
+                className="flex-1 text-[10px] border border-gray-200 rounded px-2 py-1 text-gray-700 text-center"
+              />
+              <span className="text-[10px] text-gray-400">—</span>
+              <input
+                type="number"
+                step={100}
+                placeholder="Max"
+                value={maxStr}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setMaxStr(raw);
+                  if (raw === "") return;
+                  const num = parseFloat(raw);
+                  if (!isNaN(num)) onPayoffMinMaxChange?.(parseFloat(minStr) || 0, num);
+                }}
+                className="flex-1 text-[10px] border border-gray-200 rounded px-2 py-1 text-gray-700 text-center"
+              />
+            </div>
+            <p className="text-[8px] text-gray-400 mt-0.5">Arrow keys: ±100</p>
+          </div>
+
+          {/* Current Price slider */}
+          <div className="mb-3">
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-[9px] text-gray-500 font-medium">Current Price</label>
+              <span className="text-[10px] text-gray-700 font-bold">{payoffCurrentPrice ?? 0}</span>
+            </div>
+            <input
+              type="range"
+              min={Math.min(payoffMinPrice ?? 0, payoffMaxPrice ?? 1)}
+              max={Math.max(payoffMinPrice ?? 0, payoffMaxPrice ?? 1)}
+              step={1}
+              value={payoffCurrentPrice ?? 0}
+              onChange={(e) => onPayoffCurrentPriceChange?.(parseFloat(e.target.value))}
+              className="w-full accent-indigo-500"
+            />
+            <div className="flex justify-between text-[8px] text-gray-400">
+              <span>{Math.min(payoffMinPrice ?? 0, payoffMaxPrice ?? 1)}</span>
+              <span>{Math.max(payoffMinPrice ?? 0, payoffMaxPrice ?? 1)}</span>
+            </div>
+          </div>
+
+          {/* Active IV inputs */}
+          {activeOrders.filter(o => o.contract_type === 'option').length > 0 && (
+            <div>
+              <div className="text-[9px] text-gray-500 font-medium mb-1">Active Order IV</div>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {activeOrders.filter(o => o.contract_type === 'option').map(order => (
+                  <div key={order.order_id} className="flex items-center justify-between gap-1">
+                    <span className="text-[9px] text-gray-600 truncate flex-1">
+                      {order.asset_type} {order.option_type} {order.strike_price}
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      placeholder="0"
+                      value={activeIVs?.[order.order_id] ?? ""}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        onActiveIVChange?.(order.order_id, isNaN(val) ? 0 : val);
+                      }}
+                      className="w-14 text-[10px] border border-gray-200 rounded px-1 py-0.5 text-right text-gray-700"
+                    />
+                    <span className="text-[9px] text-gray-400">%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
 
     {/* Table */}
     <div className="overflow-x-auto">

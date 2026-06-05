@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { EditOrderModal } from "./EditOrderModal";
 import { AddOrderModal } from "./AddOrderModal";
@@ -20,6 +20,7 @@ import SummaryCard from "./components/SummaryCard";
 import StrategyNotes from "./components/StrategyNotes";
 import PerformanceSection from "./components/PerformanceSection";
 import OrderManagement from "./components/OrderManagement";
+import type { OptionRow } from "./components/OptionsStrategyTable";
 import ToastAlert from "./components/ToastAlert";
 
 interface PortfolioGridProps {
@@ -51,6 +52,88 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const [contractFilter, setContractFilter] = useState<'all' | 'spot' | 'future' | 'option'>('all');
   const [viewMode, setViewMode] = useState<"equity" | "payoff">("equity");
   const [performanceData, setPerformanceData] = useState<any>(null);
+
+  // Payoff state with per-portfolio localStorage
+  const pid = selectedPortfolio?.portfolio_id ?? null;
+  const pidRef = useRef<typeof pid>(pid);
+  pidRef.current = pid;
+
+  const payoffKey = (key: string) => pid ? `payoff_${key}_${pid}` : '';
+
+  const [strategyRows, setStrategyRows] = useState<OptionRow[]>([]);
+  const [ivMode, setIvMode] = useState<boolean>(false);
+  const [payoffMinPrice, setPayoffMinPrice] = useState<number>(0);
+  const [payoffMaxPrice, setPayoffMaxPrice] = useState<number>(0);
+  const [activeIVs, setActiveIVs] = useState<Record<string, number>>({});
+  const [payoffCurrentPrice, setPayoffCurrentPrice] = useState<number>(0);
+
+  // Load / migrate from localStorage when portfolio changes
+  React.useEffect(() => {
+    if (!pid) return;
+    const load = (key: string, fallback: string) => {
+      try { return JSON.parse(localStorage.getItem(payoffKey(key)) || fallback); }
+      catch { return JSON.parse(fallback); }
+    };
+    setStrategyRows(load('strategy_rows', '[]'));
+    setIvMode(load('iv_mode', 'false'));
+    setPayoffMinPrice(load('min_price', '0'));
+    setPayoffMaxPrice(load('max_price', '0'));
+    setActiveIVs(load('active_ivs', '{}'));
+    setPayoffCurrentPrice(load('current_price', '0'));
+
+    // One-time migration from old non-portfolio keys
+    const oldKeys = ['payoff_strategy_rows', 'payoff_iv_mode', 'payoff_min_price', 'payoff_max_price', 'payoff_active_ivs', 'payoff_current_price'];
+    const suffixMap: Record<string, string> = {
+      payoff_strategy_rows: 'strategy_rows',
+      payoff_iv_mode: 'iv_mode',
+      payoff_min_price: 'min_price',
+      payoff_max_price: 'max_price',
+      payoff_active_ivs: 'active_ivs',
+      payoff_current_price: 'current_price',
+    };
+    for (const oldKey of oldKeys) {
+      const val = localStorage.getItem(oldKey);
+      if (val !== null) {
+        const newKey = payoffKey(suffixMap[oldKey]);
+        if (localStorage.getItem(newKey) === null) {
+          localStorage.setItem(newKey, val);
+        }
+        localStorage.removeItem(oldKey);
+      }
+    }
+  }, [pid]);
+
+  // Save to per-portfolio localStorage on change
+  React.useEffect(() => {
+    const p = pidRef.current;
+    if (!p) return;
+    localStorage.setItem(`payoff_strategy_rows_${p}`, JSON.stringify(strategyRows));
+  }, [strategyRows]);
+  React.useEffect(() => {
+    const p = pidRef.current;
+    if (!p) return;
+    localStorage.setItem(`payoff_iv_mode_${p}`, JSON.stringify(ivMode));
+  }, [ivMode]);
+  React.useEffect(() => {
+    const p = pidRef.current;
+    if (!p) return;
+    localStorage.setItem(`payoff_min_price_${p}`, JSON.stringify(payoffMinPrice));
+  }, [payoffMinPrice]);
+  React.useEffect(() => {
+    const p = pidRef.current;
+    if (!p) return;
+    localStorage.setItem(`payoff_max_price_${p}`, JSON.stringify(payoffMaxPrice));
+  }, [payoffMaxPrice]);
+  React.useEffect(() => {
+    const p = pidRef.current;
+    if (!p) return;
+    localStorage.setItem(`payoff_active_ivs_${p}`, JSON.stringify(activeIVs));
+  }, [activeIVs]);
+  React.useEffect(() => {
+    const p = pidRef.current;
+    if (!p) return;
+    localStorage.setItem(`payoff_current_price_${p}`, JSON.stringify(payoffCurrentPrice));
+  }, [payoffCurrentPrice]);
 
   React.useEffect(() => {
     if (selectedPortfolio) {
@@ -391,6 +474,13 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         performanceData={performanceData}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        activeOrders={activeOrders}
+        strategyRows={strategyRows}
+        ivMode={ivMode}
+        payoffMinPrice={payoffMinPrice}
+        payoffMaxPrice={payoffMaxPrice}
+        activeIVs={activeIVs}
+        payoffCurrentPrice={payoffCurrentPrice}
       />
 
       <OrderManagement
@@ -413,6 +503,17 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onLinkOrder={handleLinkOrder}
         contractFilter={contractFilter}
         onContractFilterChange={setContractFilter}
+        strategyRows={strategyRows}
+        onStrategyRowsChange={setStrategyRows}
+        ivMode={ivMode}
+        onIvModeChange={setIvMode}
+        payoffMinPrice={payoffMinPrice}
+        payoffMaxPrice={payoffMaxPrice}
+        onPayoffMinMaxChange={(min, max) => { setPayoffMinPrice(min); setPayoffMaxPrice(max); }}
+        activeIVs={activeIVs}
+        onActiveIVChange={(orderId, iv) => setActiveIVs(prev => ({ ...prev, [orderId]: iv }))}
+        payoffCurrentPrice={payoffCurrentPrice}
+        onPayoffCurrentPriceChange={setPayoffCurrentPrice}
       />
 
       <EditOrderModal
@@ -475,7 +576,15 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onClose={() => setShowEditPortfolioModal(false)}
         onSaved={fetchAnalyticsData}
         activeOrderCount={activeOrders.length}
-        onDeleted={() => navigate("/")}
+        onDeleted={() => {
+          const deletedPid = selectedPortfolio?.portfolio_id;
+          if (deletedPid) {
+            ['strategy_rows', 'iv_mode', 'min_price', 'max_price', 'active_ivs', 'current_price'].forEach(k =>
+              localStorage.removeItem(`payoff_${k}_${deletedPid}`)
+            );
+          }
+          navigate("/");
+        }}
       />
     </div>
     </>

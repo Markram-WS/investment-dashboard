@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { SpreadOrder, GroupOption } from '../types';
 import { GroupCombobox } from './components/GroupCombobox';
 import { api } from '../lib/api';
+import { buttonTheme } from '../constants/colors';
 
 interface EditOrderModalProps {
   order: SpreadOrder | null;
@@ -145,8 +146,8 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
                 <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Option Type</label>
                 <ToggleBtn
                   options={[
-                    { value: 'Call', label: 'CALL', activeClass: 'bg-purple-600 text-white border-purple-600' },
-                    { value: 'Put', label: 'PUT', activeClass: 'bg-purple-600 text-white border-purple-600' },
+                    { value: 'Call', label: 'CALL', activeClass: `${buttonTheme.optionType.Call.bg} ${buttonTheme.optionType.Call.text} ${buttonTheme.optionType.Call.border}` },
+                    { value: 'Put', label: 'PUT', activeClass: `${buttonTheme.optionType.Put.bg} ${buttonTheme.optionType.Put.text} ${buttonTheme.optionType.Put.border}` },
                   ]}
                   value={formData.option_type || ''}
                   onChange={(v) => onChange('option_type', v)}

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { GroupOption } from '../types';
 import { GroupCombobox } from './components/GroupCombobox';
 import type { AddOrderForm } from '../hooks/useAddOrder';
+import { buttonTheme } from '../constants/colors';
 
 interface AddOrderModalProps {
   formData: AddOrderForm;
@@ -92,12 +93,11 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           </div>
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Contract Type</label>
-            <ToggleBtn
-              options={[
-                { value: 'spot', label: 'Spot', activeClass: 'bg-indigo-600 text-white border-indigo-600' },
-                { value: 'future', label: 'Future', activeClass: 'bg-blue-600 text-white border-blue-600' },
-                { value: 'option', label: 'Option', activeClass: 'bg-purple-600 text-white border-purple-600' },
-              ]}
+                <ToggleBtn
+                  options={[
+                    { value: 'Call', label: 'CALL', activeClass: `${buttonTheme.optionType.Call.bg} ${buttonTheme.optionType.Call.text} ${buttonTheme.optionType.Call.border}` },
+                    { value: 'Put', label: 'PUT', activeClass: `${buttonTheme.optionType.Put.bg} ${buttonTheme.optionType.Put.text} ${buttonTheme.optionType.Put.border}` },
+                  ]}
               value={formData.contract_type}
               onChange={(v) => onChange('contract_type', v)}
             />
@@ -137,11 +137,11 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             {formData.contract_type === 'option' && (
               <div className="flex-1">
                 <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Option Type</label>
-                <ToggleBtn
-                  options={[
-                    { value: 'Call', label: 'CALL', activeClass: 'bg-purple-600 text-white border-purple-600' },
-                    { value: 'Put', label: 'PUT', activeClass: 'bg-purple-600 text-white border-purple-600' },
-                  ]}
+                  <ToggleBtn
+                    options={[
+                      { value: 'LONG', label: 'LONG', activeClass: `${buttonTheme.side.LONG.bg} ${buttonTheme.side.LONG.text} ${buttonTheme.side.LONG.border}` },
+                      { value: 'SHORT', label: 'SHORT', activeClass: `${buttonTheme.side.SHORT.bg} ${buttonTheme.side.SHORT.text} ${buttonTheme.side.SHORT.border}` },
+                    ]}
                   value={formData.option_type}
                   onChange={(v) => onChange('option_type', v)}
                 />

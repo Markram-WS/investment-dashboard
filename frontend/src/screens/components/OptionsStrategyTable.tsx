@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { IconPlus, IconX } from "../../components/icons";
+import { buttonTheme } from "../../constants/colors";
 
-interface OptionRow {
+export interface OptionRow {
   id: number;
   side: "LONG" | "SHORT";
   expiry: string;
@@ -33,10 +34,25 @@ const IconTrash2 = ({ className }: { className?: string }) => (
 interface OptionsStrategyTableProps {
   visible: boolean;
   onClose: () => void;
+  onRowsChange?: (rows: OptionRow[]) => void;
 }
 
-const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, onClose }) => {
-  const [rows, setRows] = useState<OptionRow[]>([]);
+const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, onClose, onRowsChange }) => {
+  const [rows, setRows] = useState<OptionRow[]>(() => {
+    try { return JSON.parse(localStorage.getItem('payoff_strategy_rows') || '[]'); }
+    catch { return []; }
+  });
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      onRowsChange?.(rows);
+      return;
+    }
+    localStorage.setItem('payoff_strategy_rows', JSON.stringify(rows));
+    onRowsChange?.(rows);
+  }, [rows, onRowsChange]);
 
   const addRow = () => {
     const maxId = rows.length > 0 ? Math.max(...rows.map(r => r.id)) : 0;
@@ -71,10 +87,10 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
             <th className="px-2 py-1.5 text-center font-semibold text-gray-600">Side</th>
             <th className="px-2 py-1.5 text-center font-semibold text-gray-600">Type</th>
             <th className="px-2 py-1.5 text-center font-semibold text-gray-600">Strike</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-gray-600">Price</th>
+            <th className="px-2 py-1.5 text-center font-semibold text-gray-600">Premium</th>
             <th className="px-2 py-1.5 text-center font-semibold text-gray-600">Qty</th>
             <th className="px-2 py-1.5 text-center font-semibold text-gray-600">Expiry</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-gray-600">IV</th>
+            <th className="px-2 py-1.5 text-center font-semibold text-gray-600">IV%</th>
             <th className="px-2 py-1.5 w-8" />
           </tr>
         </thead>
@@ -92,13 +108,13 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                   <div className="flex rounded-md overflow-hidden">
                     <button
                       onClick={() => updateRow(row.id, "side", "LONG")}
-                      className={`text-[9px] font-bold px-2 py-0.5 transition-colors ${row.side === "LONG" ? "bg-emerald-600 text-white" : "bg-white text-gray-400 hover:text-gray-600"}`}
+                      className={`text-[9px] font-bold px-2 py-0.5 transition-colors ${row.side === "LONG" ? `${buttonTheme.side.LONG.bg} ${buttonTheme.side.LONG.text}` : `${buttonTheme.side.LONG.inactiveBg} ${buttonTheme.side.LONG.inactiveText}`}`}
                     >
                       LONG
                     </button>
                     <button
                       onClick={() => updateRow(row.id, "side", "SHORT")}
-                      className={`text-[9px] font-bold px-2 py-0.5 transition-colors ${row.side === "SHORT" ? "bg-red-500 text-white" : "bg-white text-gray-400 hover:text-gray-600"}`}
+                      className={`text-[9px] font-bold px-2 py-0.5 transition-colors ${row.side === "SHORT" ? `${buttonTheme.side.SHORT.bg} ${buttonTheme.side.SHORT.text}` : `${buttonTheme.side.SHORT.inactiveBg} ${buttonTheme.side.SHORT.inactiveText}`}`}
                     >
                       SHORT
                     </button>
@@ -108,13 +124,13 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                   <div className="flex rounded-md overflow-hidden">
                     <button
                       onClick={() => updateRow(row.id, "type", "Call")}
-                      className={`text-[9px] font-bold px-2 py-0.5 transition-colors ${row.type === "Call" ? "bg-purple-600 text-white" : "bg-white text-gray-400 hover:text-gray-600"}`}
+                      className={`text-[9px] font-bold px-2 py-0.5 transition-colors ${row.type === "Call" ? `${buttonTheme.optionType.Call.bg} ${buttonTheme.optionType.Call.text}` : `${buttonTheme.optionType.Call.inactiveBg} ${buttonTheme.optionType.Call.inactiveText}`}`}
                     >
                       Call
                     </button>
                     <button
                       onClick={() => updateRow(row.id, "type", "Put")}
-                      className={`text-[9px] font-bold px-2 py-0.5 transition-colors ${row.type === "Put" ? "bg-purple-600 text-white" : "bg-white text-gray-400 hover:text-gray-600"}`}
+                      className={`text-[9px] font-bold px-2 py-0.5 transition-colors ${row.type === "Put" ? `${buttonTheme.optionType.Put.bg} ${buttonTheme.optionType.Put.text}` : `${buttonTheme.optionType.Put.inactiveBg} ${buttonTheme.optionType.Put.inactiveText}`}`}
                     >
                       Put
                     </button>
