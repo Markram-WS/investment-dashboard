@@ -52,3 +52,9 @@ Two PostgreSQL databases power the system:
   - `"none"` — no linking
 - Performance endpoint (`GET /api/v1/analytics/performance/{id}`) returns `payoff_data[]` grouped by **month** with summed `realized_pl` — one bar per month, not per trade
 - Order status: `PENDING`, `FILLED` (non-terminal), `CLOSE`, `CANCELED` (terminal)
+- Frontend Options Strategy state is saved per-portfolio in localStorage (`payoff_{key}_{portfolio_id}`) — no backend storage for strategy sandbox data
+- IV values for active orders are frontend-only (entered in Controls panel, saved to per-portfolio localStorage) — not stored in `option_details`
+
+---
+
+*Last updated: 5 June 2026*

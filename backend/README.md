@@ -341,3 +341,7 @@ The backend reads environment variables from the Docker Compose file or from a `
 ---
 
 > **Note:** This backend is designed to be lightweight and easy to extend. Feel free to add new endpoints, models, or features as needed. The architecture is modular, making it simple to integrate with front-end applications or other services.
+
+---
+
+*Last updated: 5 June 2026*

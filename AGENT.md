@@ -64,34 +64,28 @@
 - Two PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
 
 ### Frontend (React 18 + TypeScript + Vite)
-- **PortfolioGrid.tsx** — slim orchestrator (~241 lines, down from 1194) composing sub-components
-- **Screen modals** in `src/screens/`: `AddOrderModal` (editable UUID order_id, contract_type toggle indigo/blue/purple, side BUY/SELL spot or LONG/SHORT future/option, option_type dropdown Call/Put for options, Cost above TP/SL, Strike on same row as Cost), `CloseOrderModal` (auto Close ID, uses `link_type` to show spread/pending_close linked order info), `EditOrderModal` (contract_type toggle, linked_order_id, option_type), `EditPortfolioModal` (name, NAV, margin, buffer, cash, MM, tags), `ZoneEditModal`, `ZoneGroupModal`
+- **PortfolioGrid.tsx** — slim orchestrator composing sub-components; manages per-portfolio payoff states (6 keys in localStorage)
+- **Screen modals** in `src/screens/`: `AddOrderModal`, `CloseOrderModal`, `EditOrderModal` (all use `buttonTheme` for Call=blue-600/Put=orange-500), `EditPortfolioModal`, `ZoneEditModal`, `ZoneGroupModal`
 - **Screen components** in `src/screens/components/`:
-  - `PortfolioHeader.tsx` — breadcrumb, title, Refresh + teal Add Order button
-  - `SummaryCard.tsx` — 3-col values (Total Value, Total P/L, Available Cash), Cash Details (Total Notional, MM, Margin, Buffer), Risk gauge (dynamic via 3-branch formula), Asset Allocation donut (real data from active orders, excludes cash), Metadata Tags, triple-dot edit button
-  - `StrategyNotes.tsx` — Trade Plan + Internal Notes (both inline-editable, yellow sticky style, border-yellow-300 on Primary Strategy)
-  - `TagsSection.tsx` — metadata tag pills
-  - `PerformanceSection.tsx` — chart wrapper + Equity/Payoff toggle
-  - `PerformanceChart.tsx` — dynamic SVG: equity line chart (cumulative P/L) or payoff bar chart (grouped by month with summed realized_pl)
-  - `OrderManagement.tsx` — active orders table (zone-grouped or flat), Group-by-Zone toggle, contract_type filter tabs (indigo/blue/purple) that actually filter orders (not just columns), All tab adapts columns dynamically based on existing contract types, Link Order button in left column, footer Add Order + Zone Group buttons
-  - `TradeHistoryTable.tsx` — collapsible closed-orders table
-  - `TradePlanView.tsx` — click-to-edit markdown with Save/Cancel
-  - `ZoneGroupRow.tsx` — zone-grouped order row with edit/close buttons (no borders), Link Order button in left column, drag handle. Receives showLev/showExp/showStrikePrice as props (no longer computes internally)
-- **Navigation.tsx** — Sticky nav with feather-style SVG icons (w-5 h-5, hover animate-pulse), IconDashboard (grid layout) + IconTransactions added
-- **icons/index.tsx** — Unified barrel export of all feather-style inline SVG icons (replaced individual Icon*.tsx files)
-- **Custom hooks** in `src/hooks/`: `useOrderEdit`, `useAddOrder`, `usePortfolioManager`, `useZoneEditor`, `useMarkdownRenderer`
+  - `PortfolioHeader.tsx`, `SummaryCard.tsx`, `StrategyNotes.tsx`, `TagsSection.tsx`
+  - `PerformanceSection.tsx` — Equity/Payoff toggle, passes payoff state to PayoffChart
+  - `PerformanceChart.tsx` — dynamic SVG: equity line or payoff bar chart
+  - `PayoffChart.tsx` — **NEW** pure SVG: Put-Call parity with intrinsic + optional BS IV lines, area fill (pale green/red), break-even markers, Break Event label, hover tooltip
+  - `OptionsStrategyTable.tsx` — **NEW** local-scratchpad strategy rows; uses buttonTheme; onRowsChange callback; per-portfolio localStorage
+  - `OrderManagement.tsx` — active orders table + **Controls panel** (BS IV toggle, price range, current price slider, active IV%)
+  - `TradeHistoryTable.tsx`, `TradePlanView.tsx`, `QuickStatsView.tsx`, `ZoneGroupRow.tsx`, `GroupCombobox.tsx`, `ToastAlert.tsx`, `HistoricalGridView.tsx`
+- **Navigation.tsx** — Sticky nav with feather-style SVG icons
+- **Custom hooks**: `useOrderEdit`, `useAddOrder`, `usePortfolioManager`, `useZoneEditor`, `useMarkdownRenderer`
 - **API layer** (`src/lib/api.ts`): 44 exported endpoints, centralized `fetchJson<T>()` wrapper, Vite proxy `/api/*` → `localhost:8000`
-- **Tailwind CDN** loaded in `index.html` with custom config for all project colors (ink, brand-teal, brand-coral, brand-blue, hairline, surface, slate, etc.)
+- **Tailwind CDN** loaded in `index.html` with custom config for all project colors
+- **Constants** (`src/constants/colors.ts`): `buttonTheme` — centralized color tokens for side (LONG=emerald, SHORT=red) and option type (Call=blue-600, Put=orange-500)
 
 ### Database (`database/`)
-- `README.md` — full documentation of both schemas
-- `main_db_schema.sql` — 12 tables (11 main + decision_journals) for Manual/Bot data
-  - `portfolios` has `internal_notes TEXT` and `tags JSONB` columns
-  - `active_orders.order_id` is TEXT (UUID, not auto-increment INT); `linked_order_id` TEXT (replaces old `spread_pair_id`) — supports one-way (pending close) and two-way cross-linking (spread pair); `contract_type` ('spot'/'future'/'option'), `option_type` (Call/Put), `expiry_date`, `strike_price`, `cost`, `option_id` FK to `option_details` added. Side: `BUY`/`SELL` for spot, `LONG`/`SHORT` for futures/options (`direction` field removed).
-  - `active_orders.option_id` references `option_details` table (greeks & pricing)
-  - `active_orders` API now includes computed `link_type` field: `"spread"` (cross-linked), `"pending_close"` (one-way sub), `"primary"` (has subs), `"none"`
-  - `trade_history.close_order_id` stores UUID from close action
-- `ai_db_schema.sql` — 3 tables for AI agent state (agents, action logs, agent state)
+- `main_db_schema.sql` — 11 tables (plus decision_journals) for Manual/Bot data
+  - `active_orders.order_id` is TEXT (UUID); `linked_order_id` TEXT; `contract_type` ('spot'/'future'/'option'), `option_type` (Call/Put), `expiry_date`, `strike_price`, `cost`, `option_id` FK → `option_details`. Side: `BUY`/`SELL` for spot, `LONG`/`SHORT` for futures/options (`direction` field removed).
+  - `link_type` computed server-side (not stored): `"spread"`, `"pending_close"`, `"primary"`, `"none"`
+- `ai_db_schema.sql` — 3 tables for AI agent state
+- Frontend-only data (not in DB): OptionsStrategy rows, IV values for active orders, payoff chart controls — all per-portfolio in localStorage
 
 ### Link / Tier Spread Logic
 - **One-way link (pending close):** `B.linked_order_id = A`, `A.linked_order_id = null` → B is a pending-close sub-order of A. Closing A auto-closes B.
@@ -99,6 +93,27 @@
 - **Tier spread:** A can be both a spread partner of B (A↔B) AND have its own pending-close sub-order C (C→A). Closing A auto-closes C and signals frontend for spread partner B.
 - **`link_type` field** in order API responses: `"spread"` (cross-linked), `"pending_close"` (one-way sub), `"primary"` (has subs), `"none"` (no linking).
 - Spread pair detection uses **reciprocal linking**, not shared `linked_order_id` value (old `spread_pair_id` behavior).
+
+### Payoff Chart — localStorage per-portfolio
+- 6 keys: `payoff_strategy_rows_{pid}`, `payoff_iv_mode_{pid}`, `payoff_min_price_{pid}`, `payoff_max_price_{pid}`, `payoff_active_ivs_{pid}`, `payoff_current_price_{pid}`
+- One-time migration from old flat keys (`payoff_strategy_rows` → `payoff_strategy_rows_{pid}`)
+- Deleting a portfolio clears its 6 keys
+
+### Payoff Chart — Technical
+- **Lines**: Combined intrinsic (blue #3B82F6, strokeWidth 2). BS IV overlay (orange #F97316, dashed 6,3) — toggled via BS IV Mode.
+- **Area fill**: `linearGradient` — pale green (#DCFCE7, 0.6) above baseline → transparent at baseline → pale red (#FEE2E2, 0.6) below.
+- **Break-even markers**: Amber dots (#f59e0b) with "BE: XXX" label below.
+- **Break Event label**: Amber rect at top of chart — shows intrinsic first BE when IV OFF, IV first BE when IV ON. No vertical bar.
+- **Hover tooltip**: Shows Price, Intrinsic P/L, and BS IV P/L (when IV mode ON).
+- **Y-axis**: Symmetric around 0 — `maxY = max(|maxPl|,|minPl|) × 1.1`
+- **# points**: Dynamic ~200, step = `(hi-lo)/200`
+
+### Options Strategy Table
+- Frontend-only sandbox (no backend)
+- Columns: Side → Type → Strike → Premium → Qty → Expiry → IV%
+- Uses `buttonTheme`: LONG=emerald-600, SHORT=red-500, Call=blue-600, Put=orange-500
+- `onRowsChange` callback syncs to PortfolioGrid
+- `OptionRow` interface exported
 
 ## 7. Key Business Logic
 - **Total Value** = `(available_cash + money_market) + cumulativeP/L`
@@ -118,6 +133,7 @@
 ## 8. Design Conventions
 - **Global Focus Ring**: All `<input>`, `<select>`, `<textarea>` use `ink` (#1c1c1e) ring via `index.css` — no per-component focus classes needed across AddOrder, EditOrder, CloseOrder, EditPortfolio, Zone modals
 - **Tailwind CDN** in `index.html` extended with all project colors (ink, brand-teal, brand-coral, brand-blue, hairline, surface, slate) — no separate `tailwind.config.js`
+- **buttonTheme** in `constants/colors.ts`: centralized toggle colors for Side (LONG=emerald-600, SHORT=red-500) and Option Type (Call=blue-600, Put=orange-500)
 
 ## 9. Common Pitfalls
 - **esbuild scanner** cannot handle HTML/JSX tags inside `{...}` expressions in JSX. Extract all conditional JSX (ternaries, `&&` with tags, `.map()` returning JSX) into separate components or pre-computed variables.
@@ -125,6 +141,7 @@
 - **`<div>` inside `<p>`** is invalid HTML. Tooltip elements with block children must use `<div>` not `<p>`.
 - **Container restarts needed** for backend code changes (no volume mount). Frontend auto-reloads via Vite HMR.
 - **npm install on WSL** with mounted Windows drives (`/mnt/d/`) requires `--no-bin-links` flag to avoid EPERM symlink errors. Vite build works via `node node_modules/vite/bin/vite.js build`.
+- **Number inputs**: Use local string state to avoid controlled-input "delete 0" bug (React ignores empty string `""` when converting to number).
 
 ## 10. Link Feature Implementation Status
 
@@ -157,17 +174,21 @@
 | `frontend/src/types/index.ts` | `OrderLinkGroup`, `link_type` in `SpreadOrder` |
 | `frontend/src/lib/api.ts` | `linkOrder()`, `unlinkOrder()` API calls |
 | `frontend/src/hooks/usePortfolioManager.ts` | `fetchAnalyticsData()` — fetches + sets state |
-| `frontend/src/screens/PortfolioGrid.tsx` | `handleLinkOrder`, `zoneGroups` useMemo with `computeLinkGroup` |
-| `frontend/src/screens/components/OrderManagement.tsx` | Flat view link groups + reorder |
+| `frontend/src/screens/PortfolioGrid.tsx` | `handleLinkOrder`, `zoneGroups` useMemo with `computeLinkGroup`, per-portfolio payoff state management |
+| `frontend/src/screens/components/OrderManagement.tsx` | Flat view link groups + reorder + Controls panel (BS IV, price range, current price slider, active IV) |
 | `frontend/src/screens/components/ZoneGroupRow.tsx` | Row-level link icon, SVG lines, drop handler |
-| `frontend/src/screens/EditOrderModal.tsx` | Unlink-on-save flow |
+| `frontend/src/screens/EditOrderModal.tsx` | Unlink-on-save flow; uses buttonTheme (Call=blue-600, Put=orange-500) |
 | `frontend/src/screens/CloseOrderModal.tsx` | Link type display in close form |
 | `database/main_db_schema.sql` | `linked_order_id TEXT` column |
 | `frontend/src/components/icons/index.tsx` | Unified barrel export for feather-style SVG icons |
-| `frontend/src/screens/AddOrderModal.tsx` | Option type (Call/Put) dropdown, LONG/SHORT side, field reorder |
-| `frontend/src/screens/EditOrderModal.tsx` | Option type field for options |
-| `frontend/src/screens/components/OrderManagement.tsx` | Dynamic column visibility (All tab adaptive), contract_filter actual filtering, show booleans passed to ZoneGroupRow |
-| `frontend/src/screens/components/ZoneGroupRow.tsx` | Receives showLev/showExp/showStrikePrice as props, removed internal computation |
+| `frontend/src/screens/AddOrderModal.tsx` | Option type (Call/Put) dropdown, LONG/SHORT side, uses buttonTheme |
+| `frontend/src/screens/components/OrderManagement.tsx` | Dynamic column visibility, contract_filter actual filtering, show booleans passed to ZoneGroupRow |
+| `frontend/src/screens/components/ZoneGroupRow.tsx` | Receives showLev/showExp/showStrikePrice as props |
+| `frontend/src/constants/colors.ts` | **NEW** `buttonTheme` — centralized toggle colors (side + option type) |
+| `frontend/src/screens/components/OptionsStrategyTable.tsx` | **NEW** local-scratchpad strategy rows, uses buttonTheme, onRowsChange, per-portfolio localStorage |
+| `frontend/src/screens/components/PayoffChart.tsx` | **NEW** pure SVG payoff chart: intrinsic + BS IV lines, area fill, BE markers, Break Event, tooltip |
+| `frontend/src/screens/components/PerformanceSection.tsx` | Updated to render PayoffChart, pass currentPrice prop |
+| `frontend/public/vite.svg` | Custom favicon: rounded-square indigo→purple gradient with 3 ascending bars |
 
 ## requirement
 requirement\Detailed-Functional-Requirements.md

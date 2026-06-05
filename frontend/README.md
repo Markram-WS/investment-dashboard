@@ -1,6 +1,6 @@
 # Investment Dashboard Frontend
 
-React + TypeScript + Vite frontend สำหรับระบบจัดการพอร์ตโฟลเลียรีนับตามออเดอร์ (Portfolio Management System) 🚀
+React + TypeScript + Vite frontend สำหรับระบบจัดการพอร์ตโฟลเลียรีนับตามออเดอร์ (Portfolio Management System)
 
 ## 📁 Frontend Project Structure
 
@@ -9,7 +9,7 @@ frontend/
 ├── package.json              # Dependencies: React 18, Vite, TanStack Query, React Router
 ├── vite.config.ts           # Vite config + proxy /api → backend:8000
 ├── Dockerfile               # Node 20 Alpine - expose 5173
-├── index.html              # Entry point with Inter font
+├── index.html              # Entry point with Inter font + Tailwind CDN
 ├── src/
 │   ├── main.tsx            # React entry: StrictMode + QueryClientProvider
 │   ├── App.tsx             # Router + Navigation layout (z-index: 100)
@@ -19,7 +19,7 @@ frontend/
 │   │   └── index.ts        # Shared TypeScript interfaces (portfolio, transaction, spread, fund, order)
 │   │
 │   ├── constants/
-│   │   └── colors.ts       # Design tokens: colors, rounded, spacing, EXCHANGE_RATE
+│   │   └── colors.ts       # Design tokens: colors, rounded, spacing, EXCHANGE_RATE, buttonTheme
 │   │
 │   ├── utils/
 │   │   ├── format.ts       # Currency formatting, date formatting
@@ -53,12 +53,12 @@ frontend/
 │   │   └── PortfolioAnalyticsDetail.tsx # Dynamic layout router
 │   │
 │   ├── screens/            # Secondary layouts (detail screens)
-│   │   ├── PortfolioGrid.tsx        # Slim orchestrator (~327 lines) composing sub-components
+│   │   ├── PortfolioGrid.tsx        # Slim orchestrator composing sub-components; payoff state with per-portfolio localStorage
 │   │   ├── PortfolioSpread.tsx      # Spread pairing: pairs + payoff
 │   │   ├── PortfolioMutualFund.tsx  # Managed fund: allocation, rebalance, NAV
-│   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID UUID, asset, side BUY/SELL spot or LONG/SHORT future/option, option_type dropdown Call/Put for options, qty, Cost above TP/SL, Strike on same row as Cost, group combobox, status, contract_type toggle indigo/blue/purple)
+│   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID UUID, asset, side BUY/SELL spot or LONG/SHORT future/option, option_type dropdown Call/Put for options, qty, Cost above TP/SL, Strike on same row as Cost, group combobox, status, contract_type toggle using buttonTheme)
 │   │   ├── CloseOrderModal.tsx     # Close order form (editable Close ID UUID, exit price, P/L, auto-calc, shows linked order info for spread/pending_close via link_type)
-│   │   ├── EditOrderModal.tsx       # Order edit modal (group combobox, contract_type toggle indigo/blue/purple, validation warnings)
+│   │   ├── EditOrderModal.tsx       # Order edit modal (group combobox, contract_type toggle using buttonTheme, Call=blue-600/Put=orange-500)
 │   │   ├── EditPortfolioModal.tsx   # Portfolio field editor: name, NAV, margin, buffer, cash, MM, tags; Danger Zone delete
 │   │   ├── ZoneEditModal.tsx        # Zone edit modal
 │   │   ├── ZoneGroupModal.tsx       # Orders Group CRUD (add/edit/delete), "Group" column, bottom-left add
@@ -67,9 +67,11 @@ frontend/
 │   │       ├── SummaryCard.tsx        # 3-col values, Cash Details (Total Notional), Risk gauge (dynamic), Asset Allocation (real data), Tags, triple-dot edit
 │   │       ├── StrategyNotes.tsx      # Trade Plan + Internal Notes (both inline-editable, yellow sticky)
 │   │       ├── TagsSection.tsx        # Metadata tag pills
-│   │       ├── PerformanceSection.tsx # Performance wrapper + Equity/Payoff toggle
+│   │       ├── PerformanceSection.tsx # Performance wrapper + Equity/Payoff toggle; passes payoff state to PayoffChart
 │   │       ├── PerformanceChart.tsx   # Dynamic SVG: equity line chart (cumulative P/L) or payoff bar chart (grouped by month with summed realized_pl)
-│   │       ├── OrderManagement.tsx    # Active orders table (grouped or flat), Group toggle, two-row header with Add Order pill, drag-and-drop support, Link Order button in left column, contract_type filter tabs (indigo/blue/purple) that actually filter orders. All tab adapts columns dynamically based on which contract types exist (spot-only → basic cols, has futures → lev/margin/expiry, has options → all cols)
+│   │       ├── OrderManagement.tsx    # Active orders table (grouped or flat), Group toggle, two-row header with Add Order pill, drag-and-drop support, Link Order button in left column, contract_type filter tabs that actually filter orders. All tab adapts columns dynamically. Has Controls panel (BS IV mode, min/max price, current price slider, active IV inputs)
+│   │       ├── OptionsStrategyTable.tsx # Options strategy sandbox table; outputs OptionRow; uses buttonTheme; onRowsChange callback; per-portfolio localStorage
+│   │       ├── PayoffChart.tsx       # NEW SVG payoff chart: Put-Call Parity with intrinsic (blue) + optional BS IV (orange dashed) lines; area fill (pale green above / pale red below baseline); break-even markers; Break Event label (amber, uses IV BE when IV mode ON); hover tooltip; D3-like pure SVG
 │   │       ├── TradeHistoryTable.tsx  # Collapsible closed-orders table (bg-gray-50 pill badge matching Ungrouped style); drop target (even when collapsed)
 │   │       ├── TradePlanView.tsx      # Trade plan markdown display (click-to-edit, Save/Cancel)
 │   │       ├── QuickStatsView.tsx     # Active pairs/positions stats
@@ -83,7 +85,9 @@ frontend/
 │       ├── folder.svg, expand.svg, notifications.svg, more.svg
 │       └── hero.png, react.svg, vite.svg
 │
-└── tests/
+├── public/
+│   └── vite.svg            # Custom favicon: rounded-square indigo→purple gradient with 3 ascending bars
+│
 └── tests/                # Vitest test suite
     ├── setupTests.ts
     ├── simple.test.ts
@@ -101,6 +105,7 @@ frontend/
 - **State/Data**: TanStack React Query v5
 - **Testing**: Vitest + React Testing Library
 - **UI Style**: Miro-inspired design tokens (light theme)
+- **Payoff Chart**: Pure SVG (no charting library) — intrinsic P/L + Black-Scholes IV overlay
 
 ## 🎨 Design System
 
@@ -117,6 +122,17 @@ frontend/
 ```
 
 คลาสต์ิลไพว์: `.card`, `.btn-primary`, `.btn-ghost`, `.nav-link`, `.select-dropdown`
+
+### Centralized Button Theme (`constants/colors.ts`)
+
+| Toggle | Value | Tailwind Classes |
+|--------|-------|------------------|
+| **Side** | LONG | `bg-emerald-600 text-white border-emerald-600` |
+| | SHORT | `bg-red-500 text-white border-red-500` |
+| **Option Type** | Call | `bg-blue-600 text-white border-blue-600` |
+| | Put | `bg-orange-500 text-white border-orange-500` |
+
+Used by: `OptionsStrategyTable`, `AddOrderModal`, `EditOrderModal`
 
 ## 🔌 API Endpoints (ผ่าน api.ts)
 
@@ -200,16 +216,6 @@ The risk donut and gauge are computed dynamically from cash data (both client an
 - Color: 🟢 teal (`≥100%` Safe), 🟡 yellow (`≥50%` Warning), 🔴 red (`<50%` Danger)
 - `risk_score` is also computed server-side via `analytics.py` → `_compute_risk_score()`; returned in portfolio-grid API response as `risk_score`
 
-### Group Validation on Drag-and-Drop
-
-When dragging an order onto a group header, non-blocking toast alerts fire for:
-
-- **`max_orders`**: if the group is at capacity (null = unlimited)
-- **`min_price`**: if `entry_price < min_price` (skip if null)
-- **`max_price`**: if `entry_price > max_price` (skip if null)
-
-Toast notifications slide in from the right, auto-dismiss after 4 seconds, and the group assignment proceeds regardless.
-
 ### Global Focus Ring
 
 All `<input>`, `<select>`, and `<textarea>` elements use a global focus style in `index.css`:
@@ -226,43 +232,6 @@ textarea:focus {
 ```
 
 No per-component focus classes needed — every modal (AddOrder, EditOrder, CloseOrder, EditPortfolio, Zone) uses the consistent `ink` (#1c1c1e) ring.
-
-- **Branding**: "M" badge (brand-yellow) + "InvestDesk / Dashboard" text
-- **Nav Links**: Overview 📊, All Assets 💰, Transactions 🔁, Risk Analytics 🛡️ อยู่ตรงกลาง (margin: '0 auto')
-- **Portfolios Dropdown**: 📁 + รายการพอร์ต + Create Portfolio action
-- **Top Right**: 🔔 notifications + ⋮ more_vert icons สำหรับ utilities
-- **Responsive**: Mobile menu แยกจาก desktop nav
-- **Icons**: ใช้ emoji (📊💰🔁🛡️📁🔔⋮) แทน Material icons (ทำงานได้เสมอ)
-
-### Component Primitives
-
-- `.card` - White background, border, rounded-xl
-- `.btn-primary` - Dark pill button (rounded-full)
-- `.btn-ghost` - Transparent button
-- `.nav-link` - Navigation link styling
-- `.select-dropdown` - Portfolio selector dropdown
-
-### 🛠 Architectural Gap Analysis (IMPLEMENTED)
-
-| Current State | Design Spec Requirement | Status |
-|---------------|------------------------|--------|
-| Header not sticky | sticky top-0 with search/notification icons | ✅ Implemented (search input added) |
-| No Hero Card | Teal background, Asset Total + Overall P/L | ✅ Added Hero Card with `--color-teal-light` |
-| Cash: Margin/Money Market | Cash: Lock/Buffer/Available/T+3 | ✅ Labels renamed (Margin→Lock, Money Market→T+3) |
-| Circle gauge | Semi-circle SVG gauge (93% animated) | ✅ SVG path animation with `stroke-dashoffset` |
-| `auto-fill grid` (1-3 cols) | `xl:grid-cols-2` (2 cols) | ✅ Grid changed to `repeat(2, 1fr)` |
-| Portfolio cards (basic) | Tags + profit % + status indicator | ✅ Tags (crypto/bot/FUND) + Profit % + Status bar |
-
-**Animations Added** (see index.css):
-- `.pulse-available` - Box shadow pulse for Available cash card
-- `.shimmer-bar` - Gradient sweep for threshold bars  
-- `.health-gauge-path` - SVG stroke-dashoffset transition (1.5s cubic-bezier)
-
-**Pool Health SVG Gauge (2026-05-30):**
-- Container: `display: flex` + `alignItems: center` + `width: 192px, height: 96px, overflow: hidden` 
-- SVG viewBox: `"0 0 100 100"` with semi-circle path `M 10 50 A 40 40 0 0 1 90 50`
-- Animation: strokeDashoffset animated from 125.6 (empty) → value based on pool_health_index
-- Centered with flexbox `alignItems: center`, text positioned at `bottom: -20` for proper alignment
 
 ## 📱 Pages & Routes
 
@@ -286,7 +255,7 @@ Portfolio Analytics มี 3 รูปแบบใหญ่ ๆ ที่เล�
 - **Route**: `/analytics/detail` (fallback) + `/analytics/portfolio/{id}` (dynamic)
 - **Port Type**: `grid*` (default)
 - **Layout**: Split View
-  - **Left Panel (Main Command)**: Payoff Chart (placeholder) + Active Orders Table
+  - **Left Panel (Main Command)**: Payoff Chart (intrinsic + BS IV) + Active Orders Table + Controls (BS IV toggle, price range, current price slider, active IV%)
   - **Right Panel (Strategy & Notes)**: Canary Yellow Sticky Note Panel (350px)
     - Trade Plan (Markdown)
     - Quick Stats (active pairs / unpaired count)
@@ -407,13 +376,17 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
     - `"primary"` — no link but has sub-orders linking to it (A with C→A)
     - `"none"` — no linking
 13. **Close auto-closes subs**: Closing a primary order (or a spread leg) auto-closes all its one-way sub-orders server-side; response includes `auto_closed[]`. For spread pair legs, returns `paired_order_id` to auto-open close modal for the partner.
-14. **Link UI (✅ Working)**: Link icon in white circle (`bg-white rounded-full p-0.5`, no border, `shadow-sm`) with per-type color (blue `text-blue-600` for spread, yellow `text-yellow-500` for pending_close, gray `text-gray-300` for unlinked). Icon is **absolutely positioned** at `top: 0` aligned to the SVG line center — sits at the front/start of the vertical connecting line. SVG vertical lines: spread pair = blue (`#93c5fd`) continuous line from first icon to bottom (`y1="0"→y2="100%"`), last icon sits alone (`y1="0"→y2="0"`); pending_close = yellow (`#fde047`) from top to middle (`y1="0"→y2="50%"`). SVG constrained to content area via explicit `top: 0; height: 100%`. 6-dot grip hidden + non-draggable on sub-orders. Drag parent carries linked children via `text/x-linked-ids`.
+14. **Link UI**: Link icon in white circle (`bg-white rounded-full p-0.5`, no border, `shadow-sm`) with per-type color (blue `text-blue-600` for spread, yellow `text-yellow-500` for pending_close, gray `text-gray-300` for unlinked). Icon is **absolutely positioned** at `top: 0` aligned to the SVG line center — sits at the front/start of the vertical connecting line. SVG vertical lines: spread pair = blue (`#93c5fd`) continuous line from first icon to bottom (`y1="0"→y2="100%"`), last icon sits alone (`y1="0"→y2="0"`); pending_close = yellow (`#fde047`) from top to middle (`y1="0"→y2="50%"`). SVG constrained to content area via explicit `top: 0; height: 100%`. 6-dot grip hidden + non-draggable on sub-orders. Drag parent carries linked children via `text/x-linked-ids`.
 15. **Ungrouped Orders section**: Always visible (drop target for unassigning)
 16. **Order status**: PENDING / FILLED / CLOSE / CANCELED (uppercase)
-17. **Portfolio Delete**: Cascade cleanup with activeOrderCount guard
+17. **Portfolio Delete**: Cascade cleanup with activeOrderCount guard + per-portfolio localStorage cleanup
 18. **Header layout**: Two-row header — title + ACTIVE badge (row 1), Order Groups icon + Group toggle (row 2), Add Order pill button centered vertically on right
 19. **Trade History styling**: Matches Ungrouped Orders section — `bg-gray-50` with pill badge, `border border-hairline`, `rounded-b-xl`
 20. **ToastAlert position**: Centered below nav bar (`top-20 left-1/2 -translate-x-1/2 z-[9999]`)
+21. **Options Strategy Table**: Local-scratchpad for option strategy rows (frontend-only, per-portfolio localStorage). Side=emerald/red, Call=blue-600/Put=orange-500 via buttonTheme. Price column renamed to Premium.
+22. **Payoff Chart (Performance tab)**: Pure SVG — Put-Call parity visualization. Intrinsic line (blue #3B82F6, strokeWidth 2). BS IV overlay (orange #F97316, dashed, optional via toggle). Area fill: pale green (#DCFCE7, 0.6) above baseline, pale red (#FEE2E2, 0.6) below, fades to 0 at baseline. Break-even markers (amber dot + "BE: XXX" label). **Break Event** label (amber rect at top, no vertical bar) — shows intrinsic BE when IV OFF, IV BE when IV ON. Hover tooltip with P/L values. Dynamic ~200 points. Y-axis symmetric around 0.
+23. **Payoff localStorage per portfolio**: 6 keys (`payoff_{key}_{portfolio_id}`) — strategy_rows, iv_mode, min_price, max_price, active_ivs, current_price. One-time migration from old flat keys. Delete portfolio clears its keys.
+24. **Controls panel (beside Options Strategy)**: BS IV mode toggle, Min/Max price range inputs, Current Price slider, per-order Active IV% inputs.
 
 ## ⚙️ Technical Details
 
@@ -495,7 +468,7 @@ All shared types are defined in `src/types/index.ts`:
 | Domain | Key Interfaces | Notes |
 |--------|---------------|-------|
 | **Portfolio Overview** | `PortfolioOverviewItem`, `OverviewResponse` | |
-| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` | `order_id` is **string** (UUID); `risk_score` (0–100) computed server-side; `group_id` is `number | null`; `linked_order_id` replaces `spread_pair_id`; `contract_type`, `option_type` (Call/Put), `expiry_date`, `strike_price`, `exercise_price`, `cost` added; `side`: `BUY`/`SELL` for spot, `LONG`/`SHORT` for futures/options (direction field removed); `link_type`: `"spread"` (cross-linked), `"pending_close"` (one-way sub), `"primary"` (has subs), `"none"` |
+| **Grid Analytics** | `PortfolioData`, `SpreadOrder`, `SpreadPair`, `ZoneGroup`, `RecentTrade` | `order_id` is **string** (UUID); `risk_score` (0–100) computed server-side; `group_id` is `number \| null`; `linked_order_id` replaces `spread_pair_id`; `contract_type`, `option_type` (Call/Put), `expiry_date`, `strike_price`, `exercise_price`, `cost` added; `side`: `BUY`/`SELL` for spot, `LONG`/`SHORT` for futures/options (direction field removed); `link_type`: `"spread"` (cross-linked), `"pending_close"` (one-way sub), `"primary"` (has subs), `"none"` |
 | **Orders Groups** | `GroupOption` | Fields: `id`, `name`, `max_orders` (null = ∞), `min_price`, `max_price` |
 | **Managed Fund** | `FundPortfolio`, `TradePlan`, `TradeRecommendation`, `NavHistoryRecord` | |
 | **Spread Pairing** | `PortfolioSpreadsData` | |
@@ -532,7 +505,7 @@ The frontend follows SOLID principles with clear separation of concerns:
 | Layer | Directory | Purpose |
 |-------|-----------|---------|
 | **Types** | `types/` | All shared interfaces (portfolio, spread, fund, transaction) |
-| **Constants** | `constants/` | Design tokens (colors, spacing, exchange rate) |
+| **Constants** | `constants/` | Design tokens (colors, spacing, exchange rate, buttonTheme) |
 | **Utilities** | `utils/` | Pure helper functions (formatting, risk calculations, tags) |
 | **Hooks** | `hooks/` | Stateful business logic (order editing, portfolio management) |
 | **API** | `lib/api.ts` | Centralized HTTP client — all endpoints in one place |
@@ -550,4 +523,4 @@ All raw `fetch` calls have been replaced with `lib/api.ts` methods.
 
 ---
 
-*อัปเดตโดย Hermes Agent - 30 พฤษภาคม 2026 (network fix verified)*
+*อัปเดตโดย Hermes Agent - 5 มิถุนายน 2026 (Payoff Chart, buttonTheme, per-portfolio localStorage)*
