@@ -411,3 +411,9 @@ body {
   transition: stroke-dashoffset 1.5s cubic-bezier(0.4, 0, 0.2, 1);
   stroke-linecap: round;
 }
+
+/* Drop zone glow for drag-and-drop transfer */
+.drop-zone-glow {
+  box-shadow: 0 0 0 3px #0fbcb0;
+  transition: box-shadow 0.2s ease;
+}

@@ -53,7 +53,7 @@ class TransactionCreate(BaseModel):
 
 router = APIRouter()
 
-@router.get("/", tags=["transactions"], response_model=List[TransactionResponse])
+@router.get("", tags=["transactions"], response_model=List[TransactionResponse])
 async def get_transactions(
     db: AsyncSession = Depends(get_db),
     offset: int = 0,
@@ -93,11 +93,14 @@ async def get_transactions(
     for transaction in transactions:
         # Calculate flow
         flow = None
-        if transaction.source_portfolio_id and transaction.destination_portfolio_id:
-            source_name = portfolio_names.get(transaction.source_portfolio_id)
-            dest_name = portfolio_names.get(transaction.destination_portfolio_id)
-            if source_name and dest_name:
-                flow = f"{source_name} -> {dest_name}"
+        source_name = portfolio_names.get(transaction.source_portfolio_id) if transaction.source_portfolio_id else None
+        dest_name = portfolio_names.get(transaction.destination_portfolio_id) if transaction.destination_portfolio_id else None
+        if source_name and dest_name:
+            flow = f"{source_name} -> {dest_name}"
+        elif dest_name:
+            flow = f"-> {dest_name}"
+        elif source_name:
+            flow = f"{source_name} -> withdraw"
         
         # Calculate balance_delta
         balance_delta = None
@@ -140,7 +143,7 @@ async def get_transactions(
         )
     return response
 
-@router.post("/", tags=["transactions"], status_code=status.HTTP_201_CREATED)
+@router.post("", tags=["transactions"], status_code=status.HTTP_201_CREATED)
 async def create_transaction(transaction_data: TransactionCreate, db: AsyncSession = Depends(get_db)):
     """
     Create a new transaction record.
@@ -188,11 +191,14 @@ async def get_transaction(transaction_id: int, db: AsyncSession = Depends(get_db
     
     # Calculate flow
     flow = None
-    if transaction.source_portfolio_id and transaction.destination_portfolio_id:
-        source_name = portfolio_names.get(transaction.source_portfolio_id)
-        dest_name = portfolio_names.get(transaction.destination_portfolio_id)
-        if source_name and dest_name:
-            flow = f"{source_name} -> {dest_name}"
+    source_name = portfolio_names.get(transaction.source_portfolio_id) if transaction.source_portfolio_id else None
+    dest_name = portfolio_names.get(transaction.destination_portfolio_id) if transaction.destination_portfolio_id else None
+    if source_name and dest_name:
+        flow = f"{source_name} -> {dest_name}"
+    elif dest_name:
+        flow = f"-> {dest_name}"
+    elif source_name:
+        flow = f"{source_name} -> withdraw"
     
     # Calculate balance_delta
     balance_delta = None

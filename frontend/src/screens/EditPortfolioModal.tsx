@@ -1,33 +1,33 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../lib/api";
+import Button from "./components/Button";
 
 interface EditPortfolioModalProps {
   portfolioId: number;
   portfolioName: string;
-  currentNav: number;
   marginLocked: number;
   cashBufferLimit: number;
-  availableCash: number;
+  rawAvailableCash: number;
+  cumulativePl: number;
   moneyMarket: number;
   tags: Record<string, boolean> | null;
   showModal: boolean;
   onClose: () => void;
   onSaved: () => void;
+  onDepositWithdraw: (msg: string) => void;
   activeOrderCount: number;
   onDeleted: () => void;
 }
 
 const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
-  portfolioId, portfolioName, currentNav, marginLocked, cashBufferLimit,
-  availableCash, moneyMarket, tags, showModal, onClose, onSaved,
-  activeOrderCount, onDeleted,
+  portfolioId, portfolioName, marginLocked, cashBufferLimit,
+  rawAvailableCash, cumulativePl, moneyMarket, tags, showModal, onClose, onSaved,
+  onDepositWithdraw, activeOrderCount, onDeleted,
 }) => {
   const [form, setForm] = useState({
     portfolio_name: portfolioName,
-    current_nav: currentNav,
     margin_locked: marginLocked,
     cash_buffer_limit: cashBufferLimit,
-    available_cash: availableCash,
     money_market: moneyMarket,
     tags: tags ? Object.keys(tags).join(", ") : "",
   });
@@ -35,12 +35,17 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
   const [deleting, setDeleting] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
+  const [dwAmount, setDwAmount] = useState("");
+  const [dwProcessing, setDwProcessing] = useState(false);
+  const [dwError, setDwError] = useState("");
 
   useEffect(() => {
     if (showModal) {
       setShowConfirmDelete(false);
       setShowWarning(false);
       setDeleting(false);
+      setDwAmount("");
+      setDwError("");
     }
   }, [showModal]);
 
@@ -53,13 +58,16 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
     try {
       const tagsObj: Record<string, boolean> = {};
       form.tags.split(",").map((t) => t.trim()).filter(Boolean).forEach((t) => { tagsObj[t] = true; });
+
+      const newMargin = parseFloat(form.margin_locked as any) || 0;
+      const newBuffer = parseFloat(form.cash_buffer_limit as any) || 0;
+      const newMM = parseFloat(form.money_market as any) || 0;
+
       await api.updatePortfolio(portfolioId, {
         portfolio_name: form.portfolio_name || undefined,
-        current_nav: form.current_nav ? parseFloat(form.current_nav as any) : undefined,
-        margin_locked: form.margin_locked ? parseFloat(form.margin_locked as any) : undefined,
-        cash_buffer_limit: form.cash_buffer_limit ? parseFloat(form.cash_buffer_limit as any) : undefined,
-        available_cash: form.available_cash ? parseFloat(form.available_cash as any) : undefined,
-        money_market: form.money_market ? parseFloat(form.money_market as any) : undefined,
+        margin_locked: newMargin || undefined,
+        cash_buffer_limit: newBuffer || undefined,
+        money_market: newMM || undefined,
         tags: Object.keys(tagsObj).length > 0 ? tagsObj : undefined,
       });
       onSaved();
@@ -68,6 +76,55 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
       console.error("Failed to save portfolio:", err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeposit = async () => {
+    const num = parseFloat(dwAmount);
+    if (isNaN(num) || num <= 0) { setDwError("Enter a valid amount"); return; }
+    setDwProcessing(true);
+    setDwError("");
+    try {
+      await api.createTransaction({
+        transaction_type: "Deposit",
+        asset: "USD",
+        amount: num,
+        destination_portfolio_id: portfolioId,
+        executed_by: "Manual",
+      });
+      await api.updatePortfolio(portfolioId, { available_cash: rawAvailableCash + num });
+      onDepositWithdraw(`Deposited $${num.toLocaleString()} to ${portfolioName}`);
+      setDwAmount("");
+      onSaved();
+    } catch (e: any) {
+      setDwError(e.message || "Deposit failed");
+    } finally {
+      setDwProcessing(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    const num = parseFloat(dwAmount);
+    if (isNaN(num) || num <= 0) { setDwError("Enter a valid amount"); return; }
+    if (num > rawAvailableCash) { setDwError(`Maximum withdraw is $${rawAvailableCash.toLocaleString()}`); return; }
+    setDwProcessing(true);
+    setDwError("");
+    try {
+      await api.createTransaction({
+        transaction_type: "Withdraw",
+        asset: "USD",
+        amount: num,
+        source_portfolio_id: portfolioId,
+        executed_by: "Manual",
+      });
+      await api.updatePortfolio(portfolioId, { available_cash: rawAvailableCash - num });
+      onDepositWithdraw(`Withdrew $${num.toLocaleString()} from ${portfolioName}`);
+      setDwAmount("");
+      onSaved();
+    } catch (e: any) {
+      setDwError(e.message || "Withdraw failed");
+    } finally {
+      setDwProcessing(false);
     }
   };
 
@@ -95,6 +152,8 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
 
   if (!showModal) return null;
 
+  const baseEquity = rawAvailableCash + cumulativePl;
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
@@ -114,12 +173,13 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
               <input value={form.portfolio_name} onChange={(e) => handleChange("portfolio_name", e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-teal" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Current NAV</label>
-                <input type="number" value={form.current_nav} onChange={(e) => handleChange("current_nav", e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-teal" />
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Available Cash</label>
+              <div className="w-full px-3 py-2 text-sm border border-hairline rounded-lg bg-gray-50 text-ink font-semibold">
+                ${(baseEquity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Margin Locked</label>
                 <input type="number" value={form.margin_locked} onChange={(e) => handleChange("margin_locked", e.target.value)}
@@ -128,11 +188,6 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Cash Buffer Limit</label>
                 <input type="number" value={form.cash_buffer_limit} onChange={(e) => handleChange("cash_buffer_limit", e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-teal" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Available Cash</label>
-                <input type="number" value={form.available_cash} onChange={(e) => handleChange("available_cash", e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-teal" />
               </div>
               <div>
@@ -146,6 +201,25 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
                   className="w-full px-3 py-2 text-sm border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-teal" placeholder="crypto, bot, binance" />
               </div>
             </div>
+
+          </div>
+
+          <hr className="my-6 border-hairline" />
+
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Adjust Cash Balance</p>
+            <div className="flex gap-2 mb-2">
+              <input type="number" step={100} placeholder="0"
+                value={dwAmount} onChange={e => setDwAmount(e.target.value)}
+                className="flex-1 px-3 py-2 text-sm border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-teal"
+                onFocus={e => e.target.style.borderColor = '#0fbcb0'}
+                onBlur={e => e.target.style.borderColor = '#e0e2e8'} />
+              <Button variant="primary" size="sm" onClick={handleDeposit} loading={dwProcessing}>Deposit</Button>
+              <Button variant="danger" size="sm" onClick={handleWithdraw} loading={dwProcessing}>Withdraw</Button>
+            </div>
+            {dwError && (
+              <p className="text-xs text-red-600 mt-1">{dwError}</p>
+            )}
           </div>
 
           <hr className="my-6 border-hairline" />
@@ -155,10 +229,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
               <p className="text-sm font-semibold text-red-700">Danger Zone</p>
               <p className="text-xs text-gray-500">Permanently delete this portfolio and all related data</p>
             </div>
-            <button
-              onClick={handleDeleteClick}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold border border-red-300 text-red-600 rounded-full hover:bg-red-50 transition-colors"
-            >
+            <Button variant="ghost" onClick={handleDeleteClick} className="border-red-300 text-red-600 hover:bg-red-50">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="3 6 5 6 21 6" />
                 <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -166,7 +237,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
                 <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
               </svg>
               Delete Portfolio
-            </button>
+            </Button>
           </div>
 
           {showWarning && (
@@ -182,13 +253,8 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
           )}
 
           <div className="flex justify-end gap-3 mt-6">
-            <button onClick={onClose} className="px-4 py-2 text-xs font-bold border border-hairline rounded-full hover:bg-surface transition-colors">
-              Cancel
-            </button>
-            <button onClick={handleSave} disabled={saving}
-              className="px-4 py-2 text-xs font-bold bg-ink text-white rounded-full hover:bg-gray-800 disabled:opacity-50 transition-colors">
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button variant="primary" onClick={handleSave} loading={saving}>Save Changes</Button>
           </div>
 
           {showConfirmDelete && (
@@ -207,14 +273,8 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
                       This will permanently delete this portfolio and all related data including trade history, trade plans, zone groups, and transactions. This action cannot be undone.
                     </p>
                     <div className="flex justify-end gap-2 mt-5">
-                      <button onClick={() => setShowConfirmDelete(false)}
-                        className="px-4 py-2 text-xs font-bold border border-hairline rounded-full hover:bg-surface transition-colors">
-                        Cancel
-                      </button>
-                      <button onClick={handleConfirmDelete} disabled={deleting}
-                        className="px-4 py-2 text-xs font-bold bg-red-600 text-white rounded-full hover:bg-red-700 disabled:opacity-50 transition-colors">
-                        {deleting ? "Deleting..." : "Confirm Delete"}
-                      </button>
+                      <Button variant="secondary" onClick={() => setShowConfirmDelete(false)}>Cancel</Button>
+                      <Button variant="danger" onClick={handleConfirmDelete} loading={deleting}>Confirm Delete</Button>
                     </div>
                   </div>
                 </div>

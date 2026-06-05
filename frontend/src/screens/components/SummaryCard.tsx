@@ -66,7 +66,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
           <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
             i
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 px-3 py-2 bg-ink text-white text-[10px] leading-relaxed rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-              Available Cash + P/L − Money Market − Margin Locked − Cash Buffer
+              Available Cash + P/L
               <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 bg-ink rotate-45"></div>
             </div>
           </span>

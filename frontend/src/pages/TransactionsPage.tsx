@@ -232,7 +232,7 @@ export default function TransactionsPage() {
               </tr>
             ) : (
               filteredTransactions.map((tx, index) => (
-                <tr key={tx.history_id} className="hover:bg-[var(--color-teal-light, #e0f7f6)] transition-colors duration-150">
+                <tr key={tx.history_id ?? tx.transaction_id ?? index} className="hover:bg-[var(--color-teal-light, #e0f7f6)] transition-colors duration-150">
                   <td className="px-6 py-4 text-sm text-[var(--color-ink, #1c1c1e)]">
                     {formatDate(tx.entry_date)}
                   </td>
@@ -247,14 +247,14 @@ export default function TransactionsPage() {
                   <td className="px-6 py-4 text-sm text-[var(--color-ink, #1c1c1e)]">
                     {/* For simplicity, we'll show amount and realized_pl as the "Amount & Balance Delta" */}
                     <div className="space-y-1">
-                      {tx.amount !== null ? (
+                      {tx.amount != null ? (
                         <div className="text-right">
                           {fmtCurrency(tx.amount)}
                         </div>
                       ) : (
                         <div className="text-right text-[var(--color-slate, #555a6a)]">-</div>
                       )}
-                      {tx.realized_pl !== null ? (
+                      {tx.realized_pl != null ? (
                         <div className="text-right text-sm">
                           {fmtCurrency(tx.realized_pl)} {tx.realized_pl >= 0 ? "+" : ""}
                         </div>

@@ -3,6 +3,7 @@ import { SpreadOrder, GroupOption } from '../types';
 import { GroupCombobox } from './components/GroupCombobox';
 import { api } from '../lib/api';
 import { buttonTheme } from '../constants/colors';
+import Button from './components/Button';
 
 interface EditOrderModalProps {
   order: SpreadOrder | null;
@@ -309,28 +310,18 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm border rounded hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={async () => {
-              if (pendingUnlink && order?.order_id) {
-                try {
-                  await api.unlinkOrder(order.order_id);
-                  setPendingUnlink(false);
-                } catch (e) {
-                  console.error('Unlink failed:', e);
-                }
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={async () => {
+            if (pendingUnlink && order?.order_id) {
+              try {
+                await api.unlinkOrder(order.order_id);
+                setPendingUnlink(false);
+              } catch (e) {
+                console.error('Unlink failed:', e);
               }
-              await onSave();
-            }}
-            className="px-4 py-2 text-sm bg-teal-600 text-white rounded hover:bg-teal-700"
-          >
-            Save Changes
-          </button>
+            }
+            await onSave();
+          }}>Save Changes</Button>
         </div>
       </div>
     </div>

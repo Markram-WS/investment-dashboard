@@ -4,7 +4,9 @@ export interface PortfolioOverviewItem {
   portfolio_name: string;
   margin: number;
   buffer: number;
-  available: number;
+  available_cash: number;
+  money_market: number;
+  total_pl: number;
   risk_status: string | null;
   profit_percentage?: number;
   portfolio_type?: string;
@@ -17,6 +19,7 @@ export interface OverviewResponse {
   buffer: number;
   available_cash: number;
   money_market: number;
+  total_pl: number;
   pool_health_index: number;
   money_reserve_status: string;
   portfolios: PortfolioOverviewItem[];
@@ -124,6 +127,7 @@ export interface AllocationItem {
 // === Transactions ===
 export interface Transaction {
   history_id: number;
+  transaction_id?: number;
   portfolio_id: number;
   portfolio_name: string;
   type: string;

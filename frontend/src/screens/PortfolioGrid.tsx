@@ -46,7 +46,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const [closingOrder, setClosingOrder] = useState<SpreadOrder | null>(null);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showEditPortfolioModal, setShowEditPortfolioModal] = useState(false);
-  const [alertMsg, setAlertMsg] = useState<string | null>(null);
+  const [alertMsg, setAlertMsg] = useState<{ msg: string; type: "warning" | "success" } | null>(null);
   const navigate = useNavigate();
 
   const [contractFilter, setContractFilter] = useState<'all' | 'spot' | 'future' | 'option'>('all');
@@ -243,7 +243,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       }
     }
     if (warnings.length > 0) {
-      setAlertMsg(warnings.join(" "));
+      setAlertMsg({ msg: warnings.join(" "), type: "warning" });
     }
     try {
       for (const orderId of orderIds) {
@@ -413,11 +413,11 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
 
   const totalCash = (selectedPortfolio?.available_cash || 0) + (selectedPortfolio?.money_market || 0);
   const cumulativePl = performanceData?.total_pl || 0;
-  const totalValue = totalCash + cumulativePl;
-  const plPercent = totalCash > 0 ? (cumulativePl / totalCash) * 100 : 0;
   const marginLocked = selectedPortfolio?.margin_locked || 0;
   const cashBufferLimit = selectedPortfolio?.cash_buffer_limit || 0;
-  const availableCash = totalCash + cumulativePl - (selectedPortfolio?.money_market || 0) - marginLocked - cashBufferLimit;
+  const totalValue = (selectedPortfolio?.available_cash || 0) + cumulativePl + marginLocked + cashBufferLimit + (selectedPortfolio?.money_market || 0);
+  const plPercent = totalCash > 0 ? (cumulativePl / totalCash) * 100 : 0;
+  const availableCash = (selectedPortfolio?.available_cash || 0) + cumulativePl;
 
   const riskPercent = selectedPortfolio?.risk_score ?? 0;
   const riskStatusText = riskPercent >= 100 ? "Safe" : riskPercent >= 50 ? "Warning" : "Danger";
@@ -435,7 +435,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
 
   return (
     <>
-      {alertMsg && <ToastAlert message={alertMsg} type="warning" onClose={() => setAlertMsg(null)} key={alertMsg} />}
+      {alertMsg && <ToastAlert message={alertMsg.msg} type={alertMsg.type} onClose={() => setAlertMsg(null)} key={alertMsg.msg + alertMsg.type} />}
       <div className="px-10 py-6 min-h-screen max-w-[1800px] mx-auto">
       <PortfolioHeader
         portfolioName={selectedPortfolio.portfolio_name}
@@ -566,15 +566,16 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       <EditPortfolioModal
         portfolioId={selectedPortfolio.portfolio_id}
         portfolioName={selectedPortfolio.portfolio_name}
-        currentNav={totalCash}
         marginLocked={marginLocked}
         cashBufferLimit={cashBufferLimit}
-        availableCash={selectedPortfolio.available_cash || 0}
+        rawAvailableCash={selectedPortfolio.available_cash || 0}
+        cumulativePl={cumulativePl}
         moneyMarket={selectedPortfolio.money_market || 0}
         tags={selectedPortfolio.tags}
         showModal={showEditPortfolioModal}
         onClose={() => setShowEditPortfolioModal(false)}
         onSaved={fetchAnalyticsData}
+        onDepositWithdraw={(msg) => setAlertMsg({ msg, type: "success" })}
         activeOrderCount={activeOrders.length}
         onDeleted={() => {
           const deletedPid = selectedPortfolio?.portfolio_id;

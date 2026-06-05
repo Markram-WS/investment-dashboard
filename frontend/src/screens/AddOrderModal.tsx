@@ -3,6 +3,7 @@ import { GroupOption } from '../types';
 import { GroupCombobox } from './components/GroupCombobox';
 import type { AddOrderForm } from '../hooks/useAddOrder';
 import { buttonTheme } from '../constants/colors';
+import Button from './components/Button';
 
 interface AddOrderModalProps {
   formData: AddOrderForm;
@@ -258,18 +259,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm border rounded hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onSave}
-            className="px-4 py-2 text-sm bg-black text-white rounded hover:bg-gray-800"
-          >
-            Create Order
-          </button>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={onSave}>Create Order</Button>
         </div>
       </div>
     </div>

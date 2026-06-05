@@ -61,7 +61,7 @@ class TransferConfirm(BaseModel):
     confirmed_by: str = Field(..., description="Name/ID of person confirming")
 
 
-@router.post("/", tags=["transfers"], status_code=status.HTTP_201_CREATED, response_model=TransferResponse)
+@router.post("", tags=["transfers"], status_code=status.HTTP_201_CREATED, response_model=TransferResponse)
 async def initiate_transfer(transfer_data: TransferCreate, db: AsyncSession = Depends(get_db)):
     """
     Initiate a cash pool transfer between portfolios.

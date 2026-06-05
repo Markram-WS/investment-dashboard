@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.models import Portfolio
+from app.models import Portfolio, TradeHistory
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import date
@@ -12,7 +12,9 @@ class PortfolioOverviewItem(BaseModel):
     portfolio_name: str
     margin: float
     buffer: float
-    available: float
+    available_cash: float
+    money_market: float
+    total_pl: float = 0
     risk_status: Optional[str]
 
     class Config:
@@ -23,6 +25,7 @@ class OverviewResponse(BaseModel):
     buffer: float
     available_cash: float
     money_market: float
+    total_pl: float = 0
     pool_health_index: float
     money_reserve_status: str
     portfolios: List[PortfolioOverviewItem]
@@ -60,6 +63,15 @@ async def get_overview(db: AsyncSession = Depends(get_db)):
     total_available_cash = sum(float(p.available_cash) if p.available_cash else 0 for p in portfolios)
     total_money_market = sum(float(p.money_market) if p.money_market else 0 for p in portfolios)
 
+    # Aggregate P/L per portfolio from trade_history
+    pl_rows = await db.execute(
+        select(TradeHistory.portfolio_id, func.coalesce(func.sum(TradeHistory.realized_pl), 0).label('total_pl'))
+        .where(TradeHistory.realized_pl.isnot(None))
+        .group_by(TradeHistory.portfolio_id)
+    )
+    pl_map = {row.portfolio_id: float(row.total_pl) for row in pl_rows}
+    total_pl = sum(pl_map.values())
+
     total_cash = total_margin + total_buffer + total_available_cash + total_money_market
     global_cash = total_available_cash + total_money_market
 
@@ -89,7 +101,9 @@ async def get_overview(db: AsyncSession = Depends(get_db)):
                 portfolio_name=p.portfolio_name,
                 margin=float(p.margin_locked) if p.margin_locked else 0,
                 buffer=float(p.cash_buffer_limit) if p.cash_buffer_limit else 0,
-                available=(float(p.available_cash) if p.available_cash else 0) + (float(p.money_market) if p.money_market else 0),
+                available_cash=float(p.available_cash) if p.available_cash else 0,
+                money_market=float(p.money_market) if p.money_market else 0,
+                total_pl=pl_map.get(p.portfolio_id, 0.0),
                 risk_status=p.risk_status
             )
         )
@@ -99,6 +113,7 @@ async def get_overview(db: AsyncSession = Depends(get_db)):
         buffer=total_buffer,
         available_cash=total_available_cash,
         money_market=total_money_market,
+        total_pl=total_pl,
         pool_health_index=pool_health_index,
         money_reserve_status=money_reserve_status,
         portfolios=portfolio_overview_items

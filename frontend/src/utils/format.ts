@@ -1,18 +1,19 @@
 import { EXCHANGE_RATE } from '../constants/colors';
 
-export function fmtAmount(n: number, currency: "USD" | "THB"): string {
+export function fmtAmount(n: number | null | undefined, currency: "USD" | "THB"): string {
+  if (n == null) n = 0;
   const v = currency === "THB" ? n * EXCHANGE_RATE : n;
   return currency === "USD"
     ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : `฿${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function convertAmount(amount: number | null, currency: "USD" | "THB"): number {
-  if (amount === null) return 0;
+export function convertAmount(amount: number | null | undefined, currency: "USD" | "THB"): number {
+  if (amount == null) return 0;
   return currency === "THB" ? amount * EXCHANGE_RATE : amount;
 }
 
-export function formatCurrency(amount: number, currency: "USD" | "THB"): string {
+export function formatCurrency(amount: number | null | undefined, currency: "USD" | "THB"): string {
   const converted = convertAmount(amount, currency);
   if (currency === "USD") {
     return `$${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
