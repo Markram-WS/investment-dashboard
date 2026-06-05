@@ -121,3 +121,11 @@ export const IconLink = ({ className }: IconProps) => (
     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
   </Svg>
 );
+
+export const IconContract = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <path d="M9 15l2 2 4-4" />
+  </Svg>
+);

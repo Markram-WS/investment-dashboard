@@ -1,7 +1,8 @@
-import React, { useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { SpreadOrder, GroupOption, OrderLinkGroup } from "../../types";
 import { OrderGroupRow } from "./ZoneGroupRow";
-import { IconPlus, IconLayers } from "../../components/icons";
+import { IconPlus, IconLayers, IconContract } from "../../components/icons";
+import OptionsStrategyTable from "./OptionsStrategyTable";
 import TradeHistoryTable from "./TradeHistoryTable";
 
 interface OrderManagementProps {
@@ -119,6 +120,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
     (e.currentTarget as HTMLElement).style.outline = '';
     (e.currentTarget as HTMLElement).style.outlineOffset = '';
   };
+
+  const [showOptionsStrategy, setShowOptionsStrategy] = useState(false);
 
   const hasFutureOrders = activeOrders.some(o => o.contract_type === 'future' || (o.leverage != null && o.leverage > 0));
   const hasOptionOrders = activeOrders.some(o => o.contract_type === 'option' || o.strike_price != null || o.option_type != null);
@@ -275,13 +278,26 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             </div>
           </div>
       </div>
-      <div className="flex items-center">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setShowOptionsStrategy(!showOptionsStrategy)}
+          className={`h-8 w-8 rounded-full border transition-all flex items-center justify-center ${
+            showOptionsStrategy
+              ? "bg-purple-100 text-purple-700 border-purple-200"
+              : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50"
+          }`}
+          title="Options Strategy"
+        >
+          <IconContract className="w-4 h-4" />
+        </button>
         <button onClick={onAddOrder} className="h-9 px-4 rounded-full bg-brand-teal text-white text-xs font-bold shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5" title="Add Order">
           <IconPlus className="w-4 h-4" />
           Add Order
         </button>
       </div>
     </div>
+
+    <OptionsStrategyTable visible={showOptionsStrategy} onClose={() => setShowOptionsStrategy(false)} />
 
     {/* Table */}
     <div className="overflow-x-auto">
