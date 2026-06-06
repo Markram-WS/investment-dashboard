@@ -4,7 +4,6 @@ import PortfolioOverview from './pages/PortfolioOverview';
 import TransactionsPage from './pages/TransactionsPage';
 import TradePlanManager from './pages/TradePlanManager';
 import ActiveOrders from './pages/ActiveOrders';
-import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import PortfolioAnalyticsDetail from './pages/PortfolioAnalyticsDetail';
 import CreateNewPortfolio from './pages/CreateNewPortfolio';
 import PortfolioMutualFund from './screens/PortfolioMutualFund';
@@ -27,7 +26,6 @@ export default function App() {
             <Route path="/trades" element={<TradePlanManager />} />
             <Route path="/transactions" element={<TransactionsPage />} />
             <Route path="/orders" element={<ActiveOrders />} />
-            <Route path="/analytics" element={<AnalyticsDashboard />} />
             <Route path="/analytics/portfolio/:portfolio_id" element={<PortfolioAnalyticsDetail />} />
             <Route path="/analytics/detail" element={<div className="max-w-[1200px] mx-auto px-6 py-6"><PortfolioGrid /></div>} />
             <Route path="/spread-pairing" element={<PortfolioSpread />} />
