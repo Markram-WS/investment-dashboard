@@ -50,7 +50,7 @@
 ## 6. Architecture Overview (Post-Refactor)
 
 ### Backend (FastAPI)
-- **16 routers** in `backend/app/routers/`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `assets.py`, `etl_sync.py`, `journal.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py`, `orders_groups.py`
+- **16 routers** in `backend/app/routers/`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `assets.py`, `etl_sync.py`, `journal.py`, `overview.py` (returns `total_pl` per portfolio aggregated from `trade_history`), `performance.py`, `portfolios.py` (`PUT` auto-computes `available_cash` on edit), `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py`, `orders_groups.py`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `assets.py`, `etl_sync.py`, `journal.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py`, `orders_groups.py`
 - **15 SQLAlchemy models** in `models.py`: Portfolio, TradePlan, ActiveOrder, OptionDetails, PortfolioNavHistory, SimulationModels, TradeHistory, Transaction, DecisionJournal, WhitelistAssets, Watchlist, AiAgent, AiActionLog, AiAgentState, OrdersGroup
 - **Key endpoints**:
   - `GET /api/v1/analytics/performance/{portfolio_id}` — equity curve (cumulative realized P/L), payoff bars (grouped by month with summed realized_pl — one bar per month), total P/L
@@ -64,8 +64,8 @@
 - Two PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
 
 ### Frontend (React 18 + TypeScript + Vite)
-- **PortfolioGrid.tsx** — slim orchestrator composing sub-components; manages per-portfolio payoff states (6 keys in localStorage)
-- **Screen modals** in `src/screens/`: `AddOrderModal`, `CloseOrderModal`, `EditOrderModal` (all use `buttonTheme` for Call=blue-600/Put=orange-500), `EditPortfolioModal`, `ZoneEditModal`, `ZoneGroupModal`
+- **PortfolioGrid.tsx** — slim orchestrator composing sub-components; manages per-portfolio payoff states (6 keys in localStorage); `onSaved={fetchAnalyticsData}` for data refresh after edit save
+- **Screen modals** in `src/screens/`: `AddOrderModal`, `CloseOrderModal`, `EditOrderModal` (all use `buttonTheme` for Call=blue-600/Put=orange-500), `EditPortfolioModal` (live projected Available Cash, save error feedback, max validation), `ZoneEditModal`, `ZoneGroupModal`
 - **Screen components** in `src/screens/components/`:
   - `PortfolioHeader.tsx`, `SummaryCard.tsx`, `StrategyNotes.tsx`, `TagsSection.tsx`
   - `PerformanceSection.tsx` — Equity/Payoff toggle, passes payoff state to PayoffChart
@@ -116,10 +116,15 @@
 - `OptionRow` interface exported
 
 ## 7. Key Business Logic
-- **Total Value** = `(available_cash + money_market) + cumulativeP/L`
-- **P/L %** = `(cumulativeP/L / (available_cash + money_market)) * 100`
-- **Available Cash** = `totalCash + P/L − money_market − margin_locked − cash_buffer_limit`
-- **Total Notional** (Cash Details) = `Σ(qty × entry_price)` across active orders — shows market exposure deployed
+- **Equity** = `available_cash + cumulativePl + marginLocked + cashBufferLimit + money_market`
+- **Cash (summary label)** = `available_cash + cumulativePl` (Net Available)
+- **Total Value** = `available_cash + cumulativePl + marginLocked + cashBufferLimit + money_market + totalNotional`
+- **Available Cash** (Cash Details) = `available_cash` (raw DB field)
+- **Available Cash (displayed formula)** = `Cash + Total P/L`
+- **P/L %** = `(cumulativePl / totalCash) * 100` where `totalCash = available_cash + money_market`
+- **Total Notional** = `Σ(qty × entry_price)` across active orders — shows market exposure deployed
+- **Edit Portfolio auto-adjust**: `newAvailable = Math.max(0, rawAvailableCash − totalDiff)` where `totalDiff = (newMargin − oldMargin) + (newBuffer − oldBuffer) + (newMM − oldMM)`; computed live in modal as user types
+- **Formula tooltips**: SummaryCard shows "i" tooltips for Total Value, Cash, Available Cash (Cash Details), and Risk Level with their respective formulas
 - **Asset Allocation** = computed from active orders by `asset_type` grouped by notional value, sorted descending; excludes Cash
 - **Active orders sorted** by `asset_type ASC`, then `created_at DESC` (entry date descending) — both grouped and flat views
 - **Payoff bars** are grouped by month with summed `realized_pl` — one bar per month, not per trade (date format `YYYY-MM-01`)
@@ -189,6 +194,9 @@
 | `frontend/src/screens/components/PayoffChart.tsx` | **NEW** pure SVG payoff chart: intrinsic + BS IV lines, area fill, BE markers, Break Event, tooltip |
 | `frontend/src/screens/components/PerformanceSection.tsx` | Updated to render PayoffChart, pass currentPrice prop |
 | `frontend/public/vite.svg` | Custom favicon: rounded-square indigo→purple gradient with 3 ascending bars |
+| `frontend/src/screens/EditPortfolioModal.tsx` | Live projected Available Cash while typing, save error feedback, max validation per field |
+| `frontend/src/screens/components/SummaryCard.tsx` | Formula tooltips (i icons) for Total Value, Cash, Available Cash, Risk Level |
+| `frontend/src/screens/components/Button.tsx` | Reusable Button component (5 variants, 3 sizes) used across all modals |
 
 ## requirement
 requirement\Detailed-Functional-Requirements.md

@@ -59,6 +59,7 @@ open http://localhost:8000/docs
 > `portfolios.internal_notes` stores free-text observations; editable via `PUT /api/v1/portfolios/{id}`.
 > `portfolios.tags` is a JSONB map of key→bool for metadata filtering.
 > `available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit` are returned in the portfolio-grid analytics response.
+> `available_cash` is auto-computed when editing Money Market/Margin Locked/Cash Buffer Limit via `PUT /api/v1/portfolios/{id}`: `newAvailable = rawAvailableCash - totalDiff` (diff of new vs old values for the three deduction fields).
 > `risk_score` (0–100) is computed server-side from `available_cash`, `margin_locked`, `cash_buffer_limit` — matching the frontend risk gauge logic.
 > `active_orders.group_id` is an **Integer FK** to `orders_groups.id` (renamed from `ZoneGroup`; the `zone` column was removed).
 > `active_orders.linked_order_id` is a **TEXT** column (was `spread_pair_id`) — one-way link (pending close) or two-way cross-link (spread pair). A cross-linked pair is detected when `A.linked_order_id == B.order_id AND B.linked_order_id == A.order_id`. Spread legs appear with `link_type: "spread"` and one-way subs with `link_type: "pending_close"`. Orders with subs linking to them get `link_type: "primary"`.
@@ -95,7 +96,7 @@ open http://localhost:8000/docs
 | `GET` | `/api/v1/portfolios` | List all portfolios |
 | `POST` | `/api/v1/portfolios/` | Create a new portfolio |
 | `GET` | `/api/v1/portfolios/{id}` | Retrieve portfolio by ID |
-| `PUT` | `/api/v1/portfolios/{id}` | Update portfolio fields (`trade_plan_md`, `internal_notes`, `tags`, etc.) |
+| `PUT` | `/api/v1/portfolios/{id}` | Update portfolio fields (`portfolio_name`, `margin_locked`, `cash_buffer_limit`, `available_cash`, `money_market`, `trade_plan_md`, `internal_notes`, `tags`, etc.). Frontend auto-computes `available_cash` as `rawAvailableCash - totalDiff` when MM/Margin/Buffer change |
 | `DELETE` | `/api/v1/portfolios/{id}` | Delete portfolio with cascade (FK-safe order: decision_journals → trade_history → active_orders → trade_plans → nav_history → simulation_models → orders_groups → transactions → portfolio) |
 
 ### Trade Plans
@@ -125,12 +126,17 @@ open http://localhost:8000/docs
 > `linked_order_id` replaces the old `spread_pair_id` — one-way link = pending close (B→A), two-way cross-link = spread pair (A↔B). On close: primary order auto-closes its one-way subs; spread pair signals `paired_order_id` for the frontend to handle the partner.
 > `POST /{order_id}/unlink` clears `linked_order_id` on both sides — used by EditOrderModal's unlink-on-save flow.
 
+### Overview
+| Method | Endpoint | Description |
+|--------|-----------|-------------|
+| `GET` | `/api/v1/overview/` | Global dashboard overview: aggregated totals across all portfolios including `total_pl` per portfolio (sum of `realized_pl` from `trade_history`) |
+
 ### Analytics
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
 | `GET` | `/api/v1/analytics/nav/{portfolio_id}` | NAV time-series |
 | `GET` | `/api/v1/analytics/risk/{portfolio_id}` | Risk summary |
-| `GET` | `/api/v1/analytics/performance/{portfolio_id}` | Performance data: equity curve (cumulative realized P/L, date cumulative_pl), payoff bars (grouped by month with summed realized_pl, no per-trade bars), total P/L |
+| `GET` | `/api/v1/analytics/performance/{portfolio_id}` | Performance data: equity curve (cumulative realized P/L, date cumulative_pl), payoff bars (grouped by month with summed realized_pl, no per-trade bars), total P/L (aggregated from trade_history) |
 
 ### Portfolio Grid
 | Method | Endpoint | Description |
@@ -178,7 +184,7 @@ backend/
 │       ├── active_orders.py  # Order management (create, update, close)
 │       ├── analytics.py      # Portfolio grid + detail analytics
 │       ├── performance.py    # Equity curve (cumulative realized P/L), payoff bars (grouped by month with summed realized_pl), total P/L
-│       ├── overview.py       # Global dashboard overview
+│       ├── overview.py       # Global dashboard overview (total_pl per portfolio from trade_history)
 │       ├── risk.py           # Pool health, money reserve, safety
 │       ├── rebalance.py      # Dual-mode rebalancing engine
 │       ├── transactions.py   # Transaction history
@@ -344,4 +350,4 @@ The backend reads environment variables from the Docker Compose file or from a `
 
 ---
 
-*Last updated: 5 June 2026*
+*Last updated: 6 June 2026*

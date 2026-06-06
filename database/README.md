@@ -45,6 +45,8 @@ Two PostgreSQL databases power the system:
 
 ## Notes
 
+- `portfolios.available_cash` is auto-adjusted by the frontend when Money Market/Margin Locked/Cash Buffer Limit change in Edit Portfolio: `newAvailable = rawAvailableCash - totalDiff` (diff of new vs old deduction values)
+- `available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit` are all `NUMERIC(20,8)` columns and can be `NULL` (frontend defaults to `0`)
 - `link_type` is NOT stored — computed server-side by `analytics.py._link_type()`:
   - `"spread"` — cross-linked (A↔B)
   - `"pending_close"` — one-way sub (B→A)
@@ -57,4 +59,4 @@ Two PostgreSQL databases power the system:
 
 ---
 
-*Last updated: 5 June 2026*
+*Last updated: 6 June 2026*

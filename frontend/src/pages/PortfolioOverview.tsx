@@ -117,13 +117,13 @@ function PortfolioCard({
             textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Buffer</p>
           <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(p.buffer, currency)}</p>
         </div>
-        <DraggableAvailable portfolio={p} currency={currency} />
         <div style={{ padding: 16, background: 'var(--color-canvas)', borderRadius: 'var(--rounded-xl)',
           boxShadow: 'var(--shadow-sm)', transition: 'boxShadow 0.15s ease' }}>
           <p style={{ fontSize: 9, color: 'var(--color-slate)', fontWeight: 700,
             textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Money Market</p>
           <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(p.money_market, currency)}</p>
         </div>
+        <DraggableAvailable portfolio={p} currency={currency} />
       </div>
 
       {/* Status indicator */}
@@ -253,15 +253,15 @@ export default function PortfolioOverview() {
                     textTransform: 'uppercase', marginBottom: 4 }}>Buffer</p>
                   <p style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(buffer, currency)}</p>
                 </div>
+                <div style={{ padding: 16, background: 'white', borderRadius: 16, border: '1px solid rgba(224,226,232,0.5)' }}>
+                  <p style={{ fontSize: 10, color: 'var(--color-on-surface-variant)', fontWeight: 700,
+                    textTransform: 'uppercase', marginBottom: 4 }}>Money Market</p>
+                  <p style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(money_market, currency)}</p>
+                </div>
                 <div style={{ padding: 16, background: 'var(--color-brand-yellow)', borderRadius: 16, boxShadow: 'var(--shadow-sm)' }} className="pulse-available">
                   <p style={{ fontSize: 10, color: 'var(--color-primary)', fontWeight: 700,
                     textTransform: 'uppercase', marginBottom: 4 }}>Available</p>
                   <p style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(available_cash, currency)}</p>
-                </div>
-                <div style={{ padding: 16, background: 'white', borderRadius: 16, border: '1px solid rgba(224,226,232,0.5)' }}>
-                  <p style={{ fontSize: 10, color: 'var(--color-on-surface-variant)', fontWeight: 700,
-                    textTransform: 'uppercase', marginBottom: 4 }}>T+3</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(money_market, currency)}</p>
                 </div>
               </div>
             </div>

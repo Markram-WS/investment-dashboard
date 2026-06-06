@@ -59,12 +59,12 @@ frontend/
 │   │   ├── AddOrderModal.tsx       # Add order form (editable Order ID UUID, asset, side BUY/SELL spot or LONG/SHORT future/option, option_type dropdown Call/Put for options, qty, Cost above TP/SL, Strike on same row as Cost, group combobox, status, contract_type toggle using buttonTheme)
 │   │   ├── CloseOrderModal.tsx     # Close order form (editable Close ID UUID, exit price, P/L, auto-calc, shows linked order info for spread/pending_close via link_type)
 │   │   ├── EditOrderModal.tsx       # Order edit modal (group combobox, contract_type toggle using buttonTheme, Call=blue-600/Put=orange-500)
-│   │   ├── EditPortfolioModal.tsx   # Portfolio field editor: name, NAV, margin, buffer, cash, MM, tags; Danger Zone delete
+│   │   ├── EditPortfolioModal.tsx   # Portfolio field editor: name, margin, buffer, MM, tags; live projected Available Cash auto-adjusts as user types (same formula as Save); deposit/withdraw; max validation per field; Danger Zone delete; save error display
 │   │   ├── ZoneEditModal.tsx        # Zone edit modal
 │   │   ├── ZoneGroupModal.tsx       # Orders Group CRUD (add/edit/delete), "Group" column, bottom-left add
 │   │   └── components/
 │   │       ├── PortfolioHeader.tsx    # Breadcrumb, title, Refresh button (no Add Order in header)
-│   │       ├── SummaryCard.tsx        # 3-col values, Cash Details (Total Notional), Risk gauge (dynamic), Asset Allocation (real data), Tags, triple-dot edit
+│   │   ├── SummaryCard.tsx        # 3-col values with formula tooltips (Total Value, Cash, Available Cash, Risk Level), Cash Details (MM/Margin/Buffer), Risk gauge (dynamic, color-coded), Asset Allocation (real data), Tags, triple-dot edit
 │   │       ├── StrategyNotes.tsx      # Trade Plan + Internal Notes (both inline-editable, yellow sticky)
 │   │       ├── TagsSection.tsx        # Metadata tag pills
 │   │       ├── PerformanceSection.tsx # Performance wrapper + Equity/Payoff toggle; passes payoff state to PayoffChart
@@ -350,10 +350,11 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
 
 ## 📊 Features หลัก
 
-1. **Portfolio Overview**: แสดง margin/buffer/available/money market พร้อม gauge
+1. **Portfolio Overview**: Hero Card (teal bg) with Asset Total, P/L trend, 4-col breakdown; Pool Health semi-circle gauge; Money Reserve Status bar with zones; Active Portfolios cards with DnD and borderLeft risk color
 2. **Risk Status**: แสดงสีตามความเสี่ยง (Safe/Warning/Danger)
-3. **Currency Toggle**: สลับ USD/THB (อัตรา 35)
-4. **Portfolio Grid**: คลิกเข้าสู่ analytics ของแต่ละพอร์ต
+3. **Live Available Cash projection**: Edit Portfolio modal shows projected Available Cash updating live as user types MM/Margin/Buffer (same auto-adjust formula as Save)
+4. **Formula tooltips**: "i" tooltips on Total Value, Cash, Available Cash (Cash Details), and Risk Level showing calculation formulas
+5. **Portfolio Grid**: คลิกเข้าสู่ analytics ของแต่ละพอร์ต
 5. **Spread Pairing**: จัดคู่ออเดอร์แบบ 1:1 พร้อม zone grouping
 6. **Rebalance**: คำนวณและแสดงคำแนะนำการทำซ้ำ (rebalance)
 7. **Payoff chart groups by month**: Payoff bars are grouped by month with summed `realized_pl` — one bar per month instead of per trade. Date labels show YYYY-MM format.
@@ -387,6 +388,9 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
 22. **Payoff Chart (Performance tab)**: Pure SVG — Put-Call parity visualization. Intrinsic line (blue #3B82F6, strokeWidth 2). BS IV overlay (orange #F97316, dashed, optional via toggle). Area fill: pale green (#DCFCE7, 0.6) above baseline, pale red (#FEE2E2, 0.6) below, fades to 0 at baseline. Break-even markers (amber dot + "BE: XXX" label). **Break Event** label (amber rect at top, no vertical bar) — shows intrinsic BE when IV OFF, IV BE when IV ON. Hover tooltip with P/L values. Dynamic ~200 points. Y-axis symmetric around 0.
 23. **Payoff localStorage per portfolio**: 6 keys (`payoff_{key}_{portfolio_id}`) — strategy_rows, iv_mode, min_price, max_price, active_ivs, current_price. One-time migration from old flat keys. Delete portfolio clears its keys.
 24. **Controls panel (beside Options Strategy)**: BS IV mode toggle, Min/Max price range inputs, Current Price slider, per-order Active IV% inputs.
+25. **Edit Portfolio live projection**: Available Cash display updates live as user types MM/Margin/Buffer — `projectedAvailableCash = Math.max(0, rawAvailableCash − totalDiff)`
+26. **Formula tooltips in SummaryCard**: "i" tooltips on Total Value (`Cash + P/L + MM + Margin + Buffer + Notional`), Available Cash in Cash Details (`Available Cash = Cash + Total P/L`), and Risk Level (`min(100%, (Cash − Margin) ÷ max(Buffer, Margin) × 100)`)
+27. **Save error feedback**: Edit Portfolio modal shows error message on save failure (network errors, validation)
 
 ## ⚙️ Technical Details
 
@@ -523,4 +527,4 @@ All raw `fetch` calls have been replaced with `lib/api.ts` methods.
 
 ---
 
-*อัปเดตโดย Hermes Agent - 5 มิถุนายน 2026 (Payoff Chart, buttonTheme, per-portfolio localStorage)*
+*อัปเดตโดย Hermes Agent - 6 มิถุนายน 2026 (Formula tooltips, live cash projection, PortfolioOverview redesign)*

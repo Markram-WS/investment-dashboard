@@ -89,6 +89,18 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
       <p className="text-[11px] font-bold text-gray-500 mb-4 uppercase tracking-widest">Cash Details</p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         <div>
+          <p className="text-[10px] font-medium text-gray-500 mb-1">Margin Locked</p>
+          <p className="text-lg font-bold">${marginLocked.toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-medium text-gray-500 mb-1">Cash Buffer</p>
+          <p className="text-lg font-bold">${cashBufferLimit.toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-medium text-gray-500 mb-1">Money Market</p>
+          <p className="text-lg font-bold">${moneyMarket.toLocaleString()}</p>
+        </div>
+        <div>
           <div className="text-[10px] font-medium text-gray-500 mb-1 flex items-center gap-1">
             Available Cash
             <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
@@ -100,18 +112,6 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
             </span>
           </div>
           <p className="text-lg font-bold">${cashAvailable.toLocaleString()}</p>
-        </div>
-        <div>
-          <p className="text-[10px] font-medium text-gray-500 mb-1">Money Market (T+3)</p>
-          <p className="text-lg font-bold">${moneyMarket.toLocaleString()}</p>
-        </div>
-        <div>
-          <p className="text-[10px] font-medium text-gray-500 mb-1">Margin Locked</p>
-          <p className="text-lg font-bold">${marginLocked.toLocaleString()}</p>
-        </div>
-        <div>
-          <p className="text-[10px] font-medium text-gray-500 mb-1">Cash Buffer Limit</p>
-          <p className="text-lg font-bold">${cashBufferLimit.toLocaleString()}</p>
         </div>
       </div>
     </div>
