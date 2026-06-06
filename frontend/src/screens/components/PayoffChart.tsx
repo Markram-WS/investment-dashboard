@@ -89,7 +89,7 @@ interface LegData {
   qty: number; expiry: string | null; iv: number; source: string;
 }
 
-const MARGIN = { top: 20, right: 24, bottom: 28, left: 60 };
+const MARGIN = { top: 20, right: 160, bottom: 28, left: 60 };
 const WIDTH = 800;
 const HEIGHT = 200;
 const CHART_W = WIDTH - MARGIN.left - MARGIN.right;
@@ -249,24 +249,23 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
   }
 
   return (
-    <div className="flex flex-row gap-4">
-      <div className="flex-1 aspect-[4/1] relative">
-        <svg ref={svgRef} className="absolute inset-0 w-full h-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="xMidYMid meet" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+    <div className="aspect-[4/1] relative">
+      <svg ref={svgRef} className="absolute inset-0 w-full h-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="xMidYMid meet" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
           <defs>
-            <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3B82F6" stopOpacity="0" />
-              <stop offset={`${Math.max(0, baselineRatio - 0.01) * 100}%`} stopColor="#3B82F6" stopOpacity="0" />
-              <stop offset={`${baselineRatio * 100}%`} stopColor="#3B82F6" stopOpacity="0" />
-              <stop offset={`${baselineRatio * 100}%`} stopColor="#EF4444" stopOpacity="0" />
-              <stop offset={`${Math.min(1, baselineRatio + 0.01) * 100}%`} stopColor="#EF4444" stopOpacity="0" />
-              <stop offset="100%" stopColor="#EF4444" stopOpacity="0" />
+            <linearGradient id="gradAbove" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#22C55E" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#22C55E" stopOpacity="0" />
             </linearGradient>
-            <linearGradient id="fillAbove" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#DCFCE7" stopOpacity="0.6" />
-              <stop offset={`${baselineRatio * 100}%`} stopColor="#DCFCE7" stopOpacity="0" />
-              <stop offset={`${baselineRatio * 100}%`} stopColor="#FEE2E2" stopOpacity="0" />
-              <stop offset="100%" stopColor="#FEE2E2" stopOpacity="0.6" />
+            <linearGradient id="gradBelow" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#EF4444" stopOpacity="0" />
+              <stop offset="100%" stopColor="#EF4444" stopOpacity="0.8" />
             </linearGradient>
+            <clipPath id="clipAbove">
+              <rect x={MARGIN.left} y={MARGIN.top} width={CHART_W} height={baselineY - MARGIN.top} />
+            </clipPath>
+            <clipPath id="clipBelow">
+              <rect x={MARGIN.left} y={baselineY} width={CHART_W} height={MARGIN.top + CHART_H - baselineY} />
+            </clipPath>
           </defs>
 
           {/* Y-axis grid + labels */}
@@ -292,7 +291,8 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
           })}
 
           {/* Area fill */}
-          <path d={fillPath} fill="url(#fillAbove)" />
+          <path d={fillPath} fill="url(#gradAbove)" clipPath="url(#clipAbove)" />
+          <path d={fillPath} fill="url(#gradBelow)" clipPath="url(#clipBelow)" />
 
           {/* Baseline */}
           <line x1={MARGIN.left} y1={baselineY} x2={MARGIN.left + CHART_W} y2={baselineY} stroke="var(--color-hairline)" strokeWidth="1.5" strokeDasharray="6,4" />
@@ -333,59 +333,56 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
           <text x={14} y={MARGIN.top + CHART_H / 2} textAnchor="middle" transform={`rotate(-90, 14, ${MARGIN.top + CHART_H / 2})`} className="text-[10px]" fill="var(--color-slate)" fontWeight="500">P/L</text>
         </svg>
 
-        {tooltip && (() => {
-          const cssScale = tooltip.containerW / WIDTH;
-          const left = Math.min(tooltip.snappedX * cssScale + 12, tooltip.containerW - 100);
-          const top = Math.max(tooltip.cssY - 40, 0);
-          return (
-            <div className="absolute pointer-events-none z-10 bg-gray-900 text-white text-[10px] px-2.5 py-1.5 rounded shadow-lg" style={{ left, top }}>
-              <div>Price: <span className="font-medium">{tooltip.price.toFixed(2)}</span></div>
+        {tooltip && (
+          <div className="absolute pointer-events-none z-10 bg-gray-900 text-white text-[10px] px-2.5 py-1.5 rounded shadow-lg" style={{
+            left: Math.min(tooltip.snappedX * (tooltip.containerW / WIDTH) + 12, tooltip.containerW - 100),
+            top: Math.max(tooltip.cssY - 40, 0),
+          }}>
+            <div>Price: <span className="font-medium">{tooltip.price.toFixed(2)}</span></div>
+            <div>
+              <span className="text-brand-blue">●</span> Intrinsic:{" "}
+              <span className="font-bold" style={{ color: tooltip.pl >= 0 ? "var(--color-success)" : "var(--color-error)" }}>{tooltip.pl >= 0 ? "+" : ""}{tooltip.pl.toFixed(2)}</span>
+            </div>
+            {tooltip.plIv !== undefined && (
               <div>
-                <span className="text-brand-blue">●</span> Intrinsic:{" "}
-                <span className="font-bold" style={{ color: tooltip.pl >= 0 ? "var(--color-success)" : "var(--color-error)" }}>{tooltip.pl >= 0 ? "+" : ""}{tooltip.pl.toFixed(2)}</span>
+                <span className="text-brand-teal">╌</span> BSM IV:{" "}
+                <span className="font-bold" style={{ color: tooltip.plIv >= 0 ? "var(--color-success)" : "var(--color-error)" }}>{tooltip.plIv >= 0 ? "+" : ""}{tooltip.plIv.toFixed(2)}</span>
               </div>
-              {tooltip.plIv !== undefined && (
-                <div>
-                  <span className="text-brand-teal">╌</span> BSM IV:{" "}
-                  <span className="font-bold" style={{ color: tooltip.plIv >= 0 ? "var(--color-success)" : "var(--color-error)" }}>{tooltip.plIv >= 0 ? "+" : ""}{tooltip.plIv.toFixed(2)}</span>
-                </div>
-              )}
-            </div>
-          );
-        })()}
-      </div>
+            )}
+          </div>
+        )}
 
-      <div className="w-36 lg:w-44 shrink-0 flex flex-col justify-center gap-2 text-[10px] text-slate pl-4 border-l border-hairline">
-        <div>
-          Legs: <span className="font-semibold text-ink">{legs.length}</span>
-          <span className="ml-1">({legs.filter(l => l.source === "active").length}A, {legs.filter(l => l.source === "strategy").length}S)</span>
-        </div>
-        <div>
-          <span className="text-brand-blue">●</span>
-          <span className="ml-1">Intrinsic</span>
-          <div className="ml-3 leading-snug">
-            Max: <span className="font-semibold text-success">+{Math.max(...plValues, 0).toFixed(1)}</span>
-            <span className="ml-1">Min:</span> <span className="font-semibold text-error">{Math.min(...plValues, 0).toFixed(1)}</span>
-          </div>
-        </div>
-        {ivMode && (
+        <div className="hidden lg:flex absolute right-0 top-0 bottom-0 w-44 flex-col justify-center gap-2 text-[10px] text-slate bg-surface/80 pl-4 border-l border-hairline">
           <div>
-            <span className="text-brand-teal">╌</span>
-            <span className="ml-1">BSM</span>
+            Legs: <span className="font-semibold text-ink">{legs.length}</span>
+            <span className="ml-1">({legs.filter(l => l.source === "active").length}A, {legs.filter(l => l.source === "strategy").length}S)</span>
+          </div>
+          <div>
+            <span className="text-brand-blue">●</span>
+            <span className="ml-1">Intrinsic</span>
             <div className="ml-3 leading-snug">
-              Max: <span className="font-semibold text-success">+{Math.max(...ivPlValues, 0).toFixed(1)}</span>
-              <span className="ml-1">Min:</span> <span className="font-semibold text-error">{Math.min(...ivPlValues, 0).toFixed(1)}</span>
+              Max: <span className="font-semibold text-success">+{Math.max(...plValues, 0).toFixed(1)}</span>
+              <span className="ml-1">Min:</span> <span className="font-semibold text-error">{Math.min(...plValues, 0).toFixed(1)}</span>
             </div>
           </div>
-        )}
-        {(ivMode ? ivBePoints : bePoints).length > 0 && (
-          <div>
-            BE: <span className="font-semibold text-ink">{(ivMode ? ivBePoints : bePoints).map(b => b.toFixed(1)).join(", ")}</span>
-          </div>
-        )}
+          {ivMode && (
+            <div>
+              <span className="text-brand-teal">╌</span>
+              <span className="ml-1">BSM</span>
+              <div className="ml-3 leading-snug">
+                Max: <span className="font-semibold text-success">+{Math.max(...ivPlValues, 0).toFixed(1)}</span>
+                <span className="ml-1">Min:</span> <span className="font-semibold text-error">{Math.min(...ivPlValues, 0).toFixed(1)}</span>
+              </div>
+            </div>
+          )}
+          {(ivMode ? ivBePoints : bePoints).length > 0 && (
+            <div>
+              BE: <span className="font-semibold text-ink">{(ivMode ? ivBePoints : bePoints).map(b => b.toFixed(1)).join(", ")}</span>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
 };
 
 export default PayoffChart;

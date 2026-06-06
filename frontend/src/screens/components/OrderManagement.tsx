@@ -179,14 +179,17 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
       if (!isNaN(s) && s > 0) prices.push(s);
     }
     for (const o of activeOrders) {
-      const s = o.strike_price != null ? Number(o.strike_price) : 0;
-      const e = o.entry_price != null ? Number(o.entry_price) : 0;
-      if (s > 0) prices.push(s);
-      if (e > 0) prices.push(e);
+      if (o.contract_type === 'option') {
+        const s = o.strike_price != null ? Number(o.strike_price) : 0;
+        if (s > 0) prices.push(s);
+      } else {
+        const e = o.entry_price != null ? Number(o.entry_price) : 0;
+        if (e > 0) prices.push(e);
+      }
     }
     if (prices.length === 0) return;
-    const maxVal = Math.max(...prices) * 1.5;
-    const minVal = Math.max(0, Math.min(...prices) * 0.5);
+    const maxVal = Math.max(...prices) * 1.25;
+    const minVal = Math.max(0, Math.min(...prices) * 0.75);
     onPayoffMinMaxChangeRef.current?.(minVal, maxVal);
   }, [strategyRows, activeOrders]);
 

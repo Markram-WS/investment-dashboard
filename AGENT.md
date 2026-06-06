@@ -64,16 +64,17 @@
 - Two PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
 
 ### Frontend (React 18 + TypeScript + Vite)
+- **Route structure**: Routes in `App.tsx` wrapped in `<GlobalLayout />`. `/analytics` route removed (AnalyticsDashboard page deleted). `/analytics/portfolio/:portfolio_id` breadcrumb links to `/`.
 - **GlobalLayout.tsx** — Outlet-based global layout wrapper (`max-w-[1200px] mx-auto px-6`, breadcrumb, loading/error/missing states)
 - **PortfolioGrid.tsx** — slim orchestrator composing sub-components; manages per-portfolio payoff states (6 keys in localStorage); `onSaved={fetchAnalyticsData}` for data refresh after edit save
 - **Screen modals** in `src/screens/`: `AddOrderModal` (contract_type now Spot/Future/Option toggle, with conditional Call/Put toggle when option selected), `CloseOrderModal`, `EditOrderModal` (all use `buttonTheme` for Call=blue-600/Put=orange-500), `EditPortfolioModal` (live projected Available Cash, save error feedback, max validation), `ZoneEditModal`, `ZoneGroupModal`
 - **Screen components** in `src/screens/components/`:
   - `PortfolioHeader.tsx`, `SummaryCard.tsx`, `StrategyNotes.tsx`, `TagsSection.tsx`
   - `PerformanceSection.tsx` — Equity/Payoff toggle, passes payoff state to PayoffChart
-  - `PerformanceChart.tsx` — dynamic SVG: equity line or payoff bar chart
-   - `PayoffChart.tsx` — pure SVG: Put-Call parity with intrinsic + optional BS IV lines, area fill (pale green/red), vertical dashed yellow BE lines (ivBePoints when IV ON), crosshair (vertical dashed gray line + P/L dots), tooltip with Price (toFixed(2))
-  - `OptionsStrategyTable.tsx` — **NEW** local-scratchpad strategy rows; uses buttonTheme; onRowsChange callback; per-portfolio localStorage
-   - `OrderManagement.tsx` — active orders table + **Controls panel** (BS IV toggle, price range with commit-on-blur inputs, current price slider, active IV% with Apply All master input, clearable via local string state)
+  - `PerformanceChart.tsx` — dynamic SVG: equity line or payoff bar chart. Uses `aspect-[4/1]` fluid container with `preserveAspectRatio="xMidYMid meet"`. Both equity and payoff modes use same ratio.
+   - `PayoffChart.tsx` — pure SVG: Put-Call parity with intrinsic + optional BS IV lines, 4:1 viewBox (800×200) matching PerformanceChart equity height, `aspect-[4/1]` fluid container. Sidebar overlaid absolutely (hidden on < lg). Area fill uses two clip-pathed gradients (green above baseline, red below) — no color mixing at baseline. Vertical dashed yellow BE lines (ivBePoints when IV ON). Crosshair with viewBox-coordinate mouse scaling, dashed gray line + P/L dots. Tooltip with Price (toFixed(2)). Axis ticks via `niceTicks()` — clean round multiples, no raw decimals.
+  - `OptionsStrategyTable.tsx` — local-scratchpad strategy rows; uses buttonTheme; onRowsChange callback; per-portfolio localStorage
+   - `OrderManagement.tsx` — active orders table + **Controls panel** (BS IV toggle, price range with auto-compute using `strike_price` for options / `entry_price` for spot&future, max*1.25/min*0.75, commit-on-blur inputs w/ previous-value fallback, auto-adjust when min≥max, current price slider, active IV% with Apply All master input, clearable via local string state)
    - `TradeHistoryTable.tsx`, `TradePlanView.tsx`, `QuickStatsView.tsx`, `ZoneGroupRow.tsx`, `GroupCombobox.tsx`, `ToastAlert.tsx`, `HistoricalGridView.tsx`
 - **Navigation.tsx** — Sticky nav with feather-style SVG icons
 - **Custom hooks**: `useOrderEdit`, `useAddOrder`, `usePortfolioManager`, `useZoneEditor`, `useMarkdownRenderer`
@@ -101,13 +102,16 @@
 - Deleting a portfolio clears its 6 keys
 
 ### Payoff Chart — Technical
+- **Layout**: Chart uses `aspect-[4/1]` container matching PerformanceChart equity height. Stats sidebar (Legs, Intrinsic, BSM, BE) overlaid absolutely on right side with `bg-surface/80`. Hidden on screens < lg. Right margin increased to 160 viewBox units to clear sidebar.
 - **Lines**: Intrinsic line via CSS variable `var(--color-brand-blue)`. BS IV overlay via `var(--color-brand-teal)` dashed — toggled via BS IV Mode.
-- **Area fill**: `linearGradient` using `color-mix()` for CSS variable opacity support — green/red area fills above/below baseline.
+- **Area fill**: Two separate `linearGradient`s with `clipPath` — green (`#22C55E`, opacity 0.8) fading to 0 at baseline for P/L > 0 region; red (`#EF4444`, opacity 0.8) fading from 0 at baseline for P/L < 0. No color mixing at baseline.
 - **Break-even lines**: Vertical dashed yellow lines (`#FCD34D`, strokeWidth=1) at break-even prices — replaces old BE label boxes. BE text in legend uses `ivBePoints` when IV mode is ON, intrinsic BEs otherwise.
-- **Crosshair**: Vertical dashed gray line snapping to nearest data point on mouse hover; circles on P/L curves at hovered price. snappedX computed as `MARGIN.left + (clampedIdx / (len-1)) * CHART_W` for exact alignment.
-- **Hover tooltip**: Shows Price (toFixed(2)), Intrinsic P/L, and BS IV P/L (when IV mode ON).
-- **Y-axis**: Symmetric around 0 — `maxY = max(|maxPl|,|minPl|) × 1.1`. Labels use `toFixed(1)` (was `toFixed(0)`).
+- **Crosshair**: Vertical dashed gray line snapping to nearest data point on mouse hover; circles on P/L curves at hovered price. snappedX computed as `MARGIN.left + (clampedIdx / (len-1)) * CHART_W` for exact alignment. Mouse coords scaled from CSS pixels to viewBox via `scaleX = WIDTH / rect.width`.
+- **Hover tooltip**: Shows Price (toFixed(2)), Intrinsic P/L, and BS IV P/L (when IV mode ON). CSS position computed from viewBox snappedX using inverse scale.
+- **Y-axis**: Symmetric around 0 — `maxY = max(|maxPl|,|minPl|) × 1.1`. Ticks generated by `niceTicks()` — clean round multiples (no raw decimals). Target 5 ticks, step adapts to range (10, 20, 25, 50, 100, etc.).
+- **X-axis**: Same `niceTicks()` function — clean round price labels. 5-9 ticks depending on range.
 - **# points**: Dynamic ~200, step = `(hi-lo)/200`
+- **viewBox**: 4:1 ratio (800×200), matching PerformanceChart equity view.
 
 ### Options Strategy Table
 - Frontend-only sandbox (no backend)
