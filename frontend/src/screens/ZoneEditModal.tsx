@@ -26,11 +26,11 @@ export const ZoneEditModal: React.FC<ZoneEditModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+      <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
         <h3 className="text-lg font-bold mb-4">Edit Zone: {zone}</h3>
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Zone Name</label>
+            <label className="block text-xs font-bold uppercase text-slate mb-1">Zone Name</label>
             <input
               type="text"
               value={newZone}
@@ -42,7 +42,7 @@ export const ZoneEditModal: React.FC<ZoneEditModalProps> = ({
         <div className="flex justify-end gap-2 mt-6">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm border rounded hover:bg-gray-50"
+            className="px-4 py-2 text-sm border rounded hover:bg-surface"
           >
             Cancel
           </button>

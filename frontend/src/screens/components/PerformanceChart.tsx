@@ -71,7 +71,7 @@ const PerformanceChart: React.FC<PerformanceChartProps> = ({ data, viewMode }) =
               style={{ animation: `fadeUp 0.4s ease-out ${0.3 + i * 0.03}s both` }} />
           ))}
         </svg>
-        <div className="flex justify-between mt-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest px-1">
+        <div className="flex justify-between mt-1 text-[10px] font-bold text-slate uppercase tracking-widest px-1">
           {xLabels.map((xl: any, i: number) => <span key={i} style={{ animation: `fadeUp 0.4s ease-out ${0.5 + i * 0.1}s both` }}>{xl.label}</span>)}
         </div>
         <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[9px] text-slate font-medium py-[2px]">
@@ -105,7 +105,7 @@ const PerformanceChart: React.FC<PerformanceChartProps> = ({ data, viewMode }) =
           );
         })}
       </svg>
-      <div className="flex justify-between mt-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest px-1">
+      <div className="flex justify-between mt-1 text-[10px] font-bold text-slate uppercase tracking-widest px-1">
           {points.filter((_: any, i: number) => i % Math.max(1, Math.floor(points.length / 5)) === 0)
           .map((p: any, i: number) => <span key={i} style={{ animation: `fadeUp 0.4s ease-out ${0.3 + i * 0.1}s both` }}>{(p.date || "").slice(0, 7)}</span>)}
       </div>

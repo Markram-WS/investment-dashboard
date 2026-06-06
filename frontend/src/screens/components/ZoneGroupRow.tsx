@@ -174,16 +174,16 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
   return (
     <>
       <tr
-        className={`${isUngrouped ? 'bg-gray-50' : 'bg-surface'} border-b border-hairline transition-colors ${isDragOver ? 'bg-blue-50' : ''}`}
+        className={`${isUngrouped ? 'bg-surface' : 'bg-surface'} border-b border-hairline transition-colors ${isDragOver ? 'bg-blue-50' : ''}`}
         onDragOver={handleDragOver}
         onDragEnter={handleGroupDragEnter}
         onDragLeave={handleGroupDragLeave}
         onDrop={handleGroupDrop}
-        style={isDragOver ? { borderLeft: '3px solid #3b82f6' } : undefined}
+        style={isDragOver ? { borderLeft: '2px solid #3b82f6' } : undefined}
       >
         <td className="pl-8 py-3" colSpan={totalCols}>
           <div className="flex items-center gap-2">
-            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${isUngrouped ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-tealLight text-brandTeal border border-brandTeal/20'} uppercase tracking-wide`}>
+            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${isUngrouped ? 'bg-surface-soft text-slate border border-hairline' : 'bg-tealLight text-brandTeal border border-brandTeal/20'} uppercase tracking-wide`}>
               {groupLabel}
             </span>
             {maxOrders != null && (
@@ -209,18 +209,18 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
         return (
           <tr
             key={order.order_id}
-            className={`border-b border-hairline transition-colors trade-group-border group ${showGray ? 'bg-gray-50' : 'hover:bg-surface/50'} ${isDragOver ? 'bg-blue-50/30' : ''}`}
+            className={`border-b border-hairline transition-colors trade-group-border group ${showGray ? 'bg-surface' : 'hover:bg-surface/50'} ${isDragOver ? 'bg-blue-50/30' : ''}`}
             onDragOver={handleDragOver}
             onDragEnter={handleGroupDragEnter}
             onDragLeave={handleGroupDragLeave}
             onDrop={(e) => handleGroupDrop(e, order.order_id)}
-            style={isDragOver ? { borderLeft: '3px solid #3b82f6' } : undefined}
+            style={isDragOver ? { borderLeft: '2px solid #3b82f6' } : undefined}
           >
             <td className="py-4 w-8 text-center">
               <span
                 draggable={!linkInfo?.isSub && !linkInfo?.isSpreadPartner}
                 onDragStart={(e) => handleDragStart(e, order)}
-                className={`${linkInfo?.isSub || linkInfo?.isSpreadPartner ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'} cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-gray-500 transition-opacity`}
+                className={`${linkInfo?.isSub || linkInfo?.isSpreadPartner ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'} cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-slate transition-opacity`}
                 title="Drag to assign group or close"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -239,8 +239,7 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                   <span
                     draggable="true"
                     onDragStart={(e) => handleLinkDragStart(e, order)}
-                    className="absolute z-10 cursor-grab active:cursor-grabbing inline-flex items-center justify-center"
-                    style={{ left: '8px', top: '50%', transform: 'translateY(-50%)' }}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 z-10 cursor-grab active:cursor-grabbing inline-flex items-center justify-center"
                     title="Drag to link order"
                   >
                     <span className={`bg-white rounded-full p-0.5 inline-flex items-center justify-center shadow-sm ${linkInfo?.linkType === 'spread' ? 'text-blue-600' : 'text-yellow-500'}`}>
@@ -251,8 +250,7 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                     </span>
                   </span>
                   <svg
-                    className="absolute pointer-events-none"
-                    style={{ left: '10px', top: '0', height: '100%', width: '12px' }}
+                    className="absolute left-2.5 top-0 h-full w-3 pointer-events-none"
                     preserveAspectRatio="none"
                   >
                     <line
@@ -316,7 +314,7 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                 (order.order_status || "").toUpperCase() === "FILLED" ? "bg-green-100 text-green-700" :
                 (order.order_status || "").toUpperCase() === "PENDING" ? "bg-yellow-100 text-yellow-700" :
                 (order.order_status || "").toUpperCase() === "CLOSE" ? "bg-red-100 text-red-700" :
-                (order.order_status || "").toUpperCase() === "CANCELED" ? "bg-gray-100 text-gray-500" :
+                (order.order_status || "").toUpperCase() === "CANCELED" ? "bg-surface-soft text-slate" :
                 "text-slate"
               }`}>{order.order_status}</span>
             </td>

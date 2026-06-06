@@ -9,6 +9,7 @@ import { getRiskColor } from "../utils/risk";
 import { fmtAmount } from "../utils/format";
 import TransferModal from "../screens/components/TransferModal";
 import ToastAlert from "../screens/components/ToastAlert";
+import Button from "../screens/components/Button";
 
 interface DragItem {
   sourcePortfolioId: number;
@@ -38,7 +39,6 @@ function PortfolioCard({
 
   const p = portfolio;
   const total = (p.margin || 0) + (p.buffer || 0) + (p.available_cash || 0) + (p.money_market || 0) + (p.total_pl || 0);
-  const profitColor = p.risk_status === 'Safe' ? 'var(--color-brand-teal)' : p.risk_status === 'Warning' ? 'var(--color-brand-yellow)' : 'var(--color-brand-coral)';
   const tags = getPortfolioTags(p);
   const profitPct = getProfitPct(p);
   const statusMessage = getStatusMessage(p);
@@ -50,92 +50,75 @@ function PortfolioCard({
   const dropGlow = canDrop && isOver ? '0 0 0 3px #0fbcb0' : canDrop ? '0 0 0 2px rgba(15,188,176,0.3)' : '';
 
   return (
-    <div ref={dropRef} className="card card-hover animate-fade-up"
+    <div ref={dropRef}
+      className="card card-hover animate-fade-up p-8 cursor-pointer"
       style={{
-        padding: 32, cursor: 'pointer', borderLeft: `3px solid ${getRiskColor(p.risk_status)}`,
-        background: cardBg, transition: 'box-shadow 0.2s ease',
+        borderLeft: `2px solid ${getRiskColor(p.risk_status)}`,
+        background: cardBg,
         boxShadow: dropGlow || undefined,
       }}
       onClick={() => navigate(`/analytics/portfolio/${p.portfolio_id}`)}>
 
-      {/* Top row: Portfolio name with tags + Profit */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+      <div className="flex justify-between items-start mb-7">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-            <h3 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>
+          <div className="flex items-center gap-3 mb-1.5">
+            <h3 className="text-2xl font-bold text-ink m-0">
               {p.portfolio_name}
             </h3>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div className="flex gap-1.5">
               {tags.map(tag => (
-                <span key={tag} style={{
-                  padding: '4px 12px', background: 'rgba(255,255,255,0.8)',
-                  borderRadius: 'var(--rounded-full)', fontSize: 9, fontWeight: 700,
-                  textTransform: 'uppercase', letterSpacing: 1, color: 'var(--color-primary)',
-                }}>
+                <span key={tag} className="px-3 py-1 bg-white/80 rounded-full text-[9px] font-bold uppercase tracking-widest text-ink">
                   {tag}
                 </span>
               ))}
             </div>
           </div>
-          <p style={{ fontSize: 14, color: 'var(--color-slate)', fontWeight: 500, margin: 0 }}>
+          <p className="text-sm text-slate font-medium m-0">
             Managed algorithmic portfolio
           </p>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <p style={{ fontSize: 10, color: 'var(--color-slate)', fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+        <div className="text-right">
+          <p className="text-[10px] text-slate font-bold uppercase tracking-widest mb-1">
             Profit
           </p>
-          <p style={{ fontSize: 24, fontWeight: 900, color: 'var(--color-brand-teal)', margin: 0 }}>
+          <p className="text-2xl font-black text-brand-teal m-0">
             {profitPct >= 0 ? '+' : ''}{profitPct.toFixed(1)}%
           </p>
         </div>
       </div>
 
-      {/* Asset Total */}
-      <div style={{ marginBottom: 28 }}>
-        <p style={{ fontSize: 10, color: 'var(--color-slate)', fontWeight: 700,
-          textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+      <div className="mb-7">
+        <p className="text-[10px] text-slate font-bold uppercase tracking-widest mb-1">
           Asset Total
         </p>
-        <p style={{ fontSize: 36, fontWeight: 700, color: 'var(--color-primary)', letterSpacing: -1, margin: 0 }}>
+        <p className="text-4xl font-bold text-ink tracking-tight m-0">
           {fmtAmount(total, currency)}
         </p>
       </div>
 
-      {/* Lock/Buffer/Available/Money Market breakdown */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
-        <div style={{ padding: 16, background: 'var(--color-canvas)', borderRadius: 'var(--rounded-xl)',
-          boxShadow: 'var(--shadow-sm)', transition: 'boxShadow 0.15s ease' }}>
-          <p style={{ fontSize: 9, color: 'var(--color-slate)', fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Lock</p>
-          <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(p.margin, currency)}</p>
+      <div className="grid grid-cols-4 gap-4 mb-7">
+        <div className="p-4 bg-canvas rounded-xl shadow-sm">
+          <p className="text-[9px] text-slate font-bold uppercase tracking-wide mb-1">Lock</p>
+          <p className="text-base font-bold text-ink m-0">{fmtAmount(p.margin, currency)}</p>
         </div>
-        <div style={{ padding: 16, background: 'var(--color-canvas)', borderRadius: 'var(--rounded-xl)',
-          boxShadow: 'var(--shadow-sm)', transition: 'boxShadow 0.15s ease' }}>
-          <p style={{ fontSize: 9, color: 'var(--color-slate)', fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Buffer</p>
-          <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(p.buffer, currency)}</p>
+        <div className="p-4 bg-canvas rounded-xl shadow-sm">
+          <p className="text-[9px] text-slate font-bold uppercase tracking-wide mb-1">Buffer</p>
+          <p className="text-base font-bold text-ink m-0">{fmtAmount(p.buffer, currency)}</p>
         </div>
-        <div style={{ padding: 16, background: 'var(--color-canvas)', borderRadius: 'var(--rounded-xl)',
-          boxShadow: 'var(--shadow-sm)', transition: 'boxShadow 0.15s ease' }}>
-          <p style={{ fontSize: 9, color: 'var(--color-slate)', fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Money Market</p>
-          <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(p.money_market, currency)}</p>
+        <div className="p-4 bg-canvas rounded-xl shadow-sm">
+          <p className="text-[9px] text-slate font-bold uppercase tracking-wide mb-1">Money Market</p>
+          <p className="text-base font-bold text-ink m-0">{fmtAmount(p.money_market, currency)}</p>
         </div>
         <DraggableAvailable portfolio={p} currency={currency} />
       </div>
 
-      {/* Status indicator */}
-      <div style={{
-        padding: 16, background: statusBg, borderRadius: 'var(--rounded-xl)',
-        display: 'flex', alignItems: 'center', gap: 10, position: 'relative', overflow: 'hidden',
-      }}>
-        {isDanger && <div className="shimmer-bar" style={{ position: 'absolute', inset: 0, opacity: 0.1, pointerEvents: 'none' }} />}
-        <span style={{ fontSize: 14, color: isDanger ? 'var(--color-brand-coral)' : 'var(--color-brand-teal)', fontWeight: 700 }}>
+      <div className="px-4 py-4 rounded-xl flex items-center gap-2.5 relative overflow-hidden"
+        style={{ background: statusBg }}>
+        {isDanger && <div className="shimmer-bar absolute inset-0 opacity-10 pointer-events-none" />}
+        <span className="text-sm font-bold" style={{ color: isDanger ? 'var(--color-brand-coral)' : 'var(--color-brand-teal)' }}>
           {isDanger ? '⚠' : '✓'}
         </span>
-        <span style={{ fontSize: 13, fontWeight: 500, color: statusText }}>
+        <span className="text-[13px] font-medium" style={{ color: statusText }}>
           {statusMessage}
         </span>
       </div>
@@ -150,14 +133,15 @@ function DraggableAvailable({ portfolio, currency }: { portfolio: PortfolioOverv
   }), [portfolio.portfolio_id, portfolio.available_cash]);
 
   return (
-    <div ref={dragRef} style={{
-      padding: 16, background: 'var(--color-brand-yellow)', borderRadius: 'var(--rounded-xl)',
-      boxShadow: 'var(--shadow-sm)', transition: 'box-shadow 0.15s ease, opacity 0.15s ease',
-      position: 'relative', opacity: isDragging ? 0.4 : 1, cursor: 'grab',
-    }} className="pulse-available">
-      <p style={{ fontSize: 9, color: 'var(--color-primary)', fontWeight: 700,
-        textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Available</p>
-      <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>
+    <div ref={dragRef}
+      className="p-4 bg-brand-yellow rounded-xl shadow-sm pulse-available"
+      style={{
+        transition: 'box-shadow 0.15s ease, opacity 0.15s ease',
+        opacity: isDragging ? 0.4 : 1,
+        cursor: 'grab',
+      }}>
+      <p className="text-[9px] text-primary font-bold uppercase tracking-wide mb-1">Available</p>
+      <p className="text-base font-bold text-primary m-0">
         {fmtAmount(portfolio.available_cash, currency)}
       </p>
     </div>
@@ -183,8 +167,8 @@ export default function PortfolioOverview() {
   }, []);
 
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
-      <div style={{ color: 'var(--color-slate)' }}>Loading…</div>
+    <div className="flex items-center justify-center h-[60vh]">
+      <div className="text-slate">Loading…</div>
     </div>
   );
 
@@ -210,58 +194,45 @@ export default function PortfolioOverview() {
   const isReserveDanger = money_reserve_status === "Danger";
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+    <div className="max-w-[1200px] mx-auto px-6 py-10">
 
-      {/* Header */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 40 }} className="animate-fade-up">
-        <h1 style={{ fontSize: 48, fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '-0.04em', margin: 0 }}>
+      <header className="flex items-center justify-between mb-10 animate-fade-up">
+        <h1 className="text-5xl font-bold text-ink tracking-tight m-0">
           Overview
         </h1>
       </header>
 
-      {/* Hero Card: Summary View */}
-      <section style={{ marginBottom: 24 }} className="animate-fade-up stagger-1">
-        <div style={{
-          background: 'var(--color-teal-light)', border: '1px solid rgba(224,226,232,0.3)',
-          borderRadius: 28, padding: 40, boxShadow: 'var(--shadow-sm)',
-        }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 32 }}>
-            {/* Left: Asset total + P/L */}
+      <section className="mb-6 animate-fade-up stagger-1">
+        <div className="bg-teal-light border border-hairline/30 rounded-[28px] p-10 shadow-sm">
+          <div className="grid grid-cols-[1fr_2fr] gap-8">
             <div>
-              <p style={{ fontSize: 10, color: 'var(--color-on-surface-variant)', fontWeight: 700,
-                textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Asset total</p>
-              <h1 style={{ fontSize: 36, fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '-0.03em', margin: '0 0 16px' }}>
+              <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mb-2">Asset total</p>
+              <h1 className="text-4xl font-bold text-ink tracking-tight mb-4">
                 {fmtAmount(totalEquity, currency)}
               </h1>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: plPositive ? 'var(--color-brand-teal)' : 'var(--color-brand-coral)' }}>
-                <span style={{ fontSize: 14, fontWeight: 700 }}>{plPositive ? '▲' : '▼'}</span>
-                <span style={{ fontSize: 14, fontWeight: 700 }}>{plPositive ? '+' : ''}{overallPLPct.toFixed(1)}% Overall P/L</span>
+              <div className="flex items-center gap-1.5" style={{ color: plPositive ? 'var(--color-brand-teal)' : 'var(--color-brand-coral)' }}>
+                <span className="text-sm font-bold">{plPositive ? '▲' : '▼'}</span>
+                <span className="text-sm font-bold">{plPositive ? '+' : ''}{overallPLPct.toFixed(1)}% Overall P/L</span>
               </div>
             </div>
-            {/* Right: Cash breakdown */}
             <div>
-              <p style={{ fontSize: 10, color: 'var(--color-on-surface-variant)', fontWeight: 700,
-                textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>Cash (overall) breakdown</p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-                <div style={{ padding: 16, background: 'white', borderRadius: 16, border: '1px solid rgba(224,226,232,0.5)' }}>
-                  <p style={{ fontSize: 10, color: 'var(--color-on-surface-variant)', fontWeight: 700,
-                    textTransform: 'uppercase', marginBottom: 4 }}>Lock</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(margin, currency)}</p>
+              <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mb-4">Cash (overall) breakdown</p>
+              <div className="grid grid-cols-4 gap-4">
+                <div className="p-4 bg-canvas rounded-xl border border-hairline/50">
+                  <p className="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Lock</p>
+                  <p className="text-2xl font-bold text-ink m-0">{fmtAmount(margin, currency)}</p>
                 </div>
-                <div style={{ padding: 16, background: 'white', borderRadius: 16, border: '1px solid rgba(224,226,232,0.5)' }}>
-                  <p style={{ fontSize: 10, color: 'var(--color-on-surface-variant)', fontWeight: 700,
-                    textTransform: 'uppercase', marginBottom: 4 }}>Buffer</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(buffer, currency)}</p>
+                <div className="p-4 bg-canvas rounded-xl border border-hairline/50">
+                  <p className="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Buffer</p>
+                  <p className="text-2xl font-bold text-ink m-0">{fmtAmount(buffer, currency)}</p>
                 </div>
-                <div style={{ padding: 16, background: 'white', borderRadius: 16, border: '1px solid rgba(224,226,232,0.5)' }}>
-                  <p style={{ fontSize: 10, color: 'var(--color-on-surface-variant)', fontWeight: 700,
-                    textTransform: 'uppercase', marginBottom: 4 }}>Money Market</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(money_market, currency)}</p>
+                <div className="p-4 bg-canvas rounded-xl border border-hairline/50">
+                  <p className="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Money Market</p>
+                  <p className="text-2xl font-bold text-ink m-0">{fmtAmount(money_market, currency)}</p>
                 </div>
-                <div style={{ padding: 16, background: 'var(--color-brand-yellow)', borderRadius: 16, boxShadow: 'var(--shadow-sm)' }} className="pulse-available">
-                  <p style={{ fontSize: 10, color: 'var(--color-primary)', fontWeight: 700,
-                    textTransform: 'uppercase', marginBottom: 4 }}>Available</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{fmtAmount(available_cash, currency)}</p>
+                <div className="p-4 bg-brand-yellow rounded-xl shadow-sm pulse-available">
+                  <p className="text-[10px] text-primary font-bold uppercase mb-1">Available</p>
+                  <p className="text-2xl font-bold text-primary m-0">{fmtAmount(available_cash, currency)}</p>
                 </div>
               </div>
             </div>
@@ -269,100 +240,78 @@ export default function PortfolioOverview() {
         </div>
       </section>
 
-      {/* Widgets Row: Pool Health + Money Reserve Status */}
-      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
-        {/* Pool Health Index */}
-        <div style={{
-          background: 'white', border: '1px solid var(--color-hairline)', borderRadius: 28, padding: 32,
-          boxShadow: 'var(--shadow-sm)',
-        }} className="animate-fade-up stagger-2">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>
+      <section className="grid grid-cols-2 gap-6 mb-6">
+        <div className="bg-canvas border border-hairline rounded-[28px] p-8 shadow-sm animate-fade-up stagger-2">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-sm font-bold text-ink uppercase tracking-widest m-0">
               Pool Health Index
             </h3>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px',
-              borderRadius: 9999, background: 'var(--color-teal-light)', color: 'var(--color-brand-teal)',
-            }}>
-              <span style={{ fontSize: 12, fontWeight: 700 }}>●</span>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-light text-brand-teal">
+              <span className="text-xs font-bold">●</span>
+              <span className="text-[10px] font-bold uppercase tracking-wide">
                 {money_reserve_status}
               </span>
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ position: 'relative', width: 192, height: 96, overflow: 'hidden' }}>
+          <div className="flex flex-col items-center">
+            <div className="relative w-48 h-24 overflow-hidden">
               <svg width="192" height="192" viewBox="0 0 100 100">
                 <path d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent" stroke="#f4f4f6" strokeWidth="12" />
                 <path d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent" stroke="#0fbcb0" strokeWidth="12"
                   strokeDasharray={gaugeCircumference} strokeDashoffset={gaugeDashoffset} className="health-gauge-path" />
               </svg>
-              <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', textAlign: 'center' }}>
-                <p style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--color-primary)', margin: 0 }}>
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-center">
+                <p className="text-4xl font-bold tracking-tight text-ink m-0">
                   {gaugePercent}%
                 </p>
-                <p style={{ fontSize: 10, color: 'var(--color-on-surface-variant)', fontWeight: 700,
-                  textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>
+                <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest m-0">
                   Efficiency
                 </p>
               </div>
             </div>
-            <p style={{ marginTop: 32, fontSize: 14, color: 'var(--color-on-surface-variant)', textAlign: 'center', padding: '0 48px', lineHeight: 1.6 }}>
+            <p className="mt-8 text-sm text-on-surface-variant text-center px-12 leading-relaxed">
               Aggregated performance is 13.35% above the monthly risk benchmark.
             </p>
           </div>
         </div>
 
-        {/* Money Reserve Status */}
-        <div style={{
-          background: 'white', border: '1px solid var(--color-hairline)', borderRadius: 28, padding: 32,
-          boxShadow: 'var(--shadow-sm)',
-        }} className="animate-fade-up stagger-3">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>
+        <div className="bg-canvas border border-hairline rounded-[28px] p-8 shadow-sm animate-fade-up stagger-3">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-sm font-bold text-ink uppercase tracking-widest m-0">
               Money Reserve Status
             </h3>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px',
-              borderRadius: 9999, background: isReserveOptimal ? 'var(--color-teal-light)' : isReserveDanger ? 'rgba(255,153,153,0.2)' : 'rgba(66,98,255,0.12)',
-              color: isReserveOptimal ? 'var(--color-brand-teal)' : isReserveDanger ? 'var(--color-brand-coral)' : 'var(--color-brand-blue)',
-            }}>
-              <span style={{ fontSize: 12, fontWeight: 700 }}>●</span>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full"
+              style={{
+                background: isReserveOptimal ? 'var(--color-teal-light)' : isReserveDanger ? 'rgba(255,153,153,0.2)' : 'rgba(66,98,255,0.12)',
+                color: isReserveOptimal ? 'var(--color-brand-teal)' : isReserveDanger ? 'var(--color-brand-coral)' : 'var(--color-brand-blue)',
+              }}>
+              <span className="text-xs font-bold">●</span>
+              <span className="text-[10px] font-bold uppercase tracking-wide">
                 {money_reserve_status}
               </span>
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-            {/* Bar with zones */}
-            <div style={{ position: 'relative', height: 12, background: '#f4f4f6', borderRadius: 9999, overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '25%', background: 'rgba(255,153,153,0.3)' }} />
-              <div style={{ position: 'absolute', left: '25%', top: 0, bottom: 0, width: '50%', background: 'rgba(15,188,176,0.3)' }} />
-              <div style={{ position: 'absolute', left: '75%', top: 0, bottom: 0, width: '25%', background: 'rgba(66,98,255,0.15)' }} />
-              <div className="shimmer-bar" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
-              <div style={{
-                position: 'absolute', top: 0, bottom: 0, width: 6, background: 'var(--color-primary)',
-                borderRadius: 9999, left: `${reserveMarkerLeft}%`, transition: 'left 1s ease',
-              }} />
+          <div className="flex flex-col gap-8">
+            <div className="relative h-3 bg-[#f4f4f6] rounded-full overflow-hidden">
+              <div className="absolute left-0 top-0 bottom-0 w-1/4 bg-[rgba(255,153,153,0.3)]" />
+              <div className="absolute left-1/4 top-0 bottom-0 w-1/2 bg-[rgba(15,188,176,0.3)]" />
+              <div className="absolute left-3/4 top-0 bottom-0 w-1/4 bg-[rgba(66,98,255,0.15)]" />
+              <div className="shimmer-bar absolute inset-0 pointer-events-none" />
+              <div className="absolute top-0 bottom-0 w-1.5 bg-primary rounded-full" style={{ left: `${reserveMarkerLeft}%`, transition: 'left 1s ease' }} />
             </div>
-            {/* Zone labels */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', fontSize: 10, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              <div style={{ textAlign: 'left', color: 'var(--color-brand-coral)' }}>
-                Danger<br /><span style={{ fontWeight: 400, textTransform: 'none' }}>{'< '}{fmtAmount(lowerBound || 45000, currency)}</span>
+            <div className="grid grid-cols-3 text-[10px] font-bold text-on-surface-variant uppercase tracking-wide">
+              <div className="text-left text-brand-coral">
+                Danger<br /><span className="font-normal normal-case">{'< '}{fmtAmount(lowerBound || 45000, currency)}</span>
               </div>
-              <div style={{ textAlign: 'center', color: 'var(--color-brand-teal)' }}>
-                Optimal<br /><span style={{ fontWeight: 400, textTransform: 'none' }}>{fmtAmount(lowerBound || 45000, currency)} - {fmtAmount(upperBound || 90000, currency)}</span>
+              <div className="text-center text-brand-teal">
+                Optimal<br /><span className="font-normal normal-case">{fmtAmount(lowerBound || 45000, currency)} - {fmtAmount(upperBound || 90000, currency)}</span>
               </div>
-              <div style={{ textAlign: 'right', color: 'var(--color-brand-blue)' }}>
-                Neutral<br /><span style={{ fontWeight: 400, textTransform: 'none' }}>{'> '}{fmtAmount(upperBound || 90000, currency)}</span>
+              <div className="text-right text-brand-blue">
+                Neutral<br /><span className="font-normal normal-case">{'> '}{fmtAmount(upperBound || 90000, currency)}</span>
               </div>
             </div>
-            {/* Info */}
-            <div style={{
-              padding: 16, background: 'rgba(15,188,176,0.08)', borderRadius: 16,
-              border: '1px solid rgba(15,188,176,0.2)',
-            }}>
-              <p style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--color-on-surface-variant)', fontStyle: 'italic', margin: 0 }}>
+            <div className="p-4 bg-[rgba(15,188,176,0.08)] rounded-xl border border-[rgba(15,188,176,0.2)]">
+              <p className="text-[13px] leading-relaxed text-on-surface-variant italic m-0">
                 Current available liquidity ({fmtAmount(available_cash || 0, currency)}) is within the optimal threshold relative to the {fmtAmount(margin + buffer || 0, currency)} buffer.
               </p>
             </div>
@@ -370,24 +319,23 @@ export default function PortfolioOverview() {
         </div>
       </section>
 
-      {/* Portfolio Grid */}
       <section>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
-          <h2 style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-primary)', letterSpacing: -0.5, margin: 0 }}>
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-3xl font-bold text-ink tracking-tight m-0">
             Active Portfolios
           </h2>
-          <span style={{ fontSize: 12, color: 'var(--color-slate)' }}>{portfolios.length} portfolios</span>
+          <span className="text-xs text-slate">{portfolios.length} portfolios</span>
         </div>
 
         {portfolios.length === 0 ? (
-          <div className="card" style={{ textAlign: 'center', padding: 48 }}>
-            <p style={{ fontSize: 16, fontWeight: 500, color: 'var(--color-ink)', margin: '0 0 4px' }}>No portfolios yet</p>
-            <p style={{ fontSize: 13, color: 'var(--color-slate)', margin: '0 0 20px' }}>Create your first portfolio</p>
-            <button className="btn-primary" onClick={() => navigate('/create-portfolio')}>+ Create Portfolio</button>
+          <div className="card text-center p-12">
+            <p className="text-base font-medium text-ink mb-1">No portfolios yet</p>
+            <p className="text-[13px] text-slate mb-5">Create your first portfolio</p>
+            <Button variant="primary" onClick={() => navigate('/create-portfolio')}>+ Create Portfolio</Button>
           </div>
         ) : (
           <DndProvider backend={HTML5Backend}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 24 }}>
+            <div className="grid grid-cols-2 gap-6">
               {portfolios.map((p) => (
                 <PortfolioCard
                   key={p.portfolio_id}

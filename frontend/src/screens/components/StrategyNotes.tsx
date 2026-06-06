@@ -31,11 +31,11 @@ const StrategyNotes: React.FC<StrategyNotesProps> = ({
   };
 
   return (
-    <div className="col-span-12 lg:col-span-4 rounded-2xl bg-yellow-100 p-8 flex flex-col border border-hairline-soft">
+    <div className="col-span-12 lg:col-span-4 rounded-2xl bg-yellow-100 dark:bg-yellow-900/30 p-8 flex flex-col border border-hairline-soft">
       <h3 className="text-[11px] font-bold text-ink uppercase tracking-widest mb-6">Strategy & Notes</h3>
       <div className="space-y-6">
         <div>
-          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Primary Strategy</span>
+          <span className="text-[10px] font-bold text-slate uppercase tracking-wider">Primary Strategy</span>
           <div className="mt-2">
             <TradePlanView
               tradePlanMd={tradePlanMd}
@@ -46,13 +46,13 @@ const StrategyNotes: React.FC<StrategyNotesProps> = ({
           </div>
         </div>
         <div className="pt-6 border-t border-ink/10">
-          <label className="text-[10px] font-bold text-gray-500 block mb-2 uppercase tracking-wider">Internal Notes</label>
+          <label className="text-[10px] font-bold text-slate block mb-2 uppercase tracking-wider">Internal Notes</label>
           {editingNotes ? (
             <div>
               <textarea
                 value={notesContent}
                 onChange={(e) => setNotesContent(e.target.value)}
-                className="w-full h-32 bg-yellow-100 rounded-lg p-4 text-sm focus:ring-2 focus:ring-brand-yellow outline-none resize-none"
+                className="w-full h-32 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg p-4 text-sm focus:ring-2 focus:ring-brand-yellow outline-none resize-none"
                 placeholder="Type your observation..."
                 autoFocus
               />
@@ -66,13 +66,13 @@ const StrategyNotes: React.FC<StrategyNotesProps> = ({
             </div>
           ) : (
             <div
-              className="w-full min-h-[80px] bg-yellow-100 rounded-lg p-4 text-sm cursor-pointer hover:bg-yellow-200/80 transition-colors"
+              className="w-full min-h-[80px] bg-yellow-100 dark:bg-yellow-900/30 rounded-lg p-4 text-sm cursor-pointer hover:bg-yellow-200/80 transition-colors"
               onClick={() => { setNotesContent(internalNotes || ""); setEditingNotes(true); }}
             >
               {internalNotes ? (
                 <p className="whitespace-pre-wrap text-sm text-gray-700">{internalNotes}</p>
               ) : (
-                <p className="text-sm text-gray-400 italic">Click to add notes...</p>
+                <p className="text-sm text-slate italic">Click to add notes...</p>
               )}
             </div>
           )}

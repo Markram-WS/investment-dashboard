@@ -62,7 +62,7 @@ const CreateNewPortfolio: React.FC = () => {
       <div className="min-h-screen bg-gradient-to-br from-cream-to-peach p-6">
         <div className="max-w-2xl mx-auto bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg text-center">
           <h1 className="text-3xl font-bold text-primary mb-6">Portfolio Created Successfully!</h1>
-          <p className="text-lg text-gray-600 mb-8">
+          <p className="text-lg text-ink mb-8">
             Your new portfolio "{formData.portfolio_name}" has been created.
           </p>
           <div className="animate-pulse inline-block bg-primary text-white px-6 py-3 rounded-full">
@@ -80,14 +80,14 @@ const CreateNewPortfolio: React.FC = () => {
           <h1 className="text-3xl font-bold text-primary">Create New Portfolio</h1>
           <button
             onClick={() => navigate('/')}
-            className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            className="text-sm text-slate hover:text-gray-700 transition-colors"
           >
             ← Back to Overview
           </button>
         </div>
 
         {error && (
-          <div className="bg-red-50 border-l-4 border-red-200 p-4 mb-6 rounded-r-lg">
+          <div className="bg-red-50 border-l-2 border-red-200 dark:border-red-800 p-4 mb-6 rounded-r-lg">
             <p className="text-red-700">{error}</p>
           </div>
         )}
@@ -104,7 +104,7 @@ const CreateNewPortfolio: React.FC = () => {
               value={formData.portfolio_name || ''}
               onChange={handleChange}
               required
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+              className="w-full px-4 py-3 bg-surface border border-hairline rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               placeholder="Enter portfolio name (e.g., 'Crypto Growth Fund')"
             />
           </div>
@@ -121,7 +121,7 @@ const CreateNewPortfolio: React.FC = () => {
                 <label
                   key={index}
                   className={`relative cursor-select flex flex-col items-center p-4 border-2 
-                           ${formData.port_type === type ? 'border-primary bg-primary/5' : 'border-dashed border-gray-300 bg-gray-50'}
+                           ${formData.port_type === type ? 'border-primary bg-primary/5' : 'border-dashed border-gray-300 bg-surface'}
                            hover:border-primary hover:bg-primary/2 transition-all rounded-xl`}
                 >
                   <input
@@ -134,7 +134,7 @@ const CreateNewPortfolio: React.FC = () => {
                   />
                   <div className="text-2xl mb-2">{icon}</div>
                   <h3 className="font-semibold text-gray-800">{type}</h3>
-                  <p className="text-xs text-gray-500 text-center">{description}</p>
+                  <p className="text-xs text-slate text-center">{description}</p>
                 </label>
               ))}
             </div>
@@ -148,24 +148,24 @@ const CreateNewPortfolio: React.FC = () => {
               </label>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Available Cash</label>
+                  <label className="block text-xs font-medium text-ink mb-1">Available Cash</label>
                   <input
                     type="number"
                     name="available_cash"
                     value={formData.available_cash !== null && formData.available_cash !== undefined ? formData.available_cash : ''}
                     onChange={handleNumberChange}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent"
+                    className="w-full px-3 py-2 bg-surface border border-hairline rounded-lg focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent"
                     placeholder="0.00"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Money Market (T+3)</label>
+                  <label className="block text-xs font-medium text-ink mb-1">Money Market (T+3)</label>
                   <input
                     type="number"
                     name="money_market"
                     value={formData.money_market !== null && formData.money_market !== undefined ? formData.money_market : ''}
                     onChange={handleNumberChange}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent"
+                    className="w-full px-3 py-2 bg-surface border border-hairline rounded-lg focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent"
                     placeholder="0.00"
                   />
                 </div>
@@ -178,24 +178,24 @@ const CreateNewPortfolio: React.FC = () => {
               </label>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Margin Locked</label>
+                  <label className="block text-xs font-medium text-ink mb-1">Margin Locked</label>
                   <input
                     type="number"
                     name="margin_locked"
                     value={formData.margin_locked !== null && formData.margin_locked !== undefined ? formData.margin_locked : ''}
                     onChange={handleNumberChange}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent"
+                    className="w-full px-3 py-2 bg-surface border border-hairline rounded-lg focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent"
                     placeholder="0.00"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Cash Buffer Limit</label>
+                  <label className="block text-xs font-medium text-ink mb-1">Cash Buffer Limit</label>
                   <input
                     type="number"
                     name="cash_buffer_limit"
                     value={formData.cash_buffer_limit !== null && formData.cash_buffer_limit !== undefined ? formData.cash_buffer_limit : ''}
                     onChange={handleNumberChange}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent"
+                    className="w-full px-3 py-2 bg-surface border border-hairline rounded-lg focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent"
                     placeholder="0.00"
                   />
                 </div>
@@ -221,11 +221,11 @@ const CreateNewPortfolio: React.FC = () => {
                     // In a real app, you might want to show validation error
                   }
                 }}
-                className="w-full min-h-[80px] px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent resize-y"
+                className="w-full min-h-[80px] px-4 py-3 bg-surface border border-hairline rounded-xl focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent resize-y"
                 placeholder='{"BTC": 0.4, "ETH": 0.3, "USDC": 0.3}'
               >
               </textarea>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-slate mt-1">
                 Example: {'{"BTC": 0.4, "ETH": 0.3, "USDC": 0.3}'}
               </p>
             </div>
@@ -240,10 +240,10 @@ const CreateNewPortfolio: React.FC = () => {
               name="trade_plan_md"
               value={formData.trade_plan_md || ''}
               onChange={handleChange}
-              className="w-full min-h-[100px] px-4 py-3 bg-yellow-50 border-l-4 border-yellow-200 rounded-lg focus:outline-none focus:ring-2 focus-ring-yellow focus:border-transparent resize-y"
+              className="w-full min-h-[100px] px-4 py-3 bg-yellow-50 border-l-2 border-yellow-200 dark:border-yellow-800 rounded-lg focus:outline-none focus:ring-2 focus-ring-yellow focus:border-transparent resize-y"
               placeholder="Enter your trading strategy or rules here... (e.g., 'Never hold more than 30 days', 'Focus on premium collection')"
             ></textarea>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-slate mt-1">
               Visualized as a sticky note - for recording your investment intentions
             </p>
           </div>
@@ -268,7 +268,7 @@ const CreateNewPortfolio: React.FC = () => {
                     target.value = '';
                   }
                 }}
-                className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-l-xl focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent"
+                className="flex-1 px-3 py-2 bg-surface border border-hairline rounded-l-xl focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent"
               />
               <button
                 onClick={(e) => {
@@ -314,22 +314,22 @@ const CreateNewPortfolio: React.FC = () => {
                 ))}
               </div>
             )}
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-slate mt-1">
               Tags help categorize your portfolio by market, broker, or strategy type
             </p>
           </div>
 
           {/* Live Preview Card (as per UI spec) */}
-          <div className="mt-8 p-6 bg-gray-50 rounded-xl border border-gray-200">
+          <div className="mt-8 p-6 bg-surface rounded-xl border border-hairline">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">Live Preview</h2>
             <div className="flex items-start space-x-4">
               <div className="text-4xl">{formData.port_type === 'Managed Fund' ? '₿' : formData.port_type === 'Active Trading' ? '📈' : '💱'}</div>
               <div className="flex-1">
                 <h3 className="font-bold text-gray-800">{formData.portfolio_name || 'Portfolio Name'}</h3>
-                <p className="text-sm text-gray-500">{formData.port_type || 'Select portfolio type'} · 
+                <p className="text-sm text-slate">{formData.port_type || 'Select portfolio type'} · 
                   ${((formData.available_cash || 0) + (formData.money_market || 0)).toFixed(2)} Available</p>
                 {formData.trade_plan_md && (
-                  <p className="text-xs text-gray-400 italic mt-1">"{formData.trade_plan_md.substring(0, 30)}..."</p>
+                  <p className="text-xs text-slate italic mt-1">"{formData.trade_plan_md.substring(0, 30)}..."</p>
                 )}
               </div>
             </div>
@@ -342,7 +342,7 @@ const CreateNewPortfolio: React.FC = () => {
               disabled={loading || !formData.portfolio_name || !formData.port_type}
               className={`w-full flex justify-center items-center px-6 py-3 text-lg font-medium rounded-xl 
                        ${loading || !formData.portfolio_name || !formData.port_type
-                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                         ? 'bg-gray-300 text-slate cursor-not-allowed'
                          : 'bg-primary text-white hover:bg-primary/90 transition-colors'}
                        `}
             >

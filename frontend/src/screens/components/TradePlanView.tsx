@@ -25,7 +25,7 @@ export const TradePlanView: React.FC<TradePlanViewProps> = ({ tradePlanMd, rende
             dangerouslySetInnerHTML={{ __html: renderMarkdown(tradePlanMd || content) }}
           />
         ) : (
-          <p className="text-sm text-gray-400 italic">Click to add trade plan...</p>
+          <p className="text-sm text-slate italic">Click to add trade plan...</p>
         )}
       </div>
     );

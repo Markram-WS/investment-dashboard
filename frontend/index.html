@@ -5,74 +5,18 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Investment Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      tailwind.config = {
-        safelist: [
-          'opacity-0',
-          'opacity-100',
-          'group-hover:opacity-100',
-          'hover:text-blue-600',
-          'hover:text-gray-500',
-          'text-gray-300',
-        ],
-        theme: {
-          extend: {
-            colors: {
-              primary: '#1c1c1e',
-              ink: '#1c1c1e',
-              slate: '#555a6a',
-              'brand-teal': '#0fbcb0',
-              'brand-yellow': '#ffd02f',
-              'brand-coral': '#ff9999',
-              'brand-blue': '#4262ff',
-              'teal-light': '#e0f7f6',
-              'coral-light': '#fdeced',
-              hairline: '#e0e2e8',
-              'hairline-soft': '#f0f1f3',
-              surface: '#f7f8fa',
-              canvas: '#ffffff',
-              'surface-soft': '#fafbfc',
-              'on-primary': '#ffffff',
-              success: '#00b473',
-              error: '#e74c3c',
-              warning: '#f4d03f',
-              accent: '#4262ff',
-            },
-          },
-        },
-      };
+      (function() {
+        var t = localStorage.getItem('theme');
+        if (t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
     </script>
-    <style>
-      @keyframes linkLineGlow {
-        0% { opacity: 0.2; }
-        40% { opacity: 1; filter: drop-shadow(0 0 4px currentColor); }
-        100% { opacity: 1; filter: none; }
-      }
-      @keyframes donutDraw {
-        from { stroke-dashoffset: 100.53; }
-      }
-      .donut-animate {
-        animation: donutDraw 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-      }
-      @keyframes lineDraw {
-        from { stroke-dashoffset: var(--path-len, 2000); }
-        to { stroke-dashoffset: 0; }
-      }
-      @keyframes barGrow {
-        from { transform: scaleY(0); }
-      }
-      @keyframes fadeUp {
-        from { opacity: 0; transform: translateY(8px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      .nav-icon-hover {
-        transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s ease;
-      }
-      .nav-icon-hover:hover {
-        transform: scale(1.12);
-      }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
     <script type="module" src="/src/main.tsx"></script>
   </head>
   <body>

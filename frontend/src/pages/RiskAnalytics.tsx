@@ -23,26 +23,26 @@ export default function RiskAnalytics() {
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Risk Analytics</h1>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white border border-slate-200 rounded-lg p-6">
+        <div className="bg-canvas border border-slate-200 rounded-lg p-6">
           <h3 className="text-sm font-medium text-slate-500 mb-2">Sharpe Ratio</h3>
           <p className="text-3xl font-bold text-slate-900">{riskData?.sharpeRatio?.toFixed(2) || 'N/A'}</p>
           <p className="text-xs text-slate-500 mt-1">Risk-adjusted returns</p>
         </div>
         
-        <div className="bg-white border border-slate-200 rounded-lg p-6">
+        <div className="bg-canvas border border-slate-200 rounded-lg p-6">
           <h3 className="text-sm font-medium text-slate-500 mb-2">Max Drawdown</h3>
           <p className="text-3xl font-bold text-red-600">{riskData?.maxDrawdown ? `${riskData.maxDrawdown.toFixed(1)}%` : 'N/A'}</p>
           <p className="text-xs text-slate-500 mt-1">Largest peak-to-trough decline</p>
         </div>
         
-        <div className="bg-white border border-slate-200 rounded-lg p-6">
+        <div className="bg-canvas border border-slate-200 rounded-lg p-6">
           <h3 className="text-sm font-medium text-slate-500 mb-2">Value at Risk (95%)</h3>
           <p className="text-3xl font-bold text-slate-900">{riskData?.var95 ? `${riskData.var95}%` : 'N/A'}</p>
           <p className="text-xs text-slate-500 mt-1">Maximum expected loss</p>
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-lg p-6">
+      <div className="bg-canvas border border-slate-200 rounded-lg p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Risk Metrics Breakdown</h3>
         <div className="space-y-4">
           <div>

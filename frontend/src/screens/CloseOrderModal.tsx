@@ -105,14 +105,14 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+      <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
         <h3 className="text-lg font-bold mb-4">
           Close Order {linkedInfo ? `(linked to #${linkedInfo.order_id?.slice(0, 8)})` : ''}
         </h3>
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Close ID</label>
+            <label className="block text-xs font-bold uppercase text-slate mb-1">Close ID</label>
             <input
               type="text"
               value={closeId}
@@ -122,27 +122,27 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
             />
           </div>
 
-          <div className="bg-gray-50 rounded-lg p-3 text-xs space-y-1.5">
+          <div className="bg-surface rounded-lg p-3 text-xs space-y-1.5">
             <div className="flex justify-between">
-              <span className="text-gray-500">Order</span>
+              <span className="text-slate">Order</span>
               <span className="font-semibold">#{order.order_id} &middot; {order.asset_type} &middot; {order.side}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Qty</span>
+              <span className="text-slate">Qty</span>
               <span className="font-semibold">{qty}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Entry Price</span>
+              <span className="text-slate">Entry Price</span>
               <span className="font-semibold">${entryPrice.toLocaleString()}</span>
             </div>
             {linkedInfo && (
               <>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Linked Order</span>
+                  <span className="text-slate">Linked Order</span>
                   <span className="font-semibold">#{linkedInfo.order_id?.slice(0, 8)} &middot; {linkedInfo.asset_type} &middot; {linkedInfo.side}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Linked Entry</span>
+                  <span className="text-slate">Linked Entry</span>
                   <span className="font-semibold">${linkedInfo.entry_price?.toLocaleString() || '-'}</span>
                 </div>
               </>
@@ -151,7 +151,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
 
           <div className="border-t pt-3 space-y-3">
             <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Cost (spread/commission)</label>
+              <label className="block text-xs font-bold uppercase text-slate mb-1">Cost (spread/commission)</label>
               <input
                 type="number"
                 step="any"
@@ -161,7 +161,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
               />
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Exit Price</label>
+              <label className="block text-xs font-bold uppercase text-slate mb-1">Exit Price</label>
               <input
                 type="number"
                 step="any"
@@ -172,7 +172,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
               />
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">P/L</label>
+              <label className="block text-xs font-bold uppercase text-slate mb-1">P/L</label>
               <input
                 type="number"
                 step="any"

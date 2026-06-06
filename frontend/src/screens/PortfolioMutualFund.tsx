@@ -153,7 +153,7 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
   if (error && !portfolio) {
     return (
       <div className="p-6">
-        <h2 className="text-3xl font-bold text-center text-red-600 mb-8">Error Loading Portfolio</h2>
+        <h2 className="text-3xl font-bold text-center text-red-600 dark:text-red-400 mb-8">Error Loading Portfolio</h2>
         <p className="text-center text-red-400">{error}</p>
       </div>
     );

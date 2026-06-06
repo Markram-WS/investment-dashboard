@@ -45,61 +45,49 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
   };
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,0.4)',
-    }} onClick={onClose}>
-      <div style={{
-        background: 'white', borderRadius: 20, padding: 32,
-        width: 400, maxWidth: '90vw',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-      }} onClick={e => e.stopPropagation()}>
-        <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 24px', color: '#1c1c1e' }}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-canvas rounded-[20px] p-8 w-[400px] max-w-[90vw] shadow-[0_20px_60px_rgba(0,0,0,0.2)]"
+        onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-bold m-0 mb-6 text-ink">
           Transfer Cash
         </h3>
 
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 12, color: '#555a6a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>From</div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#1c1c1e' }}>{source.name}</div>
+        <div className="mb-5">
+          <div className="text-xs text-slate font-semibold uppercase tracking-wide mb-1">From</div>
+          <div className="text-[15px] font-semibold text-ink">{source.name}</div>
         </div>
 
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 12, color: '#555a6a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>To</div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#1c1c1e' }}>{destination.name}</div>
+        <div className="mb-6">
+          <div className="text-xs text-slate font-semibold uppercase tracking-wide mb-1">To</div>
+          <div className="text-[15px] font-semibold text-ink">{destination.name}</div>
         </div>
 
-        <div style={{ marginBottom: 8 }}>
-          <label style={{ fontSize: 12, color: '#555a6a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, display: 'block' }}>Amount</label>
-          <div style={{ display: 'flex', gap: 8 }}>
+        <div className="mb-2">
+          <label className="text-xs text-slate font-semibold uppercase tracking-wide mb-1.5 block">Amount</label>
+          <div className="flex gap-2">
             <input
               type="number"
               step={100}
               placeholder="0"
               value={amount}
               onChange={e => setAmount(e.target.value)}
-              style={{
-                flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid #e0e2e8',
-                fontSize: 16, fontWeight: 600, color: '#1c1c1e', outline: 'none',
-              }}
-              onFocus={e => e.target.style.borderColor = '#0fbcb0'}
-              onBlur={e => e.target.style.borderColor = '#e0e2e8'}
+              className="flex-1 px-3.5 py-2.5 rounded-lg border border-hairline text-base font-semibold text-ink outline-none focus:border-brand-teal"
             />
             <Button variant="ghost" size="sm" onClick={handleMax}>Max</Button>
           </div>
         </div>
 
-        <div style={{ fontSize: 11, color: '#555a6a', marginBottom: 20 }}>
-          Available: <strong style={{ color: '#1c1c1e' }}>${source.available.toLocaleString()}</strong>
+        <div className="text-[11px] text-slate mb-5">
+          Available: <strong className="text-ink">${source.available.toLocaleString()}</strong>
         </div>
 
         {error && (
-          <div style={{ fontSize: 12, color: '#ba1a1a', background: '#ffdad6', padding: '8px 12px', borderRadius: 8, marginBottom: 16 }}>
+          <div className="text-xs text-[#ba1a1a] bg-[#ffdad6] px-3 py-2 rounded-lg mb-4">
             {error}
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+        <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button variant="primary" onClick={handleConfirm} loading={loading}>Confirm →</Button>
         </div>

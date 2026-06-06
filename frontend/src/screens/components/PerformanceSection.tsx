@@ -33,7 +33,7 @@ const PerformanceSection: React.FC<PerformanceSectionProps> = ({
               Total P/L: ${performanceData.total_pl?.toLocaleString()}
             </span>
           )}
-          <div className="flex p-1 bg-white rounded-full border border-hairline shadow-sm">
+          <div className="flex p-1 bg-canvas rounded-full border border-hairline shadow-sm">
             <button
               onClick={() => onViewModeChange("equity")}
               className={`px-4 py-1.5 text-[10px] font-bold rounded-full shadow-sm transition-all ${viewMode === "equity" ? "bg-ink text-white" : "bg-gray-200 text-ink hover:bg-gray-300"}`}

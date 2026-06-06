@@ -32,7 +32,7 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
         className="w-full border rounded px-3 py-2 text-sm flex items-center justify-between cursor-pointer"
         onClick={() => setOpen(!open)}
       >
-        <span className={value ? '' : 'text-gray-400'}>
+        <span className={value ? '' : 'text-slate'}>
           {selected
             ? `${selected.name}${selected.min_price != null && selected.max_price != null ? ` ($${selected.min_price.toLocaleString()}-$${selected.max_price.toLocaleString()})` : ''}`
             : '-- No Group --'}
@@ -42,7 +42,7 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
         </svg>
       </div>
       {open && (
-        <div className="absolute z-10 mt-1 w-full bg-white border rounded shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-10 mt-1 w-full bg-canvas border rounded shadow-lg max-h-60 overflow-auto">
           <input
             autoFocus
             type="text"
@@ -52,7 +52,7 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
             className="w-full px-3 py-2 text-sm border-b outline-none"
           />
           <div
-            className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer"
+            className="px-3 py-2 text-sm text-slate hover:bg-surface cursor-pointer"
             onClick={() => { onChange(null); setOpen(false); setQuery(''); }}
           >
             -- No Group --
@@ -60,17 +60,17 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
           {filtered.map(g => (
             <div
               key={g.id}
-              className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 ${g.id === value ? 'font-bold bg-gray-100' : ''}`}
+              className={`px-3 py-2 text-sm cursor-pointer hover:bg-surface ${g.id === value ? 'font-bold bg-surface-soft' : ''}`}
               onClick={() => { onChange(g.id); setOpen(false); setQuery(''); }}
             >
               <span>{g.name}</span>
               {g.min_price != null && g.max_price != null && (
-                <span className="text-gray-400 ml-2">(${g.min_price.toLocaleString()}-${g.max_price.toLocaleString()})</span>
+                <span className="text-slate ml-2">(${g.min_price.toLocaleString()}-${g.max_price.toLocaleString()})</span>
               )}
             </div>
           ))}
           {filtered.length === 0 && (
-            <div className="px-3 py-2 text-sm text-gray-400">No groups found</div>
+            <div className="px-3 py-2 text-sm text-slate">No groups found</div>
           )}
         </div>
       )}

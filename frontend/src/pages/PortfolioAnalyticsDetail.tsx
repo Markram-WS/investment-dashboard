@@ -48,7 +48,7 @@ export default function PortfolioAnalyticsDetail() {
   if (loading) {
     return (
       <div className="p-6">
-        <p className="text-gray-500">Loading layout...</p>
+        <p className="text-slate">Loading layout...</p>
       </div>
     );
   }
@@ -62,7 +62,7 @@ export default function PortfolioAnalyticsDetail() {
           </Link>
         </div>
         <p className="text-red-500">Error: {error}</p>
-        <p className="text-gray-500 mt-2">Showing default Grid layout.</p>
+        <p className="text-slate mt-2">Showing default Grid layout.</p>
       </div>
     );
   }

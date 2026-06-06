@@ -27,7 +27,7 @@ export default defineConfig({
     force: true,
   },
   server: {
-    host: '0.0.0.0',
+    host: true,
     port: 5173,
     proxy: {
       // Proxy API calls to backend service

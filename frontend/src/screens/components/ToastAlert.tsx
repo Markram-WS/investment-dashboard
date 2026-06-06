@@ -20,7 +20,7 @@ const ToastAlert: React.FC<ToastAlertProps> = ({ message, type = "warning", onCl
 
   return (
     <div
-      className={`fixed top-20 left-1/2 -translate-x-1/2 z-[9999] w-full max-w-2xl border-l-4 rounded-md px-4 py-3 shadow-2xl ${typeStyles[type]}`}
+      className={`fixed top-20 left-1/2 -translate-x-1/2 z-[9999] w-full max-w-2xl border-l-2 rounded-md px-4 py-3 shadow-2xl ${typeStyles[type]}`}
     >
       <div className="flex items-start gap-2">
         <span className="text-sm flex-1">{message}</span>

@@ -422,9 +422,9 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const riskPercent = selectedPortfolio?.risk_score ?? 0;
   const riskStatusText = riskPercent >= 100 ? "Safe" : riskPercent >= 50 ? "Warning" : "Danger";
 
-  if (loading) return <div className="p-6"><p className="text-gray-500">Loading portfolio analytics...</p></div>;
+  if (loading) return <div className="p-6"><p className="text-slate">Loading portfolio analytics...</p></div>;
   if (error) return <div className="p-6"><p className="text-red-500">Error: {error}</p></div>;
-  if (!selectedPortfolio) return <div className="p-6"><p className="text-gray-500">No portfolio data available.</p></div>;
+  if (!selectedPortfolio) return <div className="p-6"><p className="text-slate">No portfolio data available.</p></div>;
 
   const handleRefresh = () => {
     fetchAnalyticsData();

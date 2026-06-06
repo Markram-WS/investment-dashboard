@@ -36,7 +36,7 @@ function ToggleBtn({ options, value, onChange }: {
             className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-full border transition-all ${
               isActive
                 ? opt.activeClass
-                : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300 hover:text-gray-500'
+                : 'border-hairline bg-canvas text-slate hover:border-gray-300 hover:text-slate'
             }`}
           >
             {opt.label}
@@ -95,11 +95,11 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[110]">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+      <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
         <h3 className="text-lg font-bold mb-4">Edit Order #{order.order_id}</h3>
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Contract Type</label>
+            <label className="block text-xs font-bold uppercase text-slate mb-1">Contract Type</label>
             <ToggleBtn
               options={[
                 { value: 'spot', label: 'Spot', activeClass: 'bg-indigo-600 text-white border-indigo-600' },
@@ -111,7 +111,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             />
           </div>
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Asset Type</label>
+            <label className="block text-xs font-bold uppercase text-slate mb-1">Asset Type</label>
             <input
               type="text"
               value={formData.asset_type || ''}
@@ -125,7 +125,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
           </div>
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Side</label>
+              <label className="block text-xs font-bold uppercase text-slate mb-1">Side</label>
               <ToggleBtn
                 options={
                   contractType === 'spot'
@@ -144,7 +144,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             </div>
             {contractType === 'option' && (
               <div className="flex-1">
-                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Option Type</label>
+                <label className="block text-xs font-bold uppercase text-slate mb-1">Option Type</label>
                 <ToggleBtn
                   options={[
                     { value: 'Call', label: 'CALL', activeClass: `${buttonTheme.optionType.Call.bg} ${buttonTheme.optionType.Call.text} ${buttonTheme.optionType.Call.border}` },
@@ -158,7 +158,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
           </div>
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Entry Price</label>
+              <label className="block text-xs font-bold uppercase text-slate mb-1">Entry Price</label>
               <input
                 type="number"
                 step="any"
@@ -168,7 +168,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
               />
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Qty</label>
+              <label className="block text-xs font-bold uppercase text-slate mb-1">Qty</label>
               <input
                 type="number"
                 step="any"
@@ -180,7 +180,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
           </div>
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">TP Price</label>
+              <label className="block text-xs font-bold uppercase text-slate mb-1">TP Price</label>
               <input
                 type="number"
                 step="any"
@@ -190,7 +190,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
               />
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">SL Price</label>
+              <label className="block text-xs font-bold uppercase text-slate mb-1">SL Price</label>
               <input
                 type="number"
                 step="any"
@@ -202,7 +202,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
           </div>
           {contractType === 'option' && (
             <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Strike Price</label>
+              <label className="block text-xs font-bold uppercase text-slate mb-1">Strike Price</label>
               <input
                 type="number"
                 step="any"
@@ -214,7 +214,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
           )}
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Cost (spread/commission)</label>
+              <label className="block text-xs font-bold uppercase text-slate mb-1">Cost (spread/commission)</label>
               <input
                 type="number"
                 step="any"
@@ -225,7 +225,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             </div>
             {contractType !== 'spot' && (
               <div className="flex-1">
-                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Expiry Date</label>
+                <label className="block text-xs font-bold uppercase text-slate mb-1">Expiry Date</label>
                 <input
                   type="date"
                   value={formData.expiry_date ? (formData.expiry_date as string).slice(0, 10) : ''}
@@ -237,7 +237,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
           </div>
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Status</label>
+              <label className="block text-xs font-bold uppercase text-slate mb-1">Status</label>
               <ToggleBtn
                 options={[
                   { value: 'FILLED', label: 'FILLED', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
@@ -284,23 +284,23 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
                       )}
                     </svg>
                   </span>
-                  <span className="text-sm font-mono text-gray-600">
+                  <span className="text-sm font-mono text-ink">
                     #{order?.linked_order_id || 'unknown'}
                   </span>
                   {pendingUnlink && (
-                    <span className="text-[10px] text-red-500 font-semibold ml-auto">Will unlink</span>
+                    <span className="text-[10px] text-red-500 dark:text-red-400 font-semibold ml-auto">Will unlink</span>
                   )}
                 </div>
               </div>
             )}
           </div>
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Group</label>
+            <label className="block text-xs font-bold uppercase text-slate mb-1">Group</label>
             <GroupCombobox groups={groups} value={formData.group_id ?? null} onChange={(v) => onChange('group_id', v)} />
             {groupWarnings.length > 0 && (
               <div className="mt-1 space-y-0.5">
                 {groupWarnings.map((w, i) => (
-                  <p key={i} className="text-[11px] text-red-500 font-medium flex items-center gap-1">
+                  <p key={i} className="text-[11px] text-red-500 dark:text-red-400 font-medium flex items-center gap-1">
                     <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
                     {w}
                   </p>

@@ -11,7 +11,7 @@ const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
 }) => (
   <header className="flex justify-between items-center w-full mb-6">
     <div className="flex flex-col">
-      <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">
+      <div className="flex items-center gap-2 text-[10px] font-bold text-slate uppercase tracking-widest mb-1">
         <span>Portfolios</span>
         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polyline points="9 18 15 12 9 6" />

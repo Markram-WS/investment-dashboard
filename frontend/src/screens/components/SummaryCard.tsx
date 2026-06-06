@@ -30,10 +30,10 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
   let offset = 0;
 
   return (
-  <div className="col-span-12 lg:col-span-8 bg-white rounded-xl border border-hairline p-8 flex flex-col">
+  <div className="col-span-12 lg:col-span-8 bg-canvas rounded-xl border border-hairline p-8 flex flex-col">
     <div className="flex justify-between items-center mb-6">
-      <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Portfolio Summary</h3>
-      <button onClick={onEditPortfolio} className="p-1 hover:bg-gray-100 rounded-full transition-colors" title="Edit Portfolio">
+      <h3 className="text-[11px] font-bold text-slate uppercase tracking-widest">Portfolio Summary</h3>
+      <button onClick={onEditPortfolio} className="p-1 hover:bg-surface-soft rounded-full transition-colors" title="Edit Portfolio">
         <svg className="w-5 h-5 text-slate" viewBox="0 0 24 24" fill="currentColor">
           <circle cx="5" cy="12" r="1.5" />
           <circle cx="12" cy="12" r="1.5" />
@@ -44,7 +44,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
 
     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 pb-8 border-b border-hairline">
       <div className="flex flex-col">
-        <div className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+        <div className="text-xs font-medium text-slate mb-2 flex items-center gap-1">
           Total Value
           <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
             i
@@ -64,14 +64,14 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
         </p>
       </div>
       <div className="flex flex-col">
-        <p className="text-xs font-medium text-gray-500 mb-2">Total P/L</p>
+        <p className="text-xs font-medium text-slate mb-2">Total P/L</p>
         <p className={`text-3xl font-bold leading-none ${cumulativePl >= 0 ? "text-brand-teal" : "text-brand-coral"}`}>
           {cumulativePl >= 0 ? "+" : ""}${cumulativePl.toLocaleString()}
         </p>
         <p className="text-slate text-xs mt-2">All time performance</p>
       </div>
       <div className="flex flex-col">
-        <div className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+        <div className="text-xs font-medium text-slate mb-2 flex items-center gap-1">
           Cash
           <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
             i
@@ -86,22 +86,22 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
     </div>
 
     <div className="mb-8 pb-8 border-b border-hairline">
-      <p className="text-[11px] font-bold text-gray-500 mb-4 uppercase tracking-widest">Cash Details</p>
+      <p className="text-[11px] font-bold text-slate mb-4 uppercase tracking-widest">Cash Details</p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         <div>
-          <p className="text-[10px] font-medium text-gray-500 mb-1">Margin Locked</p>
+          <p className="text-[10px] font-medium text-slate mb-1">Margin Locked</p>
           <p className="text-lg font-bold">${marginLocked.toLocaleString()}</p>
         </div>
         <div>
-          <p className="text-[10px] font-medium text-gray-500 mb-1">Cash Buffer</p>
+          <p className="text-[10px] font-medium text-slate mb-1">Cash Buffer</p>
           <p className="text-lg font-bold">${cashBufferLimit.toLocaleString()}</p>
         </div>
         <div>
-          <p className="text-[10px] font-medium text-gray-500 mb-1">Money Market</p>
+          <p className="text-[10px] font-medium text-slate mb-1">Money Market</p>
           <p className="text-lg font-bold">${moneyMarket.toLocaleString()}</p>
         </div>
         <div>
-          <div className="text-[10px] font-medium text-gray-500 mb-1 flex items-center gap-1">
+          <div className="text-[10px] font-medium text-slate mb-1 flex items-center gap-1">
             Available Cash
             <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
               i
@@ -119,7 +119,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
     <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
       <div className="flex border-r border-hairline pr-8">
         <div className="flex flex-col w-full">
-          <div className="text-[11px] font-bold text-gray-500 mb-6 uppercase tracking-widest flex items-center gap-1">
+          <div className="text-[11px] font-bold text-slate mb-6 uppercase tracking-widest flex items-center gap-1">
             Risk Level
             <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
               i
@@ -161,7 +161,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
       </div>
       <div className="flex pl-8">
         <div className="flex flex-col w-full">
-          <p className="text-[11px] font-bold text-gray-500 mb-6 uppercase tracking-widest">Asset Allocation</p>
+          <p className="text-[11px] font-bold text-slate mb-6 uppercase tracking-widest">Asset Allocation</p>
           <div className="flex items-center gap-8 md:gap-12">
             <div className="relative flex items-center justify-center w-40 h-40 shrink-0">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">

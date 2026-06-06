@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { Transaction } from "../types";
 import { formatCurrency, formatDate } from "../utils/format";
 import Button from "../screens/components/Button";
+import ToastAlert from "../screens/components/ToastAlert";
 
 type ModalType = "transfer" | "deposit" | "withdraw" | null;
 
@@ -71,7 +72,7 @@ export default function TransactionsPage() {
       case "Transfer": return { label: "Transfer", color: "text-blue-600 bg-blue-50" };
       case "Buy": return { label: "Buy", color: "text-brand-teal bg-teal-50" };
       case "Sell": return { label: "Sell", color: "text-brand-coral bg-red-50" };
-      default: return { label: type, color: "text-gray-500 bg-gray-50" };
+      default: return { label: type, color: "text-slate bg-surface" };
     }
   };
 
@@ -187,41 +188,26 @@ export default function TransactionsPage() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
-        <div style={{ color: 'var(--color-slate)' }}>Loading…</div>
+      <div className="flex items-center justify-center h-[60vh]">
+        <div className="text-slate">Loading…</div>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
-      {toastMsg && (
-        <div style={{
-          position: 'fixed', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 9999,
-          background: '#0fbcb0', color: 'white', padding: '12px 24px', borderRadius: 12,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: 14, fontWeight: 600,
-        }}>
-          {toastMsg}
-          <button onClick={() => setToastMsg(null)} style={{ marginLeft: 16, background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 700 }}>✕</button>
-        </div>
-      )}
+    <div className="max-w-[1200px] mx-auto px-6 py-10">
+      {toastMsg && <ToastAlert message={toastMsg} type="success" onClose={() => setToastMsg(null)} />}
 
-      {/* Header */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 40 }} className="animate-fade-up">
-        <h1 style={{ fontSize: 48, fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '-0.04em', margin: 0 }}>
+      <header className="flex items-center justify-between mb-10 animate-fade-up">
+        <h1 className="text-5xl font-bold text-ink tracking-tight m-0">
           Transactions
         </h1>
       </header>
 
-      {/* Hero Card: Action Section */}
-      <section style={{ marginBottom: 24 }} className="animate-fade-up stagger-1">
-        <div style={{
-          background: 'var(--color-teal-light)', border: '1px solid rgba(224,226,232,0.3)',
-          borderRadius: 28, padding: 32, boxShadow: 'var(--shadow-sm)',
-        }}>
-          <p style={{ fontSize: 10, color: 'var(--color-on-surface-variant)', fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: 1, marginBottom: 20 }}>New Transaction</p>
-          <div style={{ display: 'flex', gap: 16 }}>
+      <section className="mb-6 animate-fade-up stagger-1">
+        <div className="bg-teal-light border border-hairline/30 rounded-[28px] p-8 shadow-sm">
+          <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mb-5">New Transaction</p>
+          <div className="flex gap-4">
             <Button variant="primary" onClick={() => openModal("transfer")}>Transfer</Button>
             <Button variant="primary" onClick={() => openModal("deposit")}>Deposit</Button>
             <Button variant="primary" onClick={() => openModal("withdraw")}>Withdraw</Button>
@@ -229,30 +215,26 @@ export default function TransactionsPage() {
         </div>
       </section>
 
-      {/* Filter Bar */}
-      <section style={{
-        background: 'white', border: '1px solid var(--color-hairline)', borderRadius: 28, padding: 24,
-        boxShadow: 'var(--shadow-sm)', marginBottom: 24,
-      }} className="animate-fade-up stagger-2">
-        <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 1fr 1fr' }}>
+      <section className="bg-canvas border border-hairline rounded-[28px] p-6 shadow-sm mb-6 animate-fade-up stagger-2">
+        <div className="grid gap-4 grid-cols-3">
           <div>
-            <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, display: 'block' }}>Date Range</label>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <label className="text-[10px] font-bold text-slate uppercase tracking-widest mb-2 block">Date Range</label>
+            <div className="flex gap-2">
               <input type="date" value={filters.dateRange.start}
                 onChange={(e) => setFilters((prev) => ({ ...prev, dateRange: { ...prev.dateRange, start: e.target.value } }))}
-                style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--color-hairline)', borderRadius: 8, fontSize: 13 }}
+                className="flex-1 px-3 py-2 border border-hairline rounded-lg text-[13px]"
               />
               <input type="date" value={filters.dateRange.end}
                 onChange={(e) => setFilters((prev) => ({ ...prev, dateRange: { ...prev.dateRange, end: e.target.value } }))}
-                style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--color-hairline)', borderRadius: 8, fontSize: 13 }}
+                className="flex-1 px-3 py-2 border border-hairline rounded-lg text-[13px]"
               />
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, display: 'block' }}>Type Filter</label>
+            <label className="text-[10px] font-bold text-slate uppercase tracking-widest mb-2 block">Type Filter</label>
             <select value={filters.type}
               onChange={(e) => setFilters((prev) => ({ ...prev, type: e.target.value }))}
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-hairline)', borderRadius: 8, fontSize: 13, background: 'white' }}
+              className="w-full px-3 py-2 border border-hairline rounded-lg text-[13px] bg-canvas"
             >
               <option value="">All Types</option>
               <option value="Deposit">Deposit</option>
@@ -265,26 +247,24 @@ export default function TransactionsPage() {
         </div>
       </section>
 
-      {/* Transaction Table */}
-      <section style={{
-        background: 'white', border: '1px solid var(--color-hairline)', borderRadius: 28,
-        boxShadow: 'var(--shadow-sm)', overflow: 'hidden',
-      }} className="animate-fade-up stagger-3">
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <section className="bg-canvas border border-hairline rounded-[28px] shadow-sm overflow-hidden animate-fade-up stagger-3">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
             <thead>
-              <tr style={{ background: 'var(--color-surface)' }}>
-                {["Date", "Type", "Asset", "Amount", "Flow (Source → Destination)", "Executed By", "Status"].map((h) => (
-                  <th key={h} style={{ padding: '12px 20px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1 }}>
-                    {h}
-                  </th>
-                ))}
+              <tr className="bg-surface">
+                <th className="px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Date</th>
+                <th className="px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Type</th>
+                <th className="hidden md:table-cell px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Asset</th>
+                <th className="px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Amount</th>
+                <th className="hidden lg:table-cell px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Flow</th>
+                <th className="hidden lg:table-cell px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Executed By</th>
+                <th className="px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Status</th>
               </tr>
             </thead>
             <tbody>
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-slate)', fontSize: 14 }}>
+                  <td colSpan={7} className="px-5 py-10 text-center text-slate text-sm">
                     No transactions found.
                   </td>
                 </tr>
@@ -293,42 +273,39 @@ export default function TransactionsPage() {
                   const typeStyle = getTransactionType(tx.type);
                   return (
                     <tr key={tx.history_id ?? tx.transaction_id ?? index}
-                      style={{ borderTop: '1px solid var(--color-hairline)', transition: 'background 0.15s' }}
-                      className="hover:bg-teal-50"
-                    >
-                      <td style={{ padding: '14px 20px', fontSize: 13, color: 'var(--color-ink)' }}>
+                      className="border-t border-hairline hover:bg-teal-50 transition-colors">
+                      <td className="px-5 py-3.5 text-[13px] text-ink">
                         {formatDate(tx.entry_date)}
                       </td>
-                      <td style={{ padding: '14px 20px' }}>
+                      <td className="px-5 py-3.5">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${typeStyle.color}`}>
                           {typeStyle.label}
                         </span>
                       </td>
-                      <td style={{ padding: '14px 20px', fontSize: 13, color: 'var(--color-ink)' }}>
+                      <td className="hidden md:table-cell px-5 py-3.5 text-[13px] text-ink">
                         {tx.asset || "-"}
                       </td>
-                      <td style={{ padding: '14px 20px', fontSize: 13, color: 'var(--color-ink)' }}>
+                      <td className="px-5 py-3.5 text-[13px] text-ink">
                         {tx.amount != null ? fmtCurrency(tx.amount) : "-"}
                       </td>
-                      <td style={{ padding: '14px 20px', fontSize: 13, color: 'var(--color-ink)' }}>
+                      <td className="hidden lg:table-cell px-5 py-3.5 text-[13px] text-ink">
                         {tx.flow || "-"}
                       </td>
-                      <td style={{ padding: '14px 20px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{
-                            width: 8, height: 8, borderRadius: '50%',
+                      <td className="hidden lg:table-cell px-5 py-3.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full" style={{
                             background: tx.executed_by === "AI" ? 'var(--color-brand-teal)' : tx.executed_by === "Bot" ? 'var(--color-brand-yellow)' : 'var(--color-ink)',
                           }} />
-                          <span style={{ fontSize: 13, color: 'var(--color-ink)' }}>{tx.executed_by || "-"}</span>
+                          <span className="text-[13px] text-ink">{tx.executed_by || "-"}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '14px 20px', fontSize: 13, color: 'var(--color-ink)' }}>
+                      <td className="px-5 py-3.5 text-[13px] text-ink">
                         {tx.executed_by === "AI" ? (
-                          <span style={{ color: 'var(--color-brand-teal)' }}>Completed</span>
+                          <span className="text-brand-teal">Completed</span>
                         ) : tx.type === "Transfer" ? (
-                          <span style={{ color: 'var(--color-brand-blue)' }}>Completed</span>
+                          <span className="text-brand-blue">Completed</span>
                         ) : (
-                          <span style={{ color: 'var(--color-slate)' }}>Done</span>
+                          <span className="text-slate">Done</span>
                         )}
                       </td>
                     </tr>
@@ -342,174 +319,117 @@ export default function TransactionsPage() {
 
       {/* Transfer Modal */}
       {activeModal === "transfer" && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.2)', backdropFilter: 'blur(4px)',
-        }}>
-          <div style={{ background: 'white', borderRadius: 28, boxShadow: '0 20px 60px rgba(0,0,0,0.15)', width: '100%', maxWidth: 420, margin: 16, padding: 32 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>Transfer</h3>
-              <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, display: 'block' }}>From Portfolio</label>
-                <select value={transferForm.sourcePortfolioId}
-                  onChange={(e) => setTransferForm((prev) => ({ ...prev, sourcePortfolioId: e.target.value }))}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--color-hairline)', borderRadius: 10, fontSize: 13, background: 'white' }}
-                >
-                  <option value="">Select source</option>
-                  {portfolios.map((p) => (
-                    <option key={p.portfolio_id} value={p.portfolio_id}>{p.portfolio_name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, display: 'block' }}>To Portfolio</label>
-                <select value={transferForm.destPortfolioId}
-                  onChange={(e) => setTransferForm((prev) => ({ ...prev, destPortfolioId: e.target.value }))}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--color-hairline)', borderRadius: 10, fontSize: 13, background: 'white' }}
-                >
-                  <option value="">Select destination</option>
-                  {portfolios.map((p) => (
-                    <option key={p.portfolio_id} value={p.portfolio_id} disabled={p.portfolio_id === parseInt(transferForm.sourcePortfolioId)}>{p.portfolio_name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, display: 'block' }}>Amount</label>
-                <input type="number" step={100} placeholder="0"
-                  value={transferForm.amount} onChange={(e) => setTransferForm((prev) => ({ ...prev, amount: e.target.value }))}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--color-hairline)', borderRadius: 10, fontSize: 13 }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, display: 'block' }}>Date</label>
-                <input type="date" value={transferForm.date}
-                  onChange={(e) => setTransferForm((prev) => ({ ...prev, date: e.target.value }))}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--color-hairline)', borderRadius: 10, fontSize: 13 }}
-                />
-              </div>
-            </div>
-
-            {modalErr && <p style={{ color: '#e74c3c', fontSize: 12, marginTop: 12 }}>{modalErr}</p>}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <Button variant="secondary" onClick={closeModal}>Cancel</Button>
-              <Button variant="primary" onClick={handleTransfer} loading={submitting}>Confirm Transfer</Button>
-            </div>
-          </div>
-        </div>
+        <ModalShell title="Transfer" onClose={closeModal} onSubmit={handleTransfer} submitting={submitting} modalErr={modalErr}>
+          <FormSelect label="From Portfolio" value={transferForm.sourcePortfolioId}
+            onChange={(e) => setTransferForm((prev) => ({ ...prev, sourcePortfolioId: e.target.value }))}>
+            <option value="">Select source</option>
+            {portfolios.map((p) => (
+              <option key={p.portfolio_id} value={p.portfolio_id}>{p.portfolio_name}</option>
+            ))}
+          </FormSelect>
+          <FormSelect label="To Portfolio" value={transferForm.destPortfolioId}
+            onChange={(e) => setTransferForm((prev) => ({ ...prev, destPortfolioId: e.target.value }))}>
+            <option value="">Select destination</option>
+            {portfolios.map((p) => (
+              <option key={p.portfolio_id} value={p.portfolio_id} disabled={p.portfolio_id === parseInt(transferForm.sourcePortfolioId)}>{p.portfolio_name}</option>
+            ))}
+          </FormSelect>
+          <FormInput label="Amount" type="number" step={100} placeholder="0"
+            value={transferForm.amount}
+            onChange={(e) => setTransferForm((prev) => ({ ...prev, amount: e.target.value }))} />
+          <FormInput label="Date" type="date" value={transferForm.date}
+            onChange={(e) => setTransferForm((prev) => ({ ...prev, date: e.target.value }))} />
+        </ModalShell>
       )}
 
       {/* Deposit Modal */}
       {activeModal === "deposit" && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.2)', backdropFilter: 'blur(4px)',
-        }}>
-          <div style={{ background: 'white', borderRadius: 28, boxShadow: '0 20px 60px rgba(0,0,0,0.15)', width: '100%', maxWidth: 420, margin: 16, padding: 32 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>Deposit</h3>
-              <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, display: 'block' }}>Portfolio</label>
-                <select value={depositForm.portfolioId}
-                  onChange={(e) => setDepositForm((prev) => ({ ...prev, portfolioId: e.target.value }))}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--color-hairline)', borderRadius: 10, fontSize: 13, background: 'white' }}
-                >
-                  <option value="">Select portfolio</option>
-                  {portfolios.map((p) => (
-                    <option key={p.portfolio_id} value={p.portfolio_id}>{p.portfolio_name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, display: 'block' }}>Amount</label>
-                <input type="number" step={100} placeholder="0"
-                  value={depositForm.amount} onChange={(e) => setDepositForm((prev) => ({ ...prev, amount: e.target.value }))}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--color-hairline)', borderRadius: 10, fontSize: 13 }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, display: 'block' }}>Date</label>
-                <input type="date" value={depositForm.date}
-                  onChange={(e) => setDepositForm((prev) => ({ ...prev, date: e.target.value }))}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--color-hairline)', borderRadius: 10, fontSize: 13 }}
-                />
-              </div>
-            </div>
-
-            {modalErr && <p style={{ color: '#e74c3c', fontSize: 12, marginTop: 12 }}>{modalErr}</p>}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <Button variant="secondary" onClick={closeModal}>Cancel</Button>
-              <Button variant="primary" onClick={handleDeposit} loading={submitting}>Confirm Deposit</Button>
-            </div>
-          </div>
-        </div>
+        <ModalShell title="Deposit" onClose={closeModal} onSubmit={handleDeposit} submitting={submitting} modalErr={modalErr}>
+          <FormSelect label="Portfolio" value={depositForm.portfolioId}
+            onChange={(e) => setDepositForm((prev) => ({ ...prev, portfolioId: e.target.value }))}>
+            <option value="">Select portfolio</option>
+            {portfolios.map((p) => (
+              <option key={p.portfolio_id} value={p.portfolio_id}>{p.portfolio_name}</option>
+            ))}
+          </FormSelect>
+          <FormInput label="Amount" type="number" step={100} placeholder="0"
+            value={depositForm.amount}
+            onChange={(e) => setDepositForm((prev) => ({ ...prev, amount: e.target.value }))} />
+          <FormInput label="Date" type="date" value={depositForm.date}
+            onChange={(e) => setDepositForm((prev) => ({ ...prev, date: e.target.value }))} />
+        </ModalShell>
       )}
 
       {/* Withdraw Modal */}
       {activeModal === "withdraw" && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.2)', backdropFilter: 'blur(4px)',
-        }}>
-          <div style={{ background: 'white', borderRadius: 28, boxShadow: '0 20px 60px rgba(0,0,0,0.15)', width: '100%', maxWidth: 420, margin: 16, padding: 32 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>Withdraw</h3>
-              <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, display: 'block' }}>Portfolio</label>
-                <select value={withdrawForm.portfolioId}
-                  onChange={(e) => setWithdrawForm((prev) => ({ ...prev, portfolioId: e.target.value }))}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--color-hairline)', borderRadius: 10, fontSize: 13, background: 'white' }}
-                >
-                  <option value="">Select portfolio</option>
-                  {portfolios.map((p) => (
-                    <option key={p.portfolio_id} value={p.portfolio_id}>{p.portfolio_name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, display: 'block' }}>Amount</label>
-                <input type="number" step={100} placeholder="0"
-                  value={withdrawForm.amount} onChange={(e) => setWithdrawForm((prev) => ({ ...prev, amount: e.target.value }))}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--color-hairline)', borderRadius: 10, fontSize: 13 }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, display: 'block' }}>Date</label>
-                <input type="date" value={withdrawForm.date}
-                  onChange={(e) => setWithdrawForm((prev) => ({ ...prev, date: e.target.value }))}
-                  style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--color-hairline)', borderRadius: 10, fontSize: 13 }}
-                />
-              </div>
-            </div>
-
-            {modalErr && <p style={{ color: '#e74c3c', fontSize: 12, marginTop: 12 }}>{modalErr}</p>}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <Button variant="secondary" onClick={closeModal}>Cancel</Button>
-              <Button variant="primary" onClick={handleWithdraw} loading={submitting}>Confirm Withdraw</Button>
-            </div>
-          </div>
-        </div>
+        <ModalShell title="Withdraw" onClose={closeModal} onSubmit={handleWithdraw} submitting={submitting} modalErr={modalErr}>
+          <FormSelect label="Portfolio" value={withdrawForm.portfolioId}
+            onChange={(e) => setWithdrawForm((prev) => ({ ...prev, portfolioId: e.target.value }))}>
+            <option value="">Select portfolio</option>
+            {portfolios.map((p) => (
+              <option key={p.portfolio_id} value={p.portfolio_id}>{p.portfolio_name}</option>
+            ))}
+          </FormSelect>
+          <FormInput label="Amount" type="number" step={100} placeholder="0"
+            value={withdrawForm.amount}
+            onChange={(e) => setWithdrawForm((prev) => ({ ...prev, amount: e.target.value }))} />
+          <FormInput label="Date" type="date" value={withdrawForm.date}
+            onChange={(e) => setWithdrawForm((prev) => ({ ...prev, date: e.target.value }))} />
+        </ModalShell>
       )}
+    </div>
+  );
+}
+
+function ModalShell({ title, onClose, onSubmit, submitting, modalErr, children }: {
+  title: string; onClose: () => void; onSubmit: () => void; submitting: boolean; modalErr: string; children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+      <div className="bg-canvas rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.15)] w-full max-w-[420px] mx-4 p-8">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-bold text-ink m-0">{title}</h3>
+          <button onClick={onClose} className="bg-none border-none cursor-pointer p-1">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          {children}
+        </div>
+
+        {modalErr && <p className="text-error text-xs mt-3">{modalErr}</p>}
+
+        <div className="flex justify-end gap-3 mt-6">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={onSubmit} loading={submitting}>Confirm {title}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FormSelect({ label, value, onChange, children }: { label: string; value: string; onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-[10px] font-bold text-slate uppercase tracking-widest mb-1.5 block">{label}</label>
+      <select value={value} onChange={onChange}
+        className="w-full px-3.5 py-2.5 border border-hairline rounded-[10px] text-[13px] bg-canvas">
+        {children}
+      </select>
+    </div>
+  );
+}
+
+function FormInput({ label, type, step, placeholder, value, onChange }: {
+  label: string; type: string; step?: number; placeholder?: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div>
+      <label className="text-[10px] font-bold text-slate uppercase tracking-widest mb-1.5 block">{label}</label>
+      <input type={type} step={step} placeholder={placeholder}
+        value={value} onChange={onChange}
+        className="w-full px-3.5 py-2.5 border border-hairline rounded-[10px] text-[13px]" />
     </div>
   );
 }

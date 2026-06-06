@@ -26,7 +26,7 @@ export const HistoricalGridView: React.FC<HistoricalGridViewProps> = ({ recentTr
           {recentTrades.map((trade) => (
             <div
               key={trade.history_id}
-              className="bg-yellow-100 p-2 rounded border border-yellow-200 text-xs"
+              className="bg-yellow-100 p-2 rounded border border-yellow-200 dark:border-yellow-800 text-xs"
             >
               <div className="flex justify-between">
                 <span className="font-medium">{trade.asset} {trade.type}</span>
@@ -34,7 +34,7 @@ export const HistoricalGridView: React.FC<HistoricalGridViewProps> = ({ recentTr
                   {trade.realized_pl ? `$${trade.realized_pl} P/L` : '-'}
                 </span>
               </div>
-              <div className="text-gray-500 mt-1">
+              <div className="text-slate mt-1">
                 {trade.entry_date} → {trade.exit_date}
               </div>
             </div>

@@ -14,6 +14,7 @@ import {
   IconMenu,
   IconX,
 } from "./icons";
+import ThemeToggle from "./ThemeToggle";
 
 const NAV_ITEMS = [
   { name: "Overview", path: "/", Icon: IconDashboard },
@@ -57,124 +58,75 @@ export default function Navigation() {
   }, []);
 
   return (
-    <nav style={{
-      background: 'var(--color-canvas)',
-      borderBottom: '1px solid var(--color-hairline)',
-      position: 'sticky', top: 0, zIndex: 100,
-      height: 64, display: 'flex', alignItems: 'center',
-      padding: '0 24px'
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', width: '100%', maxWidth: 1200, margin: '0 auto' }}>
-        {/* Branding (Left) - Like example.html */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <NavLink to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 4,
-              background: 'var(--color-brand-yellow)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <span style={{ color: 'var(--color-ink)', fontWeight: 700, fontSize: 18 }}>M</span>
+    <nav className="bg-canvas border-b border-hairline sticky top-0 z-100 h-16 flex items-center px-6">
+      <div className="flex items-center w-full max-w-[1200px] mx-auto">
+        <div className="flex items-center gap-3">
+          <NavLink to="/" className="flex items-center gap-2.5 no-underline">
+            <div className="w-8 h-8 rounded flex items-center justify-center bg-brand-yellow">
+              <span className="text-ink font-bold text-lg">M</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-ink)', textTransform: 'uppercase', letterSpacing: 0 }}>
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-ink uppercase tracking-normal">
                 InvestDesk
               </span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-slate)', textTransform: 'uppercase', letterSpacing: 1 }}>
+              <span className="text-[10px] font-bold text-slate uppercase tracking-widest">
                 Dashboard
               </span>
             </div>
           </NavLink>
         </div>
 
-        {/* Navigation Links (Center) - Using inline styles */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 1, margin: '0 auto' }}>
+        <div className="flex items-center gap-px mx-auto">
           {NAV_ITEMS.map((item) => (
-            <NavLink 
-              key={item.path} 
-              to={item.path} 
+            <NavLink
+              key={item.path}
+              to={item.path}
               style={({ isActive }) => ({
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '8px 16px',
-                borderRadius: '9999px',
-                fontSize: 14,
-                fontWeight: 500,
-                textDecoration: 'none',
-                transition: 'background 0.15s ease, color 0.15s ease',
                 background: isActive ? 'var(--color-primary)' : 'transparent',
                 color: isActive ? '#fff' : 'var(--color-slate)',
-                border: 'none'
               })}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium no-underline transition-colors"
               end
             >
               <item.Icon className="w-5 h-5 nav-icon-hover" />
               {item.name}
             </NavLink>
           ))}
-          
-          {/* Portfolios Dropdown - Like example.html */}
-          <div style={{ position: 'relative' }} ref={dropdownRef}>
+
+          <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setPortfoliosDropdownOpen(!portfoliosDropdownOpen)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '8px 16px',
-                borderRadius: '9999px',
-                fontSize: 14,
-                fontWeight: 500,
-                color: 'var(--color-slate)',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'color 0.15s ease, background 0.15s ease'
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-slate bg-transparent border-none cursor-pointer transition-colors hover:bg-surface"
             >
               <IconFolder className="w-5 h-5 nav-icon-hover" />
               <span>Portfolios</span>
               <IconChevronDown className="w-5 h-5 nav-icon-hover" />
             </button>
-            
+
             {portfoliosDropdownOpen && (
-              <div style={{
-                position: 'absolute', left: 0, marginTop: 4, width: 200,
-                background: 'var(--color-canvas)', border: '1px solid var(--color-hairline)',
-                borderRadius: 12, boxShadow: 'var(--shadow-lg)', overflow: 'hidden', zIndex: 10
-              }}>
+              <div className="absolute left-0 mt-1 w-50 bg-canvas border border-hairline rounded-xl shadow-lg overflow-hidden z-10">
                 {portfolios.map((p) => {
-                  const color = p.name.toLowerCase().includes('binance') || p.name.toLowerCase().includes('btc') 
-                    ? 'var(--color-brand-teal)' 
+                  const color = p.name.toLowerCase().includes('binance') || p.name.toLowerCase().includes('btc')
+                    ? 'var(--color-brand-teal)'
                     : 'var(--color-brand-coral)';
                   return (
                     <button
                       key={p.id}
                       onClick={() => { setSelectedId(p.id); setPortfoliosDropdownOpen(false); }}
-                      style={{
-                        width: '100%', padding: '12px 16px', fontSize: 14, fontWeight: 500,
-                        color: 'var(--color-slate)', background: 'transparent', border: 'none',
-                        display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer'
-                      }}
+                      className="w-full px-4 py-3 text-sm font-medium text-slate bg-transparent border-none flex items-center gap-2.5 cursor-pointer hover:bg-surface"
                     >
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, display: 'inline-block' }}></span>
+                      <span className="w-2 h-2 rounded-full inline-block" style={{ background: color }} />
                       {p.name}
                     </button>
                   );
                 })}
                 {portfolios.length === 0 && (
-                  <p style={{ padding: '12px 16px', fontSize: 13, color: 'var(--color-slate)', margin: 0 }}>No portfolios</p>
+                  <p className="px-4 py-3 text-[13px] text-slate m-0">No portfolios</p>
                 )}
-                <div style={{ height: 1, background: 'var(--color-hairline)', margin: '4px 0' }} />
+                <div className="h-px bg-hairline my-1" />
                 <button
                   onClick={() => { setPortfoliosDropdownOpen(false); navigate('/create-portfolio'); }}
-                  style={{
-                    width: '100%', padding: '12px 16px', fontSize: 14, fontWeight: 500,
-                    color: 'var(--color-brand-teal)', background: 'transparent', border: 'none',
-                    cursor: 'pointer'
-                  }}
+                  className="w-full px-4 py-3 text-sm font-medium text-brand-teal bg-transparent border-none cursor-pointer hover:bg-surface"
                 >
                   + Create Portfolio
                 </button>
@@ -183,61 +135,40 @@ export default function Navigation() {
           </div>
         </div>
 
-        {/* Top Right Utilities (Right) - Like example.html */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-          <button style={{
-            width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'transparent', border: '1px solid var(--color-hairline)',
-            borderRadius: '50%', cursor: 'pointer'
-          }}>
+        <div className="flex items-center gap-2 ml-auto">
+          <ThemeToggle />
+          <button className="w-10 h-10 flex items-center justify-center bg-transparent border border-hairline rounded-full cursor-pointer">
             <IconBell className="w-5 h-5 nav-icon-hover" />
           </button>
-          <button style={{
-            width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'transparent', border: '1px solid var(--color-hairline)',
-            borderRadius: '50%', cursor: 'pointer'
-          }}>
+          <button className="w-10 h-10 flex items-center justify-center bg-transparent border border-hairline rounded-full cursor-pointer">
             <IconMoreHorizontal className="w-5 h-5 nav-icon-hover" />
           </button>
         </div>
 
-        {/* Mobile menu button */}
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
-          style={{
-            background: 'none', border: 'none', padding: 8,
-            borderRadius: 'var(--rounded-md)', cursor: 'pointer', marginLeft: 'auto'
-          }}
+          className="bg-none border-none p-2 rounded-md cursor-pointer ml-auto"
         >
           {mobileOpen ? <IconX className="w-5 h-5 nav-icon-hover" /> : <IconMenu className="w-5 h-5 nav-icon-hover" />}
         </button>
       </div>
 
-      {/* Mobile Menu */}
       {mobileOpen && (
-        <div style={{
-          background: 'var(--color-canvas)',
-          borderTop: '1px solid var(--color-hairline)',
-          boxShadow: 'var(--shadow-lg)',
-          position: 'absolute', top: 64, left: 0, right: 0
-        }}>
-          <div style={{ padding: '8px 16px' }}>
+        <div className="bg-canvas border-t border-hairline shadow-lg absolute top-16 left-0 right-0">
+          <div className="p-2">
             {NAV_ITEMS.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
                 onClick={() => setMobileOpen(false)}
-                style={{ textDecoration: 'none' }}
+                className="no-underline"
               >
                 {({ isActive }) => (
-                  <div style={{
-                    padding: '12px 16px', borderRadius: 'var(--rounded-md)',
-                    fontSize: 15, fontWeight: 500,
-                    background: isActive ? 'var(--color-primary)' : 'transparent',
-                    color: isActive ? '#fff' : 'var(--color-ink)',
-                    marginBottom: 2,
-                    display: 'flex', alignItems: 'center', gap: 10
-                  }}>
+                  <div className="px-4 py-3 rounded-md text-[15px] font-medium mb-0.5 flex items-center gap-2.5"
+                    style={{
+                      background: isActive ? 'var(--color-primary)' : 'transparent',
+                      color: isActive ? '#fff' : 'var(--color-ink)',
+                    }}>
                     <item.Icon className="w-5 h-5 nav-icon-hover" />
                     {item.name}
                   </div>
@@ -248,13 +179,7 @@ export default function Navigation() {
               <button
                 key={p.id}
                 onClick={() => { setSelectedId(p.id); setMobileOpen(false); }}
-                style={{
-                  background: 'none', border: 'none', padding: '12px 16px',
-                  fontSize: 14, color: 'var(--color-ink)',
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  width: '100%', textAlign: 'left',
-                  borderRadius: 'var(--rounded-sm)', cursor: 'pointer'
-                }}
+                className="bg-none border-none px-4 py-3 text-sm text-ink flex items-center gap-2.5 w-full text-left rounded cursor-pointer hover:bg-surface"
               >
                 <IconFolder className="w-5 h-5 nav-icon-hover" />
                 {p.name}

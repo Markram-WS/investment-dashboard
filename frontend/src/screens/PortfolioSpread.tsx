@@ -184,22 +184,22 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
   return (
     <div className="p-4 h-full flex flex-col">
       {/* Risk Status Header */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4 flex items-center justify-between">
+      <div className="bg-canvas rounded-lg shadow p-4 mb-4 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <h2 className="text-xl font-bold">Spread Visual Pairing</h2>
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">Portfolio:</span>
+            <span className="text-sm text-slate">Portfolio:</span>
             <span className="font-medium">{portfolioData.portfolio_name}</span>
-            <span className="text-sm text-gray-500">Risk Status:</span>
+            <span className="text-sm text-slate">Risk Status:</span>
             <span className={`px-2 py-1 rounded text-xs font-medium ${
               portfolioData.port_type?.toLowerCase().includes('spread')
                 ? 'bg-[#e0f7f6] text-[#0fbcb0]'
-                : 'bg-gray-100 text-gray-800'
+                : 'bg-surface-soft text-gray-800'
             }`}>
               {portfolioData.risk_status || 'Safe'}
             </span>
             <div className="relative group">
-              <span className="cursor-help text-gray-400">ⓘ</span>
+              <span className="cursor-help text-slate">ⓘ</span>
               <div className="absolute hidden group-hover:block bg-gray-800 text-white p-2 rounded text-xs w-64 -ml-32 z-10">
                 Calculation: Net P/L = Leg A P/L + Leg B P/L + Fees<br/>
                 Zone grouping based on spread price ranges
@@ -207,20 +207,20 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
             </div>
           </div>
         </div>
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-slate">
           Last updated: {new Date().toLocaleTimeString()}
         </div>
       </div>
 
       <div className="flex-1 flex gap-4 overflow-hidden">
         {/* Left Panel: Order Pairs Table with Zone Grouping */}
-        <div className="flex-1 bg-white rounded-lg shadow overflow-hidden flex flex-col">
+        <div className="flex-1 bg-canvas rounded-lg shadow overflow-hidden flex flex-col">
           <div className="flex-1 overflow-auto">
             <h3 className="font-semibold p-3 border-b">Order Pairs (Spreads)</h3>
 
             {portfolioData.spread_pairs && portfolioData.spread_pairs.length > 0 ? (
               <table className="w-full text-sm">
-                <thead className="bg-gray-50">
+                <thead className="bg-surface">
                   <tr>
                     <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Asset</th>
                     <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Strategy</th>
@@ -245,7 +245,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
                       {spreadPairsByZone[zone].map((pair) => (
                         <React.Fragment key={pair.pair_id}>
                           {/* Consolidated Performance Row */}
-                          <tr className="border-b border-dashed border-[#e0e2e8] bg-white hover:bg-gray-50">
+                          <tr className="border-b border-dashed border-[#e0e2e8] bg-canvas hover:bg-surface">
                             <td colSpan={2} className="px-3 py-2">
                               <div className="flex items-center">
                                 <span className="text-[#0fbcb0] mr-2 font-mono">⎡⎤</span>
@@ -259,13 +259,13 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
                             }`}>
                               ${(pair.net_pl || 0).toFixed(2)}
                             </td>
-                            <td className="px-3 py-2 text-right text-xs text-gray-500">
+                            <td className="px-3 py-2 text-right text-xs text-slate">
                               {pair.leg_a.qty + (pair.leg_b?.qty || 0)}
                             </td>
                           </tr>
 
                           {/* Leg A - indented row (32px = pl-8) */}
-                          <tr className="border-b border-[#e0e2e8] bg-white hover:bg-gray-50">
+                          <tr className="border-b border-[#e0e2e8] bg-canvas hover:bg-surface">
                             <td className="px-8 py-2">
                               <span className="font-medium text-sm text-gray-800">{pair.leg_a.asset_type}</span>
                             </td>
@@ -276,12 +276,12 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
                                 {pair.leg_a.side === 'BUY' ? 'Long Leg A' : 'Short Leg A'}
                               </span>
                             </td>
-                            <td className="px-3 py-2 text-right text-xs text-gray-600">
+                            <td className="px-3 py-2 text-right text-xs text-ink">
                               {pair.leg_a.entry_price ? `$${pair.leg_a.entry_price}` : '–'}
                             </td>
                             <td className="px-3 py-2 text-right">
                               <span
-                                className="text-xs text-gray-400 cursor-pointer hover:text-gray-600"
+                                className="text-xs text-slate cursor-pointer hover:text-ink"
                                 onClick={() => handleQuickView(pair.pair_id)}
                                 title="Quick View Payoff Chart"
                               >
@@ -291,7 +291,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
                           </tr>
 
                           {/* Leg B - indented row */}
-                          <tr className="border-b border-[#e0e2e8] bg-white hover:bg-gray-50">
+                          <tr className="border-b border-[#e0e2e8] bg-canvas hover:bg-surface">
                             <td className="px-8 py-2">
                               <span className="font-medium text-sm text-gray-800">{pair.leg_b.asset_type}</span>
                             </td>
@@ -302,12 +302,12 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
                                 {pair.leg_b.side === 'BUY' ? 'Long Leg B' : 'Short Leg B'}
                               </span>
                             </td>
-                            <td className="px-3 py-2 text-right text-xs text-gray-600">
+                            <td className="px-3 py-2 text-right text-xs text-ink">
                               {pair.leg_b.entry_price ? `$${pair.leg_b.entry_price}` : '–'}
                             </td>
                             <td className="px-3 py-2 text-right">
                               <span
-                                className="text-xs text-gray-400 cursor-pointer hover:text-gray-600"
+                                className="text-xs text-slate cursor-pointer hover:text-ink"
                                 onClick={() => handleQuickView(pair.pair_id)}
                                 title="Quick View Payoff Chart"
                               >
@@ -322,7 +322,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
                 </tbody>
               </table>
             ) : (
-              <div className="p-8 text-center text-gray-500">
+              <div className="p-8 text-center text-slate">
                 No spread pairs found. Create pairs by linking orders with matching linked_order_id.
               </div>
             )}
@@ -330,14 +330,14 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
         </div>
 
         {/* Right Panel: Strategy & Notes (Sticky Note Style) */}
-        <div className="w-80 bg-yellow-50 border-l-4 border-yellow-200 flex flex-col">
+        <div className="w-80 bg-yellow-50 border-l-2 border-yellow-200 dark:border-yellow-800 flex flex-col">
           <div className="flex-1 p-4 overflow-auto">
             <h3 className="font-semibold mb-2 text-gray-700">Spread Strategy</h3>
             <div className="bg-yellow-100 p-4 rounded shadow transform rotate-1 mb-4">
               <p className="text-sm text-gray-700">
                 {portfolioData.portfolio_name} - 1:1 ID-based Spread Trading
               </p>
-              <ul className="mt-2 text-xs text-gray-600 list-disc list-inside">
+              <ul className="mt-2 text-xs text-ink list-disc list-inside">
                 <li>1:1 ID-based pairing for spread legs</li>
                 <li>Net Spread P/L consolidated tracking</li>
                 <li>Zone-based grouping for audit trail</li>
@@ -348,11 +348,11 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
             <div className="bg-yellow-100 p-3 rounded shadow mb-4">
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <span className="text-gray-500">Active Pairs:</span>
+                  <span className="text-slate">Active Pairs:</span>
                   <span className="font-medium ml-1">{portfolioData.spread_pairs?.length || 0}</span>
                 </div>
                 <div>
-                  <span className="text-gray-500">Unpaired:</span>
+                  <span className="text-slate">Unpaired:</span>
                   <span className="font-medium ml-1">{portfolioData.unpaired_orders?.length || 0}</span>
                 </div>
               </div>
@@ -369,15 +369,15 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
                     <p className="text-xs text-gray-700">
                       {cycle.zone}: Spread pair closed - Net ${(cycle.net_pl || 0).toFixed(2)}
                     </p>
-                    <p className="text-xs text-gray-400">{new Date().toLocaleDateString()}</p>
+                    <p className="text-xs text-slate">{new Date().toLocaleDateString()}</p>
                   </div>
                 ))
               ) : (
                 <div className="bg-yellow-100 p-2 rounded border border-yellow-200">
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-ink">
                     Completed spread cycles will appear here
                   </p>
-                  <p className="text-xs text-gray-400">No cycles closed yet</p>
+                  <p className="text-xs text-slate">No cycles closed yet</p>
                 </div>
               )}
             </div>
@@ -388,9 +388,9 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
       {/* Pair Wizard Modal */}
       {showPairWizard && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
+          <div className="bg-canvas rounded-lg p-6 w-96">
             <h3 className="font-bold text-lg mb-4">Link Order to Spread Pair</h3>
-            <p className="text-sm text-gray-600 mb-3">
+            <p className="text-sm text-ink mb-3">
               Enter the existing linked_order_id to link this order:
             </p>
             <input
@@ -403,7 +403,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
             <div className="flex justify-end space-x-2">
               <button
                 onClick={() => setShowPairWizard(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                className="px-4 py-2 text-ink hover:text-gray-800"
               >
                 Cancel
               </button>
@@ -422,18 +422,18 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
       {/* Payoff Chart Modal */}
       {showPayoffChart.show && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-[600px]">
+          <div className="bg-canvas rounded-lg p-6 w-[600px]">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-lg">Payoff Chart</h3>
               <button
                 onClick={() => setShowPayoffChart({ show: false, pairId: null })}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-slate hover:text-gray-700"
               >
                 ✕
               </button>
             </div>
-            <div className="h-64 bg-gray-50 rounded flex items-center justify-center">
-              <p className="text-gray-500">Payoff chart visualization for spread pair: {showPayoffChart.pairId}</p>
+            <div className="h-64 bg-surface rounded flex items-center justify-center">
+              <p className="text-slate">Payoff chart visualization for spread pair: {showPayoffChart.pairId}</p>
             </div>
           </div>
         </div>
@@ -441,7 +441,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
 
       {/* Unpaired Orders Section */}
       {portfolioData.unpaired_orders && portfolioData.unpaired_orders.length > 0 && (
-        <div className="mt-4 bg-white rounded-lg shadow p-4">
+        <div className="mt-4 bg-canvas rounded-lg shadow p-4">
           <h3 className="font-semibold mb-3">Unpaired Orders (Available for Pairing)</h3>
           <div className="grid grid-cols-2 gap-2">
             {portfolioData.unpaired_orders.map((order) => (
@@ -454,7 +454,7 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
                     {order.side}
                   </span>
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-xs text-slate mt-1">
                   Qty: {order.qty} | ID: {order.linked_order_id || 'unpaired'}
                 </div>
                 <button

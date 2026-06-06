@@ -70,12 +70,12 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
   if (!visible) return null;
 
   return (
-    <div className="mb-4 border border-gray-200 rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
-        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Options Strategy</span>
+    <div className="mb-4 border border-hairline rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2 bg-surface border-b border-hairline">
+        <span className="text-[10px] font-bold text-slate uppercase tracking-widest">Options Strategy</span>
         <button
           onClick={onClose}
-          className="h-8 w-8 rounded-full bg-white text-gray-400 border border-gray-200 hover:bg-gray-50 transition-all flex items-center justify-center"
+          className="h-8 w-8 rounded-full bg-canvas text-slate border border-hairline hover:bg-surface transition-all flex items-center justify-center"
           title="Hide Options Strategy"
         >
           <IconX className="w-5 h-5" />
@@ -83,21 +83,21 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
       </div>
       <table className="w-4/6 text-xs">
         <thead>
-          <tr className="bg-gray-50">
-            <th className="px-2 py-1.5 text-center font-semibold text-gray-600">Side</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-gray-600">Type</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-gray-600">Strike</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-gray-600">Premium</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-gray-600">Qty</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-gray-600">Expiry</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-gray-600">IV%</th>
+          <tr className="bg-surface">
+            <th className="px-2 py-1.5 text-center font-semibold text-ink">Side</th>
+            <th className="px-2 py-1.5 text-center font-semibold text-ink">Type</th>
+            <th className="px-2 py-1.5 text-center font-semibold text-ink">Strike</th>
+            <th className="px-2 py-1.5 text-center font-semibold text-ink">Premium</th>
+            <th className="px-2 py-1.5 text-center font-semibold text-ink">Qty</th>
+            <th className="px-2 py-1.5 text-center font-semibold text-ink">Expiry</th>
+            <th className="px-2 py-1.5 text-center font-semibold text-ink">IV%</th>
             <th className="px-2 py-1.5 w-8" />
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={8} className="px-4 py-4 text-center text-gray-400 text-[10px]">
+              <td colSpan={8} className="px-4 py-4 text-center text-slate text-[10px]">
                 No rows yet. Click [+] to add a strategy leg.
               </td>
             </tr>
@@ -143,7 +143,7 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     placeholder="0"
                     value={row.strike}
                     onChange={(e) => updateRow(row.id, "strike", e.target.value)}
-                    className="text-[10px] border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-700 w-full text-right"
+                    className="text-[10px] border border-hairline rounded px-1 py-0.5 bg-canvas text-gray-700 w-full text-right"
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -153,7 +153,7 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     placeholder="0"
                     value={row.price}
                     onChange={(e) => updateRow(row.id, "price", e.target.value)}
-                    className="text-[10px] border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-700 w-full text-right"
+                    className="text-[10px] border border-hairline rounded px-1 py-0.5 bg-canvas text-gray-700 w-full text-right"
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -163,7 +163,7 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     placeholder="0"
                     value={row.qty}
                     onChange={(e) => updateRow(row.id, "qty", e.target.value)}
-                    className="text-[10px] border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-700 w-full text-right"
+                    className="text-[10px] border border-hairline rounded px-1 py-0.5 bg-canvas text-gray-700 w-full text-right"
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -171,7 +171,7 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     type="date"
                     value={row.expiry}
                     onChange={(e) => updateRow(row.id, "expiry", e.target.value)}
-                    className="text-[10px] border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-700 w-full"
+                    className="text-[10px] border border-hairline rounded px-1 py-0.5 bg-canvas text-gray-700 w-full"
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -181,7 +181,7 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     placeholder="0"
                     value={row.iv}
                     onChange={(e) => updateRow(row.id, "iv", e.target.value)}
-                    className="text-[10px] border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-700 w-full text-right"
+                    className="text-[10px] border border-hairline rounded px-1 py-0.5 bg-canvas text-gray-700 w-full text-right"
                   />
                 </td>
                 <td className="px-1 py-1 text-center">
@@ -198,10 +198,10 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
           )}
         </tbody>
       </table>
-      <div className="flex justify-center px-4 py-1.5 border-t border-gray-200 bg-gray-50">
+      <div className="flex justify-center px-4 py-1.5 border-t border-hairline bg-surface">
         <button
           onClick={addRow}
-          className="flex items-center gap-1 text-[10px] font-bold text-gray-500 hover:text-gray-700 transition-colors"
+          className="flex items-center gap-1 text-[10px] font-bold text-slate hover:text-gray-700 transition-colors"
         >
           <IconPlus className="w-4 h-4" />
           Add leg

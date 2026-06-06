@@ -15,7 +15,7 @@ export const colors = {
   slate: "#555a6a",
   success: "#00b473",
   warning: "#f4d03f",
-  error: "#e74c3c",
+  error: "#ba1a1a",
 };
 
 export const rounded = {
@@ -23,7 +23,7 @@ export const rounded = {
   md: "8px",
   lg: "12px",
   xl: "16px",
-  xxl: "24px",
+  xxl: "20px",
   full: "9999px",
 };
 
@@ -42,12 +42,12 @@ export const EXCHANGE_RATE = 35;
 // === Theme color system for buttons and toggles ===
 export const buttonTheme = {
   side: {
-    LONG: { bg: 'bg-emerald-600', border: 'border-emerald-600', text: 'text-white', inactiveText: 'text-gray-400 hover:text-gray-600', inactiveBg: 'bg-white' },
-    SHORT: { bg: 'bg-red-500', border: 'border-red-500', text: 'text-white', inactiveText: 'text-gray-400 hover:text-gray-600', inactiveBg: 'bg-white' },
+    LONG: { bg: 'bg-emerald-600', border: 'border-emerald-600', text: 'text-white', inactiveText: 'text-white/70 hover:text-white', inactiveBg: 'bg-white' },
+    SHORT: { bg: 'bg-red-500', border: 'border-red-500', text: 'text-white', inactiveText: 'text-white/70 hover:text-white', inactiveBg: 'bg-white' },
   },
   optionType: {
-    Call: { bg: 'bg-blue-600', border: 'border-blue-600', text: 'text-white', inactiveText: 'text-gray-400 hover:text-gray-600', inactiveBg: 'bg-white' },
-    Put: { bg: 'bg-orange-500', border: 'border-orange-500', text: 'text-white', inactiveText: 'text-gray-400 hover:text-gray-600', inactiveBg: 'bg-white' },
+    Call: { bg: 'bg-blue-600', border: 'border-blue-600', text: 'text-white', inactiveText: 'text-white/70 hover:text-white', inactiveBg: 'bg-white' },
+    Put: { bg: 'bg-orange-500', border: 'border-orange-500', text: 'text-white', inactiveText: 'text-white/70 hover:text-white', inactiveBg: 'bg-white' },
   },
 } as const;
 

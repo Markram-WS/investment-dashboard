@@ -199,11 +199,11 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
   const handleMouseLeave = useCallback(() => setTooltip(null), []);
 
   if (legs.length === 0) {
-    return <div className="flex items-center justify-center h-48 text-xs text-gray-400">No option legs to display. Add option orders or use Options Strategy table.</div>;
+    return <div className="flex items-center justify-center h-48 text-xs text-slate">No option legs to display. Add option orders or use Options Strategy table.</div>;
   }
 
   if (prices.length === 0) {
-    return <div className="flex items-center justify-center h-48 text-xs text-gray-400">Adjust Min/Max price range to generate the chart.</div>;
+    return <div className="flex items-center justify-center h-48 text-xs text-slate">Adjust Min/Max price range to generate the chart.</div>;
   }
 
   const lo = minPrice < maxPrice ? minPrice : 0;
@@ -319,7 +319,7 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
         </div>
       )}
 
-      <div className="flex gap-5 mt-2 text-[10px] text-gray-500">
+      <div className="flex gap-5 mt-2 text-[10px] text-slate">
         <span>Legs: <span className="font-medium text-gray-700">{legs.length}</span> ({legs.filter(l => l.source === "active").length}A, {legs.filter(l => l.source === "strategy").length}S)</span>
         <span><span className="text-blue-400">●</span> Intrinsic Max: <span className="font-bold text-emerald-600">+{Math.max(...plValues, 0).toFixed(0)}</span></span>
         <span>Min: <span className="font-bold text-red-500">{Math.min(...plValues, 0).toFixed(0)}</span></span>

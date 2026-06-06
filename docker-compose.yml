@@ -9,9 +9,10 @@ services:
             - ./frontend:/app
             - /app/node_modules
         environment:
-            - BACKEND_API_BASE_URL=http://localhost:8000
+            - BACKEND_API_BASE_URL=http://backend:8000
             - VITE_API_BASE_URL=
-        network_mode: "host"
+        networks:
+            - investment-network
         restart: unless-stopped
 
     backend:

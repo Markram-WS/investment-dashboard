@@ -21,7 +21,7 @@ export default function AllAssets() {
   return (
     <div className="p-4 md:p-8">
       <h1 className="text-2xl font-bold text-slate-900 mb-6">All Assets</h1>
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <div className="bg-canvas border border-slate-200 rounded-lg overflow-hidden">
         <table className="w-full">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
