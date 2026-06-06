@@ -64,7 +64,8 @@
 - Two PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
 
 ### Frontend (React 18 + TypeScript + Vite)
-- **Route structure**: Routes in `App.tsx` wrapped in `<GlobalLayout />`. `/analytics` route removed (AnalyticsDashboard page deleted). `/analytics/portfolio/:portfolio_id` breadcrumb links to `/`.
+- **Route structure**: Routes in `App.tsx` wrapped in `<GlobalLayout />`. `/analytics` route removed (AnalyticsDashboard page deleted). `/analytics/portfolio/:portfolio_id` breadcrumb links to `/`. `/transactions` route renders `TransactionsPage`.
+- **TransactionsPage**: Table with columns Datetime, Type, Asset, Amount, Flow, Executed By, Status. Datetime column shows `created_at` in `YYYY-MM-DD HH:MM:SS` format via `formatDateTime()`. Three modals (Transfer, Deposit, Withdraw) — no Date input (datetime auto-assigned by backend `created_at` default=utcnow). Filtered by date range and type.
 - **GlobalLayout.tsx** — Outlet-based global layout wrapper (`max-w-[1200px] mx-auto px-6`, breadcrumb, loading/error/missing states)
 - **PortfolioGrid.tsx** — slim orchestrator composing sub-components; manages per-portfolio payoff states (6 keys in localStorage); `onSaved={fetchAnalyticsData}` for data refresh after edit save
 - **Screen modals** in `src/screens/`: `AddOrderModal` (contract_type now Spot/Future/Option toggle, with conditional Call/Put toggle when option selected), `CloseOrderModal`, `EditOrderModal` (all use `buttonTheme` for Call=blue-600/Put=orange-500), `EditPortfolioModal` (live projected Available Cash, save error feedback, max validation), `ZoneEditModal`, `ZoneGroupModal`

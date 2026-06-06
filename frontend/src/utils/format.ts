@@ -26,3 +26,10 @@ export function formatDate(dateString: string | null): string {
   const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
   return new Date(dateString).toLocaleDateString(undefined, options);
 }
+
+export function formatDateTime(dateString: string | null): string {
+  if (!dateString) return "";
+  const d = new Date(dateString);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}

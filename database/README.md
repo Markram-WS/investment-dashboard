@@ -62,4 +62,4 @@ Two PostgreSQL databases power the system:
 
 ---
 
-*Last updated: 6 June 2026 (schema stable; no changes in this session)*
+*Last updated: 6 June 2026 (schema stable; Transaction.created_at default=utcnow used as display datetime on frontend)*

@@ -557,4 +557,4 @@ All raw `fetch` calls have been replaced with `lib/api.ts` methods.
 
 ---
 
-*อัปเดตโดย Hermes Agent - 6 มิถุนายน 2026 (removed /analytics route; PerformanceChart fluid aspect-[4/1] fix; PayoffChart 4:1 viewBox, nice round ticks, stats sidebar overlay, clip-path area fill green/red; Price Range auto-compute uses strike for option, entry_price for spot/future, multiplier max*1.25/min*0.75)*
+*อัปเดตโดย Hermes Agent - 6 มิถุนายน 2026 (removed /analytics route; PerformanceChart fluid aspect-[4/1] fix; PayoffChart 4:1 viewBox, nice round ticks, stats sidebar overlay, clip-path area fill green/red; Price Range auto-compute uses strike for option, entry_price for spot/future, multiplier max*1.25/min*0.75; TransactionsPage Date→Datetime column, YYYY-MM-DD HH:MM:SS format, removed unused Date fields from Transfer/Deposit/Withdraw modals)*

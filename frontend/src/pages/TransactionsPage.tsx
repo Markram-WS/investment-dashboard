@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import { Transaction } from "../types";
-import { formatCurrency, formatDate } from "../utils/format";
+import { formatCurrency, formatDateTime } from "../utils/format";
 import Button from "../screens/components/Button";
 import ToastAlert from "../screens/components/ToastAlert";
 
@@ -28,21 +28,18 @@ export default function TransactionsPage() {
     sourcePortfolioId: "",
     destPortfolioId: "",
     amount: "",
-    date: new Date().toISOString().split("T")[0],
   });
 
   // Deposit form
   const [depositForm, setDepositForm] = useState({
     portfolioId: "",
     amount: "",
-    date: new Date().toISOString().split("T")[0],
   });
 
   // Withdraw form
   const [withdrawForm, setWithdrawForm] = useState({
     portfolioId: "",
     amount: "",
-    date: new Date().toISOString().split("T")[0],
   });
 
   useEffect(() => {
@@ -63,7 +60,6 @@ export default function TransactionsPage() {
   };
 
   const fmtCurrency = (amount: number): string => formatCurrency(amount, currency);
-  const nowStr = () => new Date().toISOString().split("T")[0];
 
   const getTransactionType = (type: string): { label: string; color: string } => {
     switch (type) {
@@ -88,9 +84,9 @@ export default function TransactionsPage() {
   });
 
   const resetForms = () => {
-    setTransferForm({ sourcePortfolioId: "", destPortfolioId: "", amount: "", date: nowStr() });
-    setDepositForm({ portfolioId: "", amount: "", date: nowStr() });
-    setWithdrawForm({ portfolioId: "", amount: "", date: nowStr() });
+    setTransferForm({ sourcePortfolioId: "", destPortfolioId: "", amount: "" });
+    setDepositForm({ portfolioId: "", amount: "" });
+    setWithdrawForm({ portfolioId: "", amount: "" });
     setModalErr("");
   };
 
@@ -252,7 +248,7 @@ export default function TransactionsPage() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-surface">
-                <th className="px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Date</th>
+                <th className="px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Datetime</th>
                 <th className="px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Type</th>
                 <th className="hidden md:table-cell px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Asset</th>
                 <th className="px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Amount</th>
@@ -275,7 +271,7 @@ export default function TransactionsPage() {
                     <tr key={tx.history_id ?? tx.transaction_id ?? index}
                       className="border-t border-hairline hover:bg-teal-50 transition-colors">
                       <td className="px-5 py-3.5 text-[13px] text-ink">
-                        {formatDate(tx.entry_date)}
+                        {formatDateTime(tx.entry_date)}
                       </td>
                       <td className="px-5 py-3.5">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${typeStyle.color}`}>
@@ -337,8 +333,6 @@ export default function TransactionsPage() {
           <FormInput label="Amount" type="number" step={100} placeholder="0"
             value={transferForm.amount}
             onChange={(e) => setTransferForm((prev) => ({ ...prev, amount: e.target.value }))} />
-          <FormInput label="Date" type="date" value={transferForm.date}
-            onChange={(e) => setTransferForm((prev) => ({ ...prev, date: e.target.value }))} />
         </ModalShell>
       )}
 
@@ -355,8 +349,6 @@ export default function TransactionsPage() {
           <FormInput label="Amount" type="number" step={100} placeholder="0"
             value={depositForm.amount}
             onChange={(e) => setDepositForm((prev) => ({ ...prev, amount: e.target.value }))} />
-          <FormInput label="Date" type="date" value={depositForm.date}
-            onChange={(e) => setDepositForm((prev) => ({ ...prev, date: e.target.value }))} />
         </ModalShell>
       )}
 
@@ -373,8 +365,6 @@ export default function TransactionsPage() {
           <FormInput label="Amount" type="number" step={100} placeholder="0"
             value={withdrawForm.amount}
             onChange={(e) => setWithdrawForm((prev) => ({ ...prev, amount: e.target.value }))} />
-          <FormInput label="Date" type="date" value={withdrawForm.date}
-            onChange={(e) => setWithdrawForm((prev) => ({ ...prev, date: e.target.value }))} />
         </ModalShell>
       )}
     </div>
