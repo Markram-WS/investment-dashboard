@@ -64,7 +64,7 @@ frontend/
 │   │   ├── ZoneGroupModal.tsx       # Orders Group CRUD (add/edit/delete), "Group" column, bottom-left add
 │   │   └── components/
 │   │       ├── PortfolioHeader.tsx    # Breadcrumb, title, Refresh button (no Add Order in header)
-│   │   ├── SummaryCard.tsx        # 3-col values with formula tooltips (Total Value, Cash, Available Cash, Risk Level), Cash Details (MM/Margin/Buffer), Risk gauge (dynamic, color-coded), Asset Allocation (real data), Tags, triple-dot edit
+│   │       ├── SummaryCard.tsx        # 3-col values with formula tooltips (Total Value, Cash, Available Cash, Risk Level), Cash Details (MM/Margin/Buffer), Risk gauge (dynamic, color-coded), Asset Allocation (real data), Tags, triple-dot edit
 │   │       ├── StrategyNotes.tsx      # Trade Plan + Internal Notes (both inline-editable, yellow sticky)
 │   │       ├── TagsSection.tsx        # Metadata tag pills
 │   │       ├── PerformanceSection.tsx # Performance wrapper + Equity/Payoff toggle; passes payoff state to PayoffChart
@@ -140,26 +140,44 @@ Used by: `OptionsStrategyTable`, `AddOrderModal`, `EditOrderModal`
 |----------|----------|--------|
 | Portfolios | `/api/v1/portfolios/` | GET/POST |
 | Portfolios | `/api/v1/portfolios/{id}` | GET/PUT/DELETE |
+| Portfolios | `/api/v1/portfolios/types` | GET |
 | Assets | `/api/v1/whitelist_assets` | GET |
-| Transactions | `/api/v1/transactions` | GET |
+| Transactions | `/api/v1/transactions` | GET/POST |
+| Transactions | `/api/v1/transactions/{id}` | GET |
 | Risk | `/api/v1/risk/analytics` | GET |
 | Risk | `/api/v1/risk/pool-health` | GET |
+| Risk | `/api/v1/risk/money-reserve-status` | GET |
+| Risk | `/api/v1/risk/portfolio-safety/{id}` | GET |
 | Analytics | `/api/v1/analytics/portfolio-grid` | GET |
-| Analytics | `/api/v1/analytics/performance/{portfolio_id}` | GET (equity curve, payoff bars grouped by month with summed P/L, total P/L) |
+| Analytics | `/api/v1/analytics/portfolio/{id}` | GET |
+| Analytics | `/api/v1/analytics/performance/{portfolio_id}` | GET |
+| Analytics | `/api/v1/analytics/nav/{portfolio_id}` | GET |
+| Rebalance | `/api/v1/rebalance/modes` | GET |
+| Rebalance | `/api/v1/rebalance/calculate` | POST |
 | Rebalance | `/api/v1/rebalance/recommend` | POST |
+| Rebalance | `/api/v1/rebalance/execute` | POST |
+| Rebalance | `/api/v1/rebalance/nav-history/{portfolio_id}` | GET |
+| Rebalance | `/api/v1/rebalance/nav-history/upsert` | POST |
 | AI | `/api/v1/ai/status?portfolio_id` | GET |
+| AI | `/api/v1/ai/logs/{portfolio_id}` | GET |
 | Trade Plans | `/api/v1/trade-plans` | GET/POST |
+| Trade Plans | `/api/v1/trade-plans/{id}` | GET/PUT |
 | Orders | `/api/v1/orders/` | POST (create with optional UUID order_id) |
 | Orders | `/api/v1/orders` | GET (list) |
 | Orders | `/api/v1/orders/{order_id}/close` | POST (close + trade history) |
-| Orders | `/api/v1/orders/{order_id}` | PUT (update, including `group_id`) |
+| Orders | `/api/v1/orders/{order_id}` | GET/PUT |
 | Orders | `/api/v1/orders/{order_id}/status` | PATCH (cancel → `{"new_status":"CANCELED"}`) |
 | Orders | `/api/v1/orders/{order_id}/unlink` | POST (unlink order + partner) |
 | Orders | `/api/v1/orders/{order_id}/link` | POST (link to target order) |
-| Trade History | `/api/v1/trade-history/` | GET (list, optional `?portfolio_id=`) |
+| Trade History | `/api/v1/trade-history/` | GET/POST (optional `?portfolio_id=`) |
 | Orders Groups | `/api/v1/orders-groups/?portfolio_id=` | GET/POST (was zone-groups) |
 | Orders Groups | `/api/v1/orders-groups/{id}` | PUT/DELETE |
 | Spread Pairs | `/api/v1/spread-pairs/` | POST/DELETE |
+| Journal | `/api/v1/journal/{portfolio_id}` | GET |
+| Journal | `/api/v1/journal/` | POST |
+| Transfers | `/api/v1/transfers/` | GET/POST |
+| Transfers | `/api/v1/transfers/confirm` | POST |
+| Overview | `/api/v1/overview/` | GET |
 
 ## 🎨 UI Architecture (from DESIGN.md spec)
 
@@ -180,11 +198,11 @@ Widgets Row (2-column grid)
   └─ Money Reserve Status (Danger/Optimal/Neutral threshold bars)
 
 Portfolio Grid (xl:grid-cols-2 on desktop)
-  └─ Portfolio Cards:
-      ├─ Risk border color: teal (Safe) / yellow (Warning) / coral (Danger)
-      ├─ Profit percentage (top-right)
-      ├─ Left border accent (3px solid riskColor)
-      └─ Status message (pool health warning/rebalance)
+   └─ Portfolio Cards:
+       ├─ Risk border color: teal (Safe) / yellow (Warning) / coral (Danger)
+       ├─ Profit percentage (top-right)
+       ├─ Full border with risk color tint (side-stripe replaced in polish pass)
+       └─ Status message (pool health warning/rebalance)
 ```
 
 ### Animation & Effects
@@ -245,7 +263,11 @@ No per-component focus classes needed — every modal (AddOrder, EditOrder, Clos
 | `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | pages/PortfolioAnalyticsDetail.tsx | **Dynamic Layout** - auto-selects based on port_type (spread/grid/managed-fund). Grid type renders PortfolioGrid with 12-col layout: Left SummaryCard + StrategyNotes, PerformanceSection, OrderManagement, TradeHistory |
 | `/analytics/detail` | PortfolioAnalytics | screens/PortfolioAnalytics.tsx | **Grid View** - Split view: Left Orders+Payoff, Right Sticky Notes (Canary Yellow) |
 | `/spread-pairing` | SpreadPairing | screens/SpreadPairing.tsx | **Spread View** - Order Pairs table + Payoff chart, Side-by-side Long/Short legs |
-| `/managed-fund/{portfolioId}` | ManagedFund | screens/ManagedFund.tsx | **Managed Fund View** - Asset Allocation (Target vs Current) + Rebalance + NAV History |
+| `/managed-fund` | PortfolioMutualFund | screens/PortfolioMutualFund.tsx | **Managed Fund** overview |
+| `/managed-fund/{portfolioId}` | PortfolioMutualFund | screens/PortfolioMutualFund.tsx | **Managed Fund View** - Asset Allocation (Target vs Current) + Rebalance + NAV History |
+| `/create-portfolio` | CreateNewPortfolio | pages/CreateNewPortfolio.tsx | Portfolio creation form |
+| `/trades` | TradePlanManager | pages/TradePlanManager.tsx | Trade plan management |
+| `/orders` | ActiveOrders | pages/ActiveOrders.tsx | Active orders page |
 
 ## 🎨 Analytics Layout Varieties
 
@@ -350,47 +372,47 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
 
 ## 📊 Features หลัก
 
-1. **Portfolio Overview**: Hero Card (teal bg) with Asset Total, P/L trend, 4-col breakdown; Pool Health semi-circle gauge; Money Reserve Status bar with zones; Active Portfolios cards with DnD and borderLeft risk color
+1. **Portfolio Overview**: Hero Card (teal bg) with Asset Total, P/L trend, 4-col breakdown; Pool Health semi-circle gauge; Money Reserve Status bar with zones; Active Portfolios cards with DnD and risk-color border tint
 2. **Risk Status**: แสดงสีตามความเสี่ยง (Safe/Warning/Danger)
 3. **Live Available Cash projection**: Edit Portfolio modal shows projected Available Cash updating live as user types MM/Margin/Buffer (same auto-adjust formula as Save)
 4. **Formula tooltips**: "i" tooltips on Total Value, Cash, Available Cash (Cash Details), and Risk Level showing calculation formulas
 5. **Portfolio Grid**: คลิกเข้าสู่ analytics ของแต่ละพอร์ต
-5. **Spread Pairing**: จัดคู่ออเดอร์แบบ 1:1 พร้อม zone grouping
-6. **Rebalance**: คำนวณและแสดงคำแนะนำการทำซ้ำ (rebalance)
-7. **Payoff chart groups by month**: Payoff bars are grouped by month with summed `realized_pl` — one bar per month instead of per trade. Date labels show YYYY-MM format.
-8. **Orders Groups**: จัดกลุ่มออเดอร์ด้วย Orders Groups (rename from Zone Groups) — group_id FK to orders_groups
-8. **Drag & Drop Assign Group**: ลากออเดอร์ไปวางบน Group header, Ungrouped section, หรือ Trade History
-   - Drag handle (6-dot grip icon) visible on hover — เฉพาะ icon เท่านั้นที่ draggable
-   - Custom drag ghost: dark pill badge แสดง `#id | ASSET | SIDE | $price`
-   - Drop area expanded to all order rows in group (ไม่ใช่แค่ header), counter-ref ป้องกัน flicker
-   - Drop บน Group header → กำหนด group_id
-   - Drop บน Ungrouped section → ยกเลิก group assignment
-   - Drop บน Trade History (even when collapsed) → close (FILLED) หรือ cancel (PENDING)
-   - Group validation alerts (non-blocking toast): max_orders, min_price, max_price
-9. **Contract Type Filter Tabs**: Filter orders by `contract_type` (Spot=indigo, Future=blue, Option=purple) in the order table header. Tabs actually filter displayed orders (not just columns). **All** tab adapts columns dynamically: spot-only → basic cols, has futures → lev/margin/expiry, has options → all cols (lev/margin/expiry/strike)
-10. **Link Order Button**: Chain-link icon (`IconLink`) in the left column (next to drag handle) — links orders via `linked_order_id` using `POST /api/v1/orders/{id}/link`
-11. **EditOrderModal unlink**: Hovering the linked order info row shows a ghost link icon; clicking toggles a red broken-link icon with "Will unlink" label. On Save, calls `POST /api/v1/orders/{order_id}/unlink` before saving other changes.
-12. **Active orders sorted by Asset asc, Entry desc**: Both grouped and flat views sort active orders by asset_type ascending, then created_at (entry date) descending.
-12. **Tier Spread / Link Types**: Each order has `link_type` field:
+6. **Spread Pairing**: จัดคู่ออเดอร์แบบ 1:1 พร้อม zone grouping
+7. **Rebalance**: คำนวณและแสดงคำแนะนำการทำซ้ำ (rebalance)
+8. **Payoff chart groups by month**: Payoff bars are grouped by month with summed `realized_pl` — one bar per month instead of per trade. Date labels show YYYY-MM format.
+9. **Orders Groups**: จัดกลุ่มออเดอร์ด้วย Orders Groups (rename from Zone Groups) — group_id FK to orders_groups
+10. **Drag & Drop Assign Group**: ลากออเดอร์ไปวางบน Group header, Ungrouped section, หรือ Trade History
+    - Drag handle (6-dot grip icon) visible on hover — เฉพาะ icon เท่านั้นที่ draggable
+    - Custom drag ghost: dark pill badge แสดง `#id | ASSET | SIDE | $price`
+    - Drop area expanded to all order rows in group (ไม่ใช่แค่ header), counter-ref ป้องกัน flicker
+    - Drop บน Group header → กำหนด group_id
+    - Drop บน Ungrouped section → ยกเลิก group assignment
+    - Drop บน Trade History (even when collapsed) → close (FILLED) หรือ cancel (PENDING)
+    - Group validation alerts (non-blocking toast): max_orders, min_price, max_price
+11. **Contract Type Filter Tabs**: Filter orders by `contract_type` (Spot=indigo, Future=blue, Option=purple) in the order table header. Tabs actually filter displayed orders (not just columns). **All** tab adapts columns dynamically: spot-only → basic cols, has futures → lev/margin/expiry, has options → all cols (lev/margin/expiry/strike)
+12. **Link Order Button**: Chain-link icon (`IconLink`) in the left column (next to drag handle) — links orders via `linked_order_id` using `POST /api/v1/orders/{id}/link`
+13. **EditOrderModal unlink**: Hovering the linked order info row shows a ghost link icon; clicking toggles a red broken-link icon with "Will unlink" label. On Save, calls `POST /api/v1/orders/{order_id}/unlink` before saving other changes.
+14. **Active orders sorted by Asset asc, Entry desc**: Both grouped and flat views sort active orders by asset_type ascending, then created_at (entry date) descending.
+15. **Tier Spread / Link Types**: Each order has `link_type` field:
     - `"spread"` — cross-linked (A↔B), forms a spread pair
     - `"pending_close"` — one-way sub-order (B→A, B is a pending close of A)
     - `"primary"` — no link but has sub-orders linking to it (A with C→A)
     - `"none"` — no linking
-13. **Close auto-closes subs**: Closing a primary order (or a spread leg) auto-closes all its one-way sub-orders server-side; response includes `auto_closed[]`. For spread pair legs, returns `paired_order_id` to auto-open close modal for the partner.
-14. **Link UI**: Link icon in white circle (`bg-white rounded-full p-0.5`, no border, `shadow-sm`) with per-type color (blue `text-blue-600` for spread, yellow `text-yellow-500` for pending_close, gray `text-gray-300` for unlinked). Icon is **absolutely positioned** at `top: 0` aligned to the SVG line center — sits at the front/start of the vertical connecting line. SVG vertical lines: spread pair = blue (`#93c5fd`) continuous line from first icon to bottom (`y1="0"→y2="100%"`), last icon sits alone (`y1="0"→y2="0"`); pending_close = yellow (`#fde047`) from top to middle (`y1="0"→y2="50%"`). SVG constrained to content area via explicit `top: 0; height: 100%`. 6-dot grip hidden + non-draggable on sub-orders. Drag parent carries linked children via `text/x-linked-ids`.
-15. **Ungrouped Orders section**: Always visible (drop target for unassigning)
-16. **Order status**: PENDING / FILLED / CLOSE / CANCELED (uppercase)
-17. **Portfolio Delete**: Cascade cleanup with activeOrderCount guard + per-portfolio localStorage cleanup
-18. **Header layout**: Two-row header — title + ACTIVE badge (row 1), Order Groups icon + Group toggle (row 2), Add Order pill button centered vertically on right
-19. **Trade History styling**: Matches Ungrouped Orders section — `bg-gray-50` with pill badge, `border border-hairline`, `rounded-b-xl`
-20. **ToastAlert position**: Centered below nav bar (`top-20 left-1/2 -translate-x-1/2 z-[9999]`)
-21. **Options Strategy Table**: Local-scratchpad for option strategy rows (frontend-only, per-portfolio localStorage). Side=emerald/red, Call=blue-600/Put=orange-500 via buttonTheme. Price column renamed to Premium.
-22. **Payoff Chart (Performance tab)**: Pure SVG — Put-Call parity visualization. Intrinsic line (blue #3B82F6, strokeWidth 2). BS IV overlay (orange #F97316, dashed, optional via toggle). Area fill: pale green (#DCFCE7, 0.6) above baseline, pale red (#FEE2E2, 0.6) below, fades to 0 at baseline. Break-even markers (amber dot + "BE: XXX" label). **Break Event** label (amber rect at top, no vertical bar) — shows intrinsic BE when IV OFF, IV BE when IV ON. Hover tooltip with P/L values. Dynamic ~200 points. Y-axis symmetric around 0.
-23. **Payoff localStorage per portfolio**: 6 keys (`payoff_{key}_{portfolio_id}`) — strategy_rows, iv_mode, min_price, max_price, active_ivs, current_price. One-time migration from old flat keys. Delete portfolio clears its keys.
-24. **Controls panel (beside Options Strategy)**: BS IV mode toggle, Min/Max price range inputs, Current Price slider, per-order Active IV% inputs.
-25. **Edit Portfolio live projection**: Available Cash display updates live as user types MM/Margin/Buffer — `projectedAvailableCash = Math.max(0, rawAvailableCash − totalDiff)`
-26. **Formula tooltips in SummaryCard**: "i" tooltips on Total Value (`Cash + P/L + MM + Margin + Buffer + Notional`), Available Cash in Cash Details (`Available Cash = Cash + Total P/L`), and Risk Level (`min(100%, (Cash − Margin) ÷ max(Buffer, Margin) × 100)`)
-27. **Save error feedback**: Edit Portfolio modal shows error message on save failure (network errors, validation)
+16. **Close auto-closes subs**: Closing a primary order (or a spread leg) auto-closes all its one-way sub-orders server-side; response includes `auto_closed[]`. For spread pair legs, returns `paired_order_id` to auto-open close modal for the partner.
+17. **Link UI**: Link icon in white circle (`bg-white rounded-full p-0.5`, no border, `shadow-sm`) with per-type color (blue `text-blue-600` for spread, yellow `text-yellow-500` for pending_close, gray `text-gray-300` for unlinked). Icon is **absolutely positioned** at `top: 0` aligned to the SVG line center — sits at the front/start of the vertical connecting line. SVG vertical lines: spread pair = blue (`#93c5fd`) continuous line from first icon to bottom (`y1="0"→y2="100%"`), last icon sits alone (`y1="0"→y2="0"`); pending_close = yellow (`#fde047`) from top to middle (`y1="0"→y2="50%"`). SVG constrained to content area via explicit `top: 0; height: 100%`. 6-dot grip hidden + non-draggable on sub-orders. Drag parent carries linked children via `text/x-linked-ids`.
+18. **Ungrouped Orders section**: Always visible (drop target for unassigning)
+19. **Order status**: PENDING / FILLED / CLOSE / CANCELED (uppercase)
+20. **Portfolio Delete**: Cascade cleanup with activeOrderCount guard + per-portfolio localStorage cleanup
+21. **Header layout**: Two-row header — title + ACTIVE badge (row 1), Order Groups icon + Group toggle (row 2), Add Order pill button centered vertically on right
+22. **Trade History styling**: Matches Ungrouped Orders section — `bg-gray-50` with pill badge, `border border-hairline`, `rounded-b-xl`
+23. **ToastAlert position**: Centered below nav bar (`top-20 left-1/2 -translate-x-1/2 z-[9999]`)
+24. **Options Strategy Table**: Local-scratchpad for option strategy rows (frontend-only, per-portfolio localStorage). Side=emerald/red, Call=blue-600/Put=orange-500 via buttonTheme. Price column renamed to Premium.
+25. **Payoff Chart (Performance tab)**: Pure SVG — Put-Call parity visualization. Intrinsic line (blue #3B82F6, strokeWidth 2). BS IV overlay (orange #F97316, dashed, optional via toggle). Area fill: pale green (#DCFCE7, 0.6) above baseline, pale red (#FEE2E2, 0.6) below, fades to 0 at baseline. Break-even markers (amber dot + "BE: XXX" label). **Break Event** label (amber rect at top, no vertical bar) — shows intrinsic BE when IV OFF, IV BE when IV ON. Hover tooltip with P/L values. Dynamic ~200 points. Y-axis symmetric around 0.
+26. **Payoff localStorage per portfolio**: 6 keys (`payoff_{key}_{portfolio_id}`) — strategy_rows, iv_mode, min_price, max_price, active_ivs, current_price. One-time migration from old flat keys. Delete portfolio clears its keys.
+27. **Controls panel (beside Options Strategy)**: BS IV mode toggle, Min/Max price range inputs, Current Price slider, per-order Active IV% inputs.
+28. **Edit Portfolio live projection**: Available Cash display updates live as user types MM/Margin/Buffer — `projectedAvailableCash = Math.max(0, rawAvailableCash − totalDiff)`
+29. **Formula tooltips in SummaryCard**: "i" tooltips on Total Value (`Cash + P/L + MM + Margin + Buffer + Notional`), Available Cash in Cash Details (`Available Cash = Cash + Total P/L`), and Risk Level (`min(100%, (Cash − Margin) ÷ max(Buffer, Margin) × 100)`)
+30. **Save error feedback**: Edit Portfolio modal shows error message on save failure (network errors, validation)
 
 ## ⚙️ Technical Details
 
@@ -463,7 +485,8 @@ staleTime: 30000
 **PortfolioOverview.tsx**:
 - Grid 2 columns: Cash stats (ซ้าย) + Gauges (ขวา)
 - Portfolio grid: `grid-template-columns: repeat(auto-fill, minmax(340px, 1fr))`
-- Risk border: `borderLeft: 3px solid ${riskColor}`
+- Design tokens via CSS variables (colors tokenized from hard-coded hex values in polish pass)
+- Responsive grid layout with breakpoint-aware column counts
 
 ### Data Models (TypeScript)
 

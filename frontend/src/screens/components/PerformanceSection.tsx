@@ -14,14 +14,12 @@ interface PerformanceSectionProps {
   payoffMinPrice?: number;
   payoffMaxPrice?: number;
   activeIVs?: Record<string, number>;
-  payoffCurrentPrice?: number;
 }
 
 const PerformanceSection: React.FC<PerformanceSectionProps> = ({
   performanceData, viewMode, onViewModeChange,
   activeOrders = [], strategyRows = [], ivMode = false,
   payoffMinPrice = 0, payoffMaxPrice = 0, activeIVs = {},
-  payoffCurrentPrice = 0,
 }) => (
   <section className="mb-6">
     <div className="rounded-2xl bg-purple-50 p-8 flex flex-col border border-hairline-soft">
@@ -63,7 +61,6 @@ const PerformanceSection: React.FC<PerformanceSectionProps> = ({
           minPrice={payoffMinPrice}
           maxPrice={payoffMaxPrice}
           activeIVs={activeIVs}
-          currentPrice={payoffCurrentPrice}
         />
       )}
     </div>

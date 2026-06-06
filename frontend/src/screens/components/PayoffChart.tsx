@@ -9,7 +9,6 @@ interface PayoffChartProps {
   minPrice: number;
   maxPrice: number;
   activeIVs: Record<string, number>;
-  currentPrice: number;
 }
 
 function normCdf(x: number): number {
@@ -71,7 +70,7 @@ const NUM_POINTS = 200;
 
 interface TooltipData { x: number; y: number; price: number; pl: number; plIv?: number; }
 
-const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, ivMode, minPrice, maxPrice, activeIVs, currentPrice }) => {
+const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, ivMode, minPrice, maxPrice, activeIVs }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
 
@@ -235,14 +234,14 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
           const val = minPl + (maxPl - minPl) * f;
           return (
             <g key={f}>
-              <line x1={MARGIN.left} y1={y} x2={MARGIN.left + CHART_W} y2={y} stroke={f === 0 || f === 1 ? "#e5e7eb" : "#f3f4f6"} strokeWidth="1" />
-              <text x={MARGIN.left - 6} y={y + 3} textAnchor="end" className="text-[9px]" fill="#9ca3af">{val.toFixed(0)}</text>
+              <line x1={MARGIN.left} y1={y} x2={MARGIN.left + CHART_W} y2={y} stroke={f === 0 || f === 1 ? "var(--color-hairline)" : "var(--color-hairline-soft)"} strokeWidth="1" />
+              <text x={MARGIN.left - 6} y={y + 3} textAnchor="end" className="text-[9px]" fill="var(--color-slate)">{val.toFixed(0)}</text>
             </g>
           );
         })}
         {[0.25, 0.5, 0.75].map((f) => {
           const x = MARGIN.left + CHART_W * f;
-          return <line key={`v${f}`} x1={x} y1={MARGIN.top} x2={x} y2={MARGIN.top + CHART_H} stroke="#f3f4f6" strokeWidth="1" />;
+          return <line key={`v${f}`} x1={x} y1={MARGIN.top} x2={x} y2={MARGIN.top + CHART_H} stroke="var(--color-hairline-soft)" strokeWidth="1" />;
         })}
 
         {/* X-axis price labels */}
@@ -251,7 +250,7 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
           const val = lo + (hi - lo) * f;
           return (
             <g key={`xlabel-${f}`}>
-              <text x={x} y={MARGIN.top + CHART_H + 12} textAnchor="middle" className="text-[8px]" fill="#9ca3af">{val.toFixed(0)}</text>
+              <text x={x} y={MARGIN.top + CHART_H + 12} textAnchor="middle" className="text-[8px]" fill="var(--color-slate)">{val.toFixed(0)}</text>
             </g>
           );
         })}
@@ -260,15 +259,15 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
         <path d={fillPath} fill="url(#fillAbove)" />
 
         {/* Baseline */}
-        <line x1={MARGIN.left} y1={baselineY} x2={MARGIN.left + CHART_W} y2={baselineY} stroke="#d1d5db" strokeWidth="1.5" strokeDasharray="6,4" />
+        <line x1={MARGIN.left} y1={baselineY} x2={MARGIN.left + CHART_W} y2={baselineY} stroke="var(--color-hairline)" strokeWidth="1.5" strokeDasharray="6,4" />
 
         {/* IV line (when IV mode ON) */}
         {ivMode && ivLinePath && (
-          <path d={ivLinePath} fill="none" stroke="#F97316" strokeWidth="1.5" strokeDasharray="6,3" strokeLinejoin="round" strokeLinecap="round" />
+          <path d={ivLinePath} fill="none" stroke="var(--color-brand-teal)" strokeWidth="1.5" strokeDasharray="6,3" strokeLinejoin="round" strokeLinecap="round" />
         )}
 
         {/* Intrinsic P/L line */}
-        <path d={linePath} fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={linePath} fill="none" stroke="var(--color-brand-blue)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
 
         {/* Break Event */}
         {(() => {
@@ -277,7 +276,7 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
           const x = toX(bePrice);
           return (
             <g>
-              <rect x={x - 38} y={MARGIN.top - 16} width="76" height="14" rx="3" fill="#f59e0b" />
+              <rect x={x - 38} y={MARGIN.top - 16} width="76" height="14" rx="3" fill="var(--color-warning)" />
               <text x={x} y={MARGIN.top - 6} textAnchor="middle" className="text-[8px]" fill="white" fontWeight="600">Break Event: {bePrice.toFixed(0)}</text>
             </g>
           );
@@ -288,48 +287,48 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
           const x = toX(be);
           return (
             <g key={`be-${i}`}>
-              <circle cx={x} cy={baselineY} r="4" fill="#f59e0b" stroke="white" strokeWidth="2" />
-              <rect x={x - 22} y={baselineY + 8} width="44" height="14" rx="3" fill="#f59e0b" />
+              <circle cx={x} cy={baselineY} r="4" fill="var(--color-warning)" stroke="white" strokeWidth="2" />
+              <rect x={x - 22} y={baselineY + 8} width="44" height="14" rx="3" fill="var(--color-warning)" />
               <text x={x} y={baselineY + 18} textAnchor="middle" className="text-[8px]" fill="white" fontWeight="600">BE: {be.toFixed(0)}</text>
             </g>
           );
         })}
 
         {/* Axes */}
-        <line x1={MARGIN.left} y1={MARGIN.top + CHART_H} x2={MARGIN.left + CHART_W} y2={MARGIN.top + CHART_H} stroke="#d1d5db" strokeWidth="1" />
-        <line x1={MARGIN.left} y1={MARGIN.top} x2={MARGIN.left} y2={MARGIN.top + CHART_H} stroke="#d1d5db" strokeWidth="1" />
+        <line x1={MARGIN.left} y1={MARGIN.top + CHART_H} x2={MARGIN.left + CHART_W} y2={MARGIN.top + CHART_H} stroke="var(--color-hairline)" strokeWidth="1" />
+        <line x1={MARGIN.left} y1={MARGIN.top} x2={MARGIN.left} y2={MARGIN.top + CHART_H} stroke="var(--color-hairline)" strokeWidth="1" />
 
-        <text x={MARGIN.left + CHART_W / 2} y={HEIGHT - 2} textAnchor="middle" className="text-[10px]" fill="#6b7280" fontWeight="500">Underlying Price</text>
-        <text x={14} y={MARGIN.top + CHART_H / 2} textAnchor="middle" transform={`rotate(-90, 14, ${MARGIN.top + CHART_H / 2})`} className="text-[10px]" fill="#6b7280" fontWeight="500">P/L</text>
+        <text x={MARGIN.left + CHART_W / 2} y={HEIGHT - 2} textAnchor="middle" className="text-[10px]" fill="var(--color-slate)" fontWeight="500">Underlying Price</text>
+        <text x={14} y={MARGIN.top + CHART_H / 2} textAnchor="middle" transform={`rotate(-90, 14, ${MARGIN.top + CHART_H / 2})`} className="text-[10px]" fill="var(--color-slate)" fontWeight="500">P/L</text>
       </svg>
 
       {tooltip && (
         <div className="absolute bg-gray-900 text-white text-[10px] px-2.5 py-1.5 rounded pointer-events-none shadow-lg z-10" style={{ left: Math.min(tooltip.x + 12, WIDTH - 100), top: Math.max(tooltip.y - 40, 0) }}>
           <div>Price: <span className="font-medium">{tooltip.price.toFixed(0)}</span></div>
           <div>
-            <span className="text-blue-400">●</span> Intrinsic:{" "}
-            <span className="font-bold" style={{ color: tooltip.pl >= 0 ? "#22C55E" : "#EF4444" }}>{tooltip.pl >= 0 ? "+" : ""}{tooltip.pl.toFixed(2)}</span>
+            <span className="text-brand-blue">●</span> Intrinsic:{" "}
+            <span className="font-bold" style={{ color: tooltip.pl >= 0 ? "var(--color-success)" : "var(--color-error)" }}>{tooltip.pl >= 0 ? "+" : ""}{tooltip.pl.toFixed(2)}</span>
           </div>
           {tooltip.plIv !== undefined && (
             <div>
-              <span className="text-orange-400">╌</span> BSM IV:{" "}
-              <span className="font-bold" style={{ color: tooltip.plIv >= 0 ? "#22C55E" : "#EF4444" }}>{tooltip.plIv >= 0 ? "+" : ""}{tooltip.plIv.toFixed(2)}</span>
+              <span className="text-brand-teal">╌</span> BSM IV:{" "}
+              <span className="font-bold" style={{ color: tooltip.plIv >= 0 ? "var(--color-success)" : "var(--color-error)" }}>{tooltip.plIv >= 0 ? "+" : ""}{tooltip.plIv.toFixed(2)}</span>
             </div>
           )}
         </div>
       )}
 
       <div className="flex gap-5 mt-2 text-[10px] text-slate">
-        <span>Legs: <span className="font-medium text-gray-700">{legs.length}</span> ({legs.filter(l => l.source === "active").length}A, {legs.filter(l => l.source === "strategy").length}S)</span>
-        <span><span className="text-blue-400">●</span> Intrinsic Max: <span className="font-bold text-emerald-600">+{Math.max(...plValues, 0).toFixed(0)}</span></span>
-        <span>Min: <span className="font-bold text-red-500">{Math.min(...plValues, 0).toFixed(0)}</span></span>
+        <span>Legs: <span className="font-medium text-ink">{legs.length}</span> ({legs.filter(l => l.source === "active").length}A, {legs.filter(l => l.source === "strategy").length}S)</span>
+        <span><span className="text-brand-blue">●</span> Intrinsic Max: <span className="font-bold text-success">+{Math.max(...plValues, 0).toFixed(0)}</span></span>
+        <span>Min: <span className="font-bold text-error">{Math.min(...plValues, 0).toFixed(0)}</span></span>
         {ivMode && (
           <>
-            <span><span className="text-orange-400">╌</span> BSM Max: <span className="font-bold text-emerald-600">+{Math.max(...ivPlValues, 0).toFixed(0)}</span></span>
-            <span>Min: <span className="font-bold text-red-500">{Math.min(...ivPlValues, 0).toFixed(0)}</span></span>
+            <span><span className="text-brand-teal">╌</span> BSM Max: <span className="font-bold text-success">+{Math.max(...ivPlValues, 0).toFixed(0)}</span></span>
+            <span>Min: <span className="font-bold text-error">{Math.min(...ivPlValues, 0).toFixed(0)}</span></span>
           </>
         )}
-        {bePoints.length > 0 && <span>BE: <span className="font-medium text-gray-700">{bePoints.map(b => b.toFixed(0)).join(", ")}</span></span>}
+        {bePoints.length > 0 && <span>BE: <span className="font-medium text-ink">{bePoints.map(b => b.toFixed(0)).join(", ")}</span></span>}
       </div>
     </div>
   );

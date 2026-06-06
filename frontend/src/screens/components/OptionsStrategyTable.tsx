@@ -70,7 +70,7 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
   if (!visible) return null;
 
   return (
-    <div className="mb-4 border border-hairline rounded-xl overflow-hidden">
+    <div className="h-full">
       <div className="flex items-center justify-between px-4 py-2 bg-surface border-b border-hairline">
         <span className="text-[10px] font-bold text-slate uppercase tracking-widest">Options Strategy</span>
         <button
@@ -81,7 +81,7 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
           <IconX className="w-5 h-5" />
         </button>
       </div>
-      <table className="w-4/6 text-xs">
+      <table className="w-full text-xs">
         <thead>
           <tr className="bg-surface">
             <th className="px-2 py-1.5 text-center font-semibold text-ink">Side</th>

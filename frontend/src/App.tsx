@@ -22,6 +22,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <Router>
         <Navigation />
+        <main className="pt-16 min-h-screen">
         <Routes>
         <Route path="/" element={<PortfolioOverview />} />
         <Route path="/trades" element={<TradePlanManager />} />
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/all-assets" element={<AllAssets />} />
         <Route path="/risk-analytics" element={<RiskAnalytics />} />
       </Routes>
+      </main>
     </Router>
   </QueryClientProvider>
   );

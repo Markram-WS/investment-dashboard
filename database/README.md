@@ -4,7 +4,7 @@ Two PostgreSQL databases power the system:
 
 ## Main DB (`investment_main`) — `main_db_schema.sql`
 
-11 tables for portfolio management, trade execution, and ledger:
+12 tables for portfolio management, trade execution, and ledger:
 
 | Table | Purpose |
 |-------|---------|
@@ -28,7 +28,7 @@ Two PostgreSQL databases power the system:
 - `group_id INTEGER FK → orders_groups(id)` — zone grouping
 - `contract_type TEXT` — `'spot'`, `'future'`, or `'option'`
 - `option_type TEXT` — `'Call'` or `'Put'` for options
-- `side TEXT` — `'BUY'`/`'SELL'` for spot, `'LONG'`/`'SHORT'` for futures/options (`direction` field removed)
+- `side TEXT` — `'BUY'`/`'SELL'` for spot, `'LONG'`/`'SHORT'` for futures/options (`direction` column still exists as nullable in schema but removed from frontend types)
 - `expiry_date TIMESTAMP` — for futures/options
 - `strike_price NUMERIC(20,8)` — for options
 - `cost NUMERIC(20,8)` — cost basis
@@ -46,6 +46,9 @@ Two PostgreSQL databases power the system:
 ## Notes
 
 - `portfolios.available_cash` is auto-adjusted by the frontend when Money Market/Margin Locked/Cash Buffer Limit change in Edit Portfolio: `newAvailable = rawAvailableCash - totalDiff` (diff of new vs old deduction values)
+- **Both databases get all 15 tables created**: the `lifespan` handler calls `Base.metadata.create_all` on both engines, so `investment_main` and `investment_ai` both contain every table. The AI tables (`ai_agents`, `ai_action_logs`, `ai_agent_state`) are functionally isolated by connection.
+- **`direction` column**: still exists as a nullable `TEXT` column in `active_orders` (schema & ORM). It was removed only from frontend TypeScript types. The `side` field (`BUY`/`SELL`/`LONG`/`SHORT`) is the canonical direction indicator.
+- **`AiActionLog.linked_order_id`** is `INTEGER` in the ORM model, but `active_orders.order_id` is `TEXT` (UUID). This is a type mismatch — `linked_order_id` in action logs should be `TEXT` to match the UUID primary key of the referenced order.
 - `available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit` are all `NUMERIC(20,8)` columns and can be `NULL` (frontend defaults to `0`)
 - `link_type` is NOT stored — computed server-side by `analytics.py._link_type()`:
   - `"spread"` — cross-linked (A↔B)

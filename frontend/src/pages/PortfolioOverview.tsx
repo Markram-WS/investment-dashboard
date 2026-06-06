@@ -5,7 +5,6 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { api } from "../lib/api";
 import { PortfolioOverviewItem, OverviewResponse } from "../types";
 import { getPortfolioTags, getProfitPct, getStatusMessage } from "../utils/tags";
-import { getRiskColor } from "../utils/risk";
 import { fmtAmount } from "../utils/format";
 import TransferModal from "../screens/components/TransferModal";
 import ToastAlert from "../screens/components/ToastAlert";
@@ -44,16 +43,15 @@ function PortfolioCard({
   const statusMessage = getStatusMessage(p);
   const isDanger = p.risk_status === "Danger";
   const isWarning = p.risk_status === "Warning";
-  const cardBg = isDanger ? 'rgba(255,198,198,0.4)' : isWarning ? 'rgba(255,208,47,0.2)' : 'var(--color-canvas)';
+  const cardBg = isDanger ? 'var(--color-coral-light)' : isWarning ? 'var(--color-yellow-light)' : 'var(--color-canvas)';
   const statusBg = isDanger ? 'var(--color-primary)' : 'var(--color-canvas)';
   const statusText = isDanger ? 'var(--color-on-primary)' : 'var(--color-slate)';
-  const dropGlow = canDrop && isOver ? '0 0 0 3px #0fbcb0' : canDrop ? '0 0 0 2px rgba(15,188,176,0.3)' : '';
+  const dropGlow = canDrop && isOver ? '0 0 0 3px var(--color-brand-teal)' : canDrop ? '0 0 0 2px color-mix(in srgb, var(--color-brand-teal) 30%, transparent)' : '';
 
   return (
     <div ref={dropRef}
       className="card card-hover animate-fade-up p-8 cursor-pointer"
       style={{
-        borderLeft: `2px solid ${getRiskColor(p.risk_status)}`,
         background: cardBg,
         boxShadow: dropGlow || undefined,
       }}
@@ -256,8 +254,8 @@ export default function PortfolioOverview() {
           <div className="flex flex-col items-center">
             <div className="relative w-48 h-24 overflow-hidden">
               <svg width="192" height="192" viewBox="0 0 100 100">
-                <path d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent" stroke="#f4f4f6" strokeWidth="12" />
-                <path d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent" stroke="#0fbcb0" strokeWidth="12"
+                <path d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent" stroke="var(--color-hairline-soft)" strokeWidth="12" />
+                <path d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent" stroke="var(--color-brand-teal)" strokeWidth="12"
                   strokeDasharray={gaugeCircumference} strokeDashoffset={gaugeDashoffset} className="health-gauge-path" />
               </svg>
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-center">
@@ -282,7 +280,7 @@ export default function PortfolioOverview() {
             </h3>
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full"
               style={{
-                background: isReserveOptimal ? 'var(--color-teal-light)' : isReserveDanger ? 'rgba(255,153,153,0.2)' : 'rgba(66,98,255,0.12)',
+                background: isReserveOptimal ? 'var(--color-teal-light)' : isReserveDanger ? 'color-mix(in srgb, var(--color-brand-coral) 20%, transparent)' : 'color-mix(in srgb, var(--color-brand-blue) 12%, transparent)',
                 color: isReserveOptimal ? 'var(--color-brand-teal)' : isReserveDanger ? 'var(--color-brand-coral)' : 'var(--color-brand-blue)',
               }}>
               <span className="text-xs font-bold">●</span>
@@ -292,10 +290,10 @@ export default function PortfolioOverview() {
             </div>
           </div>
           <div className="flex flex-col gap-8">
-            <div className="relative h-3 bg-[#f4f4f6] rounded-full overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1/4 bg-[rgba(255,153,153,0.3)]" />
-              <div className="absolute left-1/4 top-0 bottom-0 w-1/2 bg-[rgba(15,188,176,0.3)]" />
-              <div className="absolute left-3/4 top-0 bottom-0 w-1/4 bg-[rgba(66,98,255,0.15)]" />
+            <div className="relative h-3 bg-hairline-soft rounded-full overflow-hidden">
+              <div className="absolute left-0 top-0 bottom-0 w-1/4" style={{ background: 'color-mix(in srgb, var(--color-brand-coral) 30%, transparent)' }} />
+              <div className="absolute left-1/4 top-0 bottom-0 w-1/2" style={{ background: 'color-mix(in srgb, var(--color-brand-teal) 30%, transparent)' }} />
+              <div className="absolute left-3/4 top-0 bottom-0 w-1/4" style={{ background: 'color-mix(in srgb, var(--color-brand-blue) 15%, transparent)' }} />
               <div className="shimmer-bar absolute inset-0 pointer-events-none" />
               <div className="absolute top-0 bottom-0 w-1.5 bg-primary rounded-full" style={{ left: `${reserveMarkerLeft}%`, transition: 'left 1s ease' }} />
             </div>
@@ -310,7 +308,7 @@ export default function PortfolioOverview() {
                 Neutral<br /><span className="font-normal normal-case">{'> '}{fmtAmount(upperBound || 90000, currency)}</span>
               </div>
             </div>
-            <div className="p-4 bg-[rgba(15,188,176,0.08)] rounded-xl border border-[rgba(15,188,176,0.2)]">
+            <div className="p-4 rounded-xl border" style={{ background: 'color-mix(in srgb, var(--color-brand-teal) 8%, transparent)', borderColor: 'color-mix(in srgb, var(--color-brand-teal) 20%, transparent)' }}>
               <p className="text-[13px] leading-relaxed text-on-surface-variant italic m-0">
                 Current available liquidity ({fmtAmount(available_cash || 0, currency)}) is within the optimal threshold relative to the {fmtAmount(margin + buffer || 0, currency)} buffer.
               </p>

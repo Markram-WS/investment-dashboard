@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-06T00:00:00.000Z",
+  "title": "Design System: Investment Dashboard (Miro Portfolio System)",
+  "extensions": {
+    "colorMeta": {
+      "ink": { "role": "primary", "displayName": "Ink", "canonical": "#1c1c1e", "tonalRamp": ["#0a0a0b", "#111113", "#1c1c1e", "#2c2c30", "#3d3d42", "#55555a", "#6f6f74", "#8a8a8e"] },
+      "brand-yellow": { "role": "accent", "displayName": "Brand Yellow", "canonical": "#ffd02f", "tonalRamp": ["#b8960f", "#d4b00f", "#edc41d", "#ffd02f", "#ffdb59", "#ffe582", "#fff0ab", "#fffae1"] },
+      "brand-teal": { "role": "accent", "displayName": "Brand Teal", "canonical": "#0fbcb0", "tonalRamp": ["#063d39", "#0a635c", "#0d8980", "#0fbcb0", "#3dcfc6", "#6edfda", "#a1eeeb", "#d5fcfb"] },
+      "brand-coral": { "role": "accent", "displayName": "Brand Coral", "canonical": "#ff9999", "tonalRamp": ["#600000", "#943030", "#c95a5a", "#ff9999", "#ffb3b3", "#ffcccc", "#ffe0e0", "#fff5f5"] },
+      "brand-blue": { "role": "accent", "displayName": "Brand Blue", "canonical": "#4262ff", "tonalRamp": ["#001aa0", "#1a38d4", "#2e4ef0", "#4262ff", "#6b83ff", "#94a6ff", "#bcc8ff", "#e6ebff"] },
+      "canvas": { "role": "neutral", "displayName": "Canvas", "canonical": "#ffffff", "tonalRamp": ["#d9d9d9", "#e6e6e6", "#f2f2f2", "#ffffff", "#ffffff", "#ffffff", "#ffffff", "#ffffff"] },
+      "surface": { "role": "neutral", "displayName": "Surface", "canonical": "#f7f8fa", "tonalRamp": ["#c5c8d0", "#d7d9e0", "#e7e8ed", "#f7f8fa", "#f9fafb", "#fbfbfc", "#fdfdfe", "#ffffff"] },
+      "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "#e0e2e8", "tonalRamp": ["#b0b4be", "#c2c6cf", "#d1d4dc", "#e0e2e8", "#e6e8ed", "#eceef2", "#f2f3f6", "#f9f9fb"] },
+      "slate": { "role": "neutral", "displayName": "Slate", "canonical": "#555a6a", "tonalRamp": ["#2d3038", "#393d47", "#464a56", "#555a6a", "#6f7382", "#898d99", "#a4a7b1", "#c0c2c9"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page titles only — 'Overview', 'Risk Analytics'." },
+      "heading": { "displayName": "Heading", "purpose": "Section headings within pages." },
+      "title": { "displayName": "Title", "purpose": "Card titles, dialog headings." },
+      "body": { "displayName": "Body", "purpose": "Primary reading size for stats, descriptions, table cells. 15px." },
+      "label": { "displayName": "Label", "purpose": "Stat labels, section eyebrows, badge text. Uppercase, max 4 words." }
+    },
+    "shadows": [
+      { "name": "sm", "value": "0 1px 2px rgba(0,0,0,0.05)", "purpose": "Card hover state, subtle element lift." },
+      { "name": "md", "value": "0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04)", "purpose": "Dropdowns, sticky nav, modal containers." },
+      { "name": "lg", "value": "0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04)", "purpose": "Modals, popovers, large overlays." }
+    ],
+    "motion": [
+      { "name": "ease-state", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default easing for state transitions (hover, focus, color)." },
+      { "name": "duration-fast", "value": "150ms", "purpose": "Hover transitions, color shifts." },
+      { "name": "duration-entrance", "value": "600ms", "purpose": "Fade-up entrance animations." },
+      { "name": "ease-entrance", "value": "ease-out", "purpose": "Entrance and reveal animations." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Teal full-pill primary call-to-action. Default action on every screen.",
+      "html": "<button class=\"ds-btn-primary\">Create Portfolio</button>",
+      "css": ".ds-btn-primary { background: #0fbcb0; color: #ffffff; font-family: 'Sora', system-ui, sans-serif; font-size: 12px; font-weight: 700; line-height: 1; text-transform: none; padding: 16px 24px; border: none; border-radius: 9999px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-primary:hover { background: #0da89d; } .ds-btn-primary:focus-visible { outline: 2px solid #1c1c1e; outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "White-filled button with hairline border. Used for secondary actions alongside the primary.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary { background: #ffffff; color: #1c1c1e; font-family: 'Sora', system-ui, sans-serif; font-size: 12px; font-weight: 700; line-height: 1; padding: 16px 24px; border: 1px solid #e0e2e8; border-radius: 9999px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-secondary:hover { background: #f7f8fa; } .ds-btn-secondary:focus-visible { outline: 2px solid #1c1c1e; outline-offset: 2px; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Primary container for portfolio cards, metric panels, and content blocks.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Portfolio Name</div><div class=\"ds-card-value\">$84,250.00</div></div>",
+      "css": ".ds-card { background: #ffffff; border: 1px solid #e0e2e8; border-radius: 16px; padding: 24px; font-family: 'Sora', system-ui, sans-serif; } .ds-card-title { font-size: 24px; font-weight: 600; line-height: 1.2; color: #1c1c1e; margin: 0 0 4px; } .ds-card-value { font-size: 36px; font-weight: 700; line-height: 1.1; color: #1c1c1e; letter-spacing: -0.02em; margin: 0; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Text input with hairline border. Used in modals, forms, and search.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Portfolio name\" />",
+      "css": ".ds-input { padding: 8px 14px; border-radius: 8px; border: 1px solid #e0e2e8; background: #ffffff; color: #1c1c1e; font-family: 'Sora', system-ui, sans-serif; font-size: 14px; line-height: 1.5; transition: border-color 150ms cubic-bezier(0.4,0,0.2,1); width: 100%; box-sizing: border-box; } .ds-input:focus { outline: none; border-color: #0fbcb0; } .ds-input::placeholder { color: #77767b; } .ds-input:focus-visible { outline: 2px solid #0fbcb0; outline-offset: 2px; }"
+    },
+    {
+      "name": "Navigation Pill Link",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Top navigation link. Active state is ink-filled; inactive is slate text.",
+      "html": "<a class=\"ds-nav-link ds-nav-link-active\" href=\"#\"><svg class=\"ds-nav-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"9\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"5\"/><rect x=\"14\" y=\"12\" width=\"7\" height=\"9\"/><rect x=\"3\" y=\"16\" width=\"7\" height=\"5\"/></svg> Overview</a>",
+      "css": ".ds-nav-link { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 9999px; font-family: 'Sora', system-ui, sans-serif; font-size: 14px; font-weight: 500; color: #555a6a; text-decoration: none; transition: background 150ms ease, color 150ms ease; } .ds-nav-link:hover { color: #1c1c1e; background: #f7f8fa; } .ds-nav-link-active { background: #1c1c1e; color: #ffffff; } .ds-nav-link-active:hover { background: #1c1c1e; } .ds-nav-icon { width: 20px; height: 20px; transition: transform 200ms cubic-bezier(0.4,0,0.2,1); } .ds-nav-icon:hover { transform: scale(1.12); }"
+    },
+    {
+      "name": "Badge / Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Small pill tag for portfolio type tags and status indicators.",
+      "html": "<span class=\"ds-chip ds-chip-teal\">Managed Fund</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 9999px; font-family: 'Sora', sans-serif; font-size: 12px; font-weight: 500; line-height: 1.6; } .ds-chip-teal { background: rgba(15,188,176,0.12); color: #0fbcb0; } .ds-chip-yellow { background: rgba(255,208,47,0.18); color: #b8960f; } .ds-chip-coral { background: rgba(255,153,153,0.18); color: #d94343; } .ds-chip-blue { background: rgba(66,98,255,0.12); color: #4262ff; } .ds-chip-neutral { background: #f7f8fa; color: #555a6a; }"
+    },
+    {
+      "name": "Select Dropdown",
+      "kind": "input",
+      "refersTo": "select-trigger",
+      "description": "Custom select trigger and dropdown with pill options.",
+      "html": "<div style=\"position:relative;display:inline-block;\"><button class=\"ds-select-trigger\"><span>Portfolio type</span><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><polyline points=\"6 9 12 15 18 9\"/></svg></button><div class=\"ds-select-dropdown\"><div class=\"ds-select-option\">Managed Fund</div><div class=\"ds-select-option active\">Active Trading</div><div class=\"ds-select-option\">Spread Strategy</div></div></div>",
+      "css": ".ds-select-trigger { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 14px; border-radius: 8px; border: 1px solid #e0e2e8; background: #ffffff; color: #1c1c1e; font-family: 'Sora', system-ui, sans-serif; font-size: 14px; font-weight: 400; cursor: pointer; transition: border-color 150ms ease; min-width: 160px; } .ds-select-trigger:hover { border-color: #77767b; } .ds-select-trigger:focus-visible { outline: 2px solid #0fbcb0; outline-offset: 1px; } .ds-select-dropdown { position: absolute; right: 0; margin-top: 6px; min-width: 200px; background: #ffffff; border: 1px solid #e0e2e8; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04); padding: 4px; z-index: 50; } .ds-select-option { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 6px; font-size: 14px; font-family: 'Sora', system-ui, sans-serif; color: #1c1b1b; cursor: pointer; transition: background 100ms ease; } .ds-select-option:hover { background: #f7f8fa; } .ds-select-option.active { background: #f7f8fa; font-weight: 500; }"
+    },
+    {
+      "name": "Status Dot",
+      "kind": "custom",
+      "refersTo": "status-dot",
+      "description": "Small filled circle indicating status or type. Used inline in dropdowns and tables.",
+      "html": "<span style=\"display:inline-flex;align-items:center;gap:6px;\"><span class=\"ds-status-dot ds-status-dot-teal\"></span> Binance BTC</span>",
+      "css": ".ds-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; } .ds-status-dot-teal { background: #0fbcb0; } .ds-status-dot-yellow { background: #ffd02f; } .ds-status-dot-coral { background: #ff9999; } .ds-status-dot-blue { background: #4262ff; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Portfolio Workshop",
+    "overview": "A workshop where every tool is within reach and every number is instantly legible. Clean white and near-white surfaces form the workbench; bold canary yellow and pastel teal/coral/blue accents provide signal without noise. This is a space for confident action — monitoring, rebalancing, transferring, closing — not decoration.\n\nThe system sits at the intersection of playful and precise. Generous rounded corners (16px on cards, full pills on buttons) and soft pastel tints keep the tool approachable, while tight typography (Sora at 15px body, crisp uppercase labels) and flat tonal layering keep the data authoritative. Depth is conveyed through background color shifts and hairline borders, not shadows — surfaces are flat at rest.",
+    "keyCharacteristics": [
+      "Flat tonal depth — no ambient shadows, depth via surface color shifts",
+      "One bold accent (yellow) carries signal weight; all other colors are muted-to-accent",
+      "Full-pill buttons with generous horizontal padding",
+      "Pastel tints for status backgrounds (teal-light, coral-light, yellow-light)",
+      "Sora geometric sans throughout — one family, weight contrast carries hierarchy",
+      "16px card corners as the dominant container radius",
+      "Uppercase tracking on short labels only — never on body copy"
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "Brand Yellow is the only saturated accent that appears as a full surface. Every other accent (teal, coral, blue) is used as text, border, or tinted background — never as a dominant fill color.", "section": "colors" },
+      { "name": "The No-Gradient-Rule", "body": "Gradients on text or backgrounds are forbidden. Color is solid or it's absent.", "section": "colors" },
+      { "name": "The One-Family Rule", "body": "All text uses Sora. No serif, no mono, no secondary display face.", "section": "typography" },
+      { "name": "The No-All-Caps-Body Rule", "body": "Uppercase is reserved for stat labels and short badges (≤4 words). Never use all-caps for sentences, section intros, or body copy.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Containers are flat at rest. Shadows appear only as a structural cue or response to interaction.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Brand Yellow as the single bold surface — it carries signal weight because nothing else competes at that saturation.",
+      "Do use pastel tints (teal-light, coral-light, yellow-light) for status backgrounds instead of the raw saturated accent.",
+      "Do use full-pill buttons for all actions — it's the system's most recognizable shape pattern.",
+      "Do use flat containers with hairline borders at rest and tonal surface shifts for depth.",
+      "Do keep body text at 15px with a max line length of 75ch.",
+      "Do use text-wrap: balance on heading elements and text-wrap: pretty on long prose.",
+      "Do use uppercase labels only for short stat labels and badges (4 words max).",
+      "Do use Sora across the entire interface — one family, weight contrast for hierarchy."
+    ],
+    "donts": [
+      "Don't use gradient text (background-clip: text + gradient). Solid color or nothing.",
+      "Don't use glassmorphism (backdrop blur on cards) as a default pattern.",
+      "Don't use side-stripe borders (border-left >1px as a colored accent on cards or callouts).",
+      "Don't use the hero-metric template (big number + small label + gradient accent).",
+      "Don't use numbered section markers (01 / 02 / 03) as default scaffolding above sections.",
+      "Don't use all-caps for body copy, sentences, or section introductions.",
+      "Don't use navy-and-gold fintech aesthetics, dark-mode-terminal-only looks, or SaaS-cream minimalism.",
+      "Don't stack nested cards — cards are flat by default and should not contain other cards.",
+      "Don't use fonts outside the Sora family — no serif, mono, or competing sans-serif.",
+      "Don't place uppercase tracked eyebrows above every section as a default pattern."
+    ]
+  }
+}

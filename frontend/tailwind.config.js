@@ -12,6 +12,9 @@ export default {
   ],
   theme: {
     extend: {
+      zIndex: {
+        '100': '100',
+      },
       fontFamily: {
         sans: ['Sora', 'system-ui', '-apple-system', 'sans-serif'],
         heading: ['Sora', 'system-ui', 'sans-serif'],

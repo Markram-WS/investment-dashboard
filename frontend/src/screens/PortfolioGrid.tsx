@@ -65,7 +65,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const [payoffMinPrice, setPayoffMinPrice] = useState<number>(0);
   const [payoffMaxPrice, setPayoffMaxPrice] = useState<number>(0);
   const [activeIVs, setActiveIVs] = useState<Record<string, number>>({});
-  const [payoffCurrentPrice, setPayoffCurrentPrice] = useState<number>(0);
 
   // Load / migrate from localStorage when portfolio changes
   React.useEffect(() => {
@@ -79,17 +78,15 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     setPayoffMinPrice(load('min_price', '0'));
     setPayoffMaxPrice(load('max_price', '0'));
     setActiveIVs(load('active_ivs', '{}'));
-    setPayoffCurrentPrice(load('current_price', '0'));
 
     // One-time migration from old non-portfolio keys
-    const oldKeys = ['payoff_strategy_rows', 'payoff_iv_mode', 'payoff_min_price', 'payoff_max_price', 'payoff_active_ivs', 'payoff_current_price'];
+    const oldKeys = ['payoff_strategy_rows', 'payoff_iv_mode', 'payoff_min_price', 'payoff_max_price', 'payoff_active_ivs'];
     const suffixMap: Record<string, string> = {
       payoff_strategy_rows: 'strategy_rows',
       payoff_iv_mode: 'iv_mode',
       payoff_min_price: 'min_price',
       payoff_max_price: 'max_price',
       payoff_active_ivs: 'active_ivs',
-      payoff_current_price: 'current_price',
     };
     for (const oldKey of oldKeys) {
       const val = localStorage.getItem(oldKey);
@@ -129,11 +126,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     if (!p) return;
     localStorage.setItem(`payoff_active_ivs_${p}`, JSON.stringify(activeIVs));
   }, [activeIVs]);
-  React.useEffect(() => {
-    const p = pidRef.current;
-    if (!p) return;
-    localStorage.setItem(`payoff_current_price_${p}`, JSON.stringify(payoffCurrentPrice));
-  }, [payoffCurrentPrice]);
 
   React.useEffect(() => {
     if (selectedPortfolio) {
@@ -481,7 +473,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         payoffMinPrice={payoffMinPrice}
         payoffMaxPrice={payoffMaxPrice}
         activeIVs={activeIVs}
-        payoffCurrentPrice={payoffCurrentPrice}
       />
 
       <OrderManagement
@@ -513,8 +504,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onPayoffMinMaxChange={(min, max) => { setPayoffMinPrice(min); setPayoffMaxPrice(max); }}
         activeIVs={activeIVs}
         onActiveIVChange={(orderId, iv) => setActiveIVs(prev => ({ ...prev, [orderId]: iv }))}
-        payoffCurrentPrice={payoffCurrentPrice}
-        onPayoffCurrentPriceChange={setPayoffCurrentPrice}
+
       />
 
       <EditOrderModal

@@ -76,7 +76,7 @@ export default function Navigation() {
           </NavLink>
         </div>
 
-        <div className="flex items-center gap-px mx-auto">
+        <div className="hidden md:flex items-center gap-px mx-auto">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.path}
@@ -137,17 +137,15 @@ export default function Navigation() {
 
         <div className="flex items-center gap-2 ml-auto">
           <ThemeToggle />
-          <button className="w-10 h-10 flex items-center justify-center bg-transparent border border-hairline rounded-full cursor-pointer">
+          <button aria-label="Notifications" className="w-10 h-10 flex items-center justify-center bg-transparent border border-hairline rounded-full cursor-pointer">
             <IconBell className="w-5 h-5 nav-icon-hover" />
-          </button>
-          <button className="w-10 h-10 flex items-center justify-center bg-transparent border border-hairline rounded-full cursor-pointer">
-            <IconMoreHorizontal className="w-5 h-5 nav-icon-hover" />
           </button>
         </div>
 
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
-          className="bg-none border-none p-2 rounded-md cursor-pointer ml-auto"
+          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          className="bg-none border-none p-2 rounded-md cursor-pointer md:hidden"
         >
           {mobileOpen ? <IconX className="w-5 h-5 nav-icon-hover" /> : <IconMenu className="w-5 h-5 nav-icon-hover" />}
         </button>

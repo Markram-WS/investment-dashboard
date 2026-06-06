@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { SpreadOrder, GroupOption, OrderLinkGroup } from "../../types";
 import { OrderGroupRow } from "./ZoneGroupRow";
 import { IconPlus, IconLayers, IconContract } from "../../components/icons";
@@ -36,8 +36,6 @@ interface OrderManagementProps {
   onPayoffMinMaxChange?: (min: number, max: number) => void;
   activeIVs?: Record<string, number>;
   onActiveIVChange?: (orderId: string, iv: number) => void;
-  payoffCurrentPrice?: number;
-  onPayoffCurrentPriceChange?: (v: number) => void;
 }
 
 const CONTRACT_TABS = [
@@ -56,7 +54,6 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
   strategyRows, onStrategyRowsChange, ivMode, onIvModeChange,
   payoffMinPrice, payoffMaxPrice, onPayoffMinMaxChange,
   activeIVs, onActiveIVChange,
-  payoffCurrentPrice, onPayoffCurrentPriceChange,
 }) => {
   const createDragGhost = (order: SpreadOrder): HTMLElement => {
     const el = document.createElement('div');
@@ -140,23 +137,24 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
 
   const [showOptionsStrategy, setShowOptionsStrategy] = useState(false);
 
-  // Local string state for min/max inputs (fixes controlled number input issue)
-  const [minStr, setMinStr] = useState(() => payoffMinPrice != null ? String(payoffMinPrice) : "");
-  const [maxStr, setMaxStr] = useState(() => payoffMaxPrice != null ? String(payoffMaxPrice) : "");
-  const prevMinRef = useRef(payoffMinPrice);
-  const prevMaxRef = useRef(payoffMaxPrice);
+  // Auto-compute price range from strategy rows + active orders
   useEffect(() => {
-    if (prevMinRef.current !== payoffMinPrice) {
-      setMinStr(payoffMinPrice != null ? String(payoffMinPrice) : "");
-      prevMinRef.current = payoffMinPrice;
+    const prices: number[] = [];
+    for (const r of (strategyRows || [])) {
+      const s = parseFloat(r.strike);
+      if (!isNaN(s) && s > 0) prices.push(s);
     }
-  }, [payoffMinPrice]);
-  useEffect(() => {
-    if (prevMaxRef.current !== payoffMaxPrice) {
-      setMaxStr(payoffMaxPrice != null ? String(payoffMaxPrice) : "");
-      prevMaxRef.current = payoffMaxPrice;
+    for (const o of activeOrders) {
+      const s = o.strike_price != null ? Number(o.strike_price) : 0;
+      const e = o.entry_price != null ? Number(o.entry_price) : 0;
+      if (s > 0) prices.push(s);
+      if (e > 0) prices.push(e);
     }
-  }, [payoffMaxPrice]);
+    if (prices.length === 0) return;
+    const max = Math.max(...prices);
+    const min = Math.min(...prices);
+    onPayoffMinMaxChange?.(Math.max(0, min * 0.5), max * 1.5);
+  }, [strategyRows, activeOrders, onPayoffMinMaxChange]);
 
   const hasFutureOrders = activeOrders.some(o => o.contract_type === 'future' || (o.leverage != null && o.leverage > 0));
   const hasOptionOrders = activeOrders.some(o => o.contract_type === 'option' || o.strike_price != null || o.option_type != null);
@@ -267,184 +265,130 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
   }, [filteredActiveOrders]);
 
   return (
-  <section className="bg-canvas rounded-xl border border-hairline overflow-hidden mb-6">
-    {/* Header */}
-    <div className="px-8 pt-8 pb-4 flex justify-between">
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-4">
-          <h3 className="text-[11px] font-bold text-ink uppercase tracking-widest">Order Management</h3>
-          <span className="px-2 py-0.5 bg-ink text-[10px] text-white font-bold rounded-full uppercase tracking-tighter">
-            {filteredActiveOrders.length} ACTIVE
-          </span>
-        </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
+    <>
+    {showOptionsStrategy && (
+      <section className="bg-canvas rounded-xl border border-hairline overflow-hidden mb-6">
+        <div className="flex">
+          <div className="w-4/6 border-r border-hairline">
+            <OptionsStrategyTable
+              visible={true}
+              onClose={() => setShowOptionsStrategy(false)}
+              onRowsChange={onStrategyRowsChange}
+            />
+          </div>
+          <div className="w-2/6 p-4 space-y-5">
+            <div className="text-[10px] font-bold text-slate uppercase tracking-widest">Config</div>
+
+            {/* IV Mode toggle */}
+            <div>
+              <div className="text-[9px] text-slate font-medium mb-1">BS IV Mode</div>
               <button
-                onClick={onGroupByZoneToggle}
-                className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${groupByZone ? "bg-brand-teal" : "bg-gray-300"}`}
+                onClick={() => onIvModeChange?.(!ivMode)}
+                className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${ivMode ? "bg-purple-600" : "bg-gray-300"}`}
               >
-                <span className={`inline-block h-3 w-3 transform rounded-full bg-canvas transition-transform ${groupByZone ? "translate-x-4" : "translate-x-0"}`} />
+                <span className={`inline-block h-3 w-3 transform rounded-full bg-canvas transition-transform ${ivMode ? "translate-x-3.5" : "translate-x-0.5"}`} />
               </button>
             </div>
-            <button onClick={onShowZoneGroupModal} className="h-8 w-8 rounded-full bg-canvas text-slate border border-hairline hover:bg-surface transition-all flex items-center justify-center" title="Order Groups">
-              <IconLayers className="w-4 h-4" />
-            </button>
-            {/* Contract type toggle */}
-            <div className="inline-flex gap-x-1">
-              {CONTRACT_TABS.map((tab) => (
-                <button
-                  key={tab.value}
-                  onClick={() => onContractFilterChange(tab.value)}
-                  className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-full border transition-all ${
-                    contractFilter === tab.value
-                      ? tab.value === 'all'
-                        ? 'bg-ink text-white border-ink'
-                        : tab.value === 'spot'
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : tab.value === 'future'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-purple-600 text-white border-purple-600'
-                      : 'border-hairline bg-canvas text-slate hover:border-gray-300 hover:text-slate'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setShowOptionsStrategy(!showOptionsStrategy)}
-          className={`h-8 w-8 rounded-full border transition-all flex items-center justify-center ${
-            showOptionsStrategy
-              ? "bg-purple-100 text-purple-700 border-purple-200"
-              : "bg-canvas text-slate border-hairline hover:bg-surface"
-          }`}
-          title="Options Strategy"
-        >
-          <IconContract className="w-4 h-4" />
-        </button>
-        <button onClick={onAddOrder} className="h-9 px-4 rounded-full bg-brand-teal text-white text-xs font-bold shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5" title="Add Order">
-          <IconPlus className="w-4 h-4" />
-          Add Order
-        </button>
-      </div>
-    </div>
 
-    {showOptionsStrategy && (
-      <div className="flex gap-4 mb-4">
-        <div className="w-4/6">
-          <OptionsStrategyTable
-            visible={true}
-            onClose={() => setShowOptionsStrategy(false)}
-            onRowsChange={onStrategyRowsChange}
-          />
+
+
+            {/* Active IV inputs */}
+            {activeOrders.filter(o => o.contract_type === 'option').length > 0 && (
+              <div>
+                <div className="text-[9px] text-slate font-medium mb-1">Active Order IV</div>
+                <div className="space-y-1 max-h-20 overflow-y-auto">
+                  {activeOrders.filter(o => o.contract_type === 'option').map(order => (
+                    <div key={order.order_id} className="flex items-center justify-between gap-1">
+                      <span className="text-[9px] text-ink truncate max-w-[80px]">
+                        {order.asset_type} {order.option_type} {order.strike_price}
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        placeholder="0"
+                        value={activeIVs?.[order.order_id] ?? ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          onActiveIVChange?.(order.order_id, isNaN(val) ? 0 : val);
+                        }}
+                        className="w-14 text-[10px] border border-hairline rounded px-1 py-0.5 text-right text-gray-700"
+                      />
+                      <span className="text-[9px] text-slate">%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="w-2/6 border border-hairline rounded-xl p-3 bg-canvas">
-          <div className="text-[10px] font-bold text-slate uppercase tracking-widest mb-3">Controls</div>
-
-          {/* IV Mode toggle */}
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] text-ink font-medium">BS IV Mode</span>
-            <button
-              onClick={() => onIvModeChange?.(!ivMode)}
-              className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${ivMode ? "bg-purple-600" : "bg-gray-300"}`}
-            >
-              <span className={`inline-block h-3 w-3 transform rounded-full bg-canvas transition-transform ${ivMode ? "translate-x-3.5" : "translate-x-0.5"}`} />
-            </button>
+      </section>
+    )}
+    <section className="bg-canvas rounded-xl border border-hairline overflow-hidden mb-6">
+      {/* Header */}
+      <div className="px-8 pt-8 pb-4 flex justify-between">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-4">
+            <h3 className="text-[11px] font-bold text-ink uppercase tracking-widest">Order Management</h3>
+            <span className="px-2 py-0.5 bg-ink text-[10px] text-white font-bold rounded-full uppercase tracking-tighter">
+              {filteredActiveOrders.length} ACTIVE
+            </span>
           </div>
-
-          {/* Min/Max Price — same row */}
-          <div className="mb-3">
-            <label className="text-[9px] text-slate font-medium block mb-1">Price Range</label>
-            <div className="flex gap-2 items-center">
-              <input
-                type="number"
-                step={100}
-                placeholder="Min"
-                value={minStr}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  setMinStr(raw);
-                  if (raw === "") return;
-                  const num = parseFloat(raw);
-                  if (!isNaN(num)) onPayoffMinMaxChange?.(num, parseFloat(maxStr) || 0);
-                }}
-                className="flex-1 text-[10px] border border-hairline rounded px-2 py-1 text-gray-700 text-center"
-              />
-              <span className="text-[10px] text-slate">—</span>
-              <input
-                type="number"
-                step={100}
-                placeholder="Max"
-                value={maxStr}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  setMaxStr(raw);
-                  if (raw === "") return;
-                  const num = parseFloat(raw);
-                  if (!isNaN(num)) onPayoffMinMaxChange?.(parseFloat(minStr) || 0, num);
-                }}
-                className="flex-1 text-[10px] border border-hairline rounded px-2 py-1 text-gray-700 text-center"
-              />
-            </div>
-            <p className="text-[8px] text-slate mt-0.5">Arrow keys: ±100</p>
-          </div>
-
-          {/* Current Price slider */}
-          <div className="mb-3">
-            <div className="flex justify-between items-center mb-1">
-              <label className="text-[9px] text-slate font-medium">Current Price</label>
-              <span className="text-[10px] text-gray-700 font-bold">{payoffCurrentPrice ?? 0}</span>
-            </div>
-            <input
-              type="range"
-              min={Math.min(payoffMinPrice ?? 0, payoffMaxPrice ?? 1)}
-              max={Math.max(payoffMinPrice ?? 0, payoffMaxPrice ?? 1)}
-              step={1}
-              value={payoffCurrentPrice ?? 0}
-              onChange={(e) => onPayoffCurrentPriceChange?.(parseFloat(e.target.value))}
-              className="w-full accent-indigo-500"
-            />
-            <div className="flex justify-between text-[8px] text-slate">
-              <span>{Math.min(payoffMinPrice ?? 0, payoffMaxPrice ?? 1)}</span>
-              <span>{Math.max(payoffMinPrice ?? 0, payoffMaxPrice ?? 1)}</span>
-            </div>
-          </div>
-
-          {/* Active IV inputs */}
-          {activeOrders.filter(o => o.contract_type === 'option').length > 0 && (
-            <div>
-              <div className="text-[9px] text-slate font-medium mb-1">Active Order IV</div>
-              <div className="space-y-1 max-h-32 overflow-y-auto">
-                {activeOrders.filter(o => o.contract_type === 'option').map(order => (
-                  <div key={order.order_id} className="flex items-center justify-between gap-1">
-                    <span className="text-[9px] text-ink truncate flex-1">
-                      {order.asset_type} {order.option_type} {order.strike_price}
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      placeholder="0"
-                      value={activeIVs?.[order.order_id] ?? ""}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        onActiveIVChange?.(order.order_id, isNaN(val) ? 0 : val);
-                      }}
-                      className="w-14 text-[10px] border border-hairline rounded px-1 py-0.5 text-right text-gray-700"
-                    />
-                    <span className="text-[9px] text-slate">%</span>
-                  </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onGroupByZoneToggle}
+                  className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${groupByZone ? "bg-brand-teal" : "bg-gray-300"}`}
+                >
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-canvas transition-transform ${groupByZone ? "translate-x-4" : "translate-x-0"}`} />
+                </button>
+              </div>
+              <button onClick={onShowZoneGroupModal} className="h-8 w-8 rounded-full bg-canvas text-slate border border-hairline hover:bg-surface transition-all flex items-center justify-center" title="Order Groups">
+                <IconLayers className="w-4 h-4" />
+              </button>
+              {/* Contract type toggle */}
+              <div className="inline-flex gap-x-1">
+                {CONTRACT_TABS.map((tab) => (
+                  <button
+                    key={tab.value}
+                    onClick={() => onContractFilterChange(tab.value)}
+                    className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-full border transition-all ${
+                      contractFilter === tab.value
+                        ? tab.value === 'all'
+                          ? 'bg-ink text-white border-ink'
+                          : tab.value === 'spot'
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : tab.value === 'future'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-purple-600 text-white border-purple-600'
+                        : 'border-hairline bg-canvas text-slate hover:border-gray-300 hover:text-slate'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
                 ))}
               </div>
             </div>
-          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowOptionsStrategy(!showOptionsStrategy)}
+            className={`h-8 w-8 rounded-full border transition-all flex items-center justify-center ${
+              showOptionsStrategy
+                ? "bg-purple-100 text-purple-700 border-purple-200"
+                : "bg-canvas text-slate border-hairline hover:bg-surface"
+            }`}
+            title="Options Strategy"
+          >
+            <IconContract className="w-4 h-4" />
+          </button>
+          <button onClick={onAddOrder} className="h-9 px-4 rounded-full bg-brand-teal text-white text-xs font-bold shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5" title="Add Order">
+            <IconPlus className="w-4 h-4" />
+            Add Order
+          </button>
         </div>
       </div>
-    )}
 
     {/* Table */}
     <div className="overflow-x-auto">
@@ -667,6 +611,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
     <div className="mb-6" />
     <TradeHistoryTable tradeHistory={tradeHistory} showHistory={showHistory} onToggleHistory={onToggleHistory} onDropOnTradeHistory={onDropOnTradeHistory} />
   </section>
+  </>
   );
 };
 

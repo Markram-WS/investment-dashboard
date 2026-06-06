@@ -50,7 +50,7 @@
 ## 6. Architecture Overview (Post-Refactor)
 
 ### Backend (FastAPI)
-- **16 routers** in `backend/app/routers/`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `assets.py`, `etl_sync.py`, `journal.py`, `overview.py` (returns `total_pl` per portfolio aggregated from `trade_history`), `performance.py`, `portfolios.py` (`PUT` auto-computes `available_cash` on edit), `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py`, `orders_groups.py`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `assets.py`, `etl_sync.py`, `journal.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py`, `orders_groups.py`
+- **16 routers** in `backend/app/routers/`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `assets.py`, `etl_sync.py`, `journal.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py`, `orders_groups.py`
 - **15 SQLAlchemy models** in `models.py`: Portfolio, TradePlan, ActiveOrder, OptionDetails, PortfolioNavHistory, SimulationModels, TradeHistory, Transaction, DecisionJournal, WhitelistAssets, Watchlist, AiAgent, AiActionLog, AiAgentState, OrdersGroup
 - **Key endpoints**:
   - `GET /api/v1/analytics/performance/{portfolio_id}` — equity curve (cumulative realized P/L), payoff bars (grouped by month with summed realized_pl — one bar per month), total P/L
@@ -81,8 +81,8 @@
 - **Constants** (`src/constants/colors.ts`): `buttonTheme` — centralized color tokens for side (LONG=emerald, SHORT=red) and option type (Call=blue-600, Put=orange-500)
 
 ### Database (`database/`)
-- `main_db_schema.sql` — 11 tables (plus decision_journals) for Manual/Bot data
-  - `active_orders.order_id` is TEXT (UUID); `linked_order_id` TEXT; `contract_type` ('spot'/'future'/'option'), `option_type` (Call/Put), `expiry_date`, `strike_price`, `cost`, `option_id` FK → `option_details`. Side: `BUY`/`SELL` for spot, `LONG`/`SHORT` for futures/options (`direction` field removed).
+- `main_db_schema.sql` — 12 tables for Manual/Bot data (portfolios, portfolio_nav_history, trade_plans, option_details, active_orders, simulation_models, trade_history, orders_groups, whitelist_assets, watchlist, transactions, decision_journals)
+  - `active_orders.order_id` is TEXT (UUID); `linked_order_id` TEXT; `contract_type` ('spot'/'future'/'option'), `option_type` (Call/Put), `expiry_date`, `strike_price`, `cost`, `option_id` FK → `option_details`. Side: `BUY`/`SELL` for spot, `LONG`/`SHORT` for futures/options (`direction` column still exists in schema as nullable, removed from frontend types).
   - `link_type` computed server-side (not stored): `"spread"`, `"pending_close"`, `"primary"`, `"none"`
 - `ai_db_schema.sql` — 3 tables for AI agent state
 - Frontend-only data (not in DB): OptionsStrategy rows, IV values for active orders, payoff chart controls — all per-portfolio in localStorage
@@ -100,10 +100,10 @@
 - Deleting a portfolio clears its 6 keys
 
 ### Payoff Chart — Technical
-- **Lines**: Combined intrinsic (blue #3B82F6, strokeWidth 2). BS IV overlay (orange #F97316, dashed 6,3) — toggled via BS IV Mode.
-- **Area fill**: `linearGradient` — pale green (#DCFCE7, 0.6) above baseline → transparent at baseline → pale red (#FEE2E2, 0.6) below.
-- **Break-even markers**: Amber dots (#f59e0b) with "BE: XXX" label below.
-- **Break Event label**: Amber rect at top of chart — shows intrinsic first BE when IV OFF, IV first BE when IV ON. No vertical bar.
+- **Lines**: Intrinsic line via CSS variable `var(--color-brand-blue)`. BS IV overlay via `var(--color-brand-teal)` dashed — toggled via BS IV Mode.
+- **Area fill**: `linearGradient` using `color-mix()` for CSS variable opacity support — green/red area fills above/below baseline.
+- **Break-even markers**: Amber dots using `var(--color-warning)` with "BE: XXX" label below.
+- **Break Event label**: `var(--color-warning)` rect at top of chart — shows intrinsic first BE when IV OFF, IV first BE when IV ON. No vertical bar.
 - **Hover tooltip**: Shows Price, Intrinsic P/L, and BS IV P/L (when IV mode ON).
 - **Y-axis**: Symmetric around 0 — `maxY = max(|maxPl|,|minPl|) × 1.1`
 - **# points**: Dynamic ~200, step = `(hi-lo)/200`
@@ -139,6 +139,8 @@
 - **Global Focus Ring**: All `<input>`, `<select>`, `<textarea>` use `ink` (#1c1c1e) ring via `index.css` — no per-component focus classes needed across AddOrder, EditOrder, CloseOrder, EditPortfolio, Zone modals
 - **Tailwind CDN** in `index.html` extended with all project colors (ink, brand-teal, brand-coral, brand-blue, hairline, surface, slate) — no separate `tailwind.config.js`
 - **buttonTheme** in `constants/colors.ts`: centralized toggle colors for Side (LONG=emerald-600, SHORT=red-500) and Option Type (Call=blue-600, Put=orange-500)
+- **Design token system** (`index.css`): CSS custom properties (`--color-*`, `--shadow-*`, `--z-*`) for colors, shadows, and z-index. Tailwind `tailwind.config.js` maps these to custom color classes (`text-brand-teal`, `bg-surface`, `border-hairline`). 4 files polished to use tokens consistently: Navigation, PortfolioOverview, PortfolioSpread, RiskAnalytics, PayoffChart.
+- **Side-stripe borders removed**: PortfolioOverview and PortfolioSpread no longer use `border-l-[3px]` accent. Replaced with full borders or background tints per the impeccable skill's anti-pattern rules.
 
 ## 9. Common Pitfalls
 - **esbuild scanner** cannot handle HTML/JSX tags inside `{...}` expressions in JSX. Extract all conditional JSX (ternaries, `&&` with tags, `.map()` returning JSX) into separate components or pre-computed variables.
@@ -148,7 +150,16 @@
 - **npm install on WSL** with mounted Windows drives (`/mnt/d/`) requires `--no-bin-links` flag to avoid EPERM symlink errors. Vite build works via `node node_modules/vite/bin/vite.js build`.
 - **Number inputs**: Use local string state to avoid controlled-input "delete 0" bug (React ignores empty string `""` when converting to number).
 
-## 10. Link Feature Implementation Status
+## 10. Impeccable Audit Status (last: 2026-06-06)
+
+- **Score**: 12/20 (Acceptable) — improved from 10/20 after polish pass
+- **Dimensions**: Accessibility 2/4, Performance 2/4, Theming 3/4, Responsive 2/4, Anti-Patterns 3/4
+- **Key wins**: 50+ colors tokenized, side-stripe borders removed from polished pages, nav responsive, heading hierarchy fixed on RiskAnalytics
+- **Remaining gaps**: 62 form controls lack labels, 17 grids lack responsive variants, 248 hard-coded colors in unpolished files, zero React.memo usage
+- **Next actions**: `/impeccable adapt` (responsive grids, touch targets), `/impeccable harden` (labels, aria, headings), `/impeccable polish` (remaining color tokenization)
+- Full report: `.impeccable/audit-report.md`
+
+## 11. Link Feature Implementation Status
 
 ### Backend (✅ Complete)
 - `POST /api/v1/orders/{order_id}/link` — sets one-way `linked_order_id` (source → target). Two-way spread requires reciprocal drag.

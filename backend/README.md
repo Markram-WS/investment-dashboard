@@ -64,7 +64,7 @@ open http://localhost:8000/docs
 > `active_orders.group_id` is an **Integer FK** to `orders_groups.id` (renamed from `ZoneGroup`; the `zone` column was removed).
 > `active_orders.linked_order_id` is a **TEXT** column (was `spread_pair_id`) — one-way link (pending close) or two-way cross-link (spread pair). A cross-linked pair is detected when `A.linked_order_id == B.order_id AND B.linked_order_id == A.order_id`. Spread legs appear with `link_type: "spread"` and one-way subs with `link_type: "pending_close"`. Orders with subs linking to them get `link_type: "primary"`.
 > `active_orders.contract_type` is `'spot'`, `'future'`, or `'option'` — controls order filtering in the order table. The **All** tab adapts columns dynamically based on which contract types exist.
-> `active_orders.side` — `'BUY'`/`'SELL'` for spot, `'LONG'`/`'SHORT'` for futures/options (direction field was removed).
+> `active_orders.side` — `'BUY'`/`'SELL'` for spot, `'LONG'`/`'SHORT'` for futures/options (`direction` column still exists in backend schema as nullable but removed from frontend types — `side` is the canonical field).
 > `active_orders.option_type` — `'Call'` or `'Put'` for options.
 > `active_orders.expiry_date`, `strike_price` — option/future-specific fields.
 > `active_orders.cost` — cost basis for the order.
@@ -98,14 +98,6 @@ open http://localhost:8000/docs
 | `GET` | `/api/v1/portfolios/{id}` | Retrieve portfolio by ID |
 | `PUT` | `/api/v1/portfolios/{id}` | Update portfolio fields (`portfolio_name`, `margin_locked`, `cash_buffer_limit`, `available_cash`, `money_market`, `trade_plan_md`, `internal_notes`, `tags`, etc.). Frontend auto-computes `available_cash` as `rawAvailableCash - totalDiff` when MM/Margin/Buffer change |
 | `DELETE` | `/api/v1/portfolios/{id}` | Delete portfolio with cascade (FK-safe order: decision_journals → trade_history → active_orders → trade_plans → nav_history → simulation_models → orders_groups → transactions → portfolio) |
-
-### Trade Plans
-| Method | Endpoint | Description |
-|--------|-----------|-------------|
-| `POST` | `/api/v1/trade-plans/` | Create a trade plan |
-| `GET` | `/api/v1/trade-plans/` | List trade plans (optional query: `portfolio_id`) |
-| `GET` | `/api/v1/trade-plans/{plan_id}` | Get trade plan details |
-| `DELETE` | `/api/v1/trade-plans/{plan_id}` | Delete a trade plan |
 
 ### Active Orders
 | Method | Endpoint | Description |
@@ -142,6 +134,59 @@ open http://localhost:8000/docs
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
 | `GET` | `/api/v1/analytics/portfolio-grid?portfolio_id=` | Full grid data: orders (each with `link_type`: `"spread"`, `"pending_close"`, `"primary"`, or `"none"`), cash details (`available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit`), `risk_score`, tags, trade plan, internal notes, spread pairs (cross-linked), recent trades. Orders include `contract_type`, `option_type`, `side` (LONG/SHORT for futures/options), `strike_price`, `expiry_date`, `cost` |
+| `GET` | `/api/v1/analytics/portfolio/{portfolio_id}` | Single portfolio detail (same response shape as portfolio-grid, single element) |
+
+### Risk
+| Method | Endpoint | Description |
+|--------|-----------|-------------|
+| `GET` | `/api/v1/risk/pool-health` | Pool health summary across all portfolios |
+| `GET` | `/api/v1/risk/money-reserve-status` | Money reserve status (Danger/Optimal/Inefficient) |
+| `GET` | `/api/v1/risk/portfolio-safety/{id}` | Per-portfolio safety metrics |
+| `GET` | `/api/v1/risk/analytics` | Computed risk metrics (Sharpe, MaxDD, VaR, etc.) |
+
+### Transactions
+| Method | Endpoint | Description |
+|--------|-----------|-------------|
+| `GET` | `/api/v1/transactions` | List transactions (pagination via offset/limit) |
+| `POST` | `/api/v1/transactions/` | Create transaction |
+| `GET` | `/api/v1/transactions/{id}` | Get transaction by ID |
+
+### Rebalance
+| Method | Endpoint | Description |
+|--------|-----------|-------------|
+| `GET` | `/api/v1/rebalance/modes` | List available rebalance modes |
+| `POST` | `/api/v1/rebalance/calculate` | Calculate rebalance recommendations |
+| `POST` | `/api/v1/rebalance/recommend` | Full rebalance recommendation |
+| `POST` | `/api/v1/rebalance/execute` | Execute a rebalance |
+| `GET` | `/api/v1/rebalance/nav-history/{portfolio_id}` | NAV history for rebalance context |
+| `POST` | `/api/v1/rebalance/nav-history/upsert` | Upsert daily NAV entry |
+
+### Transfers
+| Method | Endpoint | Description |
+|--------|-----------|-------------|
+| `GET` | `/api/v1/transfers/` | List transfers |
+| `POST` | `/api/v1/transfers/` | Create a transfer |
+| `POST` | `/api/v1/transfers/confirm` | Confirm a pending transfer |
+
+### Decision Journal
+| Method | Endpoint | Description |
+|--------|-----------|-------------|
+| `GET` | `/api/v1/journal/{portfolio_id}` | List journal entries for a portfolio |
+| `POST` | `/api/v1/journal/` | Create a journal entry |
+
+### Trade Plans
+| Method | Endpoint | Description |
+|--------|-----------|-------------|
+| `POST` | `/api/v1/trade-plans/` | Create a trade plan |
+| `GET` | `/api/v1/trade-plans/` | List trade plans (optional query: `portfolio_id`) |
+| `GET` | `/api/v1/trade-plans/{plan_id}` | Get trade plan details |
+| `DELETE` | `/api/v1/trade-plans/{plan_id}` | Delete a trade plan |
+
+### Whitelist Assets
+| Method | Endpoint | Description |
+|--------|-----------|-------------|
+| `GET` | `/api/v1/whitelist_assets/` | List approved assets |
+| `POST` | `/api/v1/whitelist_assets/` | Add an asset |
 
 ### Trade History
 | Method | Endpoint | Description |
@@ -167,6 +212,8 @@ open http://localhost:8000/docs
 | `GET` | `/api/v1/ai/agents/` | List AI agents |
 | `POST` | `/api/v1/ai/agents/` | Create agent |
 | `POST` | `/api/v1/ai/agents/{agent_id}/run` | Trigger agent execution |
+| `GET` | `/api/v1/ai/status?portfolio_id=` | AI status for a portfolio |
+| `GET` | `/api/v1/ai/logs/{portfolio_id}` | AI action logs for a portfolio |
 
 ---
 
@@ -346,7 +393,9 @@ The backend reads environment variables from the Docker Compose file or from a `
 
 ---
 
-> **Note:** This backend is designed to be lightweight and easy to extend. Feel free to add new endpoints, models, or features as needed. The architecture is modular, making it simple to integrate with front-end applications or other services.
+> **Note:** Both databases (`investment_main` and `investment_ai`) get all tables created on startup via `Base.metadata.create_all` — the AI-only tables (`ai_agents`, `ai_action_logs`, `ai_agent_state`) exist on both connections but are functionally isolated. The `direction` column in `active_orders` remains as a nullable `TEXT` column in the schema; it was removed only from frontend TypeScript types. `AiActionLog.linked_order_id` is `INTEGER` (a type mismatch — should match `active_orders.order_id` which is `TEXT` UUID).
+> 
+> This backend is designed to be lightweight and easy to extend. Feel free to add new endpoints, models, or features as needed. The architecture is modular, making it simple to integrate with front-end applications or other services.
 
 ---
 

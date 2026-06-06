@@ -120,7 +120,7 @@ export default function TransactionsPage() {
         amount: amt,
         confirmed_by: "Manual",
       });
-      await api.confirmTransfer(transfer.transfer_id, transfer.confirmation_token, "Manual");
+      await api.confirmTransfer(transfer.transaction_id, "auto-confirm", "Manual");
       setToastMsg(`Transferred $${amt.toLocaleString()}`);
       await refreshTransactions();
       closeModal();

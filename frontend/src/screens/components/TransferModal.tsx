@@ -32,9 +32,7 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
         destination_portfolio_id: destination.id,
         amount: num,
       });
-      if (transfer.confirmation_token) {
-        await api.confirmTransfer(transfer.transaction_id, transfer.confirmation_token);
-      }
+      await api.confirmTransfer(transfer.transaction_id, "auto-confirm");
       onSuccess(`Transferred $${num.toLocaleString()} from ${source.name} → ${destination.name}`);
       onClose();
     } catch (e: any) {
