@@ -428,7 +428,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   return (
     <>
       {alertMsg && <ToastAlert message={alertMsg.msg} type={alertMsg.type} onClose={() => setAlertMsg(null)} key={alertMsg.msg + alertMsg.type} />}
-      <div className="px-10 py-6 min-h-screen max-w-[1800px] mx-auto">
+      <div className="min-h-screen">
       <PortfolioHeader
         portfolioName={selectedPortfolio.portfolio_name}
         lastUpdated={lastUpdated}

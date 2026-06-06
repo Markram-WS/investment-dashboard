@@ -148,16 +148,21 @@ docker run --rm --network investmentdashboard_investment-network \
 InvestmentDashboard/
 ├── frontend/          # React + TypeScript + Vite
 │   ├── src/
-│   │   ├── screens/   # Page components
-│   │   ├── components/ # Shared components
-│   │   └── ...
+│   │   ├── pages/     # Top-level route components (PortfolioOverview, PortfolioAnalyticsDetail, etc.)
+│   │   ├── screens/   # Detail layouts + modals (PortfolioGrid, AddOrderModal, etc.)
+│   │   ├── components/# Shared components (Navigation, GlobalLayout, SVG icons)
+│   │   ├── hooks/     # Business logic hooks
+│   │   ├── types/     # Shared TypeScript interfaces
+│   │   ├── constants/ # Design tokens (colors, buttonTheme)
+│   │   ├── utils/     # Pure helper functions
+│   │   └── lib/       # API client (api.ts)
 │   └── ...
 ├── backend/           # FastAPI + Python
 │   ├── app/
-│   │   ├── routers/   # API endpoints
-│   │   ├── models.py  # SQLAlchemy models
+│   │   ├── routers/   # 16 API endpoint modules
+│   │   ├── models.py  # 15 SQLAlchemy models
 │   │   └── database.py
-│   ├── tests/         # Pytest suite
+│   ├── tests/         # Pytest suite (71 tests)
 │   └── ...
 ├── requirement/       # Documentation
 │   ├── UI/            # UI layout specs

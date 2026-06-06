@@ -399,4 +399,4 @@ The backend reads environment variables from the Docker Compose file or from a `
 
 ---
 
-*Last updated: 6 June 2026*
+*Last updated: 6 June 2026 (updated contract_type docs: spot/future/option, Active IV frontend-only; no backend schema changes)*

@@ -64,16 +64,17 @@
 - Two PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
 
 ### Frontend (React 18 + TypeScript + Vite)
+- **GlobalLayout.tsx** — Outlet-based global layout wrapper (`max-w-[1200px] mx-auto px-6`, breadcrumb, loading/error/missing states)
 - **PortfolioGrid.tsx** — slim orchestrator composing sub-components; manages per-portfolio payoff states (6 keys in localStorage); `onSaved={fetchAnalyticsData}` for data refresh after edit save
-- **Screen modals** in `src/screens/`: `AddOrderModal`, `CloseOrderModal`, `EditOrderModal` (all use `buttonTheme` for Call=blue-600/Put=orange-500), `EditPortfolioModal` (live projected Available Cash, save error feedback, max validation), `ZoneEditModal`, `ZoneGroupModal`
+- **Screen modals** in `src/screens/`: `AddOrderModal` (contract_type now Spot/Future/Option toggle, with conditional Call/Put toggle when option selected), `CloseOrderModal`, `EditOrderModal` (all use `buttonTheme` for Call=blue-600/Put=orange-500), `EditPortfolioModal` (live projected Available Cash, save error feedback, max validation), `ZoneEditModal`, `ZoneGroupModal`
 - **Screen components** in `src/screens/components/`:
   - `PortfolioHeader.tsx`, `SummaryCard.tsx`, `StrategyNotes.tsx`, `TagsSection.tsx`
   - `PerformanceSection.tsx` — Equity/Payoff toggle, passes payoff state to PayoffChart
   - `PerformanceChart.tsx` — dynamic SVG: equity line or payoff bar chart
-  - `PayoffChart.tsx` — **NEW** pure SVG: Put-Call parity with intrinsic + optional BS IV lines, area fill (pale green/red), break-even markers, Break Event label, hover tooltip
+   - `PayoffChart.tsx` — pure SVG: Put-Call parity with intrinsic + optional BS IV lines, area fill (pale green/red), vertical dashed yellow BE lines (ivBePoints when IV ON), crosshair (vertical dashed gray line + P/L dots), tooltip with Price (toFixed(2))
   - `OptionsStrategyTable.tsx` — **NEW** local-scratchpad strategy rows; uses buttonTheme; onRowsChange callback; per-portfolio localStorage
-  - `OrderManagement.tsx` — active orders table + **Controls panel** (BS IV toggle, price range, current price slider, active IV%)
-  - `TradeHistoryTable.tsx`, `TradePlanView.tsx`, `QuickStatsView.tsx`, `ZoneGroupRow.tsx`, `GroupCombobox.tsx`, `ToastAlert.tsx`, `HistoricalGridView.tsx`
+   - `OrderManagement.tsx` — active orders table + **Controls panel** (BS IV toggle, price range with commit-on-blur inputs, current price slider, active IV% with Apply All master input, clearable via local string state)
+   - `TradeHistoryTable.tsx`, `TradePlanView.tsx`, `QuickStatsView.tsx`, `ZoneGroupRow.tsx`, `GroupCombobox.tsx`, `ToastAlert.tsx`, `HistoricalGridView.tsx`
 - **Navigation.tsx** — Sticky nav with feather-style SVG icons
 - **Custom hooks**: `useOrderEdit`, `useAddOrder`, `usePortfolioManager`, `useZoneEditor`, `useMarkdownRenderer`
 - **API layer** (`src/lib/api.ts`): 44 exported endpoints, centralized `fetchJson<T>()` wrapper, Vite proxy `/api/*` → `localhost:8000`
@@ -102,10 +103,10 @@
 ### Payoff Chart — Technical
 - **Lines**: Intrinsic line via CSS variable `var(--color-brand-blue)`. BS IV overlay via `var(--color-brand-teal)` dashed — toggled via BS IV Mode.
 - **Area fill**: `linearGradient` using `color-mix()` for CSS variable opacity support — green/red area fills above/below baseline.
-- **Break-even markers**: Amber dots using `var(--color-warning)` with "BE: XXX" label below.
-- **Break Event label**: `var(--color-warning)` rect at top of chart — shows intrinsic first BE when IV OFF, IV first BE when IV ON. No vertical bar.
-- **Hover tooltip**: Shows Price, Intrinsic P/L, and BS IV P/L (when IV mode ON).
-- **Y-axis**: Symmetric around 0 — `maxY = max(|maxPl|,|minPl|) × 1.1`
+- **Break-even lines**: Vertical dashed yellow lines (`#FCD34D`, strokeWidth=1) at break-even prices — replaces old BE label boxes. BE text in legend uses `ivBePoints` when IV mode is ON, intrinsic BEs otherwise.
+- **Crosshair**: Vertical dashed gray line snapping to nearest data point on mouse hover; circles on P/L curves at hovered price. snappedX computed as `MARGIN.left + (clampedIdx / (len-1)) * CHART_W` for exact alignment.
+- **Hover tooltip**: Shows Price (toFixed(2)), Intrinsic P/L, and BS IV P/L (when IV mode ON).
+- **Y-axis**: Symmetric around 0 — `maxY = max(|maxPl|,|minPl|) × 1.1`. Labels use `toFixed(1)` (was `toFixed(0)`).
 - **# points**: Dynamic ~200, step = `(hi-lo)/200`
 
 ### Options Strategy Table
@@ -134,6 +135,30 @@
   - `cashBufferLimit = 0`: `((availableCash − marginLocked) / marginLocked) × 100` (capped at 100)
   - Both $0$: returns `100` (Safe — no exposure)
   - Color: teal (`≥100%` Safe), yellow (`≥50%` Warning), red (`<50%` Danger)
+
+### Price Range Auto-Compute
+- Formula: `max = max(strike, entry_price) * 1.5`, `min = max(0, min(strike, entry_price) * 0.5)` — reverted from +150%/-150% back to +50%/-50%
+- Callback ref-stabilized to prevent re-firing on every render when parent passes unstable inline arrow
+- Sync from props: both 0 treated as "unset" (shows `""` placeholder); no fallback to `(0, 100)` when no data
+- Price Range inputs commit on blur (not keystroke) — empty → reverts to previous value; auto-adjusts other bound when `min >= max`
+
+### Active IV Inputs
+- Individual IV inputs use local string state for clearability (React ignores `""` for number inputs)
+- Sends `onActiveIVChange(id, 0)` on blur when cleared → PortfolioGrid handler deletes the key from localStorage
+- Apply All master input + button sets all active orders to same IV% in one click
+
+### Crosshair in PayoffChart
+- Vertical dashed gray line (`stroke: #9CA3AF`, `strokeDasharray: 4`) inside SVG, uses viewBox coordinates
+- `snappedX` computed as `MARGIN.left + (clampedIdx / (prices.length-1)) * CHART_W` — direct index-based, not `toX(prices[clampedIdx])`
+- Two circles on P/L curves at the hovered price point (intrinsic circle + BS IV circle when IV mode ON)
+
+### BE Vertical Lines
+- Replaced BE label boxes (top rect + circle+badge on baseline) with dashed yellow vertical lines (`#FCD34D`, strokeWidth=1) at BE prices
+- BE text in legend uses intrinsic BE points normally, `ivBePoints` when IV mode is ON
+
+### Decimal Formatting
+- Y-axis labels: `toFixed(1)` (was `toFixed(0)`)
+- Tooltip Price: `toFixed(2)` (was `toFixed(0)`)
 
 ## 8. Design Conventions
 - **Global Focus Ring**: All `<input>`, `<select>`, `<textarea>` use `ink` (#1c1c1e) ring via `index.css` — no per-component focus classes needed across AddOrder, EditOrder, CloseOrder, EditPortfolio, Zone modals
@@ -191,23 +216,26 @@
 | `frontend/src/lib/api.ts` | `linkOrder()`, `unlinkOrder()` API calls |
 | `frontend/src/hooks/usePortfolioManager.ts` | `fetchAnalyticsData()` — fetches + sets state |
 | `frontend/src/screens/PortfolioGrid.tsx` | `handleLinkOrder`, `zoneGroups` useMemo with `computeLinkGroup`, per-portfolio payoff state management |
-| `frontend/src/screens/components/OrderManagement.tsx` | Flat view link groups + reorder + Controls panel (BS IV, price range, current price slider, active IV) |
+| `frontend/src/screens/components/OrderManagement.tsx` | Flat view link groups + reorder + Controls panel (BS IV, price range with commit-on-blur inputs, current price slider, active IV with Apply All master input, clearable via local string state) |
 | `frontend/src/screens/components/ZoneGroupRow.tsx` | Row-level link icon, SVG lines, drop handler |
 | `frontend/src/screens/EditOrderModal.tsx` | Unlink-on-save flow; uses buttonTheme (Call=blue-600, Put=orange-500) |
 | `frontend/src/screens/CloseOrderModal.tsx` | Link type display in close form |
 | `database/main_db_schema.sql` | `linked_order_id TEXT` column |
 | `frontend/src/components/icons/index.tsx` | Unified barrel export for feather-style SVG icons |
-| `frontend/src/screens/AddOrderModal.tsx` | Option type (Call/Put) dropdown, LONG/SHORT side, uses buttonTheme |
+| `frontend/src/screens/AddOrderModal.tsx` | contract_type now Spot/Future/Option toggle + conditional Call/Put; uses buttonTheme |
 | `frontend/src/screens/components/OrderManagement.tsx` | Dynamic column visibility, contract_filter actual filtering, show booleans passed to ZoneGroupRow |
 | `frontend/src/screens/components/ZoneGroupRow.tsx` | Receives showLev/showExp/showStrikePrice as props |
-| `frontend/src/constants/colors.ts` | **NEW** `buttonTheme` — centralized toggle colors (side + option type) |
-| `frontend/src/screens/components/OptionsStrategyTable.tsx` | **NEW** local-scratchpad strategy rows, uses buttonTheme, onRowsChange, per-portfolio localStorage |
-| `frontend/src/screens/components/PayoffChart.tsx` | **NEW** pure SVG payoff chart: intrinsic + BS IV lines, area fill, BE markers, Break Event, tooltip |
-| `frontend/src/screens/components/PerformanceSection.tsx` | Updated to render PayoffChart, pass currentPrice prop |
+| `frontend/src/constants/colors.ts` | `buttonTheme` — centralized toggle colors (side + option type) |
+| `frontend/src/screens/components/OptionsStrategyTable.tsx` | local-scratchpad strategy rows, uses buttonTheme, onRowsChange, per-portfolio localStorage |
+| `frontend/src/screens/components/PayoffChart.tsx` | Pure SVG: intrinsic + BS IV lines, area fill, vertical dashed yellow BE lines, crosshair (gray dashed + dots), tooltip with Price (toFixed(2)), axis labels toFixed(1) |
+| `frontend/src/screens/components/PerformanceSection.tsx` | Renders PayoffChart, passes currentPrice prop |
 | `frontend/public/vite.svg` | Custom favicon: rounded-square indigo→purple gradient with 3 ascending bars |
 | `frontend/src/screens/EditPortfolioModal.tsx` | Live projected Available Cash while typing, save error feedback, max validation per field |
 | `frontend/src/screens/components/SummaryCard.tsx` | Formula tooltips (i icons) for Total Value, Cash, Available Cash, Risk Level |
 | `frontend/src/screens/components/Button.tsx` | Reusable Button component (5 variants, 3 sizes) used across all modals |
+| `frontend/src/components/GlobalLayout.tsx` | Outlet-based global layout wrapper (max-w-[1200px], breadcrumb, loading/error/missing states) |
+| `frontend/src/pages/PortfolioAnalyticsDetail.tsx` | Page layout: breadcrumb bar, LoadingSkeleton, ErrorState, MissingPortfolio, consistent wrapper |
+| `frontend/src/App.tsx` | Routes wrapped in GlobalLayout; standalone analytics route with consistent wrapper |
 
 ## Fix: Frontend ERR_CONNECTION_REFUSED (2026-06-06)
 

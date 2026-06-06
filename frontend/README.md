@@ -38,6 +38,7 @@ frontend/
 │   │
 │   ├── components/
 │   │   ├── Navigation.tsx  # Sticky nav with feather-style SVG icons (w-5 h-5, hover animate-pulse) + dropdown
+│   │   ├── GlobalLayout.tsx # Outlet-based global layout wrapper (max-w-[1200px] mx-auto px-6, breadcrumb, loading/error/missing states)
 │   │   └── icons/          # Unified barrel export (index.tsx), feather-style inline SVGs
 │   │       └── index.tsx   # IconDashboard, IconTransactions, IconAdd, IconClose, IconEdit, IconLayers, IconLink, IconPlus, etc.
 │   │
@@ -50,7 +51,7 @@ frontend/
 │   │   ├── TradePlanManager.tsx     # Placeholder page
 │   │   ├── ActiveOrders.tsx         # Active orders placeholder
 │   │   ├── AnalyticsDashboard.tsx   # NAV + risk summary
-│   │   └── PortfolioAnalyticsDetail.tsx # Dynamic layout router
+│   │   └── PortfolioAnalyticsDetail.tsx # Dynamic layout router with breadcrumb bar, LoadingSkeleton (pulse-animated), ErrorState (red card with icon), MissingPortfolio (info card), consistent max-w-[1200px] wrapper
 │   │
 │   ├── screens/            # Secondary layouts (detail screens)
 │   │   ├── PortfolioGrid.tsx        # Slim orchestrator composing sub-components; payoff state with per-portfolio localStorage
@@ -69,9 +70,9 @@ frontend/
 │   │       ├── TagsSection.tsx        # Metadata tag pills
 │   │       ├── PerformanceSection.tsx # Performance wrapper + Equity/Payoff toggle; passes payoff state to PayoffChart
 │   │       ├── PerformanceChart.tsx   # Dynamic SVG: equity line chart (cumulative P/L) or payoff bar chart (grouped by month with summed realized_pl)
-│   │       ├── OrderManagement.tsx    # Active orders table (grouped or flat), Group toggle, two-row header with Add Order pill, drag-and-drop support, Link Order button in left column, contract_type filter tabs that actually filter orders. All tab adapts columns dynamically. Has Controls panel (BS IV mode, min/max price, current price slider, active IV inputs)
+│   │       ├── OrderManagement.tsx    # Active orders table (grouped or flat), Group toggle, two-row header with Add Order pill, drag-and-drop support, Link Order button in left column, contract_type filter tabs that actually filter orders. All tab adapts columns dynamically. Has Controls panel (BS IV mode, min/max price with commit-on-blur inputs, current price slider, active IV inputs with Apply All master input, clearable IV fields via local string state)
 │   │       ├── OptionsStrategyTable.tsx # Options strategy sandbox table; outputs OptionRow; uses buttonTheme; onRowsChange callback; per-portfolio localStorage
-│   │       ├── PayoffChart.tsx       # NEW SVG payoff chart: Put-Call Parity with intrinsic (blue) + optional BS IV (orange dashed) lines; area fill (pale green above / pale red below baseline); break-even markers; Break Event label (amber, uses IV BE when IV mode ON); hover tooltip; D3-like pure SVG
+│   │       ├── PayoffChart.tsx       # SVG payoff chart: Put-Call Parity with intrinsic (blue) + optional BS IV (orange dashed) lines; area fill (pale green above / pale red below baseline); vertical dashed yellow BE lines (no label boxes, uses ivBePoints when IV mode ON); hover crosshair (vertical dashed gray line + dots on P/L curves); tooltip with Price (toFixed(2)), Intrinsic P/L, BS IV P/L; axis labels toFixed(1); D3-like pure SVG
 │   │       ├── TradeHistoryTable.tsx  # Collapsible closed-orders table (bg-gray-50 pill badge matching Ungrouped style); drop target (even when collapsed)
 │   │       ├── TradePlanView.tsx      # Trade plan markdown display (click-to-edit, Save/Cancel)
 │   │       ├── QuickStatsView.tsx     # Active pairs/positions stats
@@ -413,8 +414,14 @@ VITE_API_BASE_URL ถูกกำหนดเป็นค่าว่าง (`""
 28. **Edit Portfolio live projection**: Available Cash display updates live as user types MM/Margin/Buffer — `projectedAvailableCash = Math.max(0, rawAvailableCash − totalDiff)`
 29. **Formula tooltips in SummaryCard**: "i" tooltips on Total Value (`Cash + P/L + MM + Margin + Buffer + Notional`), Available Cash in Cash Details (`Available Cash = Cash + Total P/L`), and Risk Level (`min(100%, (Cash − Margin) ÷ max(Buffer, Margin) × 100)`)
 30. **Save error feedback**: Edit Portfolio modal shows error message on save failure (network errors, validation)
-
-## ⚙️ Technical Details
+31. **PayoffChart crosshair**: Vertical dashed gray line snaps to nearest data point on mouse hover; circles on P/L curves at hovered price. Uses direct index-based `snappedX` (`MARGIN.left + (clampedIdx / (len-1)) * CHART_W`) for perfect alignment with rendered line.
+32. **BE vertical lines**: Break-even points shown as vertical dashed yellow lines (strokeWidth=1, `#FCD34D`) instead of label boxes with BE text. BE text legend shows `ivBePoints` when IV mode is ON.
+33. **Price Range auto-compute stabilized**: `onPayoffMinMaxChange` wrapped in a ref to prevent re-firing on every render when parent passes inline arrow function. Formula: `max * 1.5`, `min * 0.5` (capped at 0). Sync from props treats both 0 as "unset" (shows `""` placeholder).
+34. **Price Range commit on blur**: Min/Max price inputs commit on blur (not keystroke). Empty input reverts to previous value. Auto-adjusts the other bound when `min >= max`.
+35. **Active IV Apply All**: Master IV% input + Apply All button sets all active orders to the same IV% in one click. Individual IV inputs use local string state to allow clearing to empty (sends `0` to parent on blur → parent deletes the key from localStorage).
+36. **GlobalLayout**: Outlet-based global layout component extracted from App.tsx. Wraps all child routes with `max-w-[1200px] mx-auto px-6 py-6`. Used by PortfolioAnalyticsDetail for consistent page structure.
+37. **PortfolioAnalyticsDetail states**: Three explicit states: LoadingSkeleton (pulse animation placeholder cards), ErrorState (red card with error message + icon), and MissingPortfolio (info card when portfolio not found). Breadcrumb bar visible in all states.
+38. **Decimal formatting**: PayoffChart Y-axis labels use `toFixed(1)` (was `toFixed(0)`), tooltip Price uses `toFixed(2)` (was `toFixed(0)`).
 
 ### Environment Configuration
 
@@ -550,4 +557,4 @@ All raw `fetch` calls have been replaced with `lib/api.ts` methods.
 
 ---
 
-*อัปเดตโดย Hermes Agent - 6 มิถุนายน 2026 (Formula tooltips, live cash projection, PortfolioOverview redesign)*
+*อัปเดตโดย Hermes Agent - 6 มิถุนายน 2026 (AddOrderModal contract_type fix, PayoffChart crosshair + BE vertical lines, Price Range auto-compute stabilised + commit-on-blur, Active IV Apply All, GlobalLayout, PortfolioAnalyticsDetail states, decimal formatting)*
