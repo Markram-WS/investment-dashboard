@@ -503,7 +503,14 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         payoffMaxPrice={payoffMaxPrice}
         onPayoffMinMaxChange={(min, max) => { setPayoffMinPrice(min); setPayoffMaxPrice(max); }}
         activeIVs={activeIVs}
-        onActiveIVChange={(orderId, iv) => setActiveIVs(prev => ({ ...prev, [orderId]: iv }))}
+        onActiveIVChange={(orderId, iv) => setActiveIVs(prev => {
+          if (iv === 0) {
+            const next = { ...prev };
+            delete next[orderId];
+            return next;
+          }
+          return { ...prev, [orderId]: iv };
+        })}
 
       />
 

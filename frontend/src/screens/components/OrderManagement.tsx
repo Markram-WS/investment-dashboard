@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { SpreadOrder, GroupOption, OrderLinkGroup } from "../../types";
 import { OrderGroupRow } from "./ZoneGroupRow";
 import { IconPlus, IconLayers, IconContract } from "../../components/icons";
@@ -137,6 +137,40 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
 
   const [showOptionsStrategy, setShowOptionsStrategy] = useState(false);
 
+  // Local string state for Price Range inputs (allows clearing to empty)
+  const [priceMinStr, setPriceMinStr] = useState("");
+  const [priceMaxStr, setPriceMaxStr] = useState("");
+
+  useEffect(() => {
+    const pMin = payoffMinPrice ?? 0;
+    const pMax = payoffMaxPrice ?? 0;
+    setPriceMinStr(pMin > 0 || pMax > 0 ? String(pMin) : "");
+    setPriceMaxStr(pMax > 0 ? String(pMax) : "");
+  }, [payoffMinPrice, payoffMaxPrice]);
+
+  // Local string state for Active IV inputs (allows clearing to empty)
+  const [ivRawValues, setIvRawValues] = useState<Record<string, string>>({});
+  const [masterIvStr, setMasterIvStr] = useState("");
+
+  useEffect(() => {
+    if (!activeIVs) return;
+    const next: Record<string, string> = {};
+    for (const [id, iv] of Object.entries(activeIVs)) {
+      next[id] = String(iv);
+    }
+    setIvRawValues(prev => {
+      const merged = { ...next };
+      for (const id of Object.keys(prev)) {
+        if (id in next) merged[id] = prev[id];
+      }
+      return merged;
+    });
+  }, [activeIVs]);
+
+  // Stable ref for callback (avoids re-firing on every parent render)
+  const onPayoffMinMaxChangeRef = useRef(onPayoffMinMaxChange);
+  onPayoffMinMaxChangeRef.current = onPayoffMinMaxChange;
+
   // Auto-compute price range from strategy rows + active orders
   useEffect(() => {
     const prices: number[] = [];
@@ -151,10 +185,10 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
       if (e > 0) prices.push(e);
     }
     if (prices.length === 0) return;
-    const max = Math.max(...prices);
-    const min = Math.min(...prices);
-    onPayoffMinMaxChange?.(Math.max(0, min * 0.5), max * 1.5);
-  }, [strategyRows, activeOrders, onPayoffMinMaxChange]);
+    const maxVal = Math.max(...prices) * 1.5;
+    const minVal = Math.max(0, Math.min(...prices) * 0.5);
+    onPayoffMinMaxChangeRef.current?.(minVal, maxVal);
+  }, [strategyRows, activeOrders]);
 
   const hasFutureOrders = activeOrders.some(o => o.contract_type === 'future' || (o.leverage != null && o.leverage > 0));
   const hasOptionOrders = activeOrders.some(o => o.contract_type === 'option' || o.strike_price != null || o.option_type != null);
@@ -296,6 +330,34 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             {activeOrders.filter(o => o.contract_type === 'option').length > 0 && (
               <div>
                 <div className="text-[9px] text-slate font-medium mb-1">Active Order IV</div>
+                {/* Apply All row */}
+                <div className="flex items-center gap-1 mb-1.5">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="IV"
+                    value={masterIvStr}
+                    onChange={(e) => setMasterIvStr(e.target.value)}
+                    className="w-12 text-[10px] border border-hairline rounded px-1 py-0.5 text-right"
+                  />
+                  <span className="text-[9px] text-slate">%</span>
+                  <button
+                    onClick={() => {
+                      const val = parseFloat(masterIvStr);
+                      if (!isNaN(val)) {
+                        const optionOrders = activeOrders.filter(o => o.contract_type === 'option');
+                        optionOrders.forEach(o => onActiveIVChange?.(o.order_id, val));
+                        const updated: Record<string, string> = {};
+                        optionOrders.forEach(o => { updated[o.order_id] = masterIvStr; });
+                        setIvRawValues(prev => ({ ...prev, ...updated }));
+                        setMasterIvStr("");
+                      }
+                    }}
+                    className="text-[9px] px-1.5 py-0.5 rounded bg-purple-600 text-white font-medium ml-auto"
+                  >
+                    Apply All
+                  </button>
+                </div>
                 <div className="space-y-1 max-h-20 overflow-y-auto">
                   {activeOrders.filter(o => o.contract_type === 'option').map(order => (
                     <div key={order.order_id} className="flex items-center justify-between gap-1">
@@ -303,15 +365,29 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                         {order.asset_type} {order.option_type} {order.strike_price}
                       </span>
                       <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.1"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="0"
-                        value={activeIVs?.[order.order_id] ?? ""}
+                        value={ivRawValues[order.order_id] ?? ""}
                         onChange={(e) => {
-                          const val = parseFloat(e.target.value);
-                          onActiveIVChange?.(order.order_id, isNaN(val) ? 0 : val);
+                          const raw = e.target.value;
+                          setIvRawValues(prev => ({ ...prev, [order.order_id]: raw }));
+                          if (raw === "" || raw === "-") return;
+                          const val = parseFloat(raw);
+                          if (!isNaN(val)) {
+                            onActiveIVChange?.(order.order_id, val);
+                          }
+                        }}
+                        onBlur={() => {
+                          const raw = ivRawValues[order.order_id] ?? "";
+                          if (raw === "" || raw === "-") {
+                            onActiveIVChange?.(order.order_id, 0);
+                            setIvRawValues(prev => {
+                              const next = { ...prev };
+                              delete next[order.order_id];
+                              return next;
+                            });
+                          }
                         }}
                         className="w-14 text-[10px] border border-hairline rounded px-1 py-0.5 text-right text-gray-700"
                       />
@@ -321,6 +397,63 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Price Range inputs */}
+            <div>
+              <div className="text-[9px] text-slate font-medium mb-1">Price Range</div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={priceMinStr}
+                    onChange={(e) => setPriceMinStr(e.target.value)}
+                    onBlur={() => {
+                      const raw = priceMinStr.trim();
+                      if (raw === "" || raw === "-") {
+                        setPriceMinStr(payoffMinPrice != null ? String(payoffMinPrice) : "0");
+                        return;
+                      }
+                      const newMin = parseFloat(raw);
+                      if (!isNaN(newMin)) {
+                        let newMax = (payoffMaxPrice || 0) > 0 ? payoffMaxPrice : 100;
+                        if (newMax <= newMin) newMax = newMin * 1.5;
+                        onPayoffMinMaxChange?.(newMin, newMax);
+                      } else {
+                        setPriceMinStr(payoffMinPrice != null ? String(payoffMinPrice) : "0");
+                      }
+                    }}
+                    className="w-full text-[10px] border border-hairline rounded px-1.5 py-1 text-right"
+                    placeholder="Min"
+                  />
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={priceMaxStr}
+                    onChange={(e) => setPriceMaxStr(e.target.value)}
+                    onBlur={() => {
+                      const raw = priceMaxStr.trim();
+                      if (raw === "" || raw === "-") {
+                        setPriceMaxStr(payoffMaxPrice != null ? String(payoffMaxPrice) : "100");
+                        return;
+                      }
+                      const newMax = parseFloat(raw);
+                      if (!isNaN(newMax)) {
+                        let newMin = (payoffMinPrice || 0) > 0 ? payoffMinPrice : 0;
+                        if (newMin >= newMax) newMin = newMax * 0.5;
+                        onPayoffMinMaxChange?.(newMin, newMax);
+                      } else {
+                        setPriceMaxStr(payoffMaxPrice != null ? String(payoffMaxPrice) : "100");
+                      }
+                    }}
+                    className="w-full text-[10px] border border-hairline rounded px-1.5 py-1 text-right"
+                    placeholder="Max"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

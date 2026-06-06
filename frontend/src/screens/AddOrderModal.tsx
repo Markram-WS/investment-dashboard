@@ -77,6 +77,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
 
   if (!showModal) return null;
 
+  const contractType = formData.contract_type || 'spot';
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[110]">
       <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
@@ -94,12 +96,13 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           </div>
           <div>
             <label className="block text-xs font-bold uppercase text-slate mb-1">Contract Type</label>
-                <ToggleBtn
-                  options={[
-                    { value: 'Call', label: 'CALL', activeClass: `${buttonTheme.optionType.Call.bg} ${buttonTheme.optionType.Call.text} ${buttonTheme.optionType.Call.border}` },
-                    { value: 'Put', label: 'PUT', activeClass: `${buttonTheme.optionType.Put.bg} ${buttonTheme.optionType.Put.text} ${buttonTheme.optionType.Put.border}` },
-                  ]}
-              value={formData.contract_type}
+            <ToggleBtn
+              options={[
+                { value: 'spot', label: 'Spot', activeClass: 'bg-indigo-600 text-white border-indigo-600' },
+                { value: 'future', label: 'Future', activeClass: 'bg-blue-600 text-white border-blue-600' },
+                { value: 'option', label: 'Option', activeClass: 'bg-purple-600 text-white border-purple-600' },
+              ]}
+              value={contractType}
               onChange={(v) => onChange('contract_type', v)}
             />
           </div>
@@ -121,7 +124,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               <label className="block text-xs font-bold uppercase text-slate mb-1">Side</label>
               <ToggleBtn
                 options={
-                  formData.contract_type === 'spot'
+                  contractType === 'spot'
                     ? [
                         { value: 'BUY', label: 'BUY', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
                         { value: 'SELL', label: 'SELL', activeClass: 'bg-red-500 text-white border-red-500' },
@@ -135,14 +138,14 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 onChange={(v) => onChange('side', v)}
               />
             </div>
-            {formData.contract_type === 'option' && (
+            {contractType === 'option' && (
               <div className="flex-1">
                 <label className="block text-xs font-bold uppercase text-slate mb-1">Option Type</label>
-                  <ToggleBtn
-                    options={[
-                      { value: 'LONG', label: 'LONG', activeClass: `${buttonTheme.side.LONG.bg} ${buttonTheme.side.LONG.text} ${buttonTheme.side.LONG.border}` },
-                      { value: 'SHORT', label: 'SHORT', activeClass: `${buttonTheme.side.SHORT.bg} ${buttonTheme.side.SHORT.text} ${buttonTheme.side.SHORT.border}` },
-                    ]}
+                <ToggleBtn
+                  options={[
+                    { value: 'Call', label: 'CALL', activeClass: `${buttonTheme.optionType.Call.bg} ${buttonTheme.optionType.Call.text} ${buttonTheme.optionType.Call.border}` },
+                    { value: 'Put', label: 'PUT', activeClass: `${buttonTheme.optionType.Put.bg} ${buttonTheme.optionType.Put.text} ${buttonTheme.optionType.Put.border}` },
+                  ]}
                   value={formData.option_type}
                   onChange={(v) => onChange('option_type', v)}
                 />
@@ -182,7 +185,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 className="w-full border rounded px-3 py-2 text-sm"
               />
             </div>
-            {formData.contract_type === 'option' ? (
+            {contractType === 'option' ? (
               <div className="flex-1">
                 <label className="block text-xs font-bold uppercase text-slate mb-1">Strike Price</label>
                 <input
@@ -231,7 +234,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 onChange={(v) => onChange('order_status', v)}
               />
             </div>
-            {formData.contract_type !== 'spot' && (
+            {contractType !== 'spot' && (
               <div className="flex-1">
                 <label className="block text-xs font-bold uppercase text-slate mb-1">Expiry Date</label>
                 <input

@@ -68,7 +68,7 @@ const CHART_W = WIDTH - MARGIN.left - MARGIN.right;
 const CHART_H = HEIGHT - MARGIN.top - MARGIN.bottom;
 const NUM_POINTS = 200;
 
-interface TooltipData { x: number; y: number; price: number; pl: number; plIv?: number; }
+interface TooltipData { x: number; y: number; snappedX: number; price: number; pl: number; plIv?: number; }
 
 const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, ivMode, minPrice, maxPrice, activeIVs }) => {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -188,8 +188,10 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
     const price = lo + (mouseChartX / CHART_W) * (hi - lo);
     const idx = Math.round((price - lo) / step);
     const clampedIdx = Math.max(0, Math.min(idx, plValues.length - 1));
+    const snappedX = MARGIN.left + (clampedIdx / (prices.length - 1)) * CHART_W;
     setTooltip({
       x: mouseX, y: e.clientY - rect.top,
+      snappedX,
       price: prices[clampedIdx], pl: plValues[clampedIdx],
       plIv: ivMode ? ivPlValues[clampedIdx] : undefined,
     });
@@ -235,7 +237,7 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
           return (
             <g key={f}>
               <line x1={MARGIN.left} y1={y} x2={MARGIN.left + CHART_W} y2={y} stroke={f === 0 || f === 1 ? "var(--color-hairline)" : "var(--color-hairline-soft)"} strokeWidth="1" />
-              <text x={MARGIN.left - 6} y={y + 3} textAnchor="end" className="text-[9px]" fill="var(--color-slate)">{val.toFixed(0)}</text>
+              <text x={MARGIN.left - 6} y={y + 3} textAnchor="end" className="text-[9px]" fill="var(--color-slate)">{val.toFixed(1)}</text>
             </g>
           );
         })}
@@ -250,7 +252,7 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
           const val = lo + (hi - lo) * f;
           return (
             <g key={`xlabel-${f}`}>
-              <text x={x} y={MARGIN.top + CHART_H + 12} textAnchor="middle" className="text-[8px]" fill="var(--color-slate)">{val.toFixed(0)}</text>
+              <text x={x} y={MARGIN.top + CHART_H + 12} textAnchor="middle" className="text-[8px]" fill="var(--color-slate)">{val.toFixed(1)}</text>
             </g>
           );
         })}
@@ -269,30 +271,34 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
         {/* Intrinsic P/L line */}
         <path d={linePath} fill="none" stroke="var(--color-brand-blue)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
 
-        {/* Break Event */}
-        {(() => {
-          const bePrice = ivMode && ivBePoints.length > 0 ? ivBePoints[0] : bePoints.length > 0 ? bePoints[0] : null;
-          if (bePrice === null || bePrice < lo || bePrice > hi) return null;
-          const x = toX(bePrice);
-          return (
-            <g>
-              <rect x={x - 38} y={MARGIN.top - 16} width="76" height="14" rx="3" fill="var(--color-warning)" />
-              <text x={x} y={MARGIN.top - 6} textAnchor="middle" className="text-[8px]" fill="white" fontWeight="600">Break Event: {bePrice.toFixed(0)}</text>
-            </g>
-          );
-        })()}
-
-        {/* Break-even (intrinsic) */}
-        {bePoints.map((be, i) => {
+        {/* Break-even vertical lines */}
+        {(ivMode ? ivBePoints : bePoints).map((be, i) => {
           const x = toX(be);
+          if (x < MARGIN.left || x > MARGIN.left + CHART_W) return null;
           return (
-            <g key={`be-${i}`}>
-              <circle cx={x} cy={baselineY} r="4" fill="var(--color-warning)" stroke="white" strokeWidth="2" />
-              <rect x={x - 22} y={baselineY + 8} width="44" height="14" rx="3" fill="var(--color-warning)" />
-              <text x={x} y={baselineY + 18} textAnchor="middle" className="text-[8px]" fill="white" fontWeight="600">BE: {be.toFixed(0)}</text>
-            </g>
+            <line
+              key={`be-v-${i}`}
+              x1={x} y1={MARGIN.top}
+              x2={x} y2={MARGIN.top + CHART_H}
+              stroke="#FCD34D" strokeWidth="1" strokeDasharray="4,3" opacity="0.6"
+            />
           );
         })}
+
+        {/* Crosshair */}
+        {tooltip && (
+          <>
+            <line
+              x1={tooltip.snappedX} y1={MARGIN.top}
+              x2={tooltip.snappedX} y2={MARGIN.top + CHART_H}
+              stroke="var(--color-slate)" strokeWidth="1" strokeDasharray="4,3" opacity="0.5"
+            />
+            <circle cx={tooltip.snappedX} cy={toY(tooltip.pl)} r="4" fill="var(--color-brand-blue)" stroke="white" strokeWidth="2" />
+            {ivMode && tooltip.plIv !== undefined && (
+              <circle cx={tooltip.snappedX} cy={toY(tooltip.plIv)} r="4" fill="var(--color-brand-teal)" stroke="white" strokeWidth="2" />
+            )}
+          </>
+        )}
 
         {/* Axes */}
         <line x1={MARGIN.left} y1={MARGIN.top + CHART_H} x2={MARGIN.left + CHART_W} y2={MARGIN.top + CHART_H} stroke="var(--color-hairline)" strokeWidth="1" />
@@ -303,8 +309,8 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
       </svg>
 
       {tooltip && (
-        <div className="absolute bg-gray-900 text-white text-[10px] px-2.5 py-1.5 rounded pointer-events-none shadow-lg z-10" style={{ left: Math.min(tooltip.x + 12, WIDTH - 100), top: Math.max(tooltip.y - 40, 0) }}>
-          <div>Price: <span className="font-medium">{tooltip.price.toFixed(0)}</span></div>
+        <div className="absolute bg-gray-900 text-white text-[10px] px-2.5 py-1.5 rounded pointer-events-none shadow-lg z-10" style={{ left: Math.min(tooltip.snappedX + 12, WIDTH - 100), top: Math.max(tooltip.y - 40, 0) }}>
+          <div>Price: <span className="font-medium">{tooltip.price.toFixed(2)}</span></div>
           <div>
             <span className="text-brand-blue">●</span> Intrinsic:{" "}
             <span className="font-bold" style={{ color: tooltip.pl >= 0 ? "var(--color-success)" : "var(--color-error)" }}>{tooltip.pl >= 0 ? "+" : ""}{tooltip.pl.toFixed(2)}</span>
@@ -320,15 +326,15 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
 
       <div className="flex gap-5 mt-2 text-[10px] text-slate">
         <span>Legs: <span className="font-medium text-ink">{legs.length}</span> ({legs.filter(l => l.source === "active").length}A, {legs.filter(l => l.source === "strategy").length}S)</span>
-        <span><span className="text-brand-blue">●</span> Intrinsic Max: <span className="font-bold text-success">+{Math.max(...plValues, 0).toFixed(0)}</span></span>
-        <span>Min: <span className="font-bold text-error">{Math.min(...plValues, 0).toFixed(0)}</span></span>
+        <span><span className="text-brand-blue">●</span> Intrinsic Max: <span className="font-bold text-success">+{Math.max(...plValues, 0).toFixed(1)}</span></span>
+        <span>Min: <span className="font-bold text-error">{Math.min(...plValues, 0).toFixed(1)}</span></span>
         {ivMode && (
           <>
-            <span><span className="text-brand-teal">╌</span> BSM Max: <span className="font-bold text-success">+{Math.max(...ivPlValues, 0).toFixed(0)}</span></span>
-            <span>Min: <span className="font-bold text-error">{Math.min(...ivPlValues, 0).toFixed(0)}</span></span>
+            <span><span className="text-brand-teal">╌</span> BSM Max: <span className="font-bold text-success">+{Math.max(...ivPlValues, 0).toFixed(1)}</span></span>
+            <span>Min: <span className="font-bold text-error">{Math.min(...ivPlValues, 0).toFixed(1)}</span></span>
           </>
         )}
-        {bePoints.length > 0 && <span>BE: <span className="font-medium text-ink">{bePoints.map(b => b.toFixed(0)).join(", ")}</span></span>}
+        {(ivMode ? ivBePoints : bePoints).length > 0 && <span>BE: <span className="font-medium text-ink">{(ivMode ? ivBePoints : bePoints).map(b => b.toFixed(1)).join(", ")}</span></span>}
       </div>
     </div>
   );
