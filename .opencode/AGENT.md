@@ -166,23 +166,9 @@
 | `frontend/package.json` | Vite 5.4.21, @vitejs/plugin-react 4.x |
 | `database/main_db_schema.sql` | asset_groups table, whitelist_assets columns |
 
-## requirement
-requirement\Detailed-Functional-Requirements.md
-
-## Main Page
-### DESIND : D:\InvestmentDashboard\requirement\UI\DESIGN.md
-### SPREAD detail
-requirement\UI\UI-LAYOUT-PORTFOLIO-ANALYTICS-SPREAD.md
-requirement\UI\portfolio_analytics_grid(layout)
-### GRID detail
-requirement\UI\UI-LAYOUT-PORTFOLIO-ANALYTICS0-GRID.md
-requirement\UI\portfolio_analytics_spread(layout)
-## FUND detail
-requirement\UI\UI-LAYOUT-MANAGED-FUND.md
-
 ## backend detail : D:\InvestmentDashboard\backend\README.md
 ## frontend detail : D:\InvestmentDashboard\frontend\README.md
 ## database : D:\InvestmentDashboard\database\README.md
+## overall detail : D:\InvestmentDashboard\README.md
+## design : DESIGN.md/
 
-requirement
-requirement\Detailed-Functional-Requirements.md
