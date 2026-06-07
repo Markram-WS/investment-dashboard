@@ -12,6 +12,7 @@ import {
   IconMoreHorizontal,
   IconMenu,
   IconX,
+  IconPlus,
 } from "./icons";
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
@@ -112,7 +113,7 @@ export default function Navigation() {
                   return (
                     <button
                       key={p.id}
-                      onClick={() => { setSelectedId(p.id); setPortfoliosDropdownOpen(false); }}
+                      onClick={() => { setSelectedId(p.id); setPortfoliosDropdownOpen(false); navigate(`/analytics/portfolio/${p.id}`); }}
                       className="w-full px-4 py-3 text-sm font-medium text-slate bg-transparent border-none flex items-center gap-2.5 cursor-pointer hover:bg-surface"
                     >
                       <span className="w-2 h-2 rounded-full inline-block" style={{ background: color }} />
@@ -124,12 +125,14 @@ export default function Navigation() {
                   <p className="px-4 py-3 text-[13px] text-slate m-0">No portfolios</p>
                 )}
                 <div className="h-px bg-hairline my-1" />
-                <button
-                  onClick={() => { setPortfoliosDropdownOpen(false); navigate('/create-portfolio'); }}
-                  className="w-full px-4 py-3 text-sm font-medium text-brand-teal bg-transparent border-none cursor-pointer hover:bg-surface"
-                >
-                  + Create Portfolio
-                </button>
+                <div className="px-3 py-2">
+                  <button
+                    onClick={() => { setPortfoliosDropdownOpen(false); navigate('/create-portfolio'); }}
+                    className="w-full text-sm font-semibold text-brand-teal bg-transparent border-none cursor-pointer hover:underline inline-flex items-center gap-1.5"
+                  >
+                    <IconPlus className="w-4 h-4" /> Portfolio
+                  </button>
+                </div>
               </div>
             )}
           </div>
