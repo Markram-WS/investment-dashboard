@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { DndProvider, useDrag, useDrop } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
+import { useDrag, useDrop } from "react-dnd";
 import { api } from "../lib/api";
 import { PortfolioOverviewItem, OverviewResponse } from "../types";
 import { getPortfolioTags, getProfitPct, getStatusMessage } from "../utils/tags";
@@ -332,7 +331,6 @@ export default function PortfolioOverview() {
             <Button variant="primary" onClick={() => navigate('/create-portfolio')}>+ Create Portfolio</Button>
           </div>
         ) : (
-          <DndProvider backend={HTML5Backend}>
             <div className="grid grid-cols-2 gap-6">
               {portfolios.map((p) => (
                 <PortfolioCard
@@ -344,7 +342,6 @@ export default function PortfolioOverview() {
                 />
               ))}
             </div>
-          </DndProvider>
         )}
       </section>
 

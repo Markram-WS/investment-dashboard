@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import PortfolioOverview from './pages/PortfolioOverview';
 import TransactionsPage from './pages/TransactionsPage';
 import TradePlanManager from './pages/TradePlanManager';
@@ -20,6 +22,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
+        <DndProvider backend={HTML5Backend}>
         <Routes>
           <Route element={<GlobalLayout />}>
             <Route path="/" element={<PortfolioOverview />} />
@@ -36,6 +39,7 @@ export default function App() {
             <Route path="/risk-analytics" element={<RiskAnalytics />} />
           </Route>
         </Routes>
+        </DndProvider>
       </Router>
     </QueryClientProvider>
   );

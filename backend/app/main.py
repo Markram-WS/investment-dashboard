@@ -17,6 +17,7 @@ from app.routers import (
     rebalance,
     trade_history,
     assets,
+    asset_groups,
     orders_groups,
     performance,
 )
@@ -25,6 +26,15 @@ from app.routers import (
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Migrate existing whitelist_assets table with new columns
+        from sqlalchemy import text
+        for col in ("name VARCHAR", "source VARCHAR DEFAULT 'manual'", "group_id INTEGER REFERENCES asset_groups(id)", "price NUMERIC(20,8)", "change_24h NUMERIC(10,4)", "updated_at TIMESTAMP DEFAULT NOW()"):
+            col_name = col.split()[0]
+            result = await conn.execute(
+                text(f"SELECT column_name FROM information_schema.columns WHERE table_name='whitelist_assets' AND column_name='{col_name}'")
+            )
+            if not result.scalar():
+                await conn.execute(text(f"ALTER TABLE whitelist_assets ADD COLUMN {col}"))
     async with ai_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -33,7 +43,7 @@ app = FastAPI(
     title="Investment Dashboard API",
     description="Professional investment management system",
     version="0.1.0",
-    redirect_slashes=False,
+
     lifespan=lifespan,
 )
 
@@ -51,7 +61,8 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(assets.router, prefix="/api/v1/whitelist_assets", tags=["assets"])
+app.include_router(assets.router, prefix="/api/v1/assets", tags=["assets"])
+app.include_router(asset_groups.router, prefix="/api/v1/asset-groups", tags=["asset-groups"])
 app.include_router(portfolios.router, prefix="/api/v1/portfolios", tags=["portfolios"])
 app.include_router(
     trade_plans.router, prefix="/api/v1/trade-plans", tags=["trade-plans"]

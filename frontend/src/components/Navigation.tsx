@@ -18,7 +18,7 @@ import ThemeToggle from "./ThemeToggle";
 
 const NAV_ITEMS = [
   { name: "Overview", path: "/", Icon: IconDashboard },
-  { name: "All Assets", path: "/all-assets", Icon: IconTrendingUp },
+  { name: "Asset", path: "/all-assets", Icon: IconTrendingUp },
   { name: "Transactions", path: "/transactions", Icon: IconRepeat },
   { name: "Risk Analytics", path: "/risk-analytics", Icon: IconShield },
 ];

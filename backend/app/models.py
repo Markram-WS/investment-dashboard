@@ -219,6 +219,22 @@ class WhitelistAssets(Base):
     asset_id = Column(Integer, primary_key=True)
     ticker = Column(String, nullable=False, unique=True)
     asset_type = Column(String, nullable=False)
+    name = Column(String, nullable=True)
+    source = Column(String, default='manual')
+    group_id = Column(Integer, ForeignKey('asset_groups.id'), nullable=True)
+    price = Column(Numeric(20, 8), nullable=True)
+    change_24h = Column(Numeric(10, 4), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AssetGroup(Base):
+    __tablename__ = 'asset_groups'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+    is_default = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 
 class Watchlist(Base):
     __tablename__ = 'watchlist'
