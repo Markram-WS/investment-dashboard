@@ -114,4 +114,4 @@ Uses CSS variables for theming with automatic dark mode switching:
 | `--color-brand-yellow` | `#ffd02f` | `#ffd02f` |
 | `--color-brand-coral` | `#ff9999` | `#ff9999` |
 
-*Last updated: 8 June 2026 (CustomTradePlan; ensure_custom_tables FK dropping + column migration; all order/asset/group CRUD endpoints support ?portfolio_id=; group_name resolution in analytics)*
+*Last updated: 8 June 2026 (CustomTradePlan; ensure_custom_tables FK dropping + column migration; all order/asset/group CRUD endpoints support ?portfolio_id=; group_name resolution in analytics; trade_history list always queries main DB; PortfolioGrid fetchAnalyticsData on group CRUD)*

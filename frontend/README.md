@@ -325,4 +325,4 @@ optimizeDeps: { include: ['react', 'react-dom', ...] }
 
 ---
 
-*Last updated: 8 June 2026 (portfolio_id query param on all order/asset/group CRUD APIs; ZoneGroupModal onSaved fix; portfolio-aware deleteZoneGroup/updateZoneGroup)*
+*Last updated: 8 June 2026 (portfolio_id query param on all order/asset/group CRUD APIs; ZoneGroupModal onSaved fix; portfolio-aware deleteZoneGroup/updateZoneGroup; PortfolioGrid onSaved/onClose now calls fetchAnalyticsData to refresh order grouping after group CRUD)*

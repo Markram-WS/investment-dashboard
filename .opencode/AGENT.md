@@ -60,6 +60,7 @@
   - `orders_groups.py` — CRUD for orders groups (`Zone Groups`); all endpoints support `?portfolio_id=` for custom portfolios
   - `active_orders.py` — all order endpoints (create, update, close, link, unlink, cancel) accept `?portfolio_id=` query param and route via `resolve_portfolio_db`
   - `analytics.py` — both `get_portfolio_grid_data` and `get_portfolio_detail` build `group_name` mapping by querying `CustomOrdersGroup` table for custom portfolios (since `CustomActiveOrder` has no ORM `group` relationship)
+  - `trade_history.py` — `get_trade_history` now always queries `TradeHistory` from main DB for custom portfolios (close endpoint writes `TradeHistory` to main DB, not `CustomTransaction` to custom DB)
   - `yfinance_service.py` — rewritten to use direct HTTP to Yahoo Finance (`query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=2d&interval=1d`). No yfinance library. Errors propagate as HTTP 502.
 - `WhitelistAssets` extended: `name`, `source` (yfinance/manual), `group_id` FK→`asset_groups`, `price`, `change_24h`, `updated_at`
 - Two core PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
@@ -143,6 +144,8 @@
 - **CustomTradePlan**: Added to `custom_models.py` to resolve `ForeignKeyViolationError` when creating orders referencing main-DB `plan_id`s in external DBs.
 - **group_name resolution**: `CustomActiveOrder` has no ORM `group` relationship. Both analytics endpoints now query `CustomOrdersGroup` table to populate `order.group_name` for custom portfolio orders.
 - **ZoneGroupModal**: `onSaved` must be destructured from props. `deleteZoneGroup` and `updateZoneGroup` need `portfolioId` to append `?portfolio_id=` for custom portfolios.
+- **Group CRUD refresh**: After creating/editing/deleting a zone group, `PortfolioGrid` must call `fetchAnalyticsData()` (not just refresh `groups` state) to update `active_orders` with fresh `group_id`/`group_name` — otherwise the `zoneGroups` computed value still shows the stale group.
+- **Trade history for custom portfolios**: `get_trade_history` must query `TradeHistory` from main DB (not `CustomTransaction` from custom DB) because `close_order` always writes `TradeHistory` to main DB regardless of portfolio type.
 - **Global transactions query**: `GET /api/v1/transactions` without `portfolio_id` aggregates all custom DBs. Failed nodes are skipped and reported via `failed_portfolios` array in response.
 
 ## 10. Impeccable Audit Status (last: 2026-06-07)
