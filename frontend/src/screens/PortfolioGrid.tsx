@@ -21,7 +21,7 @@ import StrategyNotes from "./components/StrategyNotes";
 import PerformanceSection from "./components/PerformanceSection";
 import OrderManagement from "./components/OrderManagement";
 import type { OptionRow } from "./components/OptionsStrategyTable";
-import ToastAlert from "./components/ToastAlert";
+import { useNotification } from "../contexts/NotificationContext";
 
 interface PortfolioGridProps {
   portfolioId?: number | string;
@@ -46,7 +46,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const [closingOrder, setClosingOrder] = useState<SpreadOrder | null>(null);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showEditPortfolioModal, setShowEditPortfolioModal] = useState(false);
-  const [alertMsg, setAlertMsg] = useState<{ msg: string; type: "warning" | "success" } | null>(null);
+  const { notify } = useNotification();
   const navigate = useNavigate();
 
   const [contractFilter, setContractFilter] = useState<'all' | 'spot' | 'future' | 'option'>('all');
@@ -235,7 +235,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       }
     }
     if (warnings.length > 0) {
-      setAlertMsg({ msg: warnings.join(" "), type: "warning" });
+      notify(warnings.join(" "), 'warning');
     }
     try {
       for (const orderId of orderIds) {
@@ -427,7 +427,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
 
   return (
     <>
-      {alertMsg && <ToastAlert message={alertMsg.msg} type={alertMsg.type} onClose={() => setAlertMsg(null)} key={alertMsg.msg + alertMsg.type} />}
       <div className="min-h-screen">
       <PortfolioHeader
         portfolioName={selectedPortfolio.portfolio_name}
@@ -573,7 +572,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         showModal={showEditPortfolioModal}
         onClose={() => setShowEditPortfolioModal(false)}
         onSaved={() => { fetchAnalyticsData(); }}
-        onDepositWithdraw={(msg) => setAlertMsg({ msg, type: "success" })}
+        onDepositWithdraw={(msg) => notify(msg, 'success')}
         activeOrderCount={activeOrders.length}
         onDeleted={() => {
           const deletedPid = selectedPortfolio?.portfolio_id;

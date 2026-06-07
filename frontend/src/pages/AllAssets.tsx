@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query';
 import { useDrag, useDrop } from 'react-dnd';
 import { api } from '../lib/api';
+import { useNotification } from '../contexts/NotificationContext';
 import Button from '../screens/components/Button';
 import AddAssetModal from '../screens/AddAssetModal';
 import EditAssetModal from '../screens/EditAssetModal';
 import AssetGroupModal from '../screens/AssetGroupModal';
-import ToastAlert from '../screens/components/ToastAlert';
 
 const TYPE_TABS = [
   { value: '', label: 'All' },
@@ -181,8 +181,8 @@ export default function AllAssets() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [editAsset, setEditAsset] = useState<any>(null);
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'warning' } | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
+  const { notify } = useNotification();
   const autoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: groups = [], refetch: refetchGroups } = useQuery({
@@ -206,12 +206,12 @@ export default function AllAssets() {
         }
       }
       if (result.updated > 0) {
-        setToast({ msg: `Updated ${result.updated} prices`, type: 'success' });
+        notify(`Updated ${result.updated} prices`, 'success');
       } else {
-        setToast({ msg: 'No prices updated — all assets may be rate limited', type: 'warning' });
+        notify('No prices updated — all assets may be rate limited', 'warning');
       }
     } catch (e: any) {
-      setToast({ msg: e.message || 'Failed to refresh prices', type: 'warning' });
+      notify(e.message || 'Failed to refresh prices', 'warning');
     }
   }, [refetchAssets, typeFilter]);
 
@@ -221,10 +221,10 @@ export default function AllAssets() {
       if (updated.price && updated.price > 0) {
         localStorage.setItem(`cached_price_${updated.ticker}`, String(updated.price));
       }
-      setToast({ msg: `${asset.ticker} price updated`, type: 'success' });
+      notify(`${asset.ticker} price updated`, 'success');
       await refetchAssets();
     } catch (e: any) {
-      setToast({ msg: `${asset.ticker}: ${e.message || 'refresh failed'}`, type: 'warning' });
+      notify(`${asset.ticker}: ${e.message || 'refresh failed'}`, 'warning');
     }
   };
 
@@ -236,7 +236,7 @@ export default function AllAssets() {
       localStorage.setItem(`cached_price_${asset.ticker}`, String(price));
       await refetchAssets();
     } catch (e: any) {
-      setToast({ msg: `${asset.ticker}: ${e.message || 'save failed'}`, type: 'warning' });
+      notify(`${asset.ticker}: ${e.message || 'save failed'}`, 'warning');
     }
   };
 
@@ -254,10 +254,10 @@ export default function AllAssets() {
     setSyncLoading(true);
     try {
       const created = await api.syncAssetsFromOrders();
-      setToast({ msg: `Synced ${created.length} new assets from orders`, type: 'success' });
+      notify(`Synced ${created.length} new assets from orders`, 'success');
       await refetchAssets();
     } catch (e: any) {
-      setToast({ msg: e.message || 'Sync failed', type: 'warning' });
+      notify(e.message || 'Sync failed', 'warning');
     }
     setSyncLoading(false);
   };
@@ -267,7 +267,7 @@ export default function AllAssets() {
       await api.updateAsset(assetId, { group_id: targetGroupId });
       await refetchAssets();
     } catch (e: any) {
-      setToast({ msg: e.message || 'Failed to move asset', type: 'warning' });
+      notify(e.message || 'Failed to move asset', 'warning');
     }
   };
 
@@ -309,7 +309,6 @@ export default function AllAssets() {
 
   return (
       <div className="px-10 py-6 min-h-screen max-w-[1800px] mx-auto relative">
-        {toast && <ToastAlert message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
         <AddAssetModal open={showAddModal} onClose={() => setShowAddModal(false)} onSaved={() => { refetchAssets(); refetchGroups(); }} groups={groups} />
         <EditAssetModal open={!!editAsset} asset={editAsset} onClose={() => setEditAsset(null)} onSaved={() => { refetchAssets(); refetchGroups(); }} groups={groups} />

@@ -9,12 +9,12 @@ import {
   IconShield,
   IconFolder,
   IconChevronDown,
-  IconBell,
   IconMoreHorizontal,
   IconMenu,
   IconX,
 } from "./icons";
 import ThemeToggle from "./ThemeToggle";
+import NotificationBell from "./NotificationBell";
 
 const NAV_ITEMS = [
   { name: "Overview", path: "/", Icon: IconDashboard },
@@ -137,9 +137,7 @@ export default function Navigation() {
 
         <div className="flex items-center gap-2 ml-auto">
           <ThemeToggle />
-          <button aria-label="Notifications" className="w-10 h-10 flex items-center justify-center bg-transparent border border-hairline rounded-full cursor-pointer">
-            <IconBell className="w-5 h-5 nav-icon-hover" />
-          </button>
+          <NotificationBell />
         </div>
 
         <button

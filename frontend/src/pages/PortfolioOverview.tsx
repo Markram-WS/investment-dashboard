@@ -6,8 +6,8 @@ import { PortfolioOverviewItem, OverviewResponse } from "../types";
 import { getPortfolioTags, getProfitPct, getStatusMessage } from "../utils/tags";
 import { fmtAmount } from "../utils/format";
 import TransferModal from "../screens/components/TransferModal";
-import ToastAlert from "../screens/components/ToastAlert";
 import Button from "../screens/components/Button";
+import { useNotification } from "../contexts/NotificationContext";
 
 interface DragItem {
   sourcePortfolioId: number;
@@ -150,7 +150,7 @@ export default function PortfolioOverview() {
   const [data, setData] = useState<OverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [currency, setCurrency] = useState<"USD" | "THB">("USD");
-  const [alertMsg, setAlertMsg] = useState<string | null>(null);
+  const { notify } = useNotification();
   const [transferModal, setTransferModal] = useState<{
     source: { id: number; name: string; available: number } | null;
     destination: { id: number; name: string } | null;
@@ -350,10 +350,9 @@ export default function PortfolioOverview() {
         source={transferModal.source!}
         destination={transferModal.destination!}
         onClose={() => setTransferModal({ source: null, destination: null })}
-        onSuccess={(msg) => { setAlertMsg(msg); api.getOverview().then(setData).catch(() => {}); }}
+        onSuccess={(msg) => { notify(msg, 'success'); api.getOverview().then(setData).catch(() => {}); }}
       />
 
-      {alertMsg && <ToastAlert message={alertMsg} onClose={() => setAlertMsg(null)} />}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { api } from "../lib/api";
 import { Transaction } from "../types";
 import { formatCurrency, formatDateTime } from "../utils/format";
 import Button from "../screens/components/Button";
-import ToastAlert from "../screens/components/ToastAlert";
+import { useNotification } from "../contexts/NotificationContext";
 
 type ModalType = "transfer" | "deposit" | "withdraw" | null;
 
@@ -12,7 +12,7 @@ export default function TransactionsPage() {
   const [portfolios, setPortfolios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currency] = useState<"USD" | "THB">("USD");
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const { notify } = useNotification();
 
   const [filters, setFilters] = useState({
     dateRange: { start: "", end: "" },
@@ -117,7 +117,7 @@ export default function TransactionsPage() {
         confirmed_by: "Manual",
       });
       await api.confirmTransfer(transfer.transaction_id, "auto-confirm", "Manual");
-      setToastMsg(`Transferred $${amt.toLocaleString()}`);
+      notify(`Transferred $${amt.toLocaleString()}`, 'success');
       await refreshTransactions();
       closeModal();
     } catch (e: any) {
@@ -144,7 +144,7 @@ export default function TransactionsPage() {
         executed_by: "Manual",
       });
       await api.updatePortfolio(pid, { available_cash: (target?.available_cash || 0) + amt });
-      setToastMsg(`Deposited $${amt.toLocaleString()} to ${target?.portfolio_name || pid}`);
+      notify(`Deposited $${amt.toLocaleString()} to ${target?.portfolio_name || pid}`, 'success');
       await refreshTransactions();
       closeModal();
     } catch (e: any) {
@@ -172,7 +172,7 @@ export default function TransactionsPage() {
         executed_by: "Manual",
       });
       await api.updatePortfolio(pid, { available_cash: (target?.available_cash || 0) - amt });
-      setToastMsg(`Withdrew $${amt.toLocaleString()} from ${target?.portfolio_name || pid}`);
+      notify(`Withdrew $${amt.toLocaleString()} from ${target?.portfolio_name || pid}`, 'success');
       await refreshTransactions();
       closeModal();
     } catch (e: any) {
@@ -192,7 +192,6 @@ export default function TransactionsPage() {
 
   return (
     <div className="max-w-[1200px] mx-auto px-6 py-10">
-      {toastMsg && <ToastAlert message={toastMsg} type="success" onClose={() => setToastMsg(null)} />}
 
       <header className="flex items-center justify-between mb-10 animate-fade-up">
         <h1 className="text-5xl font-bold text-ink tracking-tight m-0">

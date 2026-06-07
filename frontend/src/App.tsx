@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { NotificationProvider } from './contexts/NotificationContext';
 import PortfolioOverview from './pages/PortfolioOverview';
 import TransactionsPage from './pages/TransactionsPage';
 import TradePlanManager from './pages/TradePlanManager';
@@ -21,6 +22,7 @@ const queryClient = new QueryClient();
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <NotificationProvider>
       <Router>
         <DndProvider backend={HTML5Backend}>
         <Routes>
@@ -41,6 +43,7 @@ export default function App() {
         </Routes>
         </DndProvider>
       </Router>
+      </NotificationProvider>
     </QueryClientProvider>
   );
 }
