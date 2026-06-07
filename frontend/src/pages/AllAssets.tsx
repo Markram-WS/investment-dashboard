@@ -389,6 +389,25 @@ export default function AllAssets() {
         <div className="mt-4 text-[10px] text-slate">
           {assets.length} asset{assets.length !== 1 ? 's' : ''} · {groups.length} group{groups.length !== 1 ? 's' : ''} · {refreshMode === 'auto' ? 'Auto-refresh ON' : 'Manual refresh'}
         </div>
+
+        {/* Symbol tips */}
+        <details className="mt-2 group">
+          <summary className="text-[10px] text-slate/60 hover:text-slate cursor-pointer transition-colors select-none list-none">
+            <span className="inline-flex items-center gap-1">
+              <svg className={`w-3 h-3 transition-transform group-open:rotate-90`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+              yfinance symbol patterns
+            </span>
+          </summary>
+          <div className="mt-2 p-3 rounded-lg border border-hairline bg-surface/50 text-[10px] text-slate leading-relaxed space-y-1">
+            <div className="font-semibold text-ink mb-1.5">Yahoo Finance symbol format</div>
+            <div><span className="font-mono text-brand-teal">PTT.BK</span> — Thai stocks (add <span className="font-mono">.BK</span> suffix)</div>
+            <div><span className="font-mono text-brand-teal">BTC-USD</span> — Crypto (ticker <span className="font-mono">-USD</span>)</div>
+            <div><span className="font-mono text-brand-teal">AAPL</span> — US stocks (plain ticker)</div>
+            <div><span className="font-mono text-brand-teal">6758.T</span> — Japanese stocks (add <span className="font-mono">.T</span>)</div>
+            <div><span className="font-mono text-brand-teal">TSLA.US</span> — Some non-US exchanges via <span className="font-mono">.US</span></div>
+            <div className="mt-1.5 pt-1.5 border-t border-hairline text-slate/50">Enter the symbol exactly as Yahoo Finance expects it when creating an asset with source=yfinance.</div>
+          </div>
+        </details>
       </div>
   );
 }
