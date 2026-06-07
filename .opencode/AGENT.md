@@ -42,14 +42,27 @@
 ## 6. Architecture Overview
 
 ### Backend (FastAPI)
-- **18 routers** in `backend/app/routers/`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `asset_groups.py`, `assets.py`, `etl_sync.py`, `journal.py`, `orders_groups.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py` (+ `yfinance_service.py` in services/)
-- **16 SQLAlchemy models** (15 existing + `AssetGroup`): Portfolio, TradePlan, ActiveOrder, OptionDetails, PortfolioNavHistory, SimulationModels, TradeHistory, Transaction, DecisionJournal, WhitelistAssets, Watchlist, AssetGroup, OrdersGroup, AiAgent, AiActionLog, AiAgentState
+- **19+ routers** in `backend/app/routers/`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `asset_groups.py`, `assets.py`, `etl_sync.py`, `journal.py`, `orders_groups.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py` (+ `yfinance_service.py` in services/)
+- **18 SQLAlchemy models**: Portfolio, CustomPortfolioConnection, TradePlan, ActiveOrder, OptionDetails, PortfolioNavHistory, SimulationModels, TradeHistory, Transaction, DecisionJournal, WhitelistAssets, Watchlist, AssetGroup, OrdersGroup, AiAgent, AiActionLog, AiAgentState, CustomTradePlan (in custom_models.py)
+- **Custom Portfolio** (`port_type = "Custom Portfolio"`) replaces legacy "Spread Strategy" — requires external PostgreSQL connection.
+- **Multi-DB Architecture**:
+  - `is_custom` flag on `Portfolio` routes transactional data to user-configured external databases
+  - `CustomPortfolioConnection` stores encrypted credentials (Fernet, `FERNET_KEY` env var)
+  - `custom_models.py` defines FK-free table replicas for external DBs (`active_orders`, `transactions`, `trade_plans`, `whitelist_assets`, `asset_groups`, `orders_groups`)
+  - Dynamic engine manager (`database.py`) caches `AsyncEngine` instances per portfolio_id; lazy-connects on first request
+  - `resolve_portfolio_db(db, portfolio_id)` helper provides per-request session routing (replaces removed `get_custom_session_maker`)
+  - `ensure_custom_tables()` runs on first access — queries `information_schema.columns`, runs `ALTER TABLE ADD COLUMN IF NOT EXISTS` for missing columns, drops all FK constraints
+  - `POST /api/v1/portfolios/test-connection` validates external DB credentials
+  - `GET /api/v1/transactions` without `portfolio_id` aggregates from `investment_main` + all custom DBs concurrently via `asyncio.gather(return_exceptions=True)`
 - **Key additions:**
-  - `assets.py` — full CRUD for whitelist assets + `sync-from-orders`, `update-price`, `batch-update-prices`
-  - `asset_groups.py` — CRUD for asset groups; seeds Ungrouped/Watchlist defaults
+  - `assets.py` — full CRUD for whitelist assets + `sync-from-orders`, `update-price`, `batch-update-prices`; all endpoints support `?portfolio_id=` for custom portfolios
+  - `asset_groups.py` — CRUD for asset groups; seeds Ungrouped/Watchlist defaults; all endpoints support `?portfolio_id=`
+  - `orders_groups.py` — CRUD for orders groups (`Zone Groups`); all endpoints support `?portfolio_id=` for custom portfolios
+  - `active_orders.py` — all order endpoints (create, update, close, link, unlink, cancel) accept `?portfolio_id=` query param and route via `resolve_portfolio_db`
+  - `analytics.py` — both `get_portfolio_grid_data` and `get_portfolio_detail` build `group_name` mapping by querying `CustomOrdersGroup` table for custom portfolios (since `CustomActiveOrder` has no ORM `group` relationship)
   - `yfinance_service.py` — rewritten to use direct HTTP to Yahoo Finance (`query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=2d&interval=1d`). No yfinance library. Errors propagate as HTTP 502.
 - `WhitelistAssets` extended: `name`, `source` (yfinance/manual), `group_id` FK→`asset_groups`, `price`, `change_24h`, `updated_at`
-- Two PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
+- Two core PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
 
 ### Frontend (React 18 + TypeScript + Vite 5.4.21)
 - **Vite 5.4.21** (downgraded from Vite 8 due to optimizer hang on Linux/Docker)
@@ -57,6 +70,9 @@
 - **Dark mode**: `.dark` class on `<html>` toggles all CSS variables; ThemeToggle with localStorage + anti-flash script
 - **Font**: Sora (Google Fonts) replaces Inter + Plus Jakarta Sans
 - **Notification system**: `NotificationContext` — `notify(msg, type)` centralizes all toasts. `NotificationBell` in navbar with unread badge + dropdown history panel. Persisted to localStorage. Auto-dismiss 3s.
+- **Custom Portfolio form**: `CreateNewPortfolio.tsx` has "Custom Portfolio" type with external DB connection fields (host, port, DB name, user, password) + Test Connection button
+- **Portfolio routing**: `PortfolioAnalyticsDetail.tsx` routes Managed Fund → `PortfolioMutualFund`, all others (including Custom Portfolio) → `PortfolioGrid`
+- **Removed**: `/spread-pairing` route, `PortfolioSpread` import, spread-pair API calls
 - **Asset page**: Zone-style group sections (collapsible, droppable) replace filter tabs. Inline price editing. Yfinance price cached to `localStorage('cached_price_{ticker}')`. Per-asset refresh + batch refresh.
 - **AssetGroupModal**: Table-layout CRUD (matches ZoneGroupModal style). Default groups (Ungrouped/Watchlist) cannot be deleted.
 - **AddAssetModal / EditAssetModal**: Create/edit assets with group, type, source selection.
@@ -69,9 +85,11 @@
 - **Button component**: 5 variants (primary/secondary/outline/danger/ghost), 3 sizes. Replaces all inline button styling.
 
 ### Database (`database/`)
-- **Main DB** — 13 tables (added `asset_groups`)
+- **Main DB** — 14 tables (added `custom_portfolio_connections`)
+- **Portfolio** — `is_custom` Boolean flag (added via ALTER TABLE migration)
 - **WhitelistAssets** — extended with `name`, `source`, `group_id`, `price`, `change_24h`, `updated_at`
 - **AssetGroup** — `id`, `name` (unique), `is_default`, `created_at`. Seeds Ungrouped + Watchlist.
+- **CustomPortfolioConnection** — `id`, `portfolio_id` (unique FK), `db_host`, `db_port`, `db_name`, `db_user`, `encrypted_password`
 - `active_orders.order_id` is TEXT (UUID); `contract_type` (spot/future/option), `option_type` (Call/Put), `side` (BUY/SELL/LONG/SHORT)
 - `link_type` computed server-side (not stored): `"spread"`, `"pending_close"`, `"primary"`, `"none"`
 - Frontend-only data (not in DB): OptionsStrategy rows, IV values, payoff controls — per-portfolio localStorage
@@ -119,6 +137,13 @@
 - **Backend rebuild**: No volume mount — `docker compose build backend --no-cache && docker compose up -d backend`
 - **npm install on WSL**: needs `--no-bin-links` flag for `/mnt/d/` mounts
 - **yfinance**: Direct HTTP to Yahoo Finance (no yfinance library). Rate limits apply — wait and retry.
+- **FERNET_KEY required**: Custom Portfolio creation requires `FERNET_KEY` env var. Generate: `python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'`
+- **Custom DB lazy-init**: External connections are established on first API request, NOT at startup. If a custom DB is unreachable, individual portfolio endpoints return 503.
+- **ensure_custom_tables drops FK constraints**: This is a one-time operation per portfolio_id (tracked in `CUSTOM_INITIALIZED` set). After dropping, the tables become FK-free. If the external DB is shared with other applications, those apps may fail; we assume sole ownership.
+- **CustomTradePlan**: Added to `custom_models.py` to resolve `ForeignKeyViolationError` when creating orders referencing main-DB `plan_id`s in external DBs.
+- **group_name resolution**: `CustomActiveOrder` has no ORM `group` relationship. Both analytics endpoints now query `CustomOrdersGroup` table to populate `order.group_name` for custom portfolio orders.
+- **ZoneGroupModal**: `onSaved` must be destructured from props. `deleteZoneGroup` and `updateZoneGroup` need `portfolioId` to append `?portfolio_id=` for custom portfolios.
+- **Global transactions query**: `GET /api/v1/transactions` without `portfolio_id` aggregates all custom DBs. Failed nodes are skipped and reported via `failed_portfolios` array in response.
 
 ## 10. Impeccable Audit Status (last: 2026-06-07)
 
@@ -142,33 +167,33 @@
 - `computeLinkGroup()` in PortfolioGrid.tsx; flat view link reorder in OrderManagement.tsx
 - CloseOrderModal shows link type; EditOrderModal has unlink-on-save flow
 
-### Files involved
+## 12. Custom Portfolio Feature — Key Files
+
 | File | Role |
 |------|------|
-| `backend/app/routers/analytics.py` | `_link_type()` computation |
-| `backend/app/routers/active_orders.py` | `/link`, `/unlink` endpoints |
-| `backend/app/routers/assets.py` | Asset CRUD + sync/price (NEW) |
-| `backend/app/routers/asset_groups.py` | Asset group CRUD (NEW) |
-| `backend/app/services/yfinance_service.py` | Direct HTTP price fetch (REWRITTEN) |
-| `frontend/src/contexts/NotificationContext.tsx` | Centralized notifications (NEW) |
-| `frontend/src/components/NotificationBell.tsx` | Navbar bell + dropdown (NEW) |
-| `frontend/src/pages/AllAssets.tsx` | Zone-based asset groups + inline editing (REWRITTEN) |
-| `frontend/src/screens/AddAssetModal.tsx` | Create asset form (NEW) |
-| `frontend/src/screens/EditAssetModal.tsx` | Edit/delete asset (NEW) |
-| `frontend/src/screens/AssetGroupModal.tsx` | Asset group CRUD table (REWRITTEN) |
-| `frontend/src/App.tsx` | DndProvider + NotificationProvider wrapping |
-| `frontend/src/components/Navigation.tsx` | Portfolio dropdown navigate on click; NotificationBell replaces bare IconBell |
-| `frontend/src/screens/components/Button.tsx` | 5 variants, 3 sizes |
-| `frontend/vite.config.ts` | manualChunks function syntax, Vite 5 compat |
-| `frontend/tailwind.config.js` | darkMode: 'class', zIndex extend |
-| `frontend/postcss.config.js` | Tailwind + Autoprefixer |
-| `frontend/index.html` | Sora font, anti-flash script, CDN removed |
-| `frontend/package.json` | Vite 5.4.21, @vitejs/plugin-react 4.x |
-| `database/main_db_schema.sql` | asset_groups table, whitelist_assets columns |
+| `backend/app/models.py` | `Portfolio.is_custom` flag; `CustomPortfolioConnection` model |
+| `backend/app/custom_models.py` | FK-free models for external DB tables |
+| `backend/app/utils/crypto.py` | Fernet encrypt/decrypt for DB passwords |
+| `backend/app/database.py` | Engine cache, `get_portfolio_db`, `get_custom_session`, `resolve_portfolio_db`; `ensure_custom_tables` |
+| `backend/app/main.py` | `is_custom` column migration in lifespan |
+| `backend/app/routers/portfolios.py` | Custom Portfolio type, create with connection, `test-connection`, `PATCH connection` |
+| `backend/app/routers/transactions.py` | Dynamic session routing + global aggregator |
+| `backend/app/routers/active_orders.py` | Dynamic session via `resolve_portfolio_db` |
+| `backend/app/routers/trade_history.py` | Dynamic session via `resolve_portfolio_db` |
+| `backend/app/routers/assets.py` | Dynamic session via `resolve_portfolio_db` |
+| `backend/app/routers/asset_groups.py` | Dynamic session via `resolve_portfolio_db` |
+| `backend/app/routers/orders_groups.py` | Dynamic session via `resolve_portfolio_db` |
+| `backend/app/routers/overview.py` | Dynamic session via `resolve_portfolio_db` |
+| `backend/app/routers/analytics.py` | Dynamic session via `resolve_portfolio_db` |
+| `frontend/src/pages/CreateNewPortfolio.tsx` | Custom Portfolio form with DB connection fields + Test Connection |
+| `frontend/src/pages/PortfolioAnalyticsDetail.tsx` | Routing: Custom Portfolio → PortfolioGrid |
+| `frontend/src/lib/api.ts` | `testConnection` API endpoint |
+| `frontend/src/App.tsx` | Removed `/spread-pairing` route |
+| `database/main_db_schema.sql` | `custom_portfolio_connections` table |
+| `database/README.md` | Multi-DB schema documentation |
 
 ## backend detail : D:\InvestmentDashboard\backend\README.md
 ## frontend detail : D:\InvestmentDashboard\frontend\README.md
 ## database : D:\InvestmentDashboard\database\README.md
 ## overall detail : D:\InvestmentDashboard\README.md
 ## design : DESIGN.md/
-

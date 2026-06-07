@@ -30,6 +30,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
   showModal,
   onClose,
   portfolioId,
+  onSaved,
 }) => {
   const [zones, setZones] = useState<ZoneGroupRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,7 +91,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
 
   const handleDelete = async (id: number) => {
     try {
-      await api.deleteZoneGroup(id);
+      await api.deleteZoneGroup(id, portfolioId);
       fetchZones();
       onSaved?.();
     } catch (err) {
@@ -109,7 +110,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
 
     try {
       if (editingId !== null) {
-        await api.updateZoneGroup(editingId, payload);
+        await api.updateZoneGroup(editingId, payload, portfolioId);
       } else {
         await api.createZoneGroup(portfolioId, payload);
       }

@@ -17,6 +17,7 @@ interface EditOrderModalProps {
   assetTypeOptions: string[];
   activeOrders?: SpreadOrder[];
   onRefresh?: () => void;
+  portfolioId?: number;
 }
 
 function ToggleBtn({ options, value, onChange }: {
@@ -58,6 +59,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   groupOrderCounts,
   assetTypeOptions,
   activeOrders,
+  portfolioId,
 }) => {
   const entryPrice = parseFloat(formData.entry_price as string) || 0;
   const groupId = formData.group_id ?? null;
@@ -314,7 +316,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
           <Button variant="primary" onClick={async () => {
             if (pendingUnlink && order?.order_id) {
               try {
-                await api.unlinkOrder(order.order_id);
+                await api.unlinkOrder(order.order_id, portfolioId);
                 setPendingUnlink(false);
               } catch (e) {
                 console.error('Unlink failed:', e);

@@ -54,14 +54,13 @@ frontend/
 │   │   ├── TransactionsPage.tsx     # Transaction table + Transfer/Deposit/Withdraw modals
 │   │   ├── AllAssets.tsx           # Zone-based asset groups with inline price editing, yfinance cache
 │   │   ├── RiskAnalytics.tsx       # Sharpe, VaR, Drawdown charts
-│   │   ├── CreateNewPortfolio.tsx  # Portfolio creation form
+│   │   ├── CreateNewPortfolio.tsx  # Portfolio creation form (Managed Fund / Active Trading / Custom Portfolio with external DB connection)
 │   │   ├── TradePlanManager.tsx    # Trade plan management
 │   │   ├── ActiveOrders.tsx        # Active orders page
-│   │   └── PortfolioAnalyticsDetail.tsx # Dynamic layout router with breadcrumb + states
+│   │   └── PortfolioAnalyticsDetail.tsx # Dynamic layout router (Managed Fund → PortfolioMutualFund; others → PortfolioGrid)
 │   │
 │   ├── screens/
 │   │   ├── PortfolioGrid.tsx      # Per-portfolio payoff state + orders grid + group management
-│   │   ├── PortfolioSpread.tsx    # Spread pairing view
 │   │   ├── PortfolioMutualFund.tsx # Managed fund: allocation, rebalance, NAV
 │   │   ├── AddAssetModal.tsx      # Create asset form with group/type/source selection
 │   │   ├── EditAssetModal.tsx     # Edit/delete asset + manual price input
@@ -159,7 +158,7 @@ frontend/
 ## 🔌 API Endpoints
 
 See `src/lib/api.ts` for the complete list of 50+ endpoints. Key categories:
-- `/api/v1/portfolios` — CRUD
+- `/api/v1/portfolios` — CRUD + `test-connection`
 - `/api/v1/orders` — CRUD + close/link/unlink
 - `/api/v1/analytics/*` — portfolio-grid, performance, NAV
 - `/api/v1/assets` — CRUD + sync-from-orders + update-price + batch-update-prices
@@ -232,11 +231,10 @@ Portfolio Grid (xl:grid-cols-2)
 | `/transactions` | TransactionsPage | Transaction table + modals |
 | `/all-assets` | AllAssets | Zone-based asset groups + inline price editing |
 | `/risk-analytics` | RiskAnalytics | Risk metrics (Sharpe, VaR, Drawdown) |
-| `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | Dynamic layout per port_type |
+| `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | Dynamic layout per port_type (Managed Fund → PortfolioMutualFund; all others → PortfolioGrid) |
 | `/analytics/detail` | PortfolioGrid | Grid view |
-| `/spread-pairing` | PortfolioSpread | Spread pairs + payoff |
 | `/managed-fund/{portfolioId}` | PortfolioMutualFund | Managed fund view |
-| `/create-portfolio` | CreateNewPortfolio | Portfolio creation form |
+| `/create-portfolio` | CreateNewPortfolio | Portfolio creation form (Managed Fund / Active Trading / Custom Portfolio with external DB connection form) |
 | `/trades` | TradePlanManager | Trade plan management |
 | `/orders` | ActiveOrders | Active orders page |
 
@@ -291,6 +289,8 @@ JS calls `/api/v1/...` (relative) → Vite dev server proxy → backend (Docker 
 11. **Inline styles minimized**: 254 → 35 (only dynamic runtime values)
 12. **Asset groups**: Zone-based collapsible sections, drag-drop between groups, yfinance price sync
 13. **Inline price editing**: Click price → edit → save to localStorage + optional API
+14. **Custom Portfolio**: New portfolio type with external database connection form (host, port, DB name, user, password) + Test Connection button
+15. **Portfolio-aware API calls**: All order operations (create, update, close, link, unlink), asset CRUD, asset/orders group CRUD accept optional `portfolioId` and append `?portfolio_id=` query param for custom portfolio routing
 
 ### Key Business Logic
 
@@ -325,4 +325,4 @@ optimizeDeps: { include: ['react', 'react-dom', ...] }
 
 ---
 
-*Last updated: 7 June 2026 (NotificationContext + NotificationBell; Asset page zone-based groups + inline price editing + yfinance cache; removed ToastAlert from 4 pages; dark mode; Tailwind npm)*
+*Last updated: 8 June 2026 (portfolio_id query param on all order/asset/group CRUD APIs; ZoneGroupModal onSaved fix; portfolio-aware deleteZoneGroup/updateZoneGroup)*

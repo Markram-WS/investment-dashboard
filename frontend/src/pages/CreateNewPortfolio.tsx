@@ -14,11 +14,19 @@ const CreateNewPortfolio: React.FC = () => {
     money_market: 0,
     trade_plan_md: '',
     tags: {} as any,
+    // Custom portfolio connection
+    db_host: '',
+    db_port: 5432,
+    db_name: '',
+    db_user: '',
+    db_password: '',
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<boolean>(false);
+  const [connectionStatus, setConnectionStatus] = useState<{ok: boolean; message: string} | null>(null);
+  const [testingConnection, setTestingConnection] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -38,6 +46,26 @@ const CreateNewPortfolio: React.FC = () => {
     }));
   };
 
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setConnectionStatus(null);
+    try {
+      const result = await api.testConnection({
+        db_host: formData.db_host,
+        db_port: formData.db_port,
+        db_name: formData.db_name,
+        db_user: formData.db_user,
+        db_password: formData.db_password,
+      });
+      setConnectionStatus({ ok: true, message: result.message || 'Connection successful' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Connection failed';
+      setConnectionStatus({ ok: false, message: msg });
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -45,9 +73,17 @@ const CreateNewPortfolio: React.FC = () => {
     setSuccess(false);
 
     try {
-      await api.createPortfolio(formData);
+      const payload: any = { ...formData };
+      // Remove empty connection fields for non-custom portfolios
+      if (formData.port_type !== 'Custom Portfolio') {
+        delete payload.db_host;
+        delete payload.db_port;
+        delete payload.db_name;
+        delete payload.db_user;
+        delete payload.db_password;
+      }
+      await api.createPortfolio(payload);
       setSuccess(true);
-      // Redirect to portfolio overview after a short delay
       setTimeout(() => {
         navigate('/');
       }, 1500);
@@ -117,7 +153,7 @@ const CreateNewPortfolio: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[['Managed Fund', '₿', 'Focus on portfolio rebalancing according to target ratios.'],
                 ['Active Trading', '📈', 'Manage individual orders (stocks, futures, options).'],
-                ['Spread Strategy', '💱', 'Pair trades 1:1 and track spread values.']].map(([type, icon, description], index) => (
+                ['Custom Portfolio', '🔗', 'Isolated external database for orders, transactions, and assets.']].map(([type, icon, description], index) => (
                 <label
                   key={index}
                   className={`relative cursor-select flex flex-col items-center p-4 border-2 
@@ -139,6 +175,103 @@ const CreateNewPortfolio: React.FC = () => {
               ))}
             </div>
           </div>
+
+          {/* Custom Portfolio Connection Details */}
+          {formData.port_type === 'Custom Portfolio' && (
+            <div className="p-6 bg-surface rounded-xl border border-hairline">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                External Database Connection
+              </h3>
+              <p className="text-xs text-slate mb-4">
+                All transactional data (orders, transactions, assets) will be stored on this external PostgreSQL database.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-ink mb-1">Host *</label>
+                  <input
+                    type="text"
+                    name="db_host"
+                    value={formData.db_host || ''}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-3 py-2 bg-surface border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="e.g. 192.168.1.100 or db.example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-ink mb-1">Port</label>
+                  <input
+                    type="number"
+                    name="db_port"
+                    value={formData.db_port ?? 5432}
+                    onChange={handleNumberChange}
+                    className="w-full px-3 py-2 bg-surface border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="5432"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-ink mb-1">Database Name *</label>
+                  <input
+                    type="text"
+                    name="db_name"
+                    value={formData.db_name || ''}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-3 py-2 bg-surface border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="e.g. investment_custom_1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-ink mb-1">Username *</label>
+                  <input
+                    type="text"
+                    name="db_user"
+                    value={formData.db_user || ''}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-3 py-2 bg-surface border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="e.g. dashboard"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-ink mb-1">Password *</label>
+                  <input
+                    type="password"
+                    name="db_password"
+                    value={formData.db_password || ''}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-3 py-2 bg-surface border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="Database password"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={handleTestConnection}
+                    disabled={testingConnection || !formData.db_host || !formData.db_name || !formData.db_user || !formData.db_password}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                              ${testingConnection || !formData.db_host || !formData.db_name || !formData.db_user || !formData.db_password
+                                ? 'bg-gray-300 text-slate cursor-not-allowed'
+                                : 'bg-brand-teal text-white hover:bg-brand-teal/90'}
+                              `}
+                  >
+                    {testingConnection ? 'Testing...' : 'Test Connection'}
+                  </button>
+                </div>
+              </div>
+              {connectionStatus && (
+                <div className={`mt-3 p-3 rounded-lg text-sm ${
+                  connectionStatus.ok
+                    ? 'bg-green-50 text-green-700 border border-green-200'
+                    : 'bg-red-50 text-red-700 border border-red-200'
+                }`}>
+                  {connectionStatus.ok ? '✓ ' : '✗ '}
+                  {connectionStatus.message}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Initial Funding Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -218,7 +351,6 @@ const CreateNewPortfolio: React.FC = () => {
                     setFormData(prev => ({ ...prev, target_ratio: parsed }));
                   } catch (err) {
                     // Keep previous valid value if JSON is invalid
-                    // In a real app, you might want to show validation error
                   }
                 }}
                 className="w-full min-h-[80px] px-4 py-3 bg-surface border border-hairline rounded-xl focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent resize-y"
@@ -319,15 +451,18 @@ const CreateNewPortfolio: React.FC = () => {
             </p>
           </div>
 
-          {/* Live Preview Card (as per UI spec) */}
+          {/* Live Preview Card */}
           <div className="mt-8 p-6 bg-surface rounded-xl border border-hairline">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">Live Preview</h2>
             <div className="flex items-start space-x-4">
-              <div className="text-4xl">{formData.port_type === 'Managed Fund' ? '₿' : formData.port_type === 'Active Trading' ? '📈' : '💱'}</div>
+              <div className="text-4xl">{formData.port_type === 'Managed Fund' ? '₿' : formData.port_type === 'Active Trading' ? '📈' : '🔗'}</div>
               <div className="flex-1">
                 <h3 className="font-bold text-gray-800">{formData.portfolio_name || 'Portfolio Name'}</h3>
                 <p className="text-sm text-slate">{formData.port_type || 'Select portfolio type'} · 
                   ${((formData.available_cash || 0) + (formData.money_market || 0)).toFixed(2)} Available</p>
+                {formData.port_type === 'Custom Portfolio' && formData.db_host && (
+                  <p className="text-xs text-brand-teal mt-1">🔗 Connected to {formData.db_host}:{formData.db_port}/{formData.db_name}</p>
+                )}
                 {formData.trade_plan_md && (
                   <p className="text-xs text-slate italic mt-1">"{formData.trade_plan_md.substring(0, 30)}..."</p>
                 )}

@@ -5,8 +5,9 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
-from app.database import get_db
+from app.database import get_db, resolve_portfolio_db
 from app.models import WhitelistAssets, AssetGroup, ActiveOrder
+from app.custom_models import CustomWhitelistAssets
 from app.services.yfinance_service import fetch_price
 
 class AssetResponse(BaseModel):
@@ -56,62 +57,98 @@ async def list_assets(
     asset_type: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
+    portfolio_id: Optional[int] = None,
 ):
-    query = select(WhitelistAssets)
-    if group_id is not None:
-        query = query.where(WhitelistAssets.group_id == group_id)
-    if asset_type:
-        query = query.where(WhitelistAssets.asset_type == asset_type)
-    if source:
-        query = query.where(WhitelistAssets.source == source)
-    query = query.order_by(WhitelistAssets.ticker)
-    result = await db.execute(query)
-    return result.scalars().all()
+    session, is_custom = await resolve_portfolio_db(db, portfolio_id)
+    try:
+        ModelClass = CustomWhitelistAssets if is_custom else WhitelistAssets
+        query = select(ModelClass)
+        if group_id is not None:
+            query = query.where(ModelClass.group_id == group_id)
+        if asset_type:
+            query = query.where(ModelClass.asset_type == asset_type)
+        if source:
+            query = query.where(ModelClass.source == source)
+        query = query.order_by(ModelClass.ticker)
+        result = await session.execute(query)
+        return result.scalars().all()
+    finally:
+        if is_custom:
+            await session.close()
 
 @router.post("", response_model=AssetResponse, status_code=201, tags=["assets"])
-async def create_asset(data: AssetCreate, db: AsyncSession = Depends(get_db)):
-    existing = await db.execute(select(WhitelistAssets).where(WhitelistAssets.ticker == data.ticker.upper()))
-    if existing.scalars().first():
-        raise HTTPException(400, "Asset with this ticker already exists")
-    if data.group_id:
-        grp = await db.execute(select(AssetGroup).where(AssetGroup.id == data.group_id))
-        if not grp.scalars().first():
-            raise HTTPException(404, "Group not found")
-    asset = WhitelistAssets(
-        ticker=data.ticker.upper(),
-        asset_type=data.asset_type,
-        name=data.name or data.ticker.upper(),
-        source=data.source,
-        group_id=data.group_id,
-    )
-    db.add(asset)
-    await db.commit()
-    await db.refresh(asset)
-    return asset
+async def create_asset(
+    data: AssetCreate,
+    db: AsyncSession = Depends(get_db),
+    portfolio_id: Optional[int] = None,
+):
+    session, is_custom = await resolve_portfolio_db(db, portfolio_id)
+    try:
+        ModelClass = CustomWhitelistAssets if is_custom else WhitelistAssets
+        existing = await session.execute(
+            select(ModelClass).where(ModelClass.ticker == data.ticker.upper())
+        )
+        if existing.scalars().first():
+            raise HTTPException(400, "Asset with this ticker already exists")
+        asset = ModelClass(
+            ticker=data.ticker.upper(),
+            asset_type=data.asset_type,
+            name=data.name or data.ticker.upper(),
+            source=data.source,
+            group_id=data.group_id,
+        )
+        session.add(asset)
+        await session.commit()
+        await session.refresh(asset)
+        return asset
+    finally:
+        if is_custom:
+            await session.close()
 
 @router.put("/{asset_id}", response_model=AssetResponse, tags=["assets"])
-async def update_asset(asset_id: int, data: AssetUpdate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(WhitelistAssets).where(WhitelistAssets.asset_id == asset_id))
-    asset = result.scalars().first()
-    if not asset:
-        raise HTTPException(404, "Asset not found")
-    for field in ("name", "asset_type", "source", "group_id", "price", "change_24h"):
-        val = getattr(data, field, None)
-        if val is not None:
-            setattr(asset, field, val)
-    asset.updated_at = datetime.utcnow()
-    await db.commit()
-    await db.refresh(asset)
-    return asset
+async def update_asset(
+    asset_id: int,
+    data: AssetUpdate,
+    db: AsyncSession = Depends(get_db),
+    portfolio_id: Optional[int] = None,
+):
+    session, is_custom = await resolve_portfolio_db(db, portfolio_id)
+    try:
+        ModelClass = CustomWhitelistAssets if is_custom else WhitelistAssets
+        result = await session.execute(select(ModelClass).where(ModelClass.asset_id == asset_id))
+        asset = result.scalars().first()
+        if not asset:
+            raise HTTPException(404, "Asset not found")
+        for field in ("name", "asset_type", "source", "group_id", "price", "change_24h"):
+            val = getattr(data, field, None)
+            if val is not None:
+                setattr(asset, field, val)
+        asset.updated_at = datetime.utcnow()
+        await session.commit()
+        await session.refresh(asset)
+        return asset
+    finally:
+        if is_custom:
+            await session.close()
 
 @router.delete("/{asset_id}", status_code=204, tags=["assets"])
-async def delete_asset(asset_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(WhitelistAssets).where(WhitelistAssets.asset_id == asset_id))
-    asset = result.scalars().first()
-    if not asset:
-        raise HTTPException(404, "Asset not found")
-    await db.delete(asset)
-    await db.commit()
+async def delete_asset(
+    asset_id: int,
+    db: AsyncSession = Depends(get_db),
+    portfolio_id: Optional[int] = None,
+):
+    session, is_custom = await resolve_portfolio_db(db, portfolio_id)
+    try:
+        ModelClass = CustomWhitelistAssets if is_custom else WhitelistAssets
+        result = await session.execute(select(ModelClass).where(ModelClass.asset_id == asset_id))
+        asset = result.scalars().first()
+        if not asset:
+            raise HTTPException(404, "Asset not found")
+        await session.delete(asset)
+        await session.commit()
+    finally:
+        if is_custom:
+            await session.close()
 
 @router.post("/sync-from-orders", response_model=List[AssetResponse], tags=["assets"])
 async def sync_from_orders(db: AsyncSession = Depends(get_db)):

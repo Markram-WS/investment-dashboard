@@ -13,11 +13,12 @@ interface UseOrderEditReturn {
   setOnRefresh: (callback: () => void) => void;
 }
 
-export const useOrderEdit = (): UseOrderEditReturn => {
+export const useOrderEdit = (portfolioId?: number): UseOrderEditReturn => {
   const [editingOrder, setEditingOrder] = useState<SpreadOrder | null>(null);
   const [formData, setFormData] = useState<Partial<SpreadOrder>>({});
   const [showModal, setShowModal] = useState(false);
-  // ใช้ useRef เพื่อให้ได้ latest reference ของ callback
+  const portfolioIdRef = useRef(portfolioId);
+  portfolioIdRef.current = portfolioId;
   const onRefreshRef = useRef<() => void>(() => {});
 
   const startEdit = useCallback((order: SpreadOrder) => {
@@ -54,7 +55,7 @@ export const useOrderEdit = (): UseOrderEditReturn => {
     if (!editingOrder) return;
 
     try {
-      await api.updateOrder(editingOrder.order_id, formData);
+      await api.updateOrder(editingOrder.order_id, formData, portfolioIdRef.current);
       if (onRefreshRef.current) {
         onRefreshRef.current();
       }

@@ -26,8 +26,8 @@ from app.routers import (
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Migrate existing whitelist_assets table with new columns
         from sqlalchemy import text
+        # Migrate existing whitelist_assets table with new columns
         for col in ("name VARCHAR", "source VARCHAR DEFAULT 'manual'", "group_id INTEGER REFERENCES asset_groups(id)", "price NUMERIC(20,8)", "change_24h NUMERIC(10,4)", "updated_at TIMESTAMP DEFAULT NOW()"):
             col_name = col.split()[0]
             result = await conn.execute(
@@ -35,6 +35,12 @@ async def lifespan(app: FastAPI):
             )
             if not result.scalar():
                 await conn.execute(text(f"ALTER TABLE whitelist_assets ADD COLUMN {col}"))
+        # Migrate portfolios table with is_custom column
+        result = await conn.execute(
+            text("SELECT column_name FROM information_schema.columns WHERE table_name='portfolios' AND column_name='is_custom'")
+        )
+        if not result.scalar():
+            await conn.execute(text("ALTER TABLE portfolios ADD COLUMN is_custom BOOLEAN DEFAULT FALSE"))
     async with ai_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield

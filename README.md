@@ -1,6 +1,6 @@
 # Investment Dashboard
 
-Full-stack portfolio management system with real-time analytics, options strategy sandbox, and AI agent integration.
+Full-stack portfolio management system with real-time analytics, options strategy sandbox, AI agent integration, and **dynamic multi-database custom portfolios**.
 
 ## Stack
 
@@ -11,6 +11,7 @@ Full-stack portfolio management system with real-time analytics, options strateg
 | **Container** | Docker Compose with bridge networking |
 | **Styling** | Tailwind CSS (npm), dark mode via CSS variables |
 | **Drag & Drop** | react-dnd + react-dnd-html5-backend |
+| **Password Encryption** | Fernet (cryptography library, `FERNET_KEY` env var) |
 
 ## Quick Start
 
@@ -33,21 +34,27 @@ Browser → localhost:5173 → Frontend (Docker, bridge network)
                            Backend (http://backend:8000, Docker DNS)
                               ↓
                            PostgreSQL (Main :5432, AI :5433)
+                              ↓
+                           External DBs (Custom Portfolios)
 ```
+
+Custom Portfolios use **isolated external PostgreSQL databases** configured by the user. Metadata stays on `investment_main`; transactional data (orders, transactions, assets) routes to the external DB. Connections are lazy-initialized on first request. Passwords are encrypted with Fernet.
 
 ## Key Features
 
 - **Portfolio Overview** — Hero card, Pool Health gauge, Money Reserve, Active Portfolio cards with DnD cash transfer
-- **Portfolio Grid** — Zone-grouped orders, drag-drop assignment, contract type filters, order link system (spread/pending-close)
+- **Portfolio Grid** — Zone-grouped orders, drag-drop assignment, contract type filters, order link system
 - **Payoff Chart** — Pure SVG: intrinsic + BS IV overlay, crosshair, tooltip, area fill, break-even markers
 - **Options Strategy Sandbox** — Frontend-only scratchpad with per-portfolio localStorage persistence
 - **Asset Management** — Zone-based group sections, inline price editing, yfinance price cache (`cached_price_{ticker}`)
 - **Notification System** — Centralized context with navbar bell icon, unread badge, history dropdown, 3s auto-dismiss
 - **Dark Mode** — Class-based toggle with localStorage persistence and anti-flash protection
-- **Transaction Ledger** — Deposit, withdraw, transfer between portfolios with full history
+- **Transaction Ledger** — Deposit, withdraw, transfer between portfolios with full history; global aggregation across all custom DBs
 - **Risk Analytics** — Pool health, money reserve status, Sharpe/VaR/Drawdown, risk score gauge
 - **AI Agents** — Automated scan/plan/execute/adjust cycles per portfolio
+- **Custom Portfolio** — User-configured external PostgreSQL databases for isolated data storage, with Test Connection diagnostics
 - **Drag & Drop** — Transfer cash between portfolios, assign orders to groups, move assets between groups
+- **Encrypted Credentials** — DB passwords encrypted with Fernet symmetric key (`FERNET_KEY`), never stored in plaintext
 
 ## Repository Structure
 
@@ -71,15 +78,19 @@ InvestmentDashboard/
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── models.py
-│   │   ├── database.py
-│   │   ├── routers/        # 18 route files
-│   │   └── services/       # yfinance_service.py
+│   │   ├── custom_models.py    # FK-free models for custom DBs
+│   │   ├── database.py         # Engine manager + session routing
+│   │   ├── utils/
+│   │   │   └── crypto.py       # Fernet password encryption
+│   │   ├── routers/            # 19+ route files
+│   │   └── services/           # yfinance_service.py
 │   ├── tests/
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── database/           # SQL schemas
 │   ├── main_db_schema.sql
-│   └── ai_db_schema.sql
+│   ├── ai_db_schema.sql
+│   └── README.md               # Schema docs incl. custom_portfolio_connections
 ├── requirement/        # Functional specs + UI designs
 ├── docker-compose.yml
 └── .opencode/          # AI agent governance
@@ -103,4 +114,4 @@ Uses CSS variables for theming with automatic dark mode switching:
 | `--color-brand-yellow` | `#ffd02f` | `#ffd02f` |
 | `--color-brand-coral` | `#ff9999` | `#ff9999` |
 
-*Last updated: 7 June 2026*
+*Last updated: 8 June 2026 (CustomTradePlan; ensure_custom_tables FK dropping + column migration; all order/asset/group CRUD endpoints support ?portfolio_id=; group_name resolution in analytics)*

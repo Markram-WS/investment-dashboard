@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { SpreadOrder } from '../types';
 import { api } from '../lib/api';
 
-export const useZoneEditor = (onRefresh: () => void) => {
+export const useZoneEditor = (onRefresh: () => void, portfolioId?: number) => {
   const [editingZoneOrders, setEditingZoneOrders] = useState<SpreadOrder[]>([]);
   const [editingZone, setEditingZone] = useState<string | null>(null);
 
@@ -20,7 +20,7 @@ export const useZoneEditor = (onRefresh: () => void) => {
     if (editingZoneOrders.length > 0) {
       try {
         for (const order of editingZoneOrders) {
-          await api.updateOrder(order.order_id, { zone: newZone });
+          await api.updateOrder(order.order_id, { zone: newZone }, portfolioId);
         }
         onRefresh();
       } catch (error) {
@@ -28,7 +28,7 @@ export const useZoneEditor = (onRefresh: () => void) => {
       }
     }
     handleCloseZoneModal();
-  }, [editingZoneOrders, onRefresh]);
+  }, [editingZoneOrders, onRefresh, portfolioId]);
 
   return {
     editingZoneOrders,

@@ -143,7 +143,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     handleFormChange,
     handleSaveOrder,
     setOnRefresh,
-  } = useOrderEdit();
+  } = useOrderEdit(selectedPortfolio?.portfolio_id);
 
   const {
     formData: addFormData,
@@ -164,7 +164,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     handleEditZone,
     handleCloseZoneModal,
     handleSaveZone,
-  } = useZoneEditor(fetchAnalyticsData);
+  } = useZoneEditor(fetchAnalyticsData, selectedPortfolio?.portfolio_id);
 
   React.useEffect(() => {
     if (selectedPortfolio) {
@@ -199,7 +199,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const handleCloseOrder = useCallback((order: SpreadOrder) => {
     const status = (order.order_status || "").toUpperCase();
     if (status === "PENDING") {
-      api.cancelOrder(order.order_id).then(() => {
+      api.cancelOrder(order.order_id, selectedPortfolio?.portfolio_id).then(() => {
         fetchAnalyticsData();
         if (selectedPortfolio) {
           api.getTradeHistory(selectedPortfolio.portfolio_id).then(setTradeHistory).catch(() => {});
@@ -241,7 +241,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       for (const orderId of orderIds) {
         const currentOrder = activeOrders.find(o => o.order_id === orderId);
         if (!currentOrder || currentOrder.group_id === groupId) continue;
-        await api.updateOrder(orderId, { group_id: groupId });
+        await api.updateOrder(orderId, { group_id: groupId }, selectedPortfolio?.portfolio_id);
       }
       fetchAnalyticsData();
       api.getTradeHistory(selectedPortfolio.portfolio_id).then(setTradeHistory).catch(() => {});
@@ -259,17 +259,17 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
 
   const handleLinkOrder = useCallback(async (sourceOrderId: string, targetOrderId: string) => {
     try {
-      await api.linkOrder(sourceOrderId, targetOrderId);
+      await api.linkOrder(sourceOrderId, targetOrderId, selectedPortfolio?.portfolio_id);
       fetchAnalyticsData();
     } catch (err) {
       console.error("Failed to link order:", err);
     }
-  }, [fetchAnalyticsData]);
+  }, [fetchAnalyticsData, selectedPortfolio]);
 
   const handleConfirmClose = useCallback(
     async (orderId: string, closeOrderId: string, exitPrice: number | null, realizedPl: number | null, cost?: number) => {
       try {
-        const resp = await api.closeOrder(orderId, { close_order_id: closeOrderId, exit_price: exitPrice, realized_pl: realizedPl, cost });
+        const resp = await api.closeOrder(orderId, { close_order_id: closeOrderId, exit_price: exitPrice, realized_pl: realizedPl, cost }, selectedPortfolio?.portfolio_id);
         setShowCloseModal(false);
         setClosingOrder(null);
         fetchAnalyticsData();
@@ -525,6 +525,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         assetTypeOptions={assetTypeOptions}
         activeOrders={activeOrders}
         onRefresh={fetchAnalyticsData}
+        portfolioId={selectedPortfolio?.portfolio_id}
       />
       <ZoneEditModal
         orders={editingZoneOrders}
@@ -540,8 +541,15 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           if (selectedPortfolio) {
             api.getZoneGroups(selectedPortfolio.portfolio_id).then(setGroups).catch(() => {});
           }
+          fetchAnalyticsData();
         }}
         portfolioId={selectedPortfolio.portfolio_id}
+        onSaved={() => {
+          if (selectedPortfolio) {
+            api.getZoneGroups(selectedPortfolio.portfolio_id).then(setGroups).catch(() => {});
+          }
+          fetchAnalyticsData();
+        }}
       />
       <CloseOrderModal
         order={closingOrder}

@@ -2,10 +2,19 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.models import Portfolio, ActiveOrder, TradeHistory, TradePlan, OptionDetails, PortfolioNavHistory, SimulationModels, DecisionJournal, Transaction, OrdersGroup
+from app.models import (
+    Portfolio, CustomPortfolioConnection,
+    ActiveOrder, TradeHistory, TradePlan, OptionDetails,
+    PortfolioNavHistory, SimulationModels, DecisionJournal,
+    Transaction, OrdersGroup
+)
+from app.utils.crypto import encrypt_password
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from datetime import date
+
+import asyncpg
+
 
 class PortfolioCreate(BaseModel):
     portfolio_name: str
@@ -20,11 +29,19 @@ class PortfolioCreate(BaseModel):
     risk_status: Optional[str] = "Safe"
     tags: Optional[Dict[str, Any]] = None
     last_rebalance_date: Optional[date] = None
+    # Custom portfolio connection fields
+    db_host: Optional[str] = None
+    db_port: Optional[int] = 5432
+    db_name: Optional[str] = None
+    db_user: Optional[str] = None
+    db_password: Optional[str] = None
+
 
 class PortfolioResponse(BaseModel):
     portfolio_id: int
     portfolio_name: str
     port_type: str
+    is_custom: bool = False
     target_ratio: Optional[Dict[str, Any]]
     current_allocations: Optional[Dict[str, Any]]
     current_nav: Optional[float]
@@ -35,40 +52,22 @@ class PortfolioResponse(BaseModel):
     risk_status: Optional[str]
     tags: Optional[Dict[str, Any]]
     last_rebalance_date: Optional[date]
+    # Custom portfolio connection info (partial - no password)
+    db_host: Optional[str] = None
+    db_port: Optional[int] = None
+    db_name: Optional[str] = None
+    db_user: Optional[str] = None
 
     class Config:
         orm_mode = True
 
 
-# Spread pair response model
-class SpreadPairResponse(BaseModel):
-    """Response model for spread pair data."""
-    pair_id: str
-    leg_a: Dict[str, Any]
-    leg_b: Dict[str, Any]
-    net_pl: Optional[float] = None
-    spread_diff: Optional[float] = None
-    zone: Optional[str] = None
-
-
-class PortfolioSpreadsResponse(BaseModel):
-    """Response model for portfolio spreads data."""
-    portfolio_id: int
-    portfolio_name: str
-    port_type: str
-    risk_status: str
-    spread_pairs: List[SpreadPairResponse]
-    unpaired_orders: List[Dict[str, Any]]
-
-
 class PortfolioTypeResponse(BaseModel):
-    """Response model for portfolio types endpoint."""
     type_name: str
     description: str
     logic: str
 
 
-# Portfolio type definitions based on Detailed-Functional-Requirements.md Section 2.1
 PORTFOLIO_TYPES = [
     PortfolioTypeResponse(
         type_name="Managed Fund",
@@ -81,77 +80,11 @@ PORTFOLIO_TYPES = [
         logic="Manage Stock, Future, and Option orders individually"
     ),
     PortfolioTypeResponse(
-        type_name="Spread Strategy",
-        description="Portfolio for 1:1 spread trading pairs",
-        logic="Pair trades in 1:1 ratio and track spread values; excluded from rebalancing"
+        type_name="Custom Portfolio",
+        description="Portfolio with isolated external database for orders, transactions, and assets",
+        logic="Transactional data stored on user-configured external PostgreSQL database; metadata kept locally"
     ),
 ]
-
-
-router = APIRouter()
-
-@router.get("", tags=["portfolios"])
-async def list_portfolios(db: AsyncSession = Depends(get_db)):
-    """List all portfolios with their risk status."""
-    result = await db.execute(select(Portfolio))
-    portfolios = result.scalars().all()
-    return [{"portfolio_id": p.portfolio_id, "portfolio_name": p.portfolio_name, "risk_status": p.risk_status, "available_cash": p.available_cash} for p in portfolios]
-
-@router.post("/", tags=["portfolios"], status_code=status.HTTP_201_CREATED, response_model=PortfolioResponse)
-async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depends(get_db)):
-    """Create a new portfolio."""
-    db_portfolio = Portfolio(**portfolio.dict())
-    db.add(db_portfolio)
-    await db.commit()
-    await db.refresh(db_portfolio)
-    # Return response with current_allocations populated
-    return {
-        "portfolio_id": db_portfolio.portfolio_id,
-        "portfolio_name": db_portfolio.portfolio_name,
-        "port_type": db_portfolio.port_type,
-        "target_ratio": db_portfolio.target_ratio,
-        "current_allocations": db_portfolio.target_ratio or {},
-        "current_nav": db_portfolio.current_nav,
-        "margin_locked": db_portfolio.margin_locked,
-        "cash_buffer_limit": db_portfolio.cash_buffer_limit,
-        "available_cash": db_portfolio.available_cash,
-        "money_market": db_portfolio.money_market,
-        "risk_status": db_portfolio.risk_status,
-        "tags": db_portfolio.tags,
-        "last_rebalance_date": db_portfolio.last_rebalance_date,
-    }
-
-# Define /types BEFORE /{portfolio_id} to avoid route matching conflict
-# FastAPI processes routes in definition order, so /types must come before /{portfolio_id}
-@router.get("/types", tags=["portfolios"], response_model=List[PortfolioTypeResponse])
-async def get_portfolio_types():
-    """Get list of available portfolio types with their definitions."""
-    return PORTFOLIO_TYPES
-
-@router.get("/{portfolio_id}", tags=["portfolios"], response_model=PortfolioResponse)
-async def get_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)):
-    """Get a single portfolio by ID."""
-    result = await db.execute(select(Portfolio).where(Portfolio.portfolio_id == portfolio_id))
-    portfolio = result.scalar_one_or_none()
-    if not portfolio:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-    # current_allocations not stored in DB - use target_ratio as starting point
-    response_data = {
-        "portfolio_id": portfolio.portfolio_id,
-        "portfolio_name": portfolio.portfolio_name,
-        "port_type": portfolio.port_type,
-        "target_ratio": portfolio.target_ratio,
-        "current_allocations": portfolio.target_ratio or {},
-        "current_nav": portfolio.current_nav,
-        "margin_locked": portfolio.margin_locked,
-        "cash_buffer_limit": portfolio.cash_buffer_limit,
-        "available_cash": portfolio.available_cash,
-        "money_market": portfolio.money_market,
-        "risk_status": portfolio.risk_status,
-        "tags": portfolio.tags,
-        "last_rebalance_date": portfolio.last_rebalance_date,
-    }
-    return response_data
 
 
 class PortfolioUpdate(BaseModel):
@@ -170,6 +103,162 @@ class PortfolioUpdate(BaseModel):
     last_rebalance_date: Optional[date] = None
 
 
+class TestConnectionRequest(BaseModel):
+    db_host: str
+    db_port: int = 5432
+    db_name: str
+    db_user: str
+    db_password: str
+
+
+router = APIRouter()
+
+
+@router.get("", tags=["portfolios"])
+async def list_portfolios(db: AsyncSession = Depends(get_db)):
+    """List all portfolios with their risk status."""
+    result = await db.execute(select(Portfolio))
+    portfolios = result.scalars().all()
+    return [{
+        "portfolio_id": p.portfolio_id,
+        "portfolio_name": p.portfolio_name,
+        "risk_status": p.risk_status,
+        "available_cash": p.available_cash,
+        "port_type": p.port_type,
+        "is_custom": p.is_custom,
+    } for p in portfolios]
+
+
+@router.post("/", tags=["portfolios"], status_code=status.HTTP_201_CREATED, response_model=PortfolioResponse)
+async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depends(get_db)):
+    """Create a new portfolio. If port_type is 'Custom Portfolio', requires connection details."""
+    is_custom = portfolio.port_type == "Custom Portfolio"
+
+    if is_custom:
+        missing = []
+        if not portfolio.db_host:
+            missing.append("db_host")
+        if not portfolio.db_name:
+            missing.append("db_name")
+        if not portfolio.db_user:
+            missing.append("db_user")
+        if not portfolio.db_password:
+            missing.append("db_password")
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Custom Portfolio requires: {', '.join(missing)}"
+            )
+
+    db_portfolio = Portfolio(
+        portfolio_name=portfolio.portfolio_name,
+        port_type=portfolio.port_type,
+        is_custom=is_custom,
+        target_ratio=portfolio.target_ratio,
+        current_nav=portfolio.current_nav,
+        margin_locked=portfolio.margin_locked,
+        cash_buffer_limit=portfolio.cash_buffer_limit,
+        available_cash=portfolio.available_cash,
+        money_market=portfolio.money_market,
+        trade_plan_md=portfolio.trade_plan_md,
+        risk_status=portfolio.risk_status,
+        tags=portfolio.tags,
+        last_rebalance_date=portfolio.last_rebalance_date,
+    )
+    db.add(db_portfolio)
+    await db.flush()
+
+    if is_custom:
+        encrypted_pw = encrypt_password(portfolio.db_password)
+        connection = CustomPortfolioConnection(
+            portfolio_id=db_portfolio.portfolio_id,
+            db_host=portfolio.db_host,
+            db_port=portfolio.db_port or 5432,
+            db_name=portfolio.db_name,
+            db_user=portfolio.db_user,
+            encrypted_password=encrypted_pw,
+        )
+        db.add(connection)
+
+    await db.commit()
+    await db.refresh(db_portfolio)
+
+    response = {
+        "portfolio_id": db_portfolio.portfolio_id,
+        "portfolio_name": db_portfolio.portfolio_name,
+        "port_type": db_portfolio.port_type,
+        "is_custom": db_portfolio.is_custom,
+        "target_ratio": db_portfolio.target_ratio,
+        "current_allocations": db_portfolio.target_ratio or {},
+        "current_nav": db_portfolio.current_nav,
+        "margin_locked": db_portfolio.margin_locked,
+        "cash_buffer_limit": db_portfolio.cash_buffer_limit,
+        "available_cash": db_portfolio.available_cash,
+        "money_market": db_portfolio.money_market,
+        "risk_status": db_portfolio.risk_status,
+        "tags": db_portfolio.tags,
+        "last_rebalance_date": db_portfolio.last_rebalance_date,
+        "db_host": portfolio.db_host,
+        "db_port": portfolio.db_port,
+        "db_name": portfolio.db_name,
+        "db_user": portfolio.db_user,
+    }
+    return response
+
+
+@router.get("/types", tags=["portfolios"], response_model=List[PortfolioTypeResponse])
+async def get_portfolio_types():
+    """Get list of available portfolio types with their definitions."""
+    return PORTFOLIO_TYPES
+
+
+@router.get("/{portfolio_id}", tags=["portfolios"], response_model=PortfolioResponse)
+async def get_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)):
+    """Get a single portfolio by ID."""
+    result = await db.execute(select(Portfolio).where(Portfolio.portfolio_id == portfolio_id))
+    portfolio = result.scalar_one_or_none()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    response_data = {
+        "portfolio_id": portfolio.portfolio_id,
+        "portfolio_name": portfolio.portfolio_name,
+        "port_type": portfolio.port_type,
+        "is_custom": portfolio.is_custom,
+        "target_ratio": portfolio.target_ratio,
+        "current_allocations": portfolio.target_ratio or {},
+        "current_nav": portfolio.current_nav,
+        "margin_locked": portfolio.margin_locked,
+        "cash_buffer_limit": portfolio.cash_buffer_limit,
+        "available_cash": portfolio.available_cash,
+        "money_market": portfolio.money_market,
+        "risk_status": portfolio.risk_status,
+        "tags": portfolio.tags,
+        "last_rebalance_date": portfolio.last_rebalance_date,
+        "db_host": None,
+        "db_port": None,
+        "db_name": None,
+        "db_user": None,
+    }
+
+    if portfolio.is_custom:
+        conn_result = await db.execute(
+            select(CustomPortfolioConnection).where(
+                CustomPortfolioConnection.portfolio_id == portfolio_id
+            )
+        )
+        conn = conn_result.scalar_one_or_none()
+        if conn:
+            response_data.update({
+                "db_host": conn.db_host,
+                "db_port": conn.db_port,
+                "db_name": conn.db_name,
+                "db_user": conn.db_user,
+            })
+
+    return response_data
+
+
 @router.put("/{portfolio_id}", tags=["portfolios"])
 async def update_portfolio(portfolio_id: int, update: PortfolioUpdate, db: AsyncSession = Depends(get_db)):
     """Update a portfolio by ID."""
@@ -185,25 +274,67 @@ async def update_portfolio(portfolio_id: int, update: PortfolioUpdate, db: Async
     return portfolio
 
 
+class ConnectionUpdate(BaseModel):
+    db_host: Optional[str] = None
+    db_port: Optional[int] = None
+    db_name: Optional[str] = None
+    db_user: Optional[str] = None
+    db_password: Optional[str] = None
+
+
+@router.patch("/{portfolio_id}/connection", tags=["portfolios"])
+async def update_portfolio_connection(
+    portfolio_id: int,
+    update: ConnectionUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update custom portfolio database connection details."""
+    result = await db.execute(select(Portfolio).where(Portfolio.portfolio_id == portfolio_id))
+    portfolio = result.scalar_one_or_none()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    if not portfolio.is_custom:
+        raise HTTPException(status_code=400, detail="Portfolio is not a custom portfolio")
+
+    conn_result = await db.execute(
+        select(CustomPortfolioConnection).where(
+            CustomPortfolioConnection.portfolio_id == portfolio_id
+        )
+    )
+    connection = conn_result.scalar_one_or_none()
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    update_data = update.dict(exclude_unset=True, exclude_none=True)
+    if "db_password" in update_data:
+        update_data["encrypted_password"] = encrypt_password(update_data.pop("db_password"))
+    for field, value in update_data.items():
+        setattr(connection, field, value)
+    await db.commit()
+    return {"detail": "Connection updated"}
+
+
 @router.delete("/{portfolio_id}", tags=["portfolios"])
 async def delete_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)):
     """Delete a portfolio by ID. Fails if active (non-closed) orders exist."""
-    # Verify portfolio exists
     result = await db.execute(select(Portfolio).where(Portfolio.portfolio_id == portfolio_id))
     portfolio = result.scalar_one_or_none()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
 
-    # Cascade-delete all related records in FK-safe order
+    # Delete custom connection if present
+    await db.execute(
+        CustomPortfolioConnection.__table__.delete().where(
+            CustomPortfolioConnection.portfolio_id == portfolio_id
+        )
+    )
+
     await db.execute(
         DecisionJournal.__table__.delete().where(DecisionJournal.portfolio_id == portfolio_id)
     )
-
     await db.execute(
         TradeHistory.__table__.delete().where(TradeHistory.portfolio_id == portfolio_id)
     )
-
-    # Break FK chain: active_orders → option_details before deleting orders
     await db.execute(
         ActiveOrder.__table__.update()
         .where(ActiveOrder.portfolio_id == portfolio_id)
@@ -212,23 +343,18 @@ async def delete_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)
     await db.execute(
         ActiveOrder.__table__.delete().where(ActiveOrder.portfolio_id == portfolio_id)
     )
-
     await db.execute(
         TradePlan.__table__.delete().where(TradePlan.portfolio_id == portfolio_id)
     )
-
     await db.execute(
         PortfolioNavHistory.__table__.delete().where(PortfolioNavHistory.portfolio_id == portfolio_id)
     )
-
     await db.execute(
         SimulationModels.__table__.delete().where(SimulationModels.portfolio_id == portfolio_id)
     )
-
     await db.execute(
         OrdersGroup.__table__.delete().where(OrdersGroup.portfolio_id == portfolio_id)
     )
-
     await db.execute(
         Transaction.__table__.delete().where(
             (Transaction.source_portfolio_id == portfolio_id) |
@@ -241,142 +367,22 @@ async def delete_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)
     return {"detail": "Portfolio deleted"}
 
 
-@router.get("/{portfolio_id}/spreads", tags=["portfolios"], response_model=PortfolioSpreadsResponse)
-async def get_portfolio_spreads(portfolio_id: int, db: AsyncSession = Depends(get_db)):
-    """Get spread pairs and unpaired orders for a portfolio."""
-    # Validate portfolio exists
-    portfolio_result = await db.execute(select(Portfolio).where(Portfolio.portfolio_id == portfolio_id))
-    portfolio = portfolio_result.scalar_one_or_none()
-    if not portfolio:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-
-    # Helper function to calculate zone based on spread price range
-    def calculate_zone(spread_diff: Optional[float]) -> str:
-        if spread_diff is None:
-            return "Zone 1"
-        # Zone thresholds based on spread difference
-        if spread_diff < 5:
-            return "Zone 1"
-        elif spread_diff < 10:
-            return "Zone 2"
-        elif spread_diff < 20:
-            return "Zone 3"
-        else:
-            return "Zone 4"
-
-    # Get active orders for this portfolio
-    active_orders_result = await db.execute(
-        select(ActiveOrder)
-        .where(ActiveOrder.portfolio_id == portfolio_id)
-        .order_by(ActiveOrder.created_at.desc())
-    )
-    active_orders = active_orders_result.scalars().all()
-
-    # Build order_id lookup for cross-link detection
-    order_map = {o.order_id: o for o in active_orders}
-
-    # Detect cross-linked spread pairs: A.linked_order_id == B.order_id AND B.linked_order_id == A.order_id
-    spread_pair_legs = set()
-    spread_pairs = []
-
-    for a in active_orders:
-        if a.linked_order_id and a.linked_order_id in order_map:
-            b = order_map[a.linked_order_id]
-            if b.linked_order_id == a.order_id:  # cross-linked
-                pair_key = tuple(sorted([a.order_id, b.order_id]))
-                if pair_key not in spread_pair_legs:
-                    spread_pair_legs.add(pair_key)
-
-                    leg_a_pl = 0.0
-                    leg_b_pl = 0.0
-                    for order in [a, b]:
-                        tr = await db.execute(
-                            select(TradeHistory).where(TradeHistory.order_id == order.order_id)
-                        )
-                        th = tr.scalar_one_or_none()
-                        if th and th.realized_pl is not None:
-                            if order == a:
-                                leg_a_pl = th.realized_pl
-                            else:
-                                leg_b_pl = th.realized_pl
-
-                    net_pl = float(leg_a_pl or 0) + float(leg_b_pl or 0)
-                    spread_diff = None
-                    if a.entry_price and b.entry_price:
-                        spread_diff = b.entry_price - a.entry_price
-
-                    zone = calculate_zone(spread_diff)
-
-                    spread_pairs.append(SpreadPairResponse(
-                        pair_id=a.linked_order_id,
-                        leg_a={
-                            "order_id": a.order_id,
-                            "asset_type": a.asset_type,
-                            "side": a.side,
-                            "qty": a.qty,
-                            "entry_price": a.entry_price,
-                            "current_price": a.current_price,
-                            "tp_price": a.tp_price,
-                            "leverage": a.leverage,
-                            "margin_rate": a.margin_rate,
-                            "order_status": a.order_status,
-                            "executed_by": a.executed_by,
-                            "created_at": a.created_at.isoformat() if a.created_at else None,
-                            "linked_order_id": a.linked_order_id,
-                        },
-                        leg_b={
-                            "order_id": b.order_id,
-                            "asset_type": b.asset_type,
-                            "side": b.side,
-                            "qty": b.qty,
-                            "entry_price": b.entry_price,
-                            "current_price": b.current_price,
-                            "tp_price": b.tp_price,
-                            "leverage": b.leverage,
-                            "margin_rate": b.margin_rate,
-                            "order_status": b.order_status,
-                            "executed_by": b.executed_by,
-                            "created_at": b.created_at.isoformat() if b.created_at else None,
-                            "linked_order_id": b.linked_order_id,
-                        },
-                        net_pl=net_pl,
-                        spread_diff=spread_diff,
-                        zone=zone,
-                    ))
-
-    # Get unpaired orders (orders with one-way linked_order_id that aren't cross-linked)
-    # Unpaired = orders with one-way linked_order_id (not cross-linked, not paired)
-    paired_order_ids = set()
-    for pair_key in spread_pair_legs:
-        paired_order_ids.update(pair_key)
-    for pair in spread_pairs:
-        paired_order_ids.add(pair.leg_a["order_id"])
-        paired_order_ids.add(pair.leg_b["order_id"])
-    unpaired_orders = [
-        {
-            "order_id": order.order_id,
-            "asset_type": order.asset_type,
-            "side": order.side,
-            "qty": order.qty,
-            "entry_price": order.entry_price,
-            "current_price": order.current_price,
-            "tp_price": order.tp_price,
-            "leverage": order.leverage,
-            "margin_rate": order.margin_rate,
-            "order_status": order.order_status,
-            "executed_by": order.executed_by,
-            "linked_order_id": order.linked_order_id,
-            "created_at": order.created_at.isoformat() if order.created_at else None,
-        }
-        for order in active_orders
-        if order.linked_order_id and order.order_id not in paired_order_ids
-    ]
-
-    return PortfolioSpreadsResponse(
-        portfolio_id=portfolio.portfolio_id,
-        portfolio_name=portfolio.portfolio_name,
-        port_type=portfolio.port_type,
-        risk_status=portfolio.risk_status,
-        spread_pairs=spread_pairs,
-        unpaired_orders=unpaired_orders,
-    )
+@router.post("/test-connection", tags=["portfolios"])
+async def test_connection(req: TestConnectionRequest):
+    """Test a database connection with the given parameters."""
+    try:
+        conn = await asyncpg.connect(
+            host=req.db_host,
+            port=req.db_port,
+            database=req.db_name,
+            user=req.db_user,
+            password=req.db_password,
+            timeout=10,
+        )
+        await conn.close()
+        return {"status": "ok", "message": "Connection successful"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Connection failed: {str(e)}"
+        )

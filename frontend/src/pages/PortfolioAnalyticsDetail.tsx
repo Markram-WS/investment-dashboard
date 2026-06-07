@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import PortfolioMutualFund from "../screens/PortfolioMutualFund";
 import PortfolioGrid from "../screens/PortfolioGrid";
-import PortfolioSpread from "../screens/PortfolioSpread";
 import { PortfolioType, AnalyticsLayout } from "../types";
 
 function BreadcrumbBar() {
@@ -100,9 +99,7 @@ export default function PortfolioAnalyticsDetail() {
         const data: PortfolioType = await response.json();
         
         const type = data.port_type?.toLowerCase() || "";
-        if (type.includes("spread")) {
-          setLayoutType("spread");
-        } else if (type.includes("managed")) {
+        if (type.includes("managed")) {
           setLayoutType("managed-fund");
         } else {
           setLayoutType("grid");
@@ -131,7 +128,6 @@ export default function PortfolioAnalyticsDetail() {
       )}
       {portfolio_id && !loading && !error && (
         <>
-          {layoutType === "spread" && <PortfolioSpread portfolioId={portfolio_id} />}
           {layoutType === "managed-fund" && <PortfolioMutualFund portfolioId={portfolio_id} />}
           {layoutType === "grid" && <PortfolioGrid portfolioId={portfolio_id} />}
         </>

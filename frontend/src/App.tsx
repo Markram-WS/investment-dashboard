@@ -10,7 +10,7 @@ import ActiveOrders from './pages/ActiveOrders';
 import PortfolioAnalyticsDetail from './pages/PortfolioAnalyticsDetail';
 import CreateNewPortfolio from './pages/CreateNewPortfolio';
 import PortfolioMutualFund from './screens/PortfolioMutualFund';
-import PortfolioSpread from './screens/PortfolioSpread';
+
 import PortfolioGrid from './screens/PortfolioGrid';
 import AllAssets from './pages/AllAssets';
 import RiskAnalytics from './pages/RiskAnalytics';
@@ -33,7 +33,6 @@ export default function App() {
             <Route path="/orders" element={<ActiveOrders />} />
             <Route path="/analytics/portfolio/:portfolio_id" element={<PortfolioAnalyticsDetail />} />
             <Route path="/analytics/detail" element={<div className="max-w-[1200px] mx-auto px-6 py-6"><PortfolioGrid /></div>} />
-            <Route path="/spread-pairing" element={<PortfolioSpread />} />
             <Route path="/create-portfolio" element={<CreateNewPortfolio />} />
             <Route path="/managed-fund" element={<PortfolioMutualFund />} />
             <Route path="/managed-fund/:portfolioId" element={<PortfolioMutualFund />} />

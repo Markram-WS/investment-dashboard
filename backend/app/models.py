@@ -36,6 +36,8 @@ class Portfolio(Base):
     data_source = Column(String, default='Manual', check_constraint="data_source IN ('Manual', 'Bot')")
     # ETL sync marker
     etl_synced = Column(Boolean, default=False)
+    # Custom portfolio flag - routes data to external PostgreSQL
+    is_custom = Column(Boolean, default=False)
     
     # Relationships
     trade_plans = relationship("TradePlan", back_populates="portfolio")
@@ -45,6 +47,21 @@ class Portfolio(Base):
     trade_history = relationship("TradeHistory", back_populates="portfolio")
     orders_groups = relationship("OrdersGroup", back_populates="portfolio")
     # Note: No direct transaction relationship due to ambiguity with source/destination FKs
+
+class CustomPortfolioConnection(Base):
+    __tablename__ = 'custom_portfolio_connections'
+
+    id = Column(Integer, primary_key=True)
+    portfolio_id = Column(Integer, ForeignKey('portfolios.portfolio_id'), nullable=False, unique=True)
+    db_host = Column(String, nullable=False)
+    db_port = Column(Integer, default=5432)
+    db_name = Column(String, nullable=False)
+    db_user = Column(String, nullable=False)
+    encrypted_password = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    portfolio = relationship("Portfolio", backref="custom_connection", uselist=False)
+
 
 class TradePlan(Base):
     __tablename__ = 'trade_plans'
