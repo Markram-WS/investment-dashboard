@@ -114,4 +114,4 @@ Uses CSS variables for theming with automatic dark mode switching:
 | `--color-brand-yellow` | `#ffd02f` | `#ffd02f` |
 | `--color-brand-coral` | `#ff9999` | `#ff9999` |
 
-*Last updated: 9 June 2026 (TransactionsPage redesigned with unified inline form, From/To columns; PageLayout component; NotificationContext centralized; Navigation portfolio links + green +Portfolio; CreateNewPortfolio inline SVGs)*
+*Last updated: 9 June 2026 (P/L formula synced across all views; CreateNewPortfolio SVGs — Activity/ChartBar/Database; Navigation P/L dot colors; backend overview.py custom portfolio P/L fix; StrategyNotes yellow focus ring)*

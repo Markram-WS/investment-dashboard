@@ -62,6 +62,7 @@
   - `analytics.py` — both `get_portfolio_grid_data` and `get_portfolio_detail` build `group_name` mapping by querying `CustomOrdersGroup` table for custom portfolios (since `CustomActiveOrder` has no ORM `group` relationship)
   - `trade_history.py` — `get_trade_history` now always queries `TradeHistory` from main DB for custom portfolios (close endpoint writes `TradeHistory` to main DB, not `CustomTransaction` to custom DB)
   - `yfinance_service.py` — rewritten to use direct HTTP to Yahoo Finance (`query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=2d&interval=1d`). No yfinance library. Errors propagate as HTTP 502.
+  - `overview.py` — custom portfolio P/L fixed: uses `TradeHistory.realized_pl` (same as regular portfolios) instead of `CustomTransaction.amount`.
 - `WhitelistAssets` extended: `name`, `source` (yfinance/manual), `group_id` FK→`asset_groups`, `price`, `change_24h`, `updated_at`
 - Two core PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
 
