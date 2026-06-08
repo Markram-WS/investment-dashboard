@@ -52,7 +52,7 @@ const StrategyNotes: React.FC<StrategyNotesProps> = ({
               <textarea
                 value={notesContent}
                 onChange={(e) => setNotesContent(e.target.value)}
-                className="w-full h-32 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg p-4 text-sm focus:ring-2 focus:ring-brand-yellow outline-none resize-none"
+                className="w-full h-32 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg p-4 text-sm focus:ring-2 focus:ring-yellow-500 outline-none resize-none"
                 placeholder="Type your observation..."
                 autoFocus
               />

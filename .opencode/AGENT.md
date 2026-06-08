@@ -72,7 +72,7 @@
 - **Font**: Sora (Google Fonts) replaces Inter + Plus Jakarta Sans
 - **Notification system**: `NotificationContext` — `notify(msg, type)` centralizes all toasts. `NotificationBell` in navbar with unread badge + dropdown history panel. Persisted to localStorage. Auto-dismiss 3s. ToastAlert inline in context (not separate component), positioned `right-6`.
 - **PageLayout component**: `max-w-[1200px] mx-auto px-6 py-10` shared container used by PortfolioOverview, TransactionsPage, AllAssets, RiskAnalytics — single change point for layout.
-- **TransactionsPage redesigned**: Unified inline form (From/To dropdowns) replaces 3 separate Deposit/Withdraw/Transfer modals. Table uses From/To columns instead of single Flow column. Always-visible form (no toggle). Same-port and deposit-vs-withdraw conflicts enforced in dropdowns.
+- **TransactionsPage redesign**: Unified inline form (From/To dropdowns) replaces 3 separate Deposit/Withdraw/Transfer modals. Table uses From/To columns instead of single Flow column. Always-visible form (no toggle). Same-port and deposit-vs-withdraw conflicts enforced in dropdowns. Filters and New Transaction in same row (50/50).
 - **Custom Portfolio form**: `CreateNewPortfolio.tsx` has "Custom Portfolio" type with external DB connection fields (host, port, DB name, user, password) + Test Connection button
 - **Portfolio routing**: `PortfolioAnalyticsDetail.tsx` routes Managed Fund → `PortfolioMutualFund`, all others (including Custom Portfolio) → `PortfolioGrid`
 - **Removed**: `/spread-pairing` route, `PortfolioSpread` import, spread-pair API calls
@@ -81,7 +81,7 @@
 - **AddAssetModal / EditAssetModal**: Create/edit assets with group, type, source selection.
 - **ToastAlert** removed from 4 pages — replaced by centralized `useNotification().notify()`
 - **Navigation**: Portfolio dropdown links navigate to `/analytics/portfolio/{id}`; +Portfolio button uses `text-brand-teal` (green text, no background/border); `IconPlus` replaced with inline SVG
-- **CreateNewPortfolio**: All emoji icons replaced with inline SVGs (bullseye target, trending-up chart, link chain)
+- **CreateNewPortfolio**: All emoji icons replaced with inline SVGs (bullseye target, trending-up chart, link chain). Now uses Activity SVG (Active Trading), Chart Bar SVG (Managed Fund), Database SVG (Custom Portfolio).
 - **DndProvider** wraps entire app in App.tsx (moved from PortfolioOverview)
 - **Inline styles**: 254 → 35 (only dynamic runtime values)
 - **Z-index 100**: custom `zIndex` extend in tailwind.config.js for navbar
@@ -90,7 +90,8 @@
 - **Button component**: 5 variants (primary/secondary/outline/danger/ghost), 3 sizes. Replaces all inline button styling.
 - **PageLayout component**: `max-w-[1200px] mx-auto px-6 py-10` shared container; used by 4 pages (PortfolioOverview, TransactionsPage, AllAssets, RiskAnalytics)
 - **TransactionsPage redesign**: Unified inline form (From/To dropdowns) replaces 3 separate modals (Deposit/Withdraw/Transfer). Table shows From/To columns instead of Flow. Filters + form in same row (50/50). Always-visible form (no toggle). Validates same-port and deposit-vs-withdraw conflicts in dropdowns.
-- **Navigation updates**: Portfolio dropdown links navigate to `/analytics/portfolio/{id}`; +Portfolio button uses `text-brand-teal` (green text, no background/border); `IconPlus` replaced with inline SVG
+- **Navigation updates**: Portfolio dropdown links navigate to `/analytics/portfolio/{id}`; +Portfolio button uses `text-brand-teal` (green text, no background/border); `IconPlus` replaced with inline SVG. Each portfolio item has a colored dot: `bg-emerald-500` (green = profit), `bg-red-500` (red = loss), `bg-slate/30` (gray = zero/unknown) — P/L fetched from overview endpoint.
+- **StrategyNotes**: Internal Notes textarea focus ring changed to `focus:ring-2 focus:ring-yellow-500` to match Primary Strategy yellow theme.
 - **ToastAlert**: Now inline in `NotificationContext` (not a separate rendered component). Positioned `right-6` instead of centered. Auto-dismisses after 3s (was 5s).
 
 ### Database (`database/`)
@@ -119,7 +120,7 @@
 - **Total Value** = `available_cash + cumulativePl + marginLocked + cashBufferLimit + money_market + totalNotional`
 - **Available Cash** (raw) = `available_cash` (DB field)
 - **Available Cash** (tooltip) = `Cash + Total P/L`
-- **P/L %** = `(cumulativePl / (available_cash + money_market)) × 100`
+- **P/L %** = `(cumulativePl / (available_cash + money_market + marginLocked + cashBufferLimit)) × 100` (allCash denominator — synced across Overview cards, Overview hero, and Portfolio Summary)
 - **Edit Portfolio auto-adjust**: `newAvailable = max(0, rawAvailableCash − totalDiff)`
 - **Risk Level gauge**: 3-branch formula (mirrored frontend + backend):
   - `cashBufferLimit ≠ 0`: `((availableCash − marginLocked) / cashBufferLimit) × 100`

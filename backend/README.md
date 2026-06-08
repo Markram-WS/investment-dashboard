@@ -385,4 +385,4 @@ docker compose logs db_ai
 
 ---
 
-*Last updated: 9 June 2026 (TransactionsPage rewrite: unified inline form replaces 3 modals, From/To table columns; NotificationContext centralized; Navigation portfolio links + green +Portfolio; PageLayout component; AllAssets container fix; CreateNewPortfolio inline SVGs)*
+*Last updated: 9 June 2026 (overview.py custom portfolio P/L fixed — uses TradeHistory.realized_pl instead of CustomTransaction.amount; TransactionsPage rewrite; Navigation P/L dot colors; CreateNewPortfolio SVGs)*

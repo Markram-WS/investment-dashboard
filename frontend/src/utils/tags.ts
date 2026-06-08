@@ -11,8 +11,8 @@ export function getPortfolioTags(p: PortfolioOverviewItem): string[] {
 
 export function getProfitPct(p: PortfolioOverviewItem): number {
   if (p.profit_percentage !== undefined) return p.profit_percentage;
-  const total = p.margin + p.buffer + p.available;
-  return total > 0 ? (p.available / total * 100) : 0;
+  const invested = (p.margin || 0) + (p.buffer || 0) + (p.available_cash || 0) + (p.money_market || 0);
+  return invested > 0 ? ((p.total_pl || 0) / invested * 100) : 0;
 }
 
 export function getStatusMessage(p: PortfolioOverviewItem): string {

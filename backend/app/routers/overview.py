@@ -63,9 +63,9 @@ async def get_overview(
             total_available_cash = float(portfolio.available_cash) if portfolio.available_cash else 0
             total_money_market = float(portfolio.money_market) if portfolio.money_market else 0
 
-            pl_result = await session.execute(
-                select(func.coalesce(func.sum(CustomTransaction.amount), 0))
-                .where(CustomTransaction.source_portfolio_id == portfolio_id)
+            pl_result = await db.execute(
+                select(func.coalesce(func.sum(TradeHistory.realized_pl), 0))
+                .where(TradeHistory.portfolio_id == portfolio_id, TradeHistory.realized_pl.isnot(None))
             )
             total_pl = float(pl_result.scalar() or 0)
 

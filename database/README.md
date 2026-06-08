@@ -134,4 +134,4 @@ On first access, `ensure_custom_tables()` runs an auto-migration: it queries `in
 
 ---
 
-*Last updated: 9 June 2026 (no schema changes — frontend-only session: TransactionsPage redesign, NotificationContext, PageLayout, Navigation, CreateNewPortfolio SVGs)*
+*Last updated: 9 June 2026 (no schema changes — frontend-only session: P/L formula sync, CreateNewPortfolio SVGs, Navigation PL dots, StrategyNotes focus ring, TransactionsPage form redesign)*

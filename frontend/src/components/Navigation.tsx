@@ -38,6 +38,19 @@ export default function Navigation() {
     staleTime: 30000,
   });
 
+  const { data: overviewData } = useQuery({
+    queryKey: ["nav-overview"],
+    queryFn: () => api.getOverview(),
+    staleTime: 30000,
+  });
+
+  const plMap = new Map<number, number>();
+  if (overviewData?.portfolios) {
+    for (const p of overviewData.portfolios) {
+      plMap.set(p.portfolio_id, p.total_pl ?? 0);
+    }
+  }
+
   const portfolios = portfolioList.map((p: any) => ({ id: p.portfolio_id, name: p.portfolio_name }));
 
   const handleOutsideClick = useCallback((e: MouseEvent) => {
@@ -107,16 +120,15 @@ export default function Navigation() {
             {portfoliosDropdownOpen && (
               <div className="absolute left-0 mt-1 w-50 bg-canvas border border-hairline rounded-xl shadow-lg overflow-hidden z-10">
                 {portfolios.map((p) => {
-                  const color = p.name.toLowerCase().includes('binance') || p.name.toLowerCase().includes('btc')
-                    ? 'var(--color-brand-teal)'
-                    : 'var(--color-brand-coral)';
+                  const pl = plMap.get(p.id) ?? 0;
+                  const dotColor = pl > 0 ? 'bg-emerald-500' : pl < 0 ? 'bg-red-500' : 'bg-slate/30';
                   return (
                     <button
                       key={p.id}
                       onClick={() => { setSelectedId(p.id); setPortfoliosDropdownOpen(false); navigate(`/analytics/portfolio/${p.id}`); }}
                       className="w-full px-4 py-3 text-sm font-medium text-slate bg-transparent border-none flex items-center gap-2.5 cursor-pointer hover:bg-surface"
                     >
-                      <span className="w-2 h-2 rounded-full inline-block" style={{ background: color }} />
+                      <span className={`w-2 h-2 rounded-full inline-block ${dotColor}`} />
                       {p.name}
                     </button>
                   );

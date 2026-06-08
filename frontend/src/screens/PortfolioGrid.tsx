@@ -403,12 +403,13 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     activeOrders.reduce((sum, o) => sum + (o.entry_price || 0) * Number(o.qty || 0), 0),
   [activeOrders]);
 
-  const totalCash = (selectedPortfolio?.available_cash || 0) + (selectedPortfolio?.money_market || 0);
   const cumulativePl = performanceData?.total_pl || 0;
   const marginLocked = selectedPortfolio?.margin_locked || 0;
   const cashBufferLimit = selectedPortfolio?.cash_buffer_limit || 0;
-  const totalValue = (selectedPortfolio?.available_cash || 0) + cumulativePl + marginLocked + cashBufferLimit + (selectedPortfolio?.money_market || 0) + totalNotional;
-  const plPercent = totalCash > 0 ? (cumulativePl / totalCash) * 100 : 0;
+  const totalCash = (selectedPortfolio?.available_cash || 0) + (selectedPortfolio?.money_market || 0);
+  const allCash = totalCash + marginLocked + cashBufferLimit;
+  const totalValue = allCash + cumulativePl + totalNotional;
+  const plPercent = allCash > 0 ? (cumulativePl / allCash) * 100 : 0;
   const availableCash = (selectedPortfolio?.available_cash || 0) + cumulativePl;
 
   const riskPercent = selectedPortfolio?.risk_score ?? 0;

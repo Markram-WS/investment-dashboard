@@ -326,4 +326,4 @@ optimizeDeps: { include: ['react', 'react-dom', ...] }
 
 ---
 
-*Last updated: 9 June 2026 (TransactionsPage rewrite: unified inline form replaces 3 modals, From/To table columns; PageLayout component; NotificationContext inline toast; Navigation portfolio links + green +Portfolio + inline SVG plus; AllAssets container fix; ToastAlert position right-6, 3s auto-dismiss)*
+*Last updated: 9 June 2026 (P/L formula synced: allCash denominator across Overview cards + Portfolio Summary; StrategyNotes yellow focus ring; CreateNewPortfolio SVGs — Activity/ChartBar/Database; Navigation dot colors by P/L; TransactionsPage always-visible form, responsive dropdown disabling, same row as filters)*
