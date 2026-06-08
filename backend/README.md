@@ -30,6 +30,7 @@ This backend is built with:
 
 **Key additions:**
 
+- **Managed Fund** (`port_type = "Managed Fund"`) — portfolio rebalancing with separate order flow: holdings, orders (pending→done→history), NAV tracking, target allocation ratio, profit threshold alerts, and auto-sync of symbols to whitelist_assets
 - **Custom Portfolio type** replaces `Spread Strategy` — portfolios with isolated external PostgreSQL databases
 - **`CustomPortfolioConnection` model** — stores encrypted credentials (Fernet) for external DB connections
 - **`POST /api/v1/portfolios/test-connection`** — validates external DB connectivity at form time
@@ -98,13 +99,31 @@ open http://localhost:8000/docs
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
 | `GET` | `/api/v1/portfolios` | List all portfolios |
-| `POST` | `/api/v1/portfolios` | Create a new portfolio (supports connection fields for Custom Portfolio) |
+| `POST` | `/api/v1/portfolios` | Create a new portfolio (supports connection fields for Custom Portfolio; target_ratio auto-normalized from decimal→percentage) |
 | `GET` | `/api/v1/portfolios/types` | List available portfolio types (Managed Fund, Active Trading, Custom Portfolio) |
 | `GET` | `/api/v1/portfolios/{id}` | Retrieve portfolio by ID (includes connection metadata for custom) |
 | `PUT` | `/api/v1/portfolios/{id}` | Update portfolio fields |
 | `PATCH` | `/api/v1/portfolios/{id}/connection` | Update custom portfolio DB connection details |
-| `DELETE` | `/api/v1/portfolios/{id}` | Delete portfolio with cascade |
+| `DELETE` | `/api/v1/portfolios/{id}` | Delete portfolio with cascade (also cleans managed_fund_* tables) |
 | `POST` | `/api/v1/portfolios/test-connection` | Test external DB connectivity (host, port, db_name, user, password) |
+
+### Managed Fund
+| Method | Endpoint | Description |
+|--------|-----------|-------------|
+| `GET` | `/api/v1/managed-funds/{portfolio_id}/settings` | Get MF settings (target_ratio, profit thresholds); auto-creates row if missing, backfills target_ratio from Portfolio table |
+| `PUT` | `/api/v1/managed-funds/{portfolio_id}/settings` | Update MF settings (target_ratio, global_profit_threshold) |
+| `GET` | `/api/v1/managed-funds/{portfolio_id}/holdings` | List asset holdings |
+| `POST` | `/api/v1/managed-funds/{portfolio_id}/holdings` | Create a holding (manual) |
+| `PUT` | `/api/v1/managed-funds/{portfolio_id}/holdings/{holding_id}` | Update holding (profit_threshold) |
+| `POST` | `/api/v1/managed-funds/{portfolio_id}/holdings/{holding_id}/sell` | Create a Sell order from a holding |
+| `GET` | `/api/v1/managed-funds/{portfolio_id}/orders` | List orders in progress |
+| `POST` | `/api/v1/managed-funds/{portfolio_id}/orders` | Create a new order (auto-syncs symbol to whitelist_assets) |
+| `PUT` | `/api/v1/managed-funds/{portfolio_id}/orders/{order_id}` | Update order fields |
+| `PATCH` | `/api/v1/managed-funds/{portfolio_id}/orders/{order_id}/status` | Confirm (→done) or Cancel order; on done: updates holdings, adjusts available_cash, records NAV history, moves to history table |
+| `GET` | `/api/v1/managed-funds/{portfolio_id}/history` | List order history |
+| `POST` | `/api/v1/managed-funds/{portfolio_id}/rebalance/calculate` | Calculate rebalance recommendations from target_ratio vs current allocation (auto-normalizes decimal→percentage) |
+| `POST` | `/api/v1/managed-funds/{portfolio_id}/sync-prices` | Sync current prices from whitelist_assets |
+| `GET` | `/api/v1/managed-funds/{portfolio_id}/alerts` | Get profit threshold alerts |
 
 ### Active Orders
 | Method | Endpoint | Description |
@@ -160,6 +179,7 @@ open http://localhost:8000/docs
 | `PUT` | `/api/v1/assets/{id}` | Update asset fields |
 | `DELETE` | `/api/v1/assets/{id}` | Delete asset |
 | `POST` | `/api/v1/assets/sync-from-orders` | Sync active order tickers as new assets |
+| `POST` | `/api/v1/assets/sync-from-all` | Sync asset symbols from ALL sources (active_orders + managed_fund_holdings + managed_fund_order_history) |
 | `POST` | `/api/v1/assets/{id}/update-price` | Fetch live price from Yahoo Finance |
 | `POST` | `/api/v1/assets/batch-update-prices` | Batch update all yfinance asset prices |
 
@@ -209,10 +229,11 @@ open http://localhost:8000/docs
 ```text
 backend/
 ├── app/
-│   ├── main.py                  # FastAPI app + lifespan (auto-create tables)
+│   ├── main.py                  # FastAPI app + lifespan (auto-create tables, register managed_fund_models)
 │   ├── database.py              # Async engine + session factories + custom engine manager
 │   ├── models.py                # SQLAlchemy ORM models (18 tables incl. CustomPortfolioConnection)
 │   ├── custom_models.py         # FK-free models for custom DB tables (active_orders, transactions, trade_plans, etc.)
+│   ├── managed_fund_models.py   # 4 SQLAlchemy models for Managed Fund: ManagedFundHolding, ManagedFundOrder, ManagedFundOrderHistory, ManagedFundSetting
 │   ├── utils/
 │   │   ├── crypto.py            # Fernet encrypt/decrypt for DB passwords
 │   │   └── __init__.py
@@ -233,6 +254,7 @@ backend/
 │       ├── orders_groups.py     # Orders group CRUD
 │       ├── trade_plans.py       # Trade plan CRUD
 │       ├── journal.py           # Decision journal
+│       ├── managed_funds.py     # Managed Fund CRUD: settings, holdings, orders, history, rebalance, sync-prices, alerts
 │       ├── rebalance.py         # Dual-mode rebalancing
 │       ├── ai_agents.py         # AI autonomy
 │       └── etl_sync.py          # ETL sync utilities
@@ -385,4 +407,4 @@ docker compose logs db_ai
 
 ---
 
-*Last updated: 9 June 2026 (overview.py custom portfolio P/L fixed — uses TradeHistory.realized_pl instead of CustomTransaction.amount; TransactionsPage rewrite; Navigation P/L dot colors; CreateNewPortfolio SVGs)*
+*Last updated: 8 June 2026 (Managed Fund feature: 4 new tables + 15 API endpoints; sync-from-all endpoint; target_ratio auto-normalization; portfolio cascade deletes for managed_fund tables; navbar query invalidation on delete)*

@@ -2,11 +2,36 @@
 
 Two PostgreSQL databases power the system, plus user-configured external PostgreSQL databases for Custom Portfolios.
 
+## Managed Fund Tables (Main DB)
+
+4 new tables added for the Managed Fund portfolio type (`port_type = "Managed Fund"`):
+
+| Table | Purpose |
+|-------|---------|
+| `managed_fund_holdings` | Asset holdings: `holding_id` PK, `portfolio_id` FK→`portfolios`, `asset`, `qty`, `avg_entry_price`, `current_price`, `market_value`, `unrealized_pl`, `unrealized_pl_pct`, `profit_threshold` |
+| `managed_fund_orders` | Orders in progress (pending): `order_id` PK, `portfolio_id` FK, `asset`, `side` (Buy/Sell), `qty`, `price`, `status` (pending→done/cancelled), `order_type`, `notes` |
+| `managed_fund_order_history` | Completed/cancelled orders: same columns as orders + `executed_at` timestamp; moved here when order status changes to done/cancelled |
+| `managed_fund_settings` | Per-portfolio settings: `id` PK, `portfolio_id` UNIQUE FK, `target_ratio` JSON (`{"BTC":40,"ETH":60}` in percentage), `global_profit_threshold`, `total_invested`, `last_rebalance_date` |
+
+### Order Flow
+```
+Create Order (pending) → Confirm Done → Update Holdings + Adjust available_cash + Record NAV → Move to Order History
+                       → Cancel       → Move to Order History (cancelled)
+```
+
+### Key behaviors
+- `portfolio.available_cash` is auto-adjusted on order confirm: Buy→deduct, Sell→add
+- `portfolio.current_nav` = `available_cash + money_market + sum(holding.qty × holding.current_price)`
+- Buy orders merge into existing holdings (weighted avg entry price); Sell orders reduce qty or delete holding
+- Order symbols auto-sync to `whitelist_assets` on creation with `source='manual'`
+- target_ratio supports both decimal (0.4 = 40%) and percentage (40) input — auto-normalized to percentage on read
+- Deleting a portfolio cascades to all `managed_fund_*` tables
+
 ---
 
 ## Main DB (`investment_main`) — `main_db_schema.sql`
 
-14 tables for portfolio management, trade execution, ledger, asset tracking, and custom portfolio connections:
+18 tables for portfolio management, managed fund, trade execution, ledger, asset tracking, and custom portfolio connections:
 
 | Table | Purpose |
 |-------|---------|
@@ -24,6 +49,10 @@ Two PostgreSQL databases power the system, plus user-configured external Postgre
 | `transactions` | Consolidated ledger: deposits, withdrawals, transfers |
 | `decision_journals` | Mini post-it notes per portfolio, linked to trade history |
 | `asset_groups` | Group definitions for asset organization: `id` SERIAL PK, `name` TEXT UNIQUE NOT NULL, `is_default` BOOLEAN, `created_at` TIMESTAMP. Seeds Ungrouped + Watchlist on first query |
+| `managed_fund_holdings` | Managed Fund: asset holdings with avg entry, current price, P/L, profit threshold |
+| `managed_fund_orders` | Managed Fund: pending orders (Buy/Sell) before confirmation |
+| `managed_fund_order_history` | Managed Fund: completed/cancelled order archive |
+| `managed_fund_settings` | Managed Fund: target allocation ratios (JSON), profit thresholds, total invested |
 
 ### New table: `custom_portfolio_connections`
 
@@ -134,4 +163,4 @@ On first access, `ensure_custom_tables()` runs an auto-migration: it queries `in
 
 ---
 
-*Last updated: 9 June 2026 (no schema changes — frontend-only session: P/L formula sync, CreateNewPortfolio SVGs, Navigation PL dots, StrategyNotes focus ring, TransactionsPage form redesign)*
+*Last updated: 8 June 2026 (4 Managed Fund tables added: managed_fund_holdings, managed_fund_orders, managed_fund_order_history, managed_fund_settings)*

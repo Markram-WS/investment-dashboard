@@ -8,6 +8,7 @@ from datetime import datetime
 from app.database import get_db, resolve_portfolio_db
 from app.models import WhitelistAssets, AssetGroup, ActiveOrder
 from app.custom_models import CustomWhitelistAssets
+from app.managed_fund_models import ManagedFundHolding, ManagedFundOrderHistory
 from app.services.yfinance_service import fetch_price
 
 class AssetResponse(BaseModel):
@@ -41,14 +42,14 @@ class AssetUpdate(BaseModel):
 
 router = APIRouter()
 
-def _ensure_default_group(db: AsyncSession):
-    result = db.execute(select(AssetGroup).where(AssetGroup.name == "Ungrouped"))
+async def _ensure_default_group(db: AsyncSession):
+    result = await db.execute(select(AssetGroup).where(AssetGroup.name == "Ungrouped"))
     group = result.scalars().first()
     if not group:
         group = AssetGroup(name="Ungrouped", is_default=True)
         db.add(group)
-        db.commit()
-        db.refresh(group)
+        await db.commit()
+        await db.refresh(group)
     return group
 
 @router.get("", response_model=List[AssetResponse], tags=["assets"])
@@ -159,7 +160,7 @@ async def sync_from_orders(db: AsyncSession = Depends(get_db)):
     missing = tickers - existing_tickers
     if not missing:
         return []
-    ung_group = _ensure_default_group(db)
+    ung_group = await _ensure_default_group(db)
     new_assets = []
     for ticker in missing:
         asset = WhitelistAssets(
@@ -184,6 +185,53 @@ async def sync_from_orders(db: AsyncSession = Depends(get_db)):
     for a in new_assets:
         await db.refresh(a)
     return new_assets
+
+@router.post("/sync-from-all", response_model=List[AssetResponse], tags=["assets"])
+async def sync_from_all(db: AsyncSession = Depends(get_db)):
+    tickers: set[str] = set()
+
+    # From Active Trading orders
+    active_result = await db.execute(select(ActiveOrder.asset_type).distinct())
+    for row in active_result:
+        if row[0] and row[0].strip():
+            tickers.add(row[0].strip().upper())
+
+    # From Managed Fund holdings
+    mf_hold_result = await db.execute(select(ManagedFundHolding.asset).distinct())
+    for row in mf_hold_result:
+        if row[0] and row[0].strip():
+            tickers.add(row[0].strip().upper())
+
+    # From Managed Fund order history
+    mf_hist_result = await db.execute(select(ManagedFundOrderHistory.asset).distinct())
+    for row in mf_hist_result:
+        if row[0] and row[0].strip():
+            tickers.add(row[0].strip().upper())
+
+    existing = await db.execute(select(WhitelistAssets.ticker))
+    existing_tickers = {row[0].upper() for row in existing if row[0]}
+    missing = tickers - existing_tickers
+
+    if not missing:
+        return []
+
+    ung_group = await _ensure_default_group(db)
+    new_assets = []
+    for ticker in sorted(missing):
+        asset = WhitelistAssets(
+            ticker=ticker,
+            asset_type='crypto',
+            name=ticker,
+            source='manual',
+            group_id=ung_group.id,
+        )
+        db.add(asset)
+        new_assets.append(asset)
+    await db.commit()
+    for a in new_assets:
+        await db.refresh(a)
+    return new_assets
+
 
 @router.post("/{asset_id}/update-price", response_model=AssetResponse, tags=["assets"])
 async def update_asset_price(asset_id: int, db: AsyncSession = Depends(get_db)):

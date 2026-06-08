@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, ai_engine
 from app.models import Base
+import app.managed_fund_models  # noqa: F401 - register models for table creation
 from app.routers import (
     portfolios,
     trade_plans,
@@ -20,6 +21,7 @@ from app.routers import (
     asset_groups,
     orders_groups,
     performance,
+    managed_funds,
 )
 
 @asynccontextmanager
@@ -89,6 +91,7 @@ app.include_router(risk.router, prefix="/api/v1/risk", tags=["risk"])
 app.include_router(rebalance.router, prefix="/api/v1/rebalance", tags=["rebalance"])
 app.include_router(orders_groups.router, prefix="/api/v1/orders-groups", tags=["orders-groups"])
 app.include_router(performance.router, prefix="/api/v1/analytics/performance", tags=["analytics"])
+app.include_router(managed_funds.router, prefix="/api/v1/managed-funds", tags=["managed-funds"])
 
 
 @app.get("/")

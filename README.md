@@ -1,6 +1,6 @@
 # Investment Dashboard
 
-Full-stack portfolio management system with real-time analytics, options strategy sandbox, AI agent integration, and **dynamic multi-database custom portfolios**.
+Full-stack portfolio management system with real-time analytics, options strategy sandbox, AI agent integration, **Managed Fund rebalancing**, and **dynamic multi-database custom portfolios**.
 
 ## Stack
 
@@ -42,6 +42,7 @@ Custom Portfolios use **isolated external PostgreSQL databases** configured by t
 
 ## Key Features
 
+- **Managed Fund** — Full portfolio rebalancing with separate order lifecycle (Create→Confirm→History), auto cash tracking, 4-card summary (NAV/Cash/Invested/P/L), target allocation ratios, rebalance recommendations, profit threshold alerts
 - **Portfolio Overview** — Hero card, Pool Health gauge, Money Reserve, Active Portfolio cards with DnD cash transfer
 - **Portfolio Grid** — Zone-grouped orders, drag-drop assignment, contract type filters, order link system
 - **Payoff Chart** — Pure SVG: intrinsic + BS IV overlay, crosshair, tooltip, area fill, break-even markers
@@ -78,11 +79,12 @@ InvestmentDashboard/
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── models.py
+│   │   ├── managed_fund_models.py  # 4 Managed Fund models
 │   │   ├── custom_models.py    # FK-free models for custom DBs
 │   │   ├── database.py         # Engine manager + session routing
 │   │   ├── utils/
 │   │   │   └── crypto.py       # Fernet password encryption
-│   │   ├── routers/            # 19+ route files
+│   │   ├── routers/            # 20+ route files (incl. managed_funds.py)
 │   │   └── services/           # yfinance_service.py
 │   ├── tests/
 │   ├── requirements.txt
@@ -114,4 +116,4 @@ Uses CSS variables for theming with automatic dark mode switching:
 | `--color-brand-yellow` | `#ffd02f` | `#ffd02f` |
 | `--color-brand-coral` | `#ff9999` | `#ff9999` |
 
-*Last updated: 9 June 2026 (P/L formula synced across all views; CreateNewPortfolio SVGs — Activity/ChartBar/Database; Navigation P/L dot colors; backend overview.py custom portfolio P/L fix; StrategyNotes yellow focus ring)*
+*Last updated: 8 June 2026 (Managed Fund feature: 4 new DB tables, 15 API endpoints, 6 frontend components, auto cash tracking, NAV recalculation, target_ratio normalization, all-portfolio asset sync)*

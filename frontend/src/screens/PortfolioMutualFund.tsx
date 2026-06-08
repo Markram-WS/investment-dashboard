@@ -1,151 +1,156 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
-import { FundPortfolio, TradeRecommendation, RecommendResponse, NavHistoryRecord, NavHistoryResponse, TradePlan } from "../types";
-import { colors, rounded, spacing } from "../constants/colors";
-import { getRiskColor, getDriftColor, calculateDrift } from "../utils/risk";
+import {
+  FundPortfolio, MFHolding, MFOrder, MFHistory, MFSetting,
+  MFRebalanceRecommendation, MFAlert, MFOrderCreate, MFOrderUpdate,
+} from "../types";
+import Button from "./components/Button";
+import MFRebalanceRecommendModal from "./MFRebalanceRecommendModal";
+import MFCreateOrderModal from "./MFCreateOrderModal";
+import MFEditOrderModal from "./MFEditOrderModal";
+import MFSellHoldingModal from "./MFSellHoldingModal";
+import MFEditPortfolioModal from "./MFEditPortfolioModal";
 
 interface ManagedFundProps {
   portfolioId?: string;
 }
 
+function PctBadge({ value }: { value: number }) {
+  const color = value >= 0 ? "text-success" : "text-error";
+  return <span className={`text-xs font-bold ${color}`}>{value >= 0 ? "+" : ""}{value.toFixed(2)}%</span>;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    pending: "bg-amber-100 text-amber-800",
+    done: "bg-emerald-100 text-emerald-800",
+    cancelled: "bg-red-100 text-red-800",
+  };
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${map[status] || "bg-gray-100 text-gray-800"}`}>
+      {status}
+    </span>
+  );
+}
+
 export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
   const [portfolio, setPortfolio] = useState<FundPortfolio | null>(null);
-  const [tradePlans, setTradePlans] = useState<TradePlan[]>([]);
-  const [recommendations, setRecommendations] = useState<TradeRecommendation[]>([]);
-  const [navHistory, setNavHistory] = useState<NavHistoryRecord[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [holdings, setHoldings] = useState<MFHolding[]>([]);
+  const [orders, setOrders] = useState<MFOrder[]>([]);
+  const [history, setHistory] = useState<MFHistory[]>([]);
+  const [settings, setSettings] = useState<MFSetting | null>(null);
+  const [alerts, setAlerts] = useState<MFAlert[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [recommendLoading, setRecommendLoading] = useState<boolean>(false);
-  const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
-  const [editContent, setEditContent] = useState<string>("");
 
-  // Fetch portfolio, trade plans, and NAV history data
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch basic portfolio data
-        const portfolioData = await api.getPortfolio(parseInt(portfolioId));
-        setPortfolio(portfolioData);
-        setError(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showRebalanceModal, setShowRebalanceModal] = useState(false);
+  const [showCreateOrder, setShowCreateOrder] = useState(false);
+  const [showEditOrder, setShowEditOrder] = useState(false);
+  const [editOrderTarget, setEditOrderTarget] = useState<MFOrder | null>(null);
+  const [showSellHolding, setShowSellHolding] = useState(false);
+  const [sellHoldingTarget, setSellHoldingTarget] = useState<MFHolding | null>(null);
+  const [rebalanceRecs, setRebalanceRecs] = useState<MFRebalanceRecommendation[]>([]);
+  const [rebalanceLoading, setRebalanceLoading] = useState(false);
 
-        // Fetch trade plans for this portfolio
-        try {
-          const tradePlansData = await api.getTradePlans(parseInt(portfolioId));
-          setTradePlans(tradePlansData);
-        } catch {
-          // Trade plans may not exist yet
-        }
 
-        // Fetch NAV history
-        try {
-          const navData: NavHistoryResponse = await api.getNavHistory(parseInt(portfolioId));
-          setNavHistory(navData.nav_history || []);
-        } catch {
-          // NAV history may not exist yet
-        }
-      } catch (err) {
-        console.error("Failed to fetch data:", err);
-        setError("Failed to load portfolio data.");
-        // Set mock data for development
-        setPortfolio({
-          portfolio_id: parseInt(portfolioId),
-          portfolio_name: "Managed Fund Alpha",
-          port_type: "managed-fund",
-          current_nav: 100000,
-          margin_locked: 60000,
-          available_cash: 25000,
-          money_market: 15000,
-          cash_buffer_limit: 20000,
-          target_ratio: { BTC: 50, ETH: 30, SOL: 20 },
-          current_allocations: { BTC: 45, ETH: 35, SOL: 20 },
-          last_rebalance_date: "2024-01-15",
-          risk_status: "Safe",
-        });
-        setTradePlans([{
-          plan_id: 1,
-          portfolio_id: parseInt(portfolioId),
-          trade_plan_md: "# Rebalance Strategy\n- Target: 50% BTC, 30% ETH, 20% SOL\n- Tolerance: ±5%\n- Last rebalance: 2024-01-15",
-          created_at: "2024-01-15T00:00:00Z",
-          updated_at: null,
-        }]);
-        setNavHistory([
-          { nav_id: 1, nav_date: "2024-01-20", nav_value: 102000 },
-          { nav_id: 2, nav_date: "2024-01-19", nav_value: 101500 },
-          { nav_id: 3, nav_date: "2024-01-18", nav_value: 101000 },
-          { nav_id: 4, nav_date: "2024-01-17", nav_value: 100500 },
-          { nav_id: 5, nav_date: "2024-01-16", nav_value: 100000 },
-        ]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const pid = parseInt(portfolioId);
+      const [portData, settingsData, holdingsData, ordersData, historyData, alertsData] = await Promise.all([
+        api.getPortfolio(pid),
+        api.mfSettings(pid),
+        api.mfHoldings(pid).catch(() => []),
+        api.mfOrders(pid).catch(() => []),
+        api.mfHistory(pid).catch(() => []),
+        api.mfAlerts(pid).catch(() => ({ alerts: [] })),
+      ]);
+      setPortfolio(portData);
+      setSettings(settingsData);
+      setHoldings(holdingsData);
+      setOrders(ordersData);
+      setHistory(historyData);
+      setAlerts(alertsData.alerts || []);
+      setError(null);
+    } catch (err) {
+      console.error("Failed to load managed fund data:", err);
+      setError("Failed to load portfolio data");
+    } finally {
+      setLoading(false);
+    }
   }, [portfolioId]);
 
-  // Calculate drift for a specific asset
-  const calcDrift = (symbol: string): number => {
-    if (!portfolio) return 0;
-    const target = portfolio.target_ratio?.[symbol] || 0;
-    const current = portfolio.current_allocations?.[symbol] || 0;
-    return calculateDrift(target, current);
-  };
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Handle rebalance recommendation
   const handleCalculateRebalance = async () => {
-    if (!portfolio) return;
+    setRebalanceLoading(true);
+    setShowRebalanceModal(true);
     try {
-      setRecommendLoading(true);
-      const data: RecommendResponse = await api.recommendRebalance({ portfolio_id: portfolio.portfolio_id });
-      setRecommendations(data.recommendations);
-    } catch (err) {
-      console.error("Rebalance calculation failed:", err);
+      const res = await api.mfCalculateRebalance(parseInt(portfolioId));
+      setRebalanceRecs(res.recommendations || []);
+    } catch (e) {
+      console.error("Rebalance calc failed:", e);
+      setRebalanceRecs([]);
     } finally {
-      setRecommendLoading(false);
+      setRebalanceLoading(false);
     }
   };
 
-  // Handle execute trades
-  const handleExecuteTrades = async () => {
-    if (!portfolio || recommendations.length === 0) return;
-    try {
-      await api.executeRebalance({
-        portfolio_id: portfolio.portfolio_id,
-        recommendations: recommendations,
+  const handleCreateRebalanceOrders = async (recs: MFRebalanceRecommendation[]) => {
+    for (const r of recs) {
+      await api.mfCreateOrder(parseInt(portfolioId), {
+        asset: r.symbol,
+        side: r.side,
+        qty: r.qty,
+        price: r.estimated_price || null,
+        order_type: "rebalance",
       });
-      alert("Trades executed successfully!");
-      setRecommendations([]);
-    } catch (err) {
-      console.error("Trade execution failed:", err);
     }
+    setShowRebalanceModal(false);
+    await fetchData();
   };
 
-  // Start editing a trade plan
-  const startEditPlan = (plan: TradePlan) => {
-    setEditingPlanId(plan.plan_id);
-    setEditContent(plan.trade_plan_md || "");
+  const handleCreateOrder = async (data: MFOrderCreate) => {
+    await api.mfCreateOrder(parseInt(portfolioId), data);
+    setShowCreateOrder(false);
+    await fetchData();
   };
 
-  // Save edited trade plan
-  const saveEditedPlan = async (planId: number) => {
-    try {
-      const updatedPlan = await api.updateTradePlan(planId, { trade_plan_md: editContent });
-      setTradePlans(plans => plans.map(p => 
-        p.plan_id === planId ? updatedPlan : p
-      ));
-      setEditingPlanId(null);
-    } catch (err) {
-      console.error("Failed to save trade plan:", err);
-      alert("Failed to save trade plan");
-    }
+  const handleEditOrder = async (orderId: number, data: MFOrderUpdate) => {
+    await api.mfUpdateOrder(parseInt(portfolioId), orderId, data);
+    setShowEditOrder(false);
+    setEditOrderTarget(null);
+    await fetchData();
   };
+
+  const handleConfirmOrder = async (orderId: number) => {
+    await api.mfConfirmOrder(parseInt(portfolioId), orderId);
+    await fetchData();
+  };
+
+  const handleCancelOrder = async (orderId: number) => {
+    await api.mfCancelOrder(parseInt(portfolioId), orderId);
+    await fetchData();
+  };
+
+  const handleSellHolding = async (holdingId: number, qty: number, price: number) => {
+    await api.mfSellHolding(parseInt(portfolioId), holdingId, { qty, price });
+    setShowSellHolding(false);
+    setSellHoldingTarget(null);
+    await fetchData();
+  };
+
+  const totalPl = holdings.reduce((s, h) => s + (h.unrealized_pl || 0), 0);
+  const totalInvested = holdings.reduce((s, h) => s + (h.avg_entry_price * h.qty), 0);
 
   if (loading) {
     return (
-      <div className="p-6">
-        <h2 className="text-3xl font-bold text-center mb-8">Loading Managed Fund...</h2>
+      <div className="p-6 animate-pulse space-y-4">
+        <div className="h-8 bg-surface rounded w-64" />
+        <div className="h-32 bg-surface rounded-xl" />
+        <div className="h-48 bg-surface rounded-xl" />
+        <div className="h-48 bg-surface rounded-xl" />
       </div>
     );
   }
@@ -153,8 +158,10 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
   if (error && !portfolio) {
     return (
       <div className="p-6">
-        <h2 className="text-3xl font-bold text-center text-red-600 dark:text-red-400 mb-8">Error Loading Portfolio</h2>
-        <p className="text-center text-red-400">{error}</p>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+          <h2 className="text-lg font-bold text-red-700 mb-2">Error Loading Portfolio</h2>
+          <p className="text-red-500">{error}</p>
+        </div>
       </div>
     );
   }
@@ -162,256 +169,280 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
   if (!portfolio) {
     return (
       <div className="p-6">
-        <h2 className="text-3xl font-bold text-center mb-8">No Portfolio Data</h2>
+        <div className="bg-surface rounded-xl border border-hairline p-8 text-center">
+          <p className="text-slate">No portfolio data available</p>
+        </div>
       </div>
     );
   }
 
   return (
     <section className="min-h-screen bg-canvas p-6">
-      {/* Page Header */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-[32px] font-semibold text-ink">
-            {portfolio.portfolio_name}
-          </h1>
-          <span className="px-3 py-1 rounded-full text-sm font-medium bg-tealLight text-brandTeal">
-            Managed Fund
-          </span>
-        </div>
-        {portfolio.last_rebalance_date && (
-          <p className="text-sm text-slate">
-            Last rebalanced: {portfolio.last_rebalance_date}
-          </p>
-        )}
-      </div>
-
-      {/* Key Metrics & Asset Allocation Grid */}
-      <div className="grid gap-6 md:grid-cols-2 mb-8">
-        {/* Key Metrics Card */}
-        <div className="bg-tealLight rounded-xl p-xl">
-          <h3 className="text-2xl font-semibold text-ink mb-4">Key Metrics</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-ink">Current NAV</p>
-              <p className="text-2xl font-bold text-primary">
-                ${portfolio.current_nav?.toLocaleString() || "0"}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-ink">Margin Locked</p>
-              <p className="text-2xl font-bold text-primary">
-                ${portfolio.margin_locked?.toLocaleString() || "0"}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-ink">Available Cash</p>
-              <p className="text-2xl font-bold text-primary">
-                ${portfolio.available_cash?.toLocaleString() || "0"}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-ink">Risk Status</p>
-              <p className="text-2xl font-bold" style={{ color: getRiskColor(portfolio.risk_status) }}>
-                {portfolio.risk_status || "N/A"}
-              </p>
-            </div>
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-[32px] font-semibold text-ink">{portfolio.portfolio_name}</h1>
+            <span className="px-3 py-1 rounded-full text-sm font-medium bg-teal-light text-brand-teal">
+              Managed Fund
+            </span>
           </div>
-        </div>
-
-        {/* Asset Allocation Card */}
-        <div className="bg-surfaceSoft rounded-xl p-xl border border-hairline">
-          <h3 className="text-2xl font-semibold text-ink mb-4">Asset Allocation</h3>
-          <div className="space-y-3">
-            {Object.entries(portfolio.target_ratio || {}).map(([symbol, target]) => {
-              const current = portfolio.current_allocations?.[symbol] || 0;
-              const drift = calcDrift(symbol);
-              const driftColor = getDriftColor(drift);
-              return (
-                <div key={symbol}>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-medium text-ink">{symbol}</span>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-slate">
-                        {current}% / {target}%
-                      </span>
-                      <span
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: driftColor }}
-                      ></span>
-                    </div>
-                  </div>
-                  <div className="relative h-6 bg-hairline rounded-md overflow-hidden">
-                    <div
-                      className="absolute left-0 top-0 h-full bg-brandTeal rounded-l-md"
-                      style={{ width: `${current}%` }}
-                    ></div>
-                    <div
-                      className="absolute top-0 h-full w-0.5 bg-ink"
-                      style={{ left: `${target}%` }}
-                    ></div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Trade Plan Section */}
-      <div className="bg-brandYellow bg-opacity-20 rounded-xl p-lg mb-8">
-        <h3 className="text-2xl font-semibold text-ink mb-3">Trade Plans</h3>
-        {tradePlans.length > 0 ? (
-          <div className="space-y-4">
-            {tradePlans.map((plan) => (
-              <div key={plan.plan_id} className="bg-canvas rounded-md p-4 border border-hairline">
-                {editingPlanId === plan.plan_id ? (
-                  <div className="space-y-2">
-                    <textarea
-                      className="w-full h-32 p-2 border border-hairline rounded-md font-mono text-sm"
-                      value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
-                    />
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => saveEditedPlan(plan.plan_id)}
-                        className="px-3 py-1 rounded-md text-sm font-medium bg-brandTeal text-onPrimary hover:bg-tealLight"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={() => setEditingPlanId(null)}
-                        className="px-3 py-1 rounded-md text-sm font-medium bg-surface text-ink border border-hairline"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <pre className="whitespace-pre-wrap text-sm text-ink font-mono">
-                      {plan.trade_plan_md || "No content"}
-                    </pre>
-                    <button
-                      onClick={() => startEditPlan(plan)}
-                      className="mt-2 text-xs text-brandTeal hover:underline"
-                    >
-                      Edit
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-slate italic">No trade plans defined</p>
-        )}
-      </div>
-
-      {/* Rebalance Controls */}
-      <div className="bg-surfaceSoft rounded-xl p-lg mb-8">
-        <h3 className="text-2xl font-semibold text-ink mb-4">Rebalance Actions</h3>
-        <div className="flex space-x-4 mb-4">
-          <button
-            onClick={handleCalculateRebalance}
-            disabled={recommendLoading}
-            className="px-6 py-3 rounded-md font-medium bg-brandTeal text-onPrimary hover:bg-tealLight transition-colors duration-200 disabled:opacity-50"
-          >
-            {recommendLoading ? "Calculating..." : "Calculate Rebalance"}
-          </button>
-          {recommendations.length > 0 && (
-            <>
-              <button
-                onClick={handleExecuteTrades}
-                className="px-6 py-3 rounded-md font-medium bg-success text-onPrimary hover:opacity-90 transition-colors duration-200"
-              >
-                Execute Trades ({recommendations.length})
-              </button>
-              <button
-                onClick={() => setRecommendations([])}
-                className="px-6 py-3 rounded-md font-medium bg-surface text-ink border border-hairline hover:bg-hairline transition-colors duration-200"
-              >
-                Clear
-              </button>
-            </>
+          {portfolio.last_rebalance_date && (
+            <p className="text-sm text-slate mt-1">Last rebalanced: {portfolio.last_rebalance_date}</p>
           )}
         </div>
+        <div className="flex items-center gap-2">
+          <Button variant="primary" size="sm" onClick={handleCalculateRebalance}>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            Rebalance
+          </Button>
+          <button onClick={() => setShowEditModal(true)}
+            className="p-2 rounded-full hover:bg-surface border border-hairline transition-colors">
+            <svg className="w-4 h-4 text-slate" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+          </button>
+        </div>
+      </div>
 
-        {/* Recommendations Table */}
-        {recommendations.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-hairline">
-                  <th className="text-left py-2 px-2 font-medium text-ink">Symbol</th>
-                  <th className="text-left py-2 px-2 font-medium text-ink">Side</th>
-                  <th className="text-right py-2 px-2 font-medium text-ink">Qty</th>
-                  <th className="text-right py-2 px-2 font-medium text-ink">Est. Price</th>
-                  <th className="text-left py-2 px-2 font-medium text-ink">Reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recommendations.map((rec, idx) => (
-                  <tr key={idx} className="border-b border-hairline">
-                    <td className="py-2 px-2 font-medium">{rec.symbol}</td>
-                    <td className="py-2 px-2">
-                      <span
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          rec.side === "Buy" ? "bg-success text-white" : "bg-error text-white"
-                        }`}
-                      >
-                        {rec.side}
-                      </span>
-                    </td>
-                    <td className="py-2 px-2 text-right">{rec.qty.toFixed(4)}</td>
-                    <td className="py-2 px-2 text-right">${rec.estimated_price.toFixed(2)}</td>
-                    <td className="py-2 px-2 text-slate">{rec.reason}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Alert Banner */}
+      {alerts.length > 0 && (
+        <div className="mb-6 space-y-2">
+          {alerts.map((a, i) => (
+            <div key={i} className="flex items-center gap-2 bg-coral-light border border-brand-coral rounded-lg px-4 py-3">
+              <svg className="w-5 h-5 text-brand-coral shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span className="text-sm font-medium text-red-800">{a.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-teal-light rounded-xl p-4">
+          <p className="text-xs text-slate uppercase tracking-wider font-bold">Current NAV</p>
+          <p className="text-2xl font-bold text-ink mt-1">${(portfolio.current_nav || 0).toLocaleString()}</p>
+        </div>
+        <div className="bg-surface-soft rounded-xl p-4 border border-hairline">
+          <p className="text-xs text-slate uppercase tracking-wider font-bold">Available Cash</p>
+          <p className="text-2xl font-bold text-ink mt-1">${(portfolio.available_cash || 0).toLocaleString()}</p>
+        </div>
+        <div className="bg-surface-soft rounded-xl p-4 border border-hairline">
+          <p className="text-xs text-slate uppercase tracking-wider font-bold">Total Invested</p>
+          <p className="text-2xl font-bold text-ink mt-1">${totalInvested.toLocaleString()}</p>
+        </div>
+        <div className="bg-surface-soft rounded-xl p-4 border border-hairline">
+          <p className="text-xs text-slate uppercase tracking-wider font-bold">Unrealized P/L</p>
+          <p className={`text-2xl font-bold mt-1 ${totalPl >= 0 ? "text-success" : "text-error"}`}>
+            ${totalPl >= 0 ? "+" : ""}{totalPl.toLocaleString()}
+          </p>
+        </div>
+      </div>
+
+      {/* Tree Table: Asset List */}
+      <div className="bg-canvas rounded-xl border border-hairline mb-4 overflow-hidden">
+        <div className="px-4 py-3 bg-surface border-b border-hairline flex items-center justify-between">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate">Asset List (Holdings)</h3>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={fetchData}>Refresh</Button>
           </div>
+        </div>
+        {holdings.length === 0 ? (
+          <div className="p-6 text-center text-slate text-sm">No holdings yet. Create an order to get started.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-hairline bg-surface/50">
+                <th className="text-left py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Asset</th>
+                <th className="text-right py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Qty</th>
+                <th className="text-right py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Entry Price</th>
+                <th className="text-right py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Current Price</th>
+                <th className="text-right py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Market Value</th>
+                <th className="text-right py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">P/L</th>
+                <th className="text-right py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">P/L %</th>
+                <th className="text-right py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {holdings.map((h) => (
+                <tr key={h.holding_id} className="border-b border-hairline hover:bg-surface transition-colors">
+                  <td className="py-2.5 px-4 font-semibold text-ink">{h.asset}</td>
+                  <td className="py-2.5 px-4 text-right">{h.qty.toFixed(4)}</td>
+                  <td className="py-2.5 px-4 text-right">${h.avg_entry_price.toFixed(2)}</td>
+                  <td className="py-2.5 px-4 text-right">${h.current_price.toFixed(2)}</td>
+                  <td className="py-2.5 px-4 text-right">${h.market_value.toLocaleString()}</td>
+                  <td className={`py-2.5 px-4 text-right font-medium ${h.unrealized_pl >= 0 ? "text-success" : "text-error"}`}>
+                    ${h.unrealized_pl >= 0 ? "+" : ""}{h.unrealized_pl.toFixed(2)}
+                  </td>
+                  <td className="py-2.5 px-4 text-right"><PctBadge value={h.unrealized_pl_pct} /></td>
+                  <td className="py-2.5 px-4 text-right">
+                    <button
+                      onClick={() => { setSellHoldingTarget(h); setShowSellHolding(true); }}
+                      className="text-xs font-bold text-brand-coral hover:underline"
+                      title="Sell all"
+                    >
+                      <svg className="w-4 h-4 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="7 13 12 18 17 13"/><path d="M12 18V2"/><path d="M3 22h18"/>
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 
-      {/* NAV History Section */}
-      {navHistory.length > 0 && (
-        <div className="bg-surfaceSoft rounded-xl p-lg mb-8">
-          <h3 className="text-2xl font-semibold text-ink mb-4">NAV History</h3>
-          <div className="h-48 relative">
-            {/* Simple line chart visualization */}
-            <div className="absolute inset-0 flex items-end justify-between px-4 pb-8">
-              {navHistory.slice().reverse().map((record, idx, arr) => {
-                const maxNav = Math.max(...navHistory.map(r => r.nav_value));
-                const minNav = Math.min(...navHistory.map(r => r.nav_value));
-                const height = ((record.nav_value - minNav) / (maxNav - minNav || 1)) * 100;
-                const isLast = idx === arr.length - 1;
-                return (
-                  <div key={record.nav_id} className="flex flex-col items-center">
-                    <div 
-                      className="w-8 bg-brandTeal rounded-t"
-                      style={{ height: `${height}%` }}
-                    ></div>
-                    <span className="text-xs text-slate mt-1">
-                      {record.nav_date.split("-")[1]}/{record.nav_date.split("-")[2]}
-                    </span>
-                    {isLast && (
-                      <span className="text-xs font-bold text-ink">
-                        ${record.nav_value.toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            {/* Y-axis labels */}
-            <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-xs text-slate pr-2">
-              <span>${Math.max(...navHistory.map(r => r.nav_value)).toLocaleString()}</span>
-              <span>${Math.min(...navHistory.map(r => r.nav_value)).toLocaleString()}</span>
-            </div>
-          </div>
+      {/* Tree Table: Order in Progress */}
+      <div className="bg-canvas rounded-xl border border-hairline mb-4 overflow-hidden">
+        <div className="px-4 py-3 bg-surface border-b border-hairline flex items-center justify-between">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate">Order in Progress</h3>
+          <Button variant="ghost" size="sm" onClick={() => setShowCreateOrder(true)}>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add Order
+          </Button>
         </div>
-      )}
+        {orders.length === 0 ? (
+          <div className="p-6 text-center text-slate text-sm">No orders in progress</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-hairline bg-surface/50">
+                <th className="text-left py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Asset</th>
+                <th className="text-left py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Side</th>
+                <th className="text-right py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Qty</th>
+                <th className="text-right py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Price</th>
+                <th className="text-center py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Status</th>
+                <th className="text-right py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((o) => (
+                <tr key={o.order_id} className="border-b border-hairline hover:bg-surface transition-colors">
+                  <td className="py-2.5 px-4 font-semibold text-ink">{o.asset}</td>
+                  <td className="py-2.5 px-4">
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                      o.side === "Buy" ? "bg-teal-light text-brand-teal" : "bg-coral-light text-brand-coral"
+                    }`}>{o.side}</span>
+                  </td>
+                  <td className="py-2.5 px-4 text-right">{o.qty.toFixed(4)}</td>
+                  <td className="py-2.5 px-4 text-right">${o.price?.toFixed(2) || "—"}</td>
+                  <td className="py-2.5 px-4 text-center"><StatusBadge status={o.status} /></td>
+                  <td className="py-2.5 px-4 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button onClick={() => { setEditOrderTarget(o); setShowEditOrder(true); }}
+                        className="p-1.5 rounded hover:bg-surface text-slate hover:text-ink transition-colors"
+                        title="Edit">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                      </button>
+                      <button onClick={() => handleCancelOrder(o.order_id)}
+                        className="p-1.5 rounded hover:bg-surface text-slate hover:text-red-500 transition-colors"
+                        title="Cancel">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                      </button>
+                      <button onClick={() => handleConfirmOrder(o.order_id)}
+                        className="p-1.5 rounded hover:bg-surface text-slate hover:text-emerald-600 transition-colors"
+                        title="Confirm Done">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Tree Table: Order History */}
+      <div className="bg-canvas rounded-xl border border-hairline overflow-hidden">
+        <div className="px-4 py-3 bg-surface border-b border-hairline">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate">Order History</h3>
+        </div>
+        {history.length === 0 ? (
+          <div className="p-6 text-center text-slate text-sm">No order history yet</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-hairline bg-surface/50">
+                <th className="text-left py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Asset</th>
+                <th className="text-left py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Side</th>
+                <th className="text-right py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Qty</th>
+                <th className="text-right py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Price</th>
+                <th className="text-center py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Result</th>
+                <th className="text-right py-2.5 px-4 font-medium text-slate text-[10px] uppercase tracking-wider">Executed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((h) => (
+                <tr key={h.history_id} className="border-b border-hairline hover:bg-surface transition-colors">
+                  <td className="py-2.5 px-4 font-semibold text-ink">{h.asset}</td>
+                  <td className="py-2.5 px-4">
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                      h.side === "Buy" ? "bg-teal-light text-brand-teal" : "bg-coral-light text-brand-coral"
+                    }`}>{h.side}</span>
+                  </td>
+                  <td className="py-2.5 px-4 text-right">{h.qty.toFixed(4)}</td>
+                  <td className="py-2.5 px-4 text-right">${h.price?.toFixed(2) || "—"}</td>
+                  <td className="py-2.5 px-4 text-center"><StatusBadge status={h.status} /></td>
+                  <td className="py-2.5 px-4 text-right text-xs text-slate">
+                    {h.executed_at ? new Date(h.executed_at).toLocaleDateString() : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Modals */}
+      <MFEditPortfolioModal
+        portfolioId={parseInt(portfolioId)}
+        portfolio={{
+          portfolio_name: portfolio.portfolio_name,
+          available_cash: portfolio.available_cash || 0,
+          margin_locked: portfolio.margin_locked || 0,
+          cash_buffer_limit: portfolio.cash_buffer_limit || 0,
+          money_market: portfolio.money_market || 0,
+          tags: portfolio.tags || null,
+        }}
+        settings={settings}
+        holdings={holdings}
+        showModal={showEditModal}
+        onClose={() => { setShowEditModal(false); fetchData(); }}
+        onSaved={fetchData}
+      />
+      <MFRebalanceRecommendModal
+        show={showRebalanceModal}
+        loading={rebalanceLoading}
+        recommendations={rebalanceRecs}
+        onClose={() => { setShowRebalanceModal(false); setRebalanceRecs([]); }}
+        onCreateOrders={handleCreateRebalanceOrders}
+      />
+      <MFCreateOrderModal
+        show={showCreateOrder}
+        onClose={() => setShowCreateOrder(false)}
+        onSave={handleCreateOrder}
+      />
+      <MFEditOrderModal
+        show={showEditOrder}
+        order={editOrderTarget}
+        onClose={() => { setShowEditOrder(false); setEditOrderTarget(null); }}
+        onSave={handleEditOrder}
+      />
+      <MFSellHoldingModal
+        show={showSellHolding}
+        holding={sellHoldingTarget}
+        onClose={() => { setShowSellHolding(false); setSellHoldingTarget(null); }}
+        onConfirm={handleSellHolding}
+      />
     </section>
   );
 }

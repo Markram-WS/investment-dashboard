@@ -184,3 +184,58 @@ CREATE TABLE IF NOT EXISTS decision_journals (
     data_source TEXT DEFAULT 'Manual' CHECK (data_source IN ('Manual', 'Bot')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 12. Managed Fund Tables (separate from Active Trading)
+CREATE TABLE IF NOT EXISTS managed_fund_holdings (
+    holding_id SERIAL PRIMARY KEY,
+    portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
+    asset TEXT NOT NULL,
+    qty NUMERIC(20,8) NOT NULL DEFAULT 0,
+    avg_entry_price NUMERIC(20,8) DEFAULT 0,
+    current_price NUMERIC(20,8) DEFAULT 0,
+    market_value NUMERIC(20,8) DEFAULT 0,
+    unrealized_pl NUMERIC(20,8) DEFAULT 0,
+    unrealized_pl_pct NUMERIC(10,4) DEFAULT 0,
+    profit_threshold NUMERIC(10,4) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS managed_fund_orders (
+    order_id SERIAL PRIMARY KEY,
+    portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
+    asset TEXT NOT NULL,
+    side TEXT NOT NULL,
+    qty NUMERIC(20,8) NOT NULL,
+    price NUMERIC(20,8),
+    status TEXT NOT NULL DEFAULT 'pending',
+    order_type TEXT NOT NULL DEFAULT 'manual',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS managed_fund_order_history (
+    history_id SERIAL PRIMARY KEY,
+    portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
+    asset TEXT NOT NULL,
+    side TEXT NOT NULL,
+    qty NUMERIC(20,8) NOT NULL,
+    price NUMERIC(20,8),
+    status TEXT NOT NULL,
+    order_type TEXT NOT NULL DEFAULT 'manual',
+    notes TEXT,
+    executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS managed_fund_settings (
+    id SERIAL PRIMARY KEY,
+    portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE UNIQUE,
+    target_ratio JSONB,
+    global_profit_threshold NUMERIC(10,4) DEFAULT 0,
+    total_invested NUMERIC(20,8) DEFAULT 0,
+    last_rebalance_date TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

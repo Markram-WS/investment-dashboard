@@ -203,6 +203,102 @@ export interface NavHistoryResponse {
   nav_history: NavHistoryRecord[];
 }
 
+// === Managed Fund New Data Model ===
+export interface MFHolding {
+  holding_id: number;
+  portfolio_id: number;
+  asset: string;
+  qty: number;
+  avg_entry_price: number;
+  current_price: number;
+  market_value: number;
+  unrealized_pl: number;
+  unrealized_pl_pct: number;
+  profit_threshold: number;
+}
+
+export interface MFOrder {
+  order_id: number;
+  portfolio_id: number;
+  asset: string;
+  side: string;
+  qty: number;
+  price: number | null;
+  status: string;
+  order_type: string;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface MFOrderCreate {
+  asset: string;
+  side: string;
+  qty: number;
+  price?: number | null;
+  order_type?: string;
+  notes?: string | null;
+}
+
+export interface MFOrderUpdate {
+  asset?: string;
+  side?: string;
+  qty?: number;
+  price?: number | null;
+  notes?: string | null;
+}
+
+export interface MFHistory {
+  history_id: number;
+  portfolio_id: number;
+  asset: string;
+  side: string;
+  qty: number;
+  price: number | null;
+  status: string;
+  order_type: string;
+  notes: string | null;
+  executed_at: string | null;
+}
+
+export interface MFSetting {
+  id: number;
+  portfolio_id: number;
+  target_ratio: Record<string, number> | null;
+  global_profit_threshold: number;
+  total_invested: number;
+  last_rebalance_date: string | null;
+}
+
+export interface MFRebalanceRecommendation {
+  symbol: string;
+  side: string;
+  qty: number;
+  estimated_price: number;
+  reason: string;
+  current_allocation: number;
+  target_allocation: number;
+  drift: number;
+}
+
+export interface MFRebalanceResponse {
+  portfolio_id: number;
+  portfolio_name: string;
+  current_nav: number;
+  target_allocations: Record<string, number>;
+  current_allocations: Record<string, number>;
+  recommendations: MFRebalanceRecommendation[];
+  total_drift: number;
+}
+
+export interface MFAlert {
+  asset: string;
+  qty: number;
+  unrealized_pl_pct: number;
+  threshold: number;
+  message: string;
+}
+
 // === Spread Pairing ===
 export interface PortfolioSpreadsData {
   portfolio_id: number;

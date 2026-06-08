@@ -62,7 +62,12 @@ frontend/
 │   │
 │   ├── screens/
 │   │   ├── PortfolioGrid.tsx      # Per-portfolio payoff state + orders grid + group management
-│   │   ├── PortfolioMutualFund.tsx # Managed fund: allocation, rebalance, NAV
+│   │   ├── PortfolioMutualFund.tsx # Managed fund: 4-card summary (NAV/Cash/Invested/P/L), 3-section tree table (Asset List / Orders in Progress / Order History), rebalance, profit alerts, 3-dot → Edit Portfolio modal
+│   │   ├── MFCreateOrderModal.tsx # Managed Fund: create buy/sell order form
+│   │   ├── MFEditOrderModal.tsx   # Managed Fund: edit order fields
+│   │   ├── MFSellHoldingModal.tsx # Managed Fund: sell holding with manual price entry
+│   │   ├── MFRebalanceRecommendModal.tsx # Managed Fund: rebalance recommendations table
+│   │   ├── MFEditPortfolioModal.tsx # Managed Fund: unified edit modal (name, cash fields, target ratios, profit thresholds, deposit/withdraw, Danger Zone delete + navbar query invalidation)
 │   │   ├── AddAssetModal.tsx      # Create asset form with group/type/source selection
 │   │   ├── EditAssetModal.tsx     # Edit/delete asset + manual price input
 │   │   ├── AssetGroupModal.tsx    # Asset group CRUD (table layout, inline add/edit/delete)
@@ -158,11 +163,12 @@ frontend/
 
 ## 🔌 API Endpoints
 
-See `src/lib/api.ts` for the complete list of 50+ endpoints. Key categories:
+See `src/lib/api.ts` for the complete list of 65+ endpoints. Key categories:
 - `/api/v1/portfolios` — CRUD + `test-connection`
+- `/api/v1/managed-funds` — settings, holdings, orders, history, rebalance/calculate, sync-prices, alerts (15 methods)
 - `/api/v1/orders` — CRUD + close/link/unlink
 - `/api/v1/analytics/*` — portfolio-grid, performance, NAV
-- `/api/v1/assets` — CRUD + sync-from-orders + update-price + batch-update-prices
+- `/api/v1/assets` — CRUD + sync-from-orders + sync-from-all + update-price + batch-update-prices
 - `/api/v1/asset-groups` — CRUD (seeds Ungrouped/Watchlist)
 - `/api/v1/transfers` — create + confirm
 - `/api/v1/transactions` — deposit/withdraw/transfer history
@@ -182,7 +188,7 @@ Centralized via `NotificationContext` (wraps entire app in App.tsx):
 
 ## 📊 Asset Page (AllAssets.tsx)
 
-Rewritten with zone-based group sections:
+Zone-based group sections with auto-sync from all portfolios:
 
 - **Group sections** — collapsible, droppable (drag assets between groups)
 - **Type filter tabs** — All / Stock / Future / Option / Crypto
@@ -190,6 +196,8 @@ Rewritten with zone-based group sections:
 - **Yfinance price cache** — `localStorage('cached_price_{ticker}')` persists last known price
 - **Per-asset refresh** button for yfinance sources
 - **Batch refresh** with success/warning toast
+- **Auto-sync on page load** — calls `POST /api/v1/assets/sync-from-all` to pull symbols from Active Trading orders, Managed Fund holdings, and Managed Fund order history
+- **Manual Sync button** — same endpoint, visible feedback
 - **Symbol tips** — collapsible `<details>` showing yfinance patterns (`.BK`, `-USD`, `.T`, etc.)
 
 ## 🎨 UI Architecture
@@ -232,9 +240,9 @@ Portfolio Grid (xl:grid-cols-2)
 | `/transactions` | TransactionsPage | Transaction table + unified inline form (From/To dropdowns, no modals) |
 | `/all-assets` | AllAssets | Zone-based asset groups + inline price editing |
 | `/risk-analytics` | RiskAnalytics | Risk metrics (Sharpe, VaR, Drawdown) |
-| `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | Dynamic layout per port_type (Managed Fund → PortfolioMutualFund; all others → PortfolioGrid) |
+| `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | Dynamic layout per port_type (Managed Fund → PortfolioMutualFund with 4-card summary; all others → PortfolioGrid) |
 | `/analytics/detail` | PortfolioGrid | Grid view |
-| `/managed-fund/{portfolioId}` | PortfolioMutualFund | Managed fund view |
+| `/managed-fund/{portfolioId}` | PortfolioMutualFund | Managed fund view (summary, holdings, orders, history, rebalance) |
 | `/create-portfolio` | CreateNewPortfolio | Portfolio creation form (Managed Fund / Active Trading / Custom Portfolio with external DB connection form) |
 | `/trades` | TradePlanManager | Trade plan management |
 | `/orders` | ActiveOrders | Active orders page |
@@ -277,7 +285,8 @@ JS calls `/api/v1/...` (relative) → Vite dev server proxy → backend (Docker 
 
 ## 🧩 Key Features
 
-1. **Portfolio Overview**: Hero Card + Pool Health gauge + Money Reserve + Portfolio cards with DnD transfer
+1. **Managed Fund**: Full portfolio rebalancing with separate order lifecycle (Create → Pending → Confirm Done → Asset List + NAV + History), 4-card summary (Current NAV, Available Cash, Total Invested, Unrealized P/L), profit threshold alerts on page load, rebalance recommendations from target ratio
+2. **Portfolio Overview**: Hero Card + Pool Health gauge + Money Reserve + Portfolio cards with DnD transfer
 2. **Portfolio Grid**: Orders grouped by zone, drag-and-drop, contract type filters, link system
 3. **Payoff Chart**: Pure SVG — intrinsic + BS IV overlay, crosshair, tooltip, area fill
 4. **Options Strategy Table**: Frontend-only sandbox, per-portfolio localStorage
@@ -326,4 +335,4 @@ optimizeDeps: { include: ['react', 'react-dom', ...] }
 
 ---
 
-*Last updated: 9 June 2026 (P/L formula synced: allCash denominator across Overview cards + Portfolio Summary; StrategyNotes yellow focus ring; CreateNewPortfolio SVGs — Activity/ChartBar/Database; Navigation dot colors by P/L; TransactionsPage always-visible form, responsive dropdown disabling, same row as filters)*
+*Last updated: 8 June 2026 (Managed Fund: 6 new modal components + PortfolioMutualFund screen with 3-section tree table + 15 API methods + auto-sync from all portfolios on AllAssets page; portfolio delete → navbar query invalidation)*

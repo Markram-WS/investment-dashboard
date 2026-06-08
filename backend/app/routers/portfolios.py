@@ -6,7 +6,11 @@ from app.models import (
     Portfolio, CustomPortfolioConnection,
     ActiveOrder, TradeHistory, TradePlan, OptionDetails,
     PortfolioNavHistory, SimulationModels, DecisionJournal,
-    Transaction, OrdersGroup
+    Transaction, OrdersGroup, WhitelistAssets
+)
+from app.managed_fund_models import (
+    ManagedFundHolding, ManagedFundOrder,
+    ManagedFundOrderHistory, ManagedFundSetting
 )
 from app.utils.crypto import encrypt_password
 from pydantic import BaseModel
@@ -360,6 +364,20 @@ async def delete_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)
             (Transaction.source_portfolio_id == portfolio_id) |
             (Transaction.destination_portfolio_id == portfolio_id)
         )
+    )
+
+    # Managed Fund tables cascade
+    await db.execute(
+        ManagedFundHolding.__table__.delete().where(ManagedFundHolding.portfolio_id == portfolio_id)
+    )
+    await db.execute(
+        ManagedFundOrder.__table__.delete().where(ManagedFundOrder.portfolio_id == portfolio_id)
+    )
+    await db.execute(
+        ManagedFundOrderHistory.__table__.delete().where(ManagedFundOrderHistory.portfolio_id == portfolio_id)
+    )
+    await db.execute(
+        ManagedFundSetting.__table__.delete().where(ManagedFundSetting.portfolio_id == portfolio_id)
     )
 
     await db.delete(portfolio)

@@ -251,10 +251,22 @@ export default function AllAssets() {
     }
   }, [refreshMode, refetchAll]);
 
+  // Auto-sync symbols from all portfolios on page load
+  useEffect(() => {
+    (async () => {
+      try {
+        await api.syncAllAssets();
+        await refetchAssets();
+      } catch {
+        // silent — non-critical
+      }
+    })();
+  }, []);
+
   const handleSync = async () => {
     setSyncLoading(true);
     try {
-      const created = await api.syncAssetsFromOrders();
+      const created = await api.syncAllAssets();
       notify(`Synced ${created.length} new assets from orders`, 'success');
       await refetchAssets();
     } catch (e: any) {

@@ -27,6 +27,7 @@ const CreateNewPortfolio: React.FC = () => {
   const [success, setSuccess] = useState<boolean>(false);
   const [connectionStatus, setConnectionStatus] = useState<{ok: boolean; message: string} | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
+  const [targetRatioStr, setTargetRatioStr] = useState<string>('');
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -36,6 +37,13 @@ const CreateNewPortfolio: React.FC = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
+    if (name === 'port_type' && value === 'Managed Fund') {
+      setTargetRatioStr(
+        Object.keys(formData.target_ratio).length > 0
+          ? JSON.stringify(formData.target_ratio, null, 2)
+          : ''
+      );
+    }
   };
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -74,6 +82,16 @@ const CreateNewPortfolio: React.FC = () => {
 
     try {
       const payload: any = { ...formData };
+      if (formData.port_type === 'Managed Fund' && targetRatioStr.trim()) {
+        try {
+          const parsed = JSON.parse(targetRatioStr);
+          const vals = Object.values(parsed).filter((v): v is number => typeof v === 'number');
+          if (vals.length > 0 && Math.max(...vals) <= 1) {
+            for (const k of Object.keys(parsed)) parsed[k] = parsed[k] * 100;
+          }
+          payload.target_ratio = parsed;
+        } catch { payload.target_ratio = {}; }
+      }
       // Remove empty connection fields for non-custom portfolios
       if (formData.port_type !== 'Custom Portfolio') {
         delete payload.db_host;
@@ -370,19 +388,20 @@ const CreateNewPortfolio: React.FC = () => {
               </label>
               <textarea
                 name="target_ratio"
-                value={formData.target_ratio ? JSON.stringify(formData.target_ratio, null, 2) : ''}
+                value={targetRatioStr}
                 onChange={(e) => {
+                  const raw = e.target.value;
+                  setTargetRatioStr(raw);
                   try {
-                    const parsed = JSON.parse(e.target.value);
+                    const parsed = JSON.parse(raw);
                     setFormData(prev => ({ ...prev, target_ratio: parsed }));
-                  } catch (err) {
-                    // Keep previous valid value if JSON is invalid
+                  } catch {
+                    // Allow free typing; parsed state stays at last valid value
                   }
                 }}
-                className="w-full min-h-[80px] px-4 py-3 bg-surface border border-hairline rounded-xl focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent resize-y"
+                className="w-full min-h-[80px] px-4 py-3 bg-surface border border-hairline rounded-xl focus:outline-none focus:ring-2 focus-ring-primary focus:border-transparent resize-y font-mono text-sm"
                 placeholder='{"BTC": 0.4, "ETH": 0.3, "USDC": 0.3}'
-              >
-              </textarea>
+              />
               <p className="text-xs text-slate mt-1">
                 Example: {'{"BTC": 0.4, "ETH": 0.3, "USDC": 0.3}'}
               </p>

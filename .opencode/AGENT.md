@@ -42,8 +42,8 @@
 ## 6. Architecture Overview
 
 ### Backend (FastAPI)
-- **19+ routers** in `backend/app/routers/`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `asset_groups.py`, `assets.py`, `etl_sync.py`, `journal.py`, `orders_groups.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py` (+ `yfinance_service.py` in services/)
-- **18 SQLAlchemy models**: Portfolio, CustomPortfolioConnection, TradePlan, ActiveOrder, OptionDetails, PortfolioNavHistory, SimulationModels, TradeHistory, Transaction, DecisionJournal, WhitelistAssets, Watchlist, AssetGroup, OrdersGroup, AiAgent, AiActionLog, AiAgentState, CustomTradePlan (in custom_models.py)
+- **20+ routers** in `backend/app/routers/`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `asset_groups.py`, `assets.py`, `etl_sync.py`, `journal.py`, `managed_funds.py`, `orders_groups.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py` (+ `yfinance_service.py` in services/)
+- **22 SQLAlchemy models**: Portfolio, CustomPortfolioConnection, TradePlan, ActiveOrder, OptionDetails, PortfolioNavHistory, SimulationModels, TradeHistory, Transaction, DecisionJournal, WhitelistAssets, Watchlist, AssetGroup, OrdersGroup, AiAgent, AiActionLog, AiAgentState, CustomTradePlan (in custom_models.py), ManagedFundHolding, ManagedFundOrder, ManagedFundOrderHistory, ManagedFundSetting (in managed_fund_models.py)
 - **Custom Portfolio** (`port_type = "Custom Portfolio"`) replaces legacy "Spread Strategy" — requires external PostgreSQL connection.
 - **Multi-DB Architecture**:
   - `is_custom` flag on `Portfolio` routes transactional data to user-configured external databases
@@ -65,6 +65,30 @@
   - `overview.py` — custom portfolio P/L fixed: uses `TradeHistory.realized_pl` (same as regular portfolios) instead of `CustomTransaction.amount`.
 - `WhitelistAssets` extended: `name`, `source` (yfinance/manual), `group_id` FK→`asset_groups`, `price`, `change_24h`, `updated_at`
 - Two core PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
+
+### Managed Fund Feature
+- **4 new DB tables**: `managed_fund_holdings`, `managed_fund_orders`, `managed_fund_order_history`, `managed_fund_settings`
+- **Router**: `backend/app/routers/managed_funds.py` — 15 endpoints (settings CRUD, holdings CRUD, orders CRUD with confirm/cancel, history, rebalance/calculate, sync-prices, alerts)
+- **Order flow**: Create (pending) → PATCH status=done → update holdings + adjust available_cash + record NAV history → move to order_history table
+- **Cash tracking**: Buy confirm deducts `available_cash`; Sell confirm adds to `available_cash`
+- **NAV**: Recalculated on order confirm as `available_cash + money_market + sum(holding.qty × current_price)`
+- **Rebalance**: Reads `target_ratio` from `ManagedFundSetting`; compares against current allocation; recommends buy/sell/qty/estimated_price per asset that deviates >0.5% from target
+- **Auto-sync**: New order symbols auto-inserted into `whitelist_assets` with `source='manual'`
+- **target_ratio normalization**: Values ≤1.0 auto-multiplied by 100 (normalized to percentage) in both get_settings and calculate_rebalance
+- **Settings auto-creation**: First GET settings copies `target_ratio` from `Portfolio` table if `ManagedFundSetting` row doesn't exist; also backfills NULL target_ratio for existing rows
+- **Portfolio delete cascade**: `portfolios.py` delete endpoint cleans all 4 managed_fund tables + navbar query invalidation via `useQueryClient`
+
+### Frontend Managed Fund Components
+- **`PortfolioMutualFund.tsx`**: Main screen with 4-card summary (Current NAV, Available Cash, Total Invested, Unrealized P/L), 3-section tree table (Asset List with Entry Price/Current Price, Orders in Progress, Order History), Rebalance button, profit alert banner, 3-dot → Edit Portfolio modal
+- **`MFCreateOrderModal.tsx`**: Create Buy/Sell order form
+- **`MFEditOrderModal.tsx`**: Edit existing order fields
+- **`MFSellHoldingModal.tsx`**: Sell holding form with manual qty + price entry
+- **`MFRebalanceRecommendModal.tsx`**: Table showing rebalance recommendations (asset, current %, target %, side, qty, estimated price)
+- **`MFEditPortfolioModal.tsx`**: Unified edit modal (portfolio name, margin/cash/money-market fields, target ratios with asset+pct inputs, profit thresholds per holding, deposit/withdraw, Danger Zone delete with navbar invalidation via `useQueryClient`)
+- **15 API methods** in `api.ts` under `mf*` prefix
+- **Types**: `FundPortfolio`, `MFHolding`, `MFOrder`, `MFOrderCreate`, `MFOrderUpdate`, `MFHistory`, `MFSetting`, `MFRebalanceRecommendation`, `MFRebalanceResponse`, `MFAlert`
+- **Asset auto-sync**: `AllAssets.tsx` calls `POST /api/v1/assets/sync-from-all` on page load and on manual Sync button; endpoint aggregates from active_orders + managed_fund_holdings + managed_fund_order_history
+- **Route**: `PortfolioAnalyticsDetail.tsx` routes `port_type` containing "managed" → `PortfolioMutualFund`
 
 ### Frontend (React 18 + TypeScript + Vite 5.4.21)
 - **Vite 5.4.21** (downgraded from Vite 8 due to optimizer hang on Linux/Docker)
