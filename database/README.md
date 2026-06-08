@@ -134,4 +134,4 @@ On first access, `ensure_custom_tables()` runs an auto-migration: it queries `in
 
 ---
 
-*Last updated: 8 June 2026 (added trade_plans to external DB tables; ensure_custom_tables FK dropping + ALTER TABLE auto-migration; trade_history list always queries TradeHistory from main DB for custom portfolios — close_order writes there)*
+*Last updated: 9 June 2026 (no schema changes — frontend-only session: TransactionsPage redesign, NotificationContext, PageLayout, Navigation, CreateNewPortfolio SVGs)*

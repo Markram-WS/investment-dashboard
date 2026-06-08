@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import PortfolioMutualFund from "../screens/PortfolioMutualFund";
 import PortfolioGrid from "../screens/PortfolioGrid";
 import { PortfolioType, AnalyticsLayout } from "../types";
+import PageLayout from "../components/PageLayout";
 
 function BreadcrumbBar() {
   const { portfolio_id } = useParams<{ portfolio_id: string }>();
@@ -116,7 +117,7 @@ export default function PortfolioAnalyticsDetail() {
   }, [portfolio_id]);
 
   return (
-    <div className="max-w-[1200px] mx-auto px-6 py-6">
+    <PageLayout>
       <BreadcrumbBar />
       {!portfolio_id && <MissingPortfolio />}
       {loading && <LoadingSkeleton />}
@@ -132,6 +133,6 @@ export default function PortfolioAnalyticsDetail() {
           {layoutType === "grid" && <PortfolioGrid portfolioId={portfolio_id} />}
         </>
       )}
-    </div>
+    </PageLayout>
   );
 }

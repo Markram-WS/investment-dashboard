@@ -18,7 +18,7 @@ frontend/
 │   ├── index.css            # CSS variables (light/dark), Tailwind directives, animations
 │   │
 │   ├── contexts/
-│   │   └── NotificationContext.tsx   # Centralized notifications: list, toast, localStorage, 3s auto-dismiss
+│   │   └── NotificationContext.tsx   # Centralized notifications: list, inline toast overlay, localStorage, 3s auto-dismiss, right-6 position
 │   │
 │   ├── types/
 │   │   └── index.ts        # Shared TypeScript interfaces (portfolio, transaction, spread, fund, order)
@@ -42,8 +42,9 @@ frontend/
 │   │   └── useMarkdownRenderer.ts  # Simple markdown → HTML
 │   │
 │   ├── components/
-│   │   ├── Navigation.tsx        # Sticky nav with feather-style SVG icons + Portfolios dropdown + ThemeToggle
+│   │   ├── Navigation.tsx        # Sticky nav with feather-style SVG icons + Portfolios dropdown (links to /analytics/portfolio/{id}) + ThemeToggle + inline SVG plus
 │   │   ├── GlobalLayout.tsx      # Outlet-based global layout wrapper
+│   │   ├── PageLayout.tsx       # Shared container wrapper (max-w-[1200px] mx-auto px-6 py-10) — single point of change
 │   │   ├── NotificationBell.tsx  # Bell icon + unread badge + dropdown notification panel
 │   │   ├── ThemeToggle.tsx       # Dark/light mode toggle with localStorage persistence
 │   │   └── icons/
@@ -51,7 +52,7 @@ frontend/
 │   │
 │   ├── pages/              # Top-level route components
 │   │   ├── PortfolioOverview.tsx    # Hero Card + Pool Health + Portfolio Grid with DnD transfer
-│   │   ├── TransactionsPage.tsx     # Transaction table + Transfer/Deposit/Withdraw modals
+│   │   ├── TransactionsPage.tsx     # Transaction table + unified inline form (From/To dropdowns, no modals)
 │   │   ├── AllAssets.tsx           # Zone-based asset groups with inline price editing, yfinance cache
 │   │   ├── RiskAnalytics.tsx       # Sharpe, VaR, Drawdown charts
 │   │   ├── CreateNewPortfolio.tsx  # Portfolio creation form (Managed Fund / Active Trading / Custom Portfolio with external DB connection)
@@ -228,7 +229,7 @@ Portfolio Grid (xl:grid-cols-2)
 | Route | Component | Description |
 |-------|-----------|-------------|
 | `/` | PortfolioOverview | Cash breakdown + portfolio grid |
-| `/transactions` | TransactionsPage | Transaction table + modals |
+| `/transactions` | TransactionsPage | Transaction table + unified inline form (From/To dropdowns, no modals) |
 | `/all-assets` | AllAssets | Zone-based asset groups + inline price editing |
 | `/risk-analytics` | RiskAnalytics | Risk metrics (Sharpe, VaR, Drawdown) |
 | `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | Dynamic layout per port_type (Managed Fund → PortfolioMutualFund; all others → PortfolioGrid) |
@@ -325,4 +326,4 @@ optimizeDeps: { include: ['react', 'react-dom', ...] }
 
 ---
 
-*Last updated: 8 June 2026 (portfolio_id query param on all order/asset/group CRUD APIs; ZoneGroupModal onSaved fix; portfolio-aware deleteZoneGroup/updateZoneGroup; PortfolioGrid onSaved/onClose now calls fetchAnalyticsData to refresh order grouping after group CRUD)*
+*Last updated: 9 June 2026 (TransactionsPage rewrite: unified inline form replaces 3 modals, From/To table columns; PageLayout component; NotificationContext inline toast; Navigation portfolio links + green +Portfolio + inline SVG plus; AllAssets container fix; ToastAlert position right-6, 3s auto-dismiss)*

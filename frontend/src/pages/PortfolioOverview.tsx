@@ -8,6 +8,7 @@ import { fmtAmount } from "../utils/format";
 import TransferModal from "../screens/components/TransferModal";
 import Button from "../screens/components/Button";
 import { useNotification } from "../contexts/NotificationContext";
+import PageLayout from "../components/PageLayout";
 
 interface DragItem {
   sourcePortfolioId: number;
@@ -191,7 +192,7 @@ export default function PortfolioOverview() {
   const isReserveDanger = money_reserve_status === "Danger";
 
   return (
-    <div className="max-w-[1200px] mx-auto px-6 py-10">
+    <PageLayout>
 
       <header className="flex items-center justify-between mb-10 animate-fade-up">
         <h1 className="text-5xl font-bold text-ink tracking-tight m-0">
@@ -353,6 +354,6 @@ export default function PortfolioOverview() {
         onSuccess={(msg) => { notify(msg, 'success'); api.getOverview().then(setData).catch(() => {}); }}
       />
 
-    </div>
+    </PageLayout>
   );
 }

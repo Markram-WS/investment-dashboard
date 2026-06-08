@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useDrag, useDrop } from 'react-dnd';
 import { api } from '../lib/api';
 import { useNotification } from '../contexts/NotificationContext';
+import PageLayout from '../components/PageLayout';
 import Button from '../screens/components/Button';
 import AddAssetModal from '../screens/AddAssetModal';
 import EditAssetModal from '../screens/EditAssetModal';
@@ -308,7 +309,7 @@ export default function AllAssets() {
   }, [assets, groups]);
 
   return (
-      <div className="px-10 py-6 min-h-screen max-w-[1800px] mx-auto relative">
+      <PageLayout>
 
         <AddAssetModal open={showAddModal} onClose={() => setShowAddModal(false)} onSaved={() => { refetchAssets(); refetchGroups(); }} groups={groups} />
         <EditAssetModal open={!!editAsset} asset={editAsset} onClose={() => setEditAsset(null)} onSaved={() => { refetchAssets(); refetchGroups(); }} groups={groups} />
@@ -407,6 +408,6 @@ export default function AllAssets() {
             <div className="mt-1.5 pt-1.5 border-t border-hairline text-slate/50">Enter the symbol exactly as Yahoo Finance expects it when creating an asset with source=yfinance.</div>
           </div>
         </details>
-      </div>
+      </PageLayout>
   );
 }

@@ -385,4 +385,4 @@ docker compose logs db_ai
 
 ---
 
-*Last updated: 8 June 2026 (CustomTradePlan; ensure_custom_tables with ALTER TABLE + FK dropping; all order/asset/group endpoints refactored for ?portfolio_id=; group_name resolution in analytics; trade_history list always queries TradeHistory from main DB for custom portfolios)*
+*Last updated: 9 June 2026 (TransactionsPage rewrite: unified inline form replaces 3 modals, From/To table columns; NotificationContext centralized; Navigation portfolio links + green +Portfolio; PageLayout component; AllAssets container fix; CreateNewPortfolio inline SVGs)*

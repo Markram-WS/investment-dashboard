@@ -151,11 +151,36 @@ const CreateNewPortfolio: React.FC = () => {
               Portfolio Type*
             </label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[['Managed Fund', '₿', 'Focus on portfolio rebalancing according to target ratios.'],
-                ['Active Trading', '📈', 'Manage individual orders (stocks, futures, options).'],
-                ['Custom Portfolio', '🔗', 'Isolated external database for orders, transactions, and assets.']].map(([type, icon, description], index) => (
+              {(['Managed Fund', 'Active Trading', 'Custom Portfolio'] as const).map((type) => {
+                const iconMap: Record<string, React.ReactNode> = {
+                  'Managed Fund': (
+                    <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <circle cx="12" cy="12" r="6" />
+                      <circle cx="12" cy="12" r="2" />
+                    </svg>
+                  ),
+                  'Active Trading': (
+                    <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                      <polyline points="17 6 23 6 23 12" />
+                    </svg>
+                  ),
+                  'Custom Portfolio': (
+                    <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                    </svg>
+                  ),
+                };
+                const descMap: Record<string, string> = {
+                  'Managed Fund': 'Focus on portfolio rebalancing according to target ratios.',
+                  'Active Trading': 'Manage individual orders (stocks, futures, options).',
+                  'Custom Portfolio': 'Isolated external database for orders, transactions, and assets.',
+                };
+                return (
                 <label
-                  key={index}
+                  key={type}
                   className={`relative cursor-select flex flex-col items-center p-4 border-2 
                            ${formData.port_type === type ? 'border-primary bg-primary/5' : 'border-dashed border-gray-300 bg-surface'}
                            hover:border-primary hover:bg-primary/2 transition-all rounded-xl`}
@@ -168,11 +193,12 @@ const CreateNewPortfolio: React.FC = () => {
                     onChange={handleChange}
                     className="absolute left-0 top-0 w-0 h-0 opacity-0"
                   />
-                  <div className="text-2xl mb-2">{icon}</div>
+                  <div className="mb-2">{iconMap[type]}</div>
                   <h3 className="font-semibold text-gray-800">{type}</h3>
-                  <p className="text-xs text-slate text-center">{description}</p>
+                  <p className="text-xs text-slate text-center">{descMap[type]}</p>
                 </label>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -455,13 +481,34 @@ const CreateNewPortfolio: React.FC = () => {
           <div className="mt-8 p-6 bg-surface rounded-xl border border-hairline">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">Live Preview</h2>
             <div className="flex items-start space-x-4">
-              <div className="text-4xl">{formData.port_type === 'Managed Fund' ? '₿' : formData.port_type === 'Active Trading' ? '📈' : '🔗'}</div>
+              <div className="text-4xl">{formData.port_type === 'Managed Fund' ? (
+                <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="6" />
+                  <circle cx="12" cy="12" r="2" />
+                </svg>
+              ) : formData.port_type === 'Active Trading' ? (
+                <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                  <polyline points="17 6 23 6 23 12" />
+                </svg>
+              ) : (
+                <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                </svg>
+              )}</div>
               <div className="flex-1">
                 <h3 className="font-bold text-gray-800">{formData.portfolio_name || 'Portfolio Name'}</h3>
                 <p className="text-sm text-slate">{formData.port_type || 'Select portfolio type'} · 
                   ${((formData.available_cash || 0) + (formData.money_market || 0)).toFixed(2)} Available</p>
                 {formData.port_type === 'Custom Portfolio' && formData.db_host && (
-                  <p className="text-xs text-brand-teal mt-1">🔗 Connected to {formData.db_host}:{formData.db_port}/{formData.db_name}</p>
+                  <p className="text-xs text-brand-teal mt-1">
+                    <svg className="w-3.5 h-3.5 inline-block align-middle mr-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                    </svg>
+                    Connected to {formData.db_host}:{formData.db_port}/{formData.db_name}</p>
                 )}
                 {formData.trade_plan_md && (
                   <p className="text-xs text-slate italic mt-1">"{formData.trade_plan_md.substring(0, 30)}..."</p>

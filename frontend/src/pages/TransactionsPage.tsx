@@ -4,8 +4,17 @@ import { Transaction } from "../types";
 import { formatCurrency, formatDateTime } from "../utils/format";
 import Button from "../screens/components/Button";
 import { useNotification } from "../contexts/NotificationContext";
+import PageLayout from "../components/PageLayout";
 
-type ModalType = "transfer" | "deposit" | "withdraw" | null;
+function parseFlow(flow: string | null): { from: string; to: string } {
+  if (!flow) return { from: "-", to: "-" };
+  const parts = flow.split(" -> ");
+  if (parts.length < 2) return { from: parts[0] || "-", to: "-" };
+  const [a, b] = parts;
+  if (!a) return { from: "-", to: b || "-" };
+  if (b === "withdraw") return { from: a, to: "-" };
+  return { from: a, to: b };
+}
 
 export default function TransactionsPage() {
   const [transactionsData, setTransactionsData] = useState<Transaction[]>([]);
@@ -19,28 +28,11 @@ export default function TransactionsPage() {
     type: "",
   });
 
-  const [activeModal, setActiveModal] = useState<ModalType>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [modalErr, setModalErr] = useState("");
-
-  // Transfer form
-  const [transferForm, setTransferForm] = useState({
-    sourcePortfolioId: "",
-    destPortfolioId: "",
-    amount: "",
-  });
-
-  // Deposit form
-  const [depositForm, setDepositForm] = useState({
-    portfolioId: "",
-    amount: "",
-  });
-
-  // Withdraw form
-  const [withdrawForm, setWithdrawForm] = useState({
-    portfolioId: "",
-    amount: "",
-  });
+  const [formFrom, setFormFrom] = useState("deposit");
+  const [formTo, setFormTo] = useState("");
+  const [formAmount, setFormAmount] = useState("");
+  const [formLoading, setFormLoading] = useState(false);
+  const [formErr, setFormErr] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -83,102 +75,64 @@ export default function TransactionsPage() {
     return true;
   });
 
-  const resetForms = () => {
-    setTransferForm({ sourcePortfolioId: "", destPortfolioId: "", amount: "" });
-    setDepositForm({ portfolioId: "", amount: "" });
-    setWithdrawForm({ portfolioId: "", amount: "" });
-    setModalErr("");
+  const resetForm = () => {
+    setFormFrom("deposit");
+    setFormTo("");
+    setFormAmount("");
+    setFormErr("");
   };
 
-  const openModal = (type: ModalType) => {
-    resetForms();
-    setActiveModal(type);
-  };
+  const handleSubmitTransaction = async () => {
+    const amt = parseFloat(formAmount);
+    if (isNaN(amt) || amt <= 0) { setFormErr("Enter a valid amount"); return; }
 
-  const closeModal = () => {
-    setActiveModal(null);
-    setSubmitting(false);
-    setModalErr("");
-  };
+    const isDeposit = formFrom === "deposit";
+    const isWithdraw = formTo === "withdraw";
+    const fromPid = isDeposit ? null : parseInt(formFrom);
+    const toPid = isWithdraw ? null : parseInt(formTo);
 
-  const handleTransfer = async () => {
-    const srcId = parseInt(transferForm.sourcePortfolioId);
-    const dstId = parseInt(transferForm.destPortfolioId);
-    const amt = parseFloat(transferForm.amount);
-    if (isNaN(srcId) || isNaN(dstId)) { setModalErr("Select source and destination portfolios"); return; }
-    if (isNaN(amt) || amt <= 0) { setModalErr("Enter a valid amount"); return; }
-    setSubmitting(true);
-    setModalErr("");
+    if (isDeposit && isWithdraw) { setFormErr("Select a portfolio for deposit or withdraw"); return; }
+    if (!fromPid && !toPid) { setFormErr("Select at least one portfolio"); return; }
+    if (fromPid && toPid && fromPid === toPid) { setFormErr("Source and destination must differ"); return; }
+
+    setFormLoading(true);
+    setFormErr("");
+
     try {
-      const transfer = await api.createTransfer({
-        source_portfolio_id: srcId,
-        destination_portfolio_id: dstId,
-        amount: amt,
-        confirmed_by: "Manual",
-      });
-      await api.confirmTransfer(transfer.transaction_id, "auto-confirm", "Manual");
-      notify(`Transferred $${amt.toLocaleString()}`, 'success');
+      if (isDeposit && toPid) {
+        const target = portfolios.find((p) => p.portfolio_id === toPid);
+        await api.createTransaction({
+          transaction_type: "Deposit", asset: "USD", amount: amt,
+          destination_portfolio_id: toPid, executed_by: "Manual",
+        });
+        await api.updatePortfolio(toPid, { available_cash: (target?.available_cash || 0) + amt });
+        notify(`Deposited $${amt.toLocaleString()} to ${target?.portfolio_name || toPid}`, 'success');
+      } else if (fromPid && isWithdraw) {
+        const target = portfolios.find((p) => p.portfolio_id === fromPid);
+        if (amt > (target?.available_cash || 0)) {
+          setFormErr(`Maximum withdraw is $${(target?.available_cash || 0).toLocaleString()}`);
+          setFormLoading(false); return;
+        }
+        await api.createTransaction({
+          transaction_type: "Withdraw", asset: "USD", amount: amt,
+          source_portfolio_id: fromPid, executed_by: "Manual",
+        });
+        await api.updatePortfolio(fromPid, { available_cash: (target?.available_cash || 0) - amt });
+        notify(`Withdrew $${amt.toLocaleString()} from ${target?.portfolio_name || fromPid}`, 'success');
+      } else if (fromPid && toPid) {
+        const transfer = await api.createTransfer({
+          source_portfolio_id: fromPid, destination_portfolio_id: toPid,
+          amount: amt, confirmed_by: "Manual",
+        });
+        await api.confirmTransfer(transfer.transaction_id, "auto-confirm", "Manual");
+        notify(`Transferred $${amt.toLocaleString()}`, 'success');
+      }
       await refreshTransactions();
-      closeModal();
+      resetForm();
     } catch (e: any) {
-      setModalErr(e.message || "Transfer failed");
+      setFormErr(e.message || "Transaction failed");
     } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDeposit = async () => {
-    const pid = parseInt(depositForm.portfolioId);
-    const amt = parseFloat(depositForm.amount);
-    if (isNaN(pid)) { setModalErr("Select a portfolio"); return; }
-    if (isNaN(amt) || amt <= 0) { setModalErr("Enter a valid amount"); return; }
-    setSubmitting(true);
-    setModalErr("");
-    try {
-      const target = portfolios.find((p) => p.portfolio_id === pid);
-      await api.createTransaction({
-        transaction_type: "Deposit",
-        asset: "USD",
-        amount: amt,
-        destination_portfolio_id: pid,
-        executed_by: "Manual",
-      });
-      await api.updatePortfolio(pid, { available_cash: (target?.available_cash || 0) + amt });
-      notify(`Deposited $${amt.toLocaleString()} to ${target?.portfolio_name || pid}`, 'success');
-      await refreshTransactions();
-      closeModal();
-    } catch (e: any) {
-      setModalErr(e.message || "Deposit failed");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleWithdraw = async () => {
-    const pid = parseInt(withdrawForm.portfolioId);
-    const amt = parseFloat(withdrawForm.amount);
-    if (isNaN(pid)) { setModalErr("Select a portfolio"); return; }
-    if (isNaN(amt) || amt <= 0) { setModalErr("Enter a valid amount"); return; }
-    setSubmitting(true);
-    setModalErr("");
-    try {
-      const target = portfolios.find((p) => p.portfolio_id === pid);
-      if (amt > (target?.available_cash || 0)) { setModalErr(`Maximum withdraw is $${(target?.available_cash || 0).toLocaleString()}`); setSubmitting(false); return; }
-      await api.createTransaction({
-        transaction_type: "Withdraw",
-        asset: "USD",
-        amount: amt,
-        source_portfolio_id: pid,
-        executed_by: "Manual",
-      });
-      await api.updatePortfolio(pid, { available_cash: (target?.available_cash || 0) - amt });
-      notify(`Withdrew $${amt.toLocaleString()} from ${target?.portfolio_name || pid}`, 'success');
-      await refreshTransactions();
-      closeModal();
-    } catch (e: any) {
-      setModalErr(e.message || "Withdraw failed");
-    } finally {
-      setSubmitting(false);
+      setFormLoading(false);
     }
   };
 
@@ -191,67 +145,76 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto px-6 py-10">
+    <PageLayout>
 
-      <header className="flex items-center justify-between mb-10 animate-fade-up">
-        <h1 className="text-5xl font-bold text-ink tracking-tight m-0">
-          Transactions
-        </h1>
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold text-ink tracking-tight m-0">Transactions</h1>
       </header>
 
-      <section className="mb-6 animate-fade-up stagger-1">
-        <div className="bg-teal-light border border-hairline/30 rounded-[28px] p-8 shadow-sm">
-          <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mb-5">New Transaction</p>
-          <div className="flex gap-4">
-            <Button variant="primary" onClick={() => openModal("transfer")}>Transfer</Button>
-            <Button variant="primary" onClick={() => openModal("deposit")}>Deposit</Button>
-            <Button variant="primary" onClick={() => openModal("withdraw")}>Withdraw</Button>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-canvas border border-hairline rounded-[28px] p-6 shadow-sm mb-6 animate-fade-up stagger-2">
-        <div className="grid gap-4 grid-cols-3">
-          <div>
-            <label className="text-[10px] font-bold text-slate uppercase tracking-widest mb-2 block">Date Range</label>
-            <div className="flex gap-2">
+      <section className="mb-6 bg-canvas border border-hairline rounded-2xl p-4 shadow-sm">
+        <div className="flex gap-4 items-center">
+          <div className="w-1/2 flex flex-col items-start">
+            <h2 className="text-[10px] font-bold text-slate uppercase tracking-widest">Filters</h2>
+            <div className="flex gap-2 mt-2 flex-wrap">
               <input type="date" value={filters.dateRange.start}
                 onChange={(e) => setFilters((prev) => ({ ...prev, dateRange: { ...prev.dateRange, start: e.target.value } }))}
-                className="flex-1 px-3 py-2 border border-hairline rounded-lg text-[13px]"
-              />
+                className="px-2 py-1.5 border border-hairline rounded-lg text-xs" />
               <input type="date" value={filters.dateRange.end}
                 onChange={(e) => setFilters((prev) => ({ ...prev, dateRange: { ...prev.dateRange, end: e.target.value } }))}
-                className="flex-1 px-3 py-2 border border-hairline rounded-lg text-[13px]"
-              />
+                className="px-2 py-1.5 border border-hairline rounded-lg text-xs" />
+              <select value={filters.type}
+                onChange={(e) => setFilters((prev) => ({ ...prev, type: e.target.value }))}
+                className="px-2 py-1.5 border border-hairline rounded-lg text-xs bg-canvas"
+              >
+                <option value="">All Types</option>
+                <option value="Deposit">Deposit</option>
+                <option value="Withdraw">Withdraw</option>
+                <option value="Transfer">Transfer</option>
+                <option value="Buy">Buy</option>
+                <option value="Sell">Sell</option>
+              </select>
             </div>
           </div>
-          <div>
-            <label className="text-[10px] font-bold text-slate uppercase tracking-widest mb-2 block">Type Filter</label>
-            <select value={filters.type}
-              onChange={(e) => setFilters((prev) => ({ ...prev, type: e.target.value }))}
-              className="w-full px-3 py-2 border border-hairline rounded-lg text-[13px] bg-canvas"
-            >
-              <option value="">All Types</option>
-              <option value="Deposit">Deposit</option>
-              <option value="Withdraw">Withdraw</option>
-              <option value="Transfer">Transfer</option>
-              <option value="Buy">Buy</option>
-              <option value="Sell">Sell</option>
-            </select>
+          <div className="w-1/2 flex flex-col items-start">
+            <h2 className="text-[10px] font-bold text-slate uppercase tracking-widest">New Transaction</h2>
+            <div className="flex gap-2 mt-2 items-center flex-wrap">
+              <select value={formFrom} onChange={(e) => setFormFrom(e.target.value)}
+                className="px-2 py-1.5 border border-hairline rounded-lg text-xs bg-canvas w-[130px]">
+                <option value="deposit" disabled={formTo === "withdraw"}>Deposit →</option>
+                {portfolios.map((p) => (
+                  <option key={p.portfolio_id} value={p.portfolio_id}
+                    disabled={formTo !== "" && formTo !== "withdraw" && p.portfolio_id === parseInt(formTo)}>{p.portfolio_name}</option>
+                ))}
+              </select>
+              <input type="number" step={100} placeholder="Amount" value={formAmount}
+                onChange={(e) => setFormAmount(e.target.value)}
+                className="px-2 py-1.5 border border-hairline rounded-lg text-xs w-[100px]" />
+              <select value={formTo} onChange={(e) => setFormTo(e.target.value)}
+                className="px-2 py-1.5 border border-hairline rounded-lg text-xs bg-canvas w-[130px]">
+                <option value="">Select portfolio</option>
+                {portfolios.map((p) => (
+                  <option key={p.portfolio_id} value={p.portfolio_id}
+                    disabled={formFrom !== "deposit" && p.portfolio_id === parseInt(formFrom)}>{p.portfolio_name}</option>
+                ))}
+                <option value="withdraw" disabled={formFrom === "deposit"}>← Withdraw</option>
+              </select>
+              <Button variant="primary" onClick={handleSubmitTransaction} loading={formLoading}>Confirm</Button>
+            </div>
+            {formErr && <p className="text-red-500 text-xs mt-1">{formErr}</p>}
           </div>
         </div>
       </section>
 
-      <section className="bg-canvas border border-hairline rounded-[28px] shadow-sm overflow-hidden animate-fade-up stagger-3">
+      <section className="bg-canvas border border-hairline rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-surface">
                 <th className="px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Datetime</th>
                 <th className="px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Type</th>
-                <th className="hidden md:table-cell px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Asset</th>
+                <th className="hidden md:table-cell px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">From</th>
+                <th className="hidden md:table-cell px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">To</th>
                 <th className="px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Amount</th>
-                <th className="hidden lg:table-cell px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Flow</th>
                 <th className="hidden lg:table-cell px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Executed By</th>
                 <th className="px-5 py-3 text-left text-[10px] font-bold text-slate uppercase tracking-widest">Status</th>
               </tr>
@@ -266,9 +229,10 @@ export default function TransactionsPage() {
               ) : (
                 filteredTransactions.map((tx, index) => {
                   const typeStyle = getTransactionType(tx.type);
+                  const { from, to } = parseFlow(tx.flow);
                   return (
                     <tr key={tx.history_id ?? tx.transaction_id ?? index}
-                      className="border-t border-hairline hover:bg-teal-50 transition-colors">
+                      className="border-t border-hairline hover:bg-surface transition-colors">
                       <td className="px-5 py-3.5 text-[13px] text-ink">
                         {formatDateTime(tx.entry_date)}
                       </td>
@@ -277,14 +241,10 @@ export default function TransactionsPage() {
                           {typeStyle.label}
                         </span>
                       </td>
-                      <td className="hidden md:table-cell px-5 py-3.5 text-[13px] text-ink">
-                        {tx.asset || "-"}
-                      </td>
-                      <td className="px-5 py-3.5 text-[13px] text-ink">
+                      <td className="hidden md:table-cell px-5 py-3.5 text-[13px] text-ink">{from}</td>
+                      <td className="hidden md:table-cell px-5 py-3.5 text-[13px] text-ink">{to}</td>
+                      <td className="px-5 py-3.5 text-[13px] text-ink font-medium">
                         {tx.amount != null ? fmtCurrency(tx.amount) : "-"}
-                      </td>
-                      <td className="hidden lg:table-cell px-5 py-3.5 text-[13px] text-ink">
-                        {tx.flow || "-"}
                       </td>
                       <td className="hidden lg:table-cell px-5 py-3.5">
                         <div className="flex items-center gap-1.5">
@@ -311,114 +271,6 @@ export default function TransactionsPage() {
           </table>
         </div>
       </section>
-
-      {/* Transfer Modal */}
-      {activeModal === "transfer" && (
-        <ModalShell title="Transfer" onClose={closeModal} onSubmit={handleTransfer} submitting={submitting} modalErr={modalErr}>
-          <FormSelect label="From Portfolio" value={transferForm.sourcePortfolioId}
-            onChange={(e) => setTransferForm((prev) => ({ ...prev, sourcePortfolioId: e.target.value }))}>
-            <option value="">Select source</option>
-            {portfolios.map((p) => (
-              <option key={p.portfolio_id} value={p.portfolio_id}>{p.portfolio_name}</option>
-            ))}
-          </FormSelect>
-          <FormSelect label="To Portfolio" value={transferForm.destPortfolioId}
-            onChange={(e) => setTransferForm((prev) => ({ ...prev, destPortfolioId: e.target.value }))}>
-            <option value="">Select destination</option>
-            {portfolios.map((p) => (
-              <option key={p.portfolio_id} value={p.portfolio_id} disabled={p.portfolio_id === parseInt(transferForm.sourcePortfolioId)}>{p.portfolio_name}</option>
-            ))}
-          </FormSelect>
-          <FormInput label="Amount" type="number" step={100} placeholder="0"
-            value={transferForm.amount}
-            onChange={(e) => setTransferForm((prev) => ({ ...prev, amount: e.target.value }))} />
-        </ModalShell>
-      )}
-
-      {/* Deposit Modal */}
-      {activeModal === "deposit" && (
-        <ModalShell title="Deposit" onClose={closeModal} onSubmit={handleDeposit} submitting={submitting} modalErr={modalErr}>
-          <FormSelect label="Portfolio" value={depositForm.portfolioId}
-            onChange={(e) => setDepositForm((prev) => ({ ...prev, portfolioId: e.target.value }))}>
-            <option value="">Select portfolio</option>
-            {portfolios.map((p) => (
-              <option key={p.portfolio_id} value={p.portfolio_id}>{p.portfolio_name}</option>
-            ))}
-          </FormSelect>
-          <FormInput label="Amount" type="number" step={100} placeholder="0"
-            value={depositForm.amount}
-            onChange={(e) => setDepositForm((prev) => ({ ...prev, amount: e.target.value }))} />
-        </ModalShell>
-      )}
-
-      {/* Withdraw Modal */}
-      {activeModal === "withdraw" && (
-        <ModalShell title="Withdraw" onClose={closeModal} onSubmit={handleWithdraw} submitting={submitting} modalErr={modalErr}>
-          <FormSelect label="Portfolio" value={withdrawForm.portfolioId}
-            onChange={(e) => setWithdrawForm((prev) => ({ ...prev, portfolioId: e.target.value }))}>
-            <option value="">Select portfolio</option>
-            {portfolios.map((p) => (
-              <option key={p.portfolio_id} value={p.portfolio_id}>{p.portfolio_name}</option>
-            ))}
-          </FormSelect>
-          <FormInput label="Amount" type="number" step={100} placeholder="0"
-            value={withdrawForm.amount}
-            onChange={(e) => setWithdrawForm((prev) => ({ ...prev, amount: e.target.value }))} />
-        </ModalShell>
-      )}
-    </div>
-  );
-}
-
-function ModalShell({ title, onClose, onSubmit, submitting, modalErr, children }: {
-  title: string; onClose: () => void; onSubmit: () => void; submitting: boolean; modalErr: string; children: React.ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
-      <div className="bg-canvas rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.15)] w-full max-w-[420px] mx-4 p-8">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-bold text-ink m-0">{title}</h3>
-          <button onClick={onClose} className="bg-none border-none cursor-pointer p-1">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          {children}
-        </div>
-
-        {modalErr && <p className="text-error text-xs mt-3">{modalErr}</p>}
-
-        <div className="flex justify-end gap-3 mt-6">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={onSubmit} loading={submitting}>Confirm {title}</Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FormSelect({ label, value, onChange, children }: { label: string; value: string; onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="text-[10px] font-bold text-slate uppercase tracking-widest mb-1.5 block">{label}</label>
-      <select value={value} onChange={onChange}
-        className="w-full px-3.5 py-2.5 border border-hairline rounded-[10px] text-[13px] bg-canvas">
-        {children}
-      </select>
-    </div>
-  );
-}
-
-function FormInput({ label, type, step, placeholder, value, onChange }: {
-  label: string; type: string; step?: number; placeholder?: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}) {
-  return (
-    <div>
-      <label className="text-[10px] font-bold text-slate uppercase tracking-widest mb-1.5 block">{label}</label>
-      <input type={type} step={step} placeholder={placeholder}
-        value={value} onChange={onChange}
-        className="w-full px-3.5 py-2.5 border border-hairline rounded-[10px] text-[13px]" />
-    </div>
+    </PageLayout>
   );
 }
