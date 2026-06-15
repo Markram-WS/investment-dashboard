@@ -4,6 +4,7 @@ import { GroupCombobox } from './components/GroupCombobox';
 import type { AddOrderForm } from '../hooks/useAddOrder';
 import { buttonTheme } from '../constants/colors';
 import Button from './components/Button';
+import ModalShell from './components/ModalShell';
 
 interface AddOrderModalProps {
   formData: AddOrderForm;
@@ -80,7 +81,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   const contractType = formData.contract_type || 'spot';
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[110]">
+    <ModalShell open={showModal} onClose={onClose} title="Add Order" closeOnBackdrop={false} backdropClassName="bg-black/50 backdrop-blur-sm" zIndex={110}>
       <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
         <h3 className="text-lg font-bold mb-4">Add Order</h3>
         <div className="space-y-4">
@@ -266,6 +267,6 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           <Button variant="primary" onClick={onSave}>Create Order</Button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 };

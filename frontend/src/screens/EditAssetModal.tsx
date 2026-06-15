@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import Button from './components/Button';
+import ModalShell from './components/ModalShell';
 
 interface EditAssetModalProps {
   open: boolean;
@@ -77,8 +78,8 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
   const canDelete = !asset.sync_protected;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-canvas rounded-[20px] p-8 w-[420px] max-w-[90vw] shadow-xl" onClick={e => e.stopPropagation()}>
+    <ModalShell open={open} onClose={onClose} title={"Edit Asset " + (asset?.ticker || '')} backdropClassName="bg-black/40" zIndex={9999}>
+      <div className="bg-canvas rounded-[20px] p-8 w-[420px] max-w-[90vw] shadow-xl">
         <h3 className="text-lg font-bold text-ink mb-6">Edit Asset — {asset.ticker}</h3>
 
         {error && <div className="text-red-600 text-xs mb-3 bg-red-50 p-2 rounded">{error}</div>}
@@ -135,7 +136,7 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
           </div>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 };
 

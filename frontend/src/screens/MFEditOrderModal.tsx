@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { MFOrder, MFOrderUpdate } from "../types";
 import Button from "./components/Button";
+import ModalShell from "./components/ModalShell";
 
 interface MFEditOrderModalProps {
   show: boolean;
@@ -36,7 +37,7 @@ export default function MFEditOrderModal({ show, order, onClose, onSave }: MFEdi
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <ModalShell open={show} onClose={onClose} title="Edit Order" closeOnBackdrop={false}>
       <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
         <h3 className="text-lg font-bold mb-4">Edit Order</h3>
         <div className="space-y-3">
@@ -98,6 +99,6 @@ export default function MFEditOrderModal({ show, order, onClose, onSave }: MFEdi
           <Button variant="primary" onClick={handleSave}>Save Changes</Button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

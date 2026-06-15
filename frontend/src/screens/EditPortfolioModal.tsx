@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import Button from "./components/Button";
+import ModalShell from "./components/ModalShell";
 
 interface EditPortfolioModalProps {
   portfolioId: number;
@@ -172,9 +173,8 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
   const displayEquity = projectedAvailableCash + cumulativePl;
 
   return (
-    <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-        <div className="bg-canvas rounded-2xl shadow-2xl border border-hairline w-full max-w-lg mx-4 p-8 relative">
+    <ModalShell open={showModal} onClose={onClose} title="Edit Portfolio" backdropClassName="bg-black/30 backdrop-blur-sm" zIndex={50}>
+      <div className="bg-canvas rounded-2xl shadow-2xl border border-hairline w-full max-w-lg mx-4 p-8 relative">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-bold text-ink">Edit Portfolio</h3>
             <button onClick={onClose} className="p-1 hover:bg-surface-soft rounded-full transition-colors">
@@ -303,8 +303,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
             </div>
           )}
         </div>
-      </div>
-    </>
+    </ModalShell>
   );
 }
 

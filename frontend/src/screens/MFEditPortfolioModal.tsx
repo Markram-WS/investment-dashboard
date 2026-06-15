@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { MFSetting, MFHolding } from "../types";
 import Button from "./components/Button";
+import ModalShell from "./components/ModalShell";
 
 interface MFEditPortfolioModalProps {
   portfolioId: number;
@@ -192,7 +193,7 @@ export default function MFEditPortfolioModal({
   const availableDisplay = cash + (portfolio.margin_locked || 0) + (portfolio.cash_buffer_limit || 0) + (portfolio.money_market || 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+    <ModalShell open={showModal} onClose={onClose} title="Edit Managed Fund" backdropClassName="bg-black/30 backdrop-blur-sm" zIndex={50}>
       <div className="bg-canvas rounded-2xl shadow-2xl border border-hairline w-full max-w-xl mx-4 p-8 relative max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-bold text-ink">Edit Managed Fund</h3>
@@ -365,6 +366,6 @@ export default function MFEditPortfolioModal({
           </div>
         )}
       </div>
-    </div>
+    </ModalShell>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import Button from './components/Button';
+import ModalShell from './components/ModalShell';
 
 interface AssetGroupModalProps {
   open: boolean;
@@ -70,8 +71,8 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-lg mx-4" onClick={e => e.stopPropagation()}>
+    <ModalShell open={open} onClose={onClose} title="Asset Groups">
+      <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-lg mx-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold">Asset Groups</h3>
           <button onClick={onClose} className="text-slate hover:text-ink text-xl leading-none">&times;</button>
@@ -148,7 +149,7 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 };
 

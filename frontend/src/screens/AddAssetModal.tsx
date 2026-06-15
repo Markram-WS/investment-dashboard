@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import Button from './components/Button';
+import ModalShell from './components/ModalShell';
 
 interface AddAssetModalProps {
   open: boolean;
@@ -49,8 +50,8 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({ open, onClose, onSaved, g
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-canvas rounded-[20px] p-8 w-[420px] max-w-[90vw] shadow-xl" onClick={e => e.stopPropagation()}>
+    <ModalShell open={open} onClose={onClose} title="Add Asset" backdropClassName="bg-black/40" zIndex={9999}>
+      <div className="bg-canvas rounded-[20px] p-8 w-[420px] max-w-[90vw] shadow-xl">
         <h3 className="text-lg font-bold text-ink mb-6">Add Asset</h3>
 
         {error && <div className="text-red-600 text-xs mb-3 bg-red-50 p-2 rounded">{error}</div>}
@@ -96,7 +97,7 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({ open, onClose, onSaved, g
           <Button variant="primary" onClick={handleSave} disabled={loading}>{loading ? 'Saving...' : 'Add Asset'}</Button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 };
 

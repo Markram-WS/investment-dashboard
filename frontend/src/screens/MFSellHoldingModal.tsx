@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MFHolding } from "../types";
 import Button from "./components/Button";
+import ModalShell from "./components/ModalShell";
 
 interface MFSellHoldingModalProps {
   show: boolean;
@@ -20,7 +21,7 @@ export default function MFSellHoldingModal({ show, holding, onClose, onConfirm }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <ModalShell open={show} onClose={onClose} title={"Sell " + (holding?.asset || '')} closeOnBackdrop={false}>
       <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
         <h3 className="text-lg font-bold mb-4">Sell {holding.asset}</h3>
         <div className="bg-surface rounded-lg p-3 text-sm space-y-1.5 mb-4">
@@ -53,6 +54,6 @@ export default function MFSellHoldingModal({ show, holding, onClose, onConfirm }
           <Button variant="danger" onClick={handleConfirm}>Create Sell Order</Button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

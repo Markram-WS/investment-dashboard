@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { SpreadOrder } from "../types";
 import Button from "./components/Button";
+import ModalShell from "./components/ModalShell";
 
 interface CloseOrderModalProps {
   order: SpreadOrder | null;
@@ -104,7 +105,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <ModalShell open={showModal} onClose={onClose} title={"Close Order " + (order?.order_id || '')} closeOnBackdrop={false}>
       <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
         <h3 className="text-lg font-bold mb-4">
           Close Order {linkedInfo ? `(linked to #${linkedInfo.order_id?.slice(0, 8)})` : ''}
@@ -190,6 +191,6 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
           <Button variant="danger" onClick={handleConfirm} loading={saving}>Close Order</Button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 };

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MFHolding, MFSetting } from "../types";
 import Button from "./components/Button";
+import ModalShell from "./components/ModalShell";
 
 interface MFProfitThresholdModalProps {
   show: boolean;
@@ -33,7 +34,7 @@ export default function MFProfitThresholdModal({ show, settings, holdings, onClo
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <ModalShell open={show} onClose={onClose} title="Profit Threshold Settings" closeOnBackdrop={false}>
       <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
         <h3 className="text-lg font-bold mb-4">Profit Threshold Settings</h3>
 
@@ -78,6 +79,6 @@ export default function MFProfitThresholdModal({ show, settings, holdings, onClo
           <Button variant="primary" onClick={handleSave}>Save Thresholds</Button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

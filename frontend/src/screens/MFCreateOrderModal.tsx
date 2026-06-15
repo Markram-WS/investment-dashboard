@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MFOrderCreate } from "../types";
 import Button from "./components/Button";
+import ModalShell from "./components/ModalShell";
 
 interface MFCreateOrderModalProps {
   show: boolean;
@@ -31,7 +32,7 @@ export default function MFCreateOrderModal({ show, onClose, onSave }: MFCreateOr
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <ModalShell open={show} onClose={onClose} title="Create Order" closeOnBackdrop={false}>
       <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
         <h3 className="text-lg font-bold mb-4">Create Order</h3>
         <div className="space-y-3">
@@ -96,6 +97,6 @@ export default function MFCreateOrderModal({ show, onClose, onSave }: MFCreateOr
           <Button variant="primary" onClick={handleSave}>Create Order</Button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { PortfolioSpreadsData, SpreadPair, SpreadOrder } from '../types';
+import ModalShell from './components/ModalShell';
 
 interface SpreadPairingProps {
   portfolioId?: string;
@@ -386,58 +387,54 @@ const SpreadPairing: React.FC<SpreadPairingProps> = ({ portfolioId: propPortfoli
       </div>
 
       {/* Pair Wizard Modal */}
-      {showPairWizard && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-canvas rounded-lg p-6 w-96">
-            <h3 className="font-bold text-lg mb-4">Link Order to Spread Pair</h3>
-            <p className="text-sm text-ink mb-3">
-              Enter the existing linked_order_id to link this order:
-            </p>
-            <input
-              type="text"
-              value={targetPairId}
-              onChange={(e) => setTargetPairId(e.target.value)}
-              placeholder="e.g., spread_abc123"
-              className="w-full p-2 border rounded mb-4"
-            />
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setShowPairWizard(false)}
-                className="px-4 py-2 text-ink hover:text-gray-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handlePairWithId}
-                disabled={!targetPairId}
-                className="px-4 py-2 bg-brand-teal text-white rounded hover:opacity-80 disabled:opacity-50"
-              >
-                Link Order
-              </button>
-            </div>
+      <ModalShell open={showPairWizard} onClose={() => setShowPairWizard(false)} title="Link Order to Spread Pair" closeOnBackdrop={false}>
+        <div className="bg-canvas rounded-lg p-6 w-96">
+          <h3 className="font-bold text-lg mb-4">Link Order to Spread Pair</h3>
+          <p className="text-sm text-ink mb-3">
+            Enter the existing linked_order_id to link this order:
+          </p>
+          <input
+            type="text"
+            value={targetPairId}
+            onChange={(e) => setTargetPairId(e.target.value)}
+            placeholder="e.g., spread_abc123"
+            className="w-full p-2 border rounded mb-4"
+          />
+          <div className="flex justify-end space-x-2">
+            <button
+              onClick={() => setShowPairWizard(false)}
+              className="px-4 py-2 text-ink hover:text-gray-800"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handlePairWithId}
+              disabled={!targetPairId}
+              className="px-4 py-2 bg-brand-teal text-white rounded hover:opacity-80 disabled:opacity-50"
+            >
+              Link Order
+            </button>
           </div>
         </div>
-      )}
+      </ModalShell>
 
       {/* Payoff Chart Modal */}
-      {showPayoffChart.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-canvas rounded-lg p-6 w-full max-w-[600px] mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg">Payoff Chart</h3>
-              <button
-                onClick={() => setShowPayoffChart({ show: false, pairId: null })}
-                className="text-slate hover:text-ink"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="h-64 bg-surface rounded flex items-center justify-center">
-              <p className="text-slate">Payoff chart visualization for spread pair: {showPayoffChart.pairId}</p>
-            </div>
+      <ModalShell open={showPayoffChart.show} onClose={() => setShowPayoffChart({ show: false, pairId: null })} title="Payoff Chart">
+        <div className="bg-canvas rounded-lg p-6 w-full max-w-[600px] mx-4">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-bold text-lg">Payoff Chart</h3>
+            <button
+              onClick={() => setShowPayoffChart({ show: false, pairId: null })}
+              className="text-slate hover:text-ink"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="h-64 bg-surface rounded flex items-center justify-center">
+            <p className="text-slate">Payoff chart visualization for spread pair: {showPayoffChart.pairId}</p>
           </div>
         </div>
-      )}
+      </ModalShell>
 
       {/* Unpaired Orders Section */}
       {portfolioData.unpaired_orders && portfolioData.unpaired_orders.length > 0 && (

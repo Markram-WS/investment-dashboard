@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../../lib/api';
 import Button from './Button';
+import ModalShell from './ModalShell';
 
 interface TransferModalProps {
   open: boolean;
@@ -43,9 +44,8 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-canvas rounded-[20px] p-8 w-[400px] max-w-[90vw] shadow-[0_20px_60px_rgba(0,0,0,0.2)]"
-        onClick={e => e.stopPropagation()}>
+    <ModalShell open={open} onClose={onClose} title="Transfer Cash" backdropClassName="bg-black/40" zIndex={9999}>
+      <div className="bg-canvas rounded-[20px] p-8 w-[400px] max-w-[90vw] shadow-[0_20px_60px_rgba(0,0,0,0.2)]">
         <h3 className="text-lg font-bold m-0 mb-6 text-ink">
           Transfer Cash
         </h3>
@@ -85,13 +85,14 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
           </div>
         )}
 
-        <div className="flex gap-3 justify-end">
+                <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button variant="primary" onClick={handleConfirm} loading={loading}>Confirm →</Button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
-};
+}
+;
 
 export default TransferModal;

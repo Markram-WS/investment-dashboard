@@ -1,5 +1,6 @@
 import { MFRebalanceRecommendation } from "../types";
 import Button from "./components/Button";
+import ModalShell from "./components/ModalShell";
 
 interface MFRebalanceRecommendModalProps {
   show: boolean;
@@ -15,7 +16,7 @@ export default function MFRebalanceRecommendModal({
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <ModalShell open={show} onClose={onClose} title="Rebalance Recommendations" closeOnBackdrop={false}>
       <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
         <h3 className="text-lg font-bold mb-4">Rebalance Recommendations</h3>
 
@@ -83,6 +84,6 @@ export default function MFRebalanceRecommendModal({
           )}
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

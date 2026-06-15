@@ -1,5 +1,6 @@
 import React from 'react';
 import { SpreadOrder } from '../types';
+import ModalShell from './components/ModalShell';
 
 interface ZoneEditModalProps {
   orders: SpreadOrder[];
@@ -25,7 +26,7 @@ export const ZoneEditModal: React.FC<ZoneEditModalProps> = ({
   if (!showModal) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <ModalShell open={showModal} onClose={onClose} title={"Edit Zone: " + zone} closeOnBackdrop={false}>
       <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
         <h3 className="text-lg font-bold mb-4">Edit Zone: {zone}</h3>
         <div className="space-y-4">
@@ -54,6 +55,6 @@ export const ZoneEditModal: React.FC<ZoneEditModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 };

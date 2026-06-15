@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../lib/api';
+import ModalShell from './components/ModalShell';
 
 interface ZoneGroupRecord {
   id: number;
@@ -125,7 +126,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
   if (!showModal) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <ModalShell open={showModal} onClose={onClose} title="Order Groups">
       <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-2xl mx-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold">Order Groups</h3>
@@ -221,6 +222,6 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 };

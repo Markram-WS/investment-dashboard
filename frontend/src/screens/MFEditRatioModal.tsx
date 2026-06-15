@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Button from "./components/Button";
+import ModalShell from "./components/ModalShell";
 
 interface MFEditRatioModalProps {
   show: boolean;
@@ -34,7 +35,7 @@ export default function MFEditRatioModal({ show, targetRatio, onClose, onSave }:
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <ModalShell open={show} onClose={onClose} title="Edit Target Ratios" closeOnBackdrop={false}>
       <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
         <h3 className="text-lg font-bold mb-4">Edit Target Ratios</h3>
         <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -68,6 +69,6 @@ export default function MFEditRatioModal({ show, targetRatio, onClose, onSave }:
           <Button variant="primary" onClick={handleSave}>Save Ratios</Button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }
