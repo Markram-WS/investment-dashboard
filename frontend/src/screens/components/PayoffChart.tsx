@@ -385,4 +385,4 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
     );
 };
 
-export default PayoffChart;
+export default React.memo(PayoffChart);

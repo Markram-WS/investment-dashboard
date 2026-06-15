@@ -18,9 +18,16 @@ interface PerformanceSectionProps {
 
 const PerformanceSection: React.FC<PerformanceSectionProps> = ({
   performanceData, viewMode, onViewModeChange,
-  activeOrders = [], strategyRows = [], ivMode = false,
-  payoffMinPrice = 0, payoffMaxPrice = 0, activeIVs = {},
-}) => (
+  activeOrders, strategyRows, ivMode,
+  payoffMinPrice, payoffMaxPrice, activeIVs,
+}) => {
+  const safeActiveOrders = activeOrders || [];
+  const safeStrategyRows = strategyRows || [];
+  const safeIvMode = ivMode ?? false;
+  const safeActiveIVs = activeIVs || {};
+  const safePayoffMinPrice = payoffMinPrice ?? 0;
+  const safePayoffMaxPrice = payoffMaxPrice ?? 0;
+  return (
   <section className="mb-6">
     <div className="rounded-2xl bg-purple-50 p-8 flex flex-col border border-hairline-soft">
       <div className="flex justify-between items-center mb-8">
@@ -55,16 +62,17 @@ const PerformanceSection: React.FC<PerformanceSectionProps> = ({
         )
       ) : (
         <PayoffChart
-          activeOrders={activeOrders}
-          strategyRows={strategyRows}
-          ivMode={ivMode}
-          minPrice={payoffMinPrice}
-          maxPrice={payoffMaxPrice}
-          activeIVs={activeIVs}
+          activeOrders={safeActiveOrders}
+          strategyRows={safeStrategyRows}
+          ivMode={safeIvMode}
+          minPrice={safePayoffMinPrice}
+          maxPrice={safePayoffMaxPrice}
+          activeIVs={safeActiveIVs}
         />
       )}
     </div>
   </section>
 );
+};
 
-export default PerformanceSection;
+export default React.memo(PerformanceSection);

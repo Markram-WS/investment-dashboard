@@ -17,8 +17,24 @@ interface AddOrderModalProps {
   assetTypeOptions: string[];
 }
 
-function ToggleBtn({ options, value, onChange }: {
-  options: { value: string; label: string; activeClass: string }[];
+const CONTRACT_TYPE_OPTS = [
+  { value: 'spot', label: 'Spot', activeClass: 'bg-indigo-600 text-white border-indigo-600' },
+  { value: 'future', label: 'Future', activeClass: 'bg-blue-600 text-white border-blue-600' },
+  { value: 'option', label: 'Option', activeClass: 'bg-purple-600 text-white border-purple-600' },
+] as const;
+
+const OPTION_TYPE_OPTS = [
+  { value: 'Call', label: 'CALL', activeClass: `${buttonTheme.optionType.Call.bg} ${buttonTheme.optionType.Call.text} ${buttonTheme.optionType.Call.border}` },
+  { value: 'Put', label: 'PUT', activeClass: `${buttonTheme.optionType.Put.bg} ${buttonTheme.optionType.Put.text} ${buttonTheme.optionType.Put.border}` },
+] as const;
+
+const STATUS_OPTS = [
+  { value: 'FILLED', label: 'FILLED', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
+  { value: 'PENDING', label: 'PENDING', activeClass: 'bg-amber-400 text-white border-amber-400' },
+] as const;
+
+const ToggleBtn = React.memo(function ToggleBtn({ options, value, onChange }: {
+  options: readonly { value: string; label: string; activeClass: string }[];
   value: string;
   onChange: (v: string) => void;
 }) {
@@ -43,7 +59,7 @@ function ToggleBtn({ options, value, onChange }: {
       })}
     </div>
   );
-}
+});
 
 export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   formData,
@@ -76,9 +92,22 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     return warnings;
   }, [selectedGroup, entryPrice, formData.group_id, groupOrderCounts]);
 
-  if (!showModal) return null;
-
   const contractType = formData.contract_type || 'spot';
+
+  const sideOptions = useMemo(() =>
+    contractType === 'spot'
+      ? [
+          { value: 'BUY', label: 'BUY', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
+          { value: 'SELL', label: 'SELL', activeClass: 'bg-red-500 text-white border-red-500' },
+        ]
+      : [
+          { value: 'LONG', label: 'LONG', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
+          { value: 'SHORT', label: 'SHORT', activeClass: 'bg-red-500 text-white border-red-500' },
+        ],
+    [contractType]
+  );
+
+  if (!showModal) return null;
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Add Order" closeOnBackdrop={false} backdropClassName="bg-black/50 backdrop-blur-sm" zIndex={110}>
@@ -98,11 +127,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           <div>
             <label className="block text-xs font-bold uppercase text-slate mb-1">Contract Type</label>
             <ToggleBtn
-              options={[
-                { value: 'spot', label: 'Spot', activeClass: 'bg-indigo-600 text-white border-indigo-600' },
-                { value: 'future', label: 'Future', activeClass: 'bg-blue-600 text-white border-blue-600' },
-                { value: 'option', label: 'Option', activeClass: 'bg-purple-600 text-white border-purple-600' },
-              ]}
+              options={CONTRACT_TYPE_OPTS}
               value={contractType}
               onChange={(v) => onChange('contract_type', v)}
             />
@@ -124,17 +149,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             <div className="flex-1">
               <label className="block text-xs font-bold uppercase text-slate mb-1">Side</label>
               <ToggleBtn
-                options={
-                  contractType === 'spot'
-                    ? [
-                        { value: 'BUY', label: 'BUY', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
-                        { value: 'SELL', label: 'SELL', activeClass: 'bg-red-500 text-white border-red-500' },
-                      ]
-                    : [
-                        { value: 'LONG', label: 'LONG', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
-                        { value: 'SHORT', label: 'SHORT', activeClass: 'bg-red-500 text-white border-red-500' },
-                      ]
-                }
+                options={sideOptions as any}
                 value={formData.side}
                 onChange={(v) => onChange('side', v)}
               />
@@ -143,10 +158,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               <div className="flex-1">
                 <label className="block text-xs font-bold uppercase text-slate mb-1">Option Type</label>
                 <ToggleBtn
-                  options={[
-                    { value: 'Call', label: 'CALL', activeClass: `${buttonTheme.optionType.Call.bg} ${buttonTheme.optionType.Call.text} ${buttonTheme.optionType.Call.border}` },
-                    { value: 'Put', label: 'PUT', activeClass: `${buttonTheme.optionType.Put.bg} ${buttonTheme.optionType.Put.text} ${buttonTheme.optionType.Put.border}` },
-                  ]}
+                  options={OPTION_TYPE_OPTS}
                   value={formData.option_type}
                   onChange={(v) => onChange('option_type', v)}
                 />
@@ -227,10 +239,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             <div className="flex-1">
               <label className="block text-xs font-bold uppercase text-slate mb-1">Status</label>
               <ToggleBtn
-                options={[
-                  { value: 'FILLED', label: 'FILLED', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
-                  { value: 'PENDING', label: 'PENDING', activeClass: 'bg-amber-400 text-white border-amber-400' },
-                ]}
+                options={STATUS_OPTS}
                 value={formData.order_status}
                 onChange={(v) => onChange('order_status', v)}
               />

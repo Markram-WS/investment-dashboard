@@ -32,4 +32,4 @@ const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
   </header>
 );
 
-export default PortfolioHeader;
+export default React.memo(PortfolioHeader);

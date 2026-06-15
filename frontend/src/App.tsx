@@ -3,19 +3,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { NotificationProvider } from './contexts/NotificationContext';
-import PortfolioOverview from './pages/PortfolioOverview';
-import TransactionsPage from './pages/TransactionsPage';
-import TradePlanManager from './pages/TradePlanManager';
-import ActiveOrders from './pages/ActiveOrders';
-import PortfolioAnalyticsDetail from './pages/PortfolioAnalyticsDetail';
-import CreateNewPortfolio from './pages/CreateNewPortfolio';
-import PortfolioMutualFund from './screens/PortfolioMutualFund';
-
-import PortfolioGrid from './screens/PortfolioGrid';
-import AllAssets from './pages/AllAssets';
-import RiskAnalytics from './pages/RiskAnalytics';
+import { lazy, Suspense } from 'react';
 import GlobalLayout from './components/GlobalLayout';
 import './index.css';
+
+const PortfolioOverview = lazy(() => import('./pages/PortfolioOverview'));
+const TransactionsPage = lazy(() => import('./pages/TransactionsPage'));
+const TradePlanManager = lazy(() => import('./pages/TradePlanManager'));
+const ActiveOrders = lazy(() => import('./pages/ActiveOrders'));
+const PortfolioAnalyticsDetail = lazy(() => import('./pages/PortfolioAnalyticsDetail'));
+const CreateNewPortfolio = lazy(() => import('./pages/CreateNewPortfolio'));
+const PortfolioMutualFund = lazy(() => import('./screens/PortfolioMutualFund'));
+const PortfolioGrid = lazy(() => import('./screens/PortfolioGrid'));
+const AllAssets = lazy(() => import('./pages/AllAssets'));
+const RiskAnalytics = lazy(() => import('./pages/RiskAnalytics'));
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ export default function App() {
       <NotificationProvider>
       <Router>
         <DndProvider backend={HTML5Backend}>
+        <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="w-8 h-8 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" /></div>}>
         <Routes>
           <Route element={<GlobalLayout />}>
             <Route path="/" element={<PortfolioOverview />} />
@@ -40,6 +42,7 @@ export default function App() {
             <Route path="/risk-analytics" element={<RiskAnalytics />} />
           </Route>
         </Routes>
+        </Suspense>
         </DndProvider>
       </Router>
       </NotificationProvider>

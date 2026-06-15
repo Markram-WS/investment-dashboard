@@ -21,8 +21,24 @@ interface EditOrderModalProps {
   portfolioId?: number;
 }
 
-function ToggleBtn({ options, value, onChange }: {
-  options: { value: string; label: string; activeClass: string }[];
+const EDIT_CONTRACT_OPTS = [
+  { value: 'spot', label: 'Spot', activeClass: 'bg-indigo-600 text-white border-indigo-600' },
+  { value: 'future', label: 'Future', activeClass: 'bg-blue-600 text-white border-blue-600' },
+  { value: 'option', label: 'Option', activeClass: 'bg-purple-600 text-white border-purple-600' },
+] as const;
+
+const EDIT_OPTION_TYPE_OPTS = [
+  { value: 'Call', label: 'CALL', activeClass: `${buttonTheme.optionType.Call.bg} ${buttonTheme.optionType.Call.text} ${buttonTheme.optionType.Call.border}` },
+  { value: 'Put', label: 'PUT', activeClass: `${buttonTheme.optionType.Put.bg} ${buttonTheme.optionType.Put.text} ${buttonTheme.optionType.Put.border}` },
+] as const;
+
+const EDIT_STATUS_OPTS = [
+  { value: 'FILLED', label: 'FILLED', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
+  { value: 'PENDING', label: 'PENDING', activeClass: 'bg-amber-400 text-white border-amber-400' },
+] as const;
+
+const ToggleBtn = React.memo(function ToggleBtn({ options, value, onChange }: {
+  options: readonly { value: string; label: string; activeClass: string }[];
   value: string;
   onChange: (v: string) => void;
 }) {
@@ -47,7 +63,7 @@ function ToggleBtn({ options, value, onChange }: {
       })}
     </div>
   );
-}
+});
 
 export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   order,
@@ -92,9 +108,23 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
     }
     return warnings;
   }, [selectedGroup, entryPrice, groupId, groupOrderCounts, order?.group_id]);
-  if (!showModal || !order) return null;
 
   const contractType = formData.contract_type || 'spot';
+
+  const editSideOptions = useMemo(() =>
+    contractType === 'spot'
+      ? [
+          { value: 'BUY', label: 'BUY', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
+          { value: 'SELL', label: 'SELL', activeClass: 'bg-red-500 text-white border-red-500' },
+        ]
+      : [
+          { value: 'LONG', label: 'LONG', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
+          { value: 'SHORT', label: 'SHORT', activeClass: 'bg-red-500 text-white border-red-500' },
+        ],
+    [contractType]
+  );
+
+  if (!showModal || !order) return null;
 
   return (
     <ModalShell open={showModal} onClose={onClose} title={"Edit Order #" + (order?.order_id || '')} closeOnBackdrop={false} backdropClassName="bg-black/50 backdrop-blur-sm" zIndex={110}>
@@ -104,11 +134,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
           <div>
             <label className="block text-xs font-bold uppercase text-slate mb-1">Contract Type</label>
             <ToggleBtn
-              options={[
-                { value: 'spot', label: 'Spot', activeClass: 'bg-indigo-600 text-white border-indigo-600' },
-                { value: 'future', label: 'Future', activeClass: 'bg-blue-600 text-white border-blue-600' },
-                { value: 'option', label: 'Option', activeClass: 'bg-purple-600 text-white border-purple-600' },
-              ]}
+              options={EDIT_CONTRACT_OPTS}
               value={contractType}
               onChange={(v) => onChange('contract_type', v)}
             />
@@ -130,17 +156,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             <div className="flex-1">
               <label className="block text-xs font-bold uppercase text-slate mb-1">Side</label>
               <ToggleBtn
-                options={
-                  contractType === 'spot'
-                    ? [
-                        { value: 'BUY', label: 'BUY', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
-                        { value: 'SELL', label: 'SELL', activeClass: 'bg-red-500 text-white border-red-500' },
-                      ]
-                    : [
-                        { value: 'LONG', label: 'LONG', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
-                        { value: 'SHORT', label: 'SHORT', activeClass: 'bg-red-500 text-white border-red-500' },
-                      ]
-                }
+                options={editSideOptions as any}
                 value={formData.side || (contractType === 'spot' ? 'BUY' : 'LONG')}
                 onChange={(v) => onChange('side', v)}
               />
@@ -149,10 +165,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
               <div className="flex-1">
                 <label className="block text-xs font-bold uppercase text-slate mb-1">Option Type</label>
                 <ToggleBtn
-                  options={[
-                    { value: 'Call', label: 'CALL', activeClass: `${buttonTheme.optionType.Call.bg} ${buttonTheme.optionType.Call.text} ${buttonTheme.optionType.Call.border}` },
-                    { value: 'Put', label: 'PUT', activeClass: `${buttonTheme.optionType.Put.bg} ${buttonTheme.optionType.Put.text} ${buttonTheme.optionType.Put.border}` },
-                  ]}
+                  options={EDIT_OPTION_TYPE_OPTS}
                   value={formData.option_type || ''}
                   onChange={(v) => onChange('option_type', v)}
                 />
@@ -242,10 +255,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             <div className="flex-1">
               <label className="block text-xs font-bold uppercase text-slate mb-1">Status</label>
               <ToggleBtn
-                options={[
-                  { value: 'FILLED', label: 'FILLED', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
-                  { value: 'PENDING', label: 'PENDING', activeClass: 'bg-amber-400 text-white border-amber-400' },
-                ]}
+                options={EDIT_STATUS_OPTS}
                 value={formData.order_status || 'FILLED'}
                 onChange={(v) => onChange('order_status', v)}
               />
