@@ -94,16 +94,16 @@ function PortfolioCard({
         </p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 mb-7">
-        <div className="p-4 bg-canvas rounded-xl shadow-sm">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-7">
+        <div className="p-4 bg-canvas rounded-xl shadow-sm card-hover">
           <p className="text-[9px] text-slate font-bold uppercase tracking-wide mb-1">Lock</p>
           <p className="text-base font-bold text-ink m-0">{fmtAmount(p.margin, currency)}</p>
         </div>
-        <div className="p-4 bg-canvas rounded-xl shadow-sm">
+        <div className="p-4 bg-canvas rounded-xl shadow-sm card-hover">
           <p className="text-[9px] text-slate font-bold uppercase tracking-wide mb-1">Buffer</p>
           <p className="text-base font-bold text-ink m-0">{fmtAmount(p.buffer, currency)}</p>
         </div>
-        <div className="p-4 bg-canvas rounded-xl shadow-sm">
+        <div className="p-4 bg-canvas rounded-xl shadow-sm card-hover">
           <p className="text-[9px] text-slate font-bold uppercase tracking-wide mb-1">Money Market</p>
           <p className="text-base font-bold text-ink m-0">{fmtAmount(p.money_market, currency)}</p>
         </div>
@@ -202,7 +202,7 @@ export default function PortfolioOverview() {
 
       <section className="mb-6 animate-fade-up stagger-1">
         <div className="bg-teal-light border border-hairline/30 rounded-[28px] p-10 shadow-sm">
-          <div className="grid grid-cols-[1fr_2fr] gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-6 md:gap-8">
             <div>
               <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mb-2">Asset total</p>
               <h1 className="text-4xl font-bold text-ink tracking-tight mb-4">
@@ -215,7 +215,7 @@ export default function PortfolioOverview() {
             </div>
             <div>
               <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mb-4">Cash (overall) breakdown</p>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                 <div className="p-4 bg-canvas rounded-xl border border-hairline/50">
                   <p className="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Lock</p>
                   <p className="text-2xl font-bold text-ink m-0">{fmtAmount(margin, currency)}</p>
@@ -238,8 +238,8 @@ export default function PortfolioOverview() {
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-6 mb-6">
-        <div className="bg-canvas border border-hairline rounded-[28px] p-8 shadow-sm animate-fade-up stagger-2">
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="bg-canvas border border-hairline rounded-[28px] p-8 shadow-sm card-hover animate-fade-up stagger-2">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-sm font-bold text-ink uppercase tracking-widest m-0">
               Pool Health Index
@@ -273,7 +273,7 @@ export default function PortfolioOverview() {
           </div>
         </div>
 
-        <div className="bg-canvas border border-hairline rounded-[28px] p-8 shadow-sm animate-fade-up stagger-3">
+        <div className="bg-canvas border border-hairline rounded-[28px] p-8 shadow-sm card-hover animate-fade-up stagger-3">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-sm font-bold text-ink uppercase tracking-widest m-0">
               Money Reserve Status

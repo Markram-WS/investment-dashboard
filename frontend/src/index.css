@@ -372,6 +372,13 @@ body {
   }
 }
 
+/* Easing curves */
+:root {
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* ===== Design Spec Animations ===== */
 
 /* Pulse animation for Available cash card */
@@ -447,12 +454,54 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Modal entrance */
+@keyframes modalBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modalContentIn {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Toast slide */
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes toastSlideOut {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(100%); }
+}
+
+/* Mobile menu slide */
+@keyframes menuSlideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Nav icon hover */
 .nav-icon-hover {
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s ease;
 }
 .nav-icon-hover:hover {
   transform: scale(1.12);
+}
+
+/* Mobile touch targets min 44px */
+@media (pointer: coarse) {
+  button, a, input, select, textarea, [role="button"], .btn-like {
+    min-height: 44px;
+  }
+  .nav-link, button.nav-link {
+    min-height: 36px;
+  }
+}
+
+/* Table horizontal scroll on small screens */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Focus-visible for accessibility */
@@ -475,4 +524,21 @@ a:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Animation classes */
+.animate-modal-backdrop {
+  animation: modalBackdropIn 200ms var(--ease-out-quart) forwards;
+}
+.animate-modal-content {
+  animation: modalContentIn 250ms var(--ease-out-quart) forwards;
+}
+.animate-toast-in {
+  animation: toastSlideIn 300ms var(--ease-out-quint) forwards;
+}
+.animate-toast-out {
+  animation: toastSlideOut 200ms var(--ease-out-quart) forwards;
+}
+.animate-menu-slide {
+  animation: menuSlideDown 200ms var(--ease-out-quart) forwards;
 }

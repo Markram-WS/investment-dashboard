@@ -165,7 +165,7 @@ export default function Navigation() {
       </div>
 
       {mobileOpen && (
-        <div className="bg-canvas border-t border-hairline shadow-lg absolute top-16 left-0 right-0">
+        <div className="bg-canvas border-t border-hairline shadow-lg absolute top-16 left-0 right-0 animate-menu-slide">
           <div className="p-2">
             {NAV_ITEMS.map((item) => (
               <NavLink
@@ -189,7 +189,7 @@ export default function Navigation() {
             {portfolios.map((p) => (
               <button
                 key={p.id}
-                onClick={() => { setSelectedId(p.id); setMobileOpen(false); }}
+                onClick={() => { setSelectedId(p.id); setMobileOpen(false); navigate(`/analytics/portfolio/${p.id}`); }}
                 className="bg-none border-none px-4 py-3 text-sm text-ink flex items-center gap-2.5 w-full text-left rounded cursor-pointer hover:bg-surface"
               >
                 <IconFolder className="w-5 h-5 nav-icon-hover" />

@@ -85,7 +85,7 @@ export default function ModalShell({
 
   return (
     <div
-      className={`fixed inset-0 flex items-center justify-center ${backdropClassName}`}
+      className={`fixed inset-0 flex items-center justify-center animate-modal-backdrop ${backdropClassName}`}
       style={{ zIndex }}
       onClick={() => {
         if (closeOnBackdrop) onClose();
@@ -94,7 +94,7 @@ export default function ModalShell({
       aria-modal="true"
       aria-label={title}
     >
-      <div ref={contentRef} onClick={(e) => e.stopPropagation()}>
+      <div ref={contentRef} className="animate-modal-content" onClick={(e) => e.stopPropagation()}>
         {children}
       </div>
     </div>

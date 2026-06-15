@@ -30,7 +30,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
   let offset = 0;
 
   return (
-  <div className="col-span-12 lg:col-span-8 bg-canvas rounded-xl border border-hairline p-8 flex flex-col">
+  <div className="col-span-12 lg:col-span-8 bg-canvas rounded-xl border border-hairline p-8 flex flex-col card-hover">
     <div className="flex justify-between items-center mb-6">
       <h3 className="text-[11px] font-bold text-slate uppercase tracking-widest">Portfolio Summary</h3>
       <button onClick={onEditPortfolio} className="p-1 hover:bg-surface-soft rounded-full transition-colors" title="Edit Portfolio">

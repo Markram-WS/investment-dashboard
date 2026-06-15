@@ -152,8 +152,8 @@ export default function TransactionsPage() {
       </header>
 
       <section className="mb-6 bg-canvas border border-hairline rounded-2xl p-4 shadow-sm">
-        <div className="flex gap-4 items-center">
-          <div className="w-1/2 flex flex-col items-start">
+        <div className="flex flex-col md:flex-row gap-4 md:items-start">
+          <div className="w-full md:w-1/2 flex flex-col items-start">
             <h2 className="text-[10px] font-bold text-slate uppercase tracking-widest">Filters</h2>
             <div className="flex gap-2 mt-2 flex-wrap">
               <input type="date" value={filters.dateRange.start}
@@ -175,7 +175,7 @@ export default function TransactionsPage() {
               </select>
             </div>
           </div>
-          <div className="w-1/2 flex flex-col items-start">
+          <div className="w-full md:w-1/2 flex flex-col items-start">
             <h2 className="text-[10px] font-bold text-slate uppercase tracking-widest">New Transaction</h2>
             <div className="flex gap-2 mt-2 items-center flex-wrap">
               <select value={formFrom} onChange={(e) => setFormFrom(e.target.value)}

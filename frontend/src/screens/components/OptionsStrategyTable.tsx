@@ -81,6 +81,7 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
           <IconX className="w-5 h-5" />
         </button>
       </div>
+      <div className="table-responsive">
       <table className="w-full text-xs">
         <thead>
           <tr className="bg-surface">
@@ -206,6 +207,7 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
           <IconPlus className="w-4 h-4" />
           Add leg
         </button>
+      </div>
       </div>
     </div>
   );

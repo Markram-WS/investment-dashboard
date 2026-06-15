@@ -81,7 +81,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
       {/* Toast overlay */}
       {toast && (
-        <div className={`fixed top-20 right-6 z-[9999] w-full max-w-sm border-l-2 rounded-md px-4 py-3 shadow-2xl ${typeStyles[toast.type]}`}>
+        <div className={`fixed top-20 right-6 z-[9999] w-full max-w-sm border-l-2 rounded-md px-4 py-3 shadow-2xl animate-toast-in ${typeStyles[toast.type]}`}>
           <div className="flex items-start gap-2">
             <span className="text-sm flex-1">{toast.message}</span>
             <button onClick={dismissLatest} className="text-current opacity-50 hover:opacity-100 text-lg leading-none">&times;</button>
