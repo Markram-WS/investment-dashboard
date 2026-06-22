@@ -168,12 +168,18 @@
 - **Theme class**: `.machine-ledger` on wrapper `<div>` — overrides CSS variables for parchment/ink aesthetic
 - **Fonts**: Crimson Pro (headlines, serif), JetBrains Mono (data, monospace), Inter (body/UI), Material Symbols Outlined (icons)
 - **Color palette**: Parchment `#fff9ef` (surface), `#FDFBF7` (ledger-paper cards), `#2D3436` (ink-black text), `#636E72` (ink-grey secondary), `#181f21` (primary buttons), `#E8DFD0` (surface-highlight active), `#B2A59B` (faded-border)
-- **Card overlap**: Image on top, content below with `-mt-16` overlap. `.card-fade-top::before` pseudo-element provides `linear-gradient(transparent → #FDFBF7)` for smooth image-to-paper transition. Content has no solid background — image shows through at overlap zone.
-- **Card icons**: Lock=`inventory_2` (box), Buffer=`local_fire_department` (coal/fire), Market=`trending_up`, Avail=`monetization_on` (coin)
-- **Art assets**: Victorian industrial artwork in `frontend/public/foundry-art/` (14 images from `stitch_algorithmic_portfolio_dashboard` zip)
+- **Card overlap pattern**: Image on top (`h-64` or `h-48`), content below with `-mt-16` overlap. `.card-fade-top::before` pseudo-element provides gradient fade. Content has `bg-ml-ledger-paper` solid background + `shadow-[0_-20px_40px_-15px_rgba(0,0,0,0.15)]` for depth.
+- **Card badges**: `bg-ledger-paper/90 backdrop-blur-sm border border-ml-outline/20` background, bright green `#4ade80` / red `#f87171` for profit percentages
+- **Card icons**: Lock=`inventory_2` (box), Buffer=`local_fire_department` (coal/fire), Market=`trending_up`, Avail=`monetization_on` (coin), Steam Pressure=`settings` (gear)
+- **Art assets**: Victorian industrial artwork in `frontend/public/foundry-art/` (11 images: coal_powerplant, steel_mill, railway_station, dam_construction, food_cannery, textile_mill, nuclear_powerplant, microchip, dock, railway_worksite, victorian-station-header)
 - **Bottom nav**: Fixed, with Material Symbols (`factory`, `query_stats`, `currency_exchange`, `badge`) + `.label-mono`
 - **Reference**: `requirement/UI-game-v2/DESIGN.md`, `example-card.md`, `example-detail.md`
 - **Design tokens**: All ML colors prefixed `ml-` in Tailwind config (`ml-surface`, `ml-ledger-paper`, `ml-ink-black`, etc.)
+- **Layout**: `max-w-[1200px] mx-auto px-4 md:px-6 pt-6 pb-28` — matches PageLayout
+- **Secondary cards** (Steam Pressure, Reserve): `bg-ml-ledger-paper border border-ml-surface-container-high p-8 rounded-xl shadow-sm card-hover animate-fade-up` — matches overview page card style
+- **Factory cards**: `factory-card ornate-frame` with `h-48` image, `px-6 pb-6 space-y-6` content, ResourceBento grid without boxes
+- **Status bar**: Wax seal + italic status message, green/red based on danger state
+- **Action buttons**: `btn-secondary` with Material Symbols (`history_edu` for Log, `logout` for Extract)
 
 ## 9. Common Pitfalls
 - **Vite 5.4.21** — not Vite 8 (Vite 8 optimizer hangs on Linux/Docker)

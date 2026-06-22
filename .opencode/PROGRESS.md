@@ -48,6 +48,55 @@ Docker runs **inside a WSL2 VM** with its own IP (e.g., `172.27.249.21`). Two pr
 # PowerShell (Admin) — manual port proxy
 netsh interface portproxy add v4tov4 listenport=5173 listenaddress=0.0.0.0 connectport=5173 connectaddress=172.27.249.21
 ```
+## Feature: GamifiedDashboard — Hero Card & Layout Refinement (2026-06-22)
+
+### Overview
+Iterative UI refinement of the `/game` route (GamifiedDashboard.tsx) to match the `example-card.md` reference and overview page layout.
+
+### Changes Made
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/GamifiedDashboard.tsx` | Hero card layout restructured to match example-card.md: image on top with badges, content with `-mt-16` overlap, `.card-fade-top` gradient fade, 2×2 ledger grid without boxes |
+| `frontend/src/pages/GamifiedDashboard.tsx` | Steam Pressure + Reserve cards restyled to match overview page (`bg-ml-ledger-paper border border-ml-surface-container-high p-8 rounded-xl shadow-sm card-hover animate-fade-up`) |
+| `frontend/src/pages/GamifiedDashboard.tsx` | System Integrity renamed to Steam Pressure with `settings` icon (gear), layout matches overview Pool Health card |
+| `frontend/src/pages/GamifiedDashboard.tsx` | Central Foundry hero card: `h-64` image, `p-6 space-y-8` content, `card-fade-top` with `shadow-[0_-20px_40px_-15px_rgba(0,0,0,0.15)]` |
+| `frontend/src/pages/GamifiedDashboard.tsx` | ResourceBento stripped of box styling (no `p-4`, no `rounded-xl`, no `border`) — matches example-card.md ledger grid |
+| `frontend/src/pages/GamifiedDashboard.tsx` | Main content padding matched to PageLayout: `px-4 md:px-6 max-w-[1200px]` |
+| `frontend/src/index.css` | `.card-fade-top::before`: `top: -20px, height: 20px, linear-gradient(transparent 0%, rgba(253,251,247,.8) 20%, #FDFBF7 90%)` |
+| `frontend/src/index.css` | `.card-fade-top::after`: `height: 0` (removed groove line) |
+| `frontend/src/index.css` | Added `@keyframes spin` for gear icon animation |
+
+### Hero Card Structure (final)
+```tsx
+<section className="bg-ml-ledger-paper border border-ml-surface-container-high overflow-hidden vintage-shadow relative rounded-xl">
+  <div className="relative h-64 w-full overflow-hidden" style={{ zIndex: 0 }}>
+    <img ... />
+    <!-- badges: ID (left), profit % (right) -->
+  </div>
+  <div className="relative p-6 space-y-8 bg-ml-ledger-paper z-20 -mt-16 card-fade-top shadow-[0_-20px_40px_-15px_rgba(0,0,0,0.15)] border-t border-ml-surface-container-high">
+    <!-- Primary metric: Aggregate Capital -->
+    <!-- 2×2 ledger grid: Lock, Buffer, Market, Avail -->
+  </div>
+</section>
+```
+
+### Card Badge Style
+- Background: `bg-ledger-paper/90` with `backdrop-blur-sm border border-ml-outline/20`
+- ID text: `text-ml-ink-black`
+- Profit %: `#4ade80` (positive) / `#f87171` (negative) — bright/vivid colors
+
+### Color Tokens Used
+- `--ml-ledger-paper: #FDFBF7` (card backgrounds)
+- `--ml-surface-container-high: #ede7de` (borders)
+- `--ml-ink-black: #2D3436` (text)
+- `--ml-ink-grey: #636E72` (secondary text)
+- `--ml-primary: #181f21` (headings)
+- `--ml-secondary: #675c54` (subheadings)
+- `--ml-success: #2D5A27` (positive values / Avail)
+
+---
+
 ## Fix 3: Body overlaps sticky navbar (2026-06-06)
 
 ### Root Cause
@@ -107,4 +156,4 @@ Applied "Industrial Antiquarian" design system from `requirement/UI-game-v2` to 
 - `.headline-lg` — Crimson Pro italic, `font-size: 24px`
 
 ### HMR Note
-Vite HMR does not detect file changes on Windows mounts (`/mnt/d/`) inside WSL. Must `docker compose restart frontend` after edits.
+Vite HMR does not detect file changes on Windows mounts (`/mnt/d/`) inside WSL. Must `docker compose restart frontend` after edits. Same applies to CSS changes — `index.css` edits require a restart.

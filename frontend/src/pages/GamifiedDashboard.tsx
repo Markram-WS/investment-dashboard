@@ -52,12 +52,12 @@ function FactoryCard({ p, i }: { p: PortfolioOverviewItem; i: number }) {
       <div className="relative h-48 w-full overflow-hidden" style={{ zIndex: 0 }}>
         <img alt="Foundry Industrial Art" className="w-full h-full object-cover sepia-img" src={art} />
         {/* ID badge */}
-        <div className="absolute top-4 left-4 bg-ledger-paper/90 backdrop-blur-sm px-3 py-1 rounded-sm border border-ml-outline/20 shadow-sm">
+        <div className="absolute top-4 left-4 bg-ledger-paper/90 backdrop-blur-sm border border-ml-outline/20 px-3 py-1 rounded-sm shadow-sm">
           <span className="label-caps text-ml-ink-black">{meta.id}</span>
         </div>
         {/* Profit badge */}
-        <div className="absolute top-4 right-4 bg-ledger-paper/90 backdrop-blur-sm px-2.5 py-1 rounded-sm flex items-center gap-1.5 shadow-sm">
-          <span className="data-lg font-bold" style={{ color: profitColor(profitPct) }}>
+        <div className="absolute top-4 right-4 bg-ledger-paper/90 backdrop-blur-sm border border-ml-outline/20 px-2.5 py-1 rounded-sm flex items-center gap-1.5 shadow-sm">
+          <span className="data-lg font-bold" style={{ color: profitPct >= 0 ? "#4ade80" : "#f87171" }}>
             {profitPct >= 0 ? "+" : ""}{profitPct.toFixed(1)}%
           </span>
         </div>
@@ -125,22 +125,15 @@ function ResourceBento({ icon, label, value, align, highlight }: {
   icon: string; label: string; value: string; align?: "right"; highlight?: boolean;
 }) {
   return (
-    <div
-      className="rounded-xl flex flex-col justify-between transition-all"
-      style={{
-        background: highlight ? "rgba(45,90,39,0.06)" : "#ffffff",
-        border: `1px solid ${highlight ? "rgba(45,90,39,0.2)" : "#ede7de"}`,
-        textAlign: align === "right" ? "right" : "left",
-      }}
-    >
-      <div className={`flex items-center gap-1.5 text-ml-ink-grey/60 mb-2 ${align === "right" ? "justify-end" : ""}`}>
-        <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 0" }}>{icon}</span>
+    <div className="space-y-1" style={{ textAlign: align === "right" ? "right" : "left" }}>
+      <div className={`flex items-center gap-1.5 text-ml-ink-grey/60 ${align === "right" ? "justify-end" : ""}`}>
+        <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 0" }}>{icon}</span>
         <span className="label-mono">{label}</span>
       </div>
-      <span className={`data-lg font-bold ${highlight ? "text-ml-success" : "text-ml-ink-black"}`}
+      <p className={`data-lg font-bold ${highlight ? "text-ml-success" : "text-ml-ink-black"}`}
         style={{ fontFeatureSettings: "'tnum'" }}>
         {value}
-      </span>
+      </p>
     </div>
   );
 }
@@ -203,69 +196,101 @@ export default function GamifiedDashboard() {
       </header>
 
       {/* ── Main Content ── */}
-      <main className="flex-grow px-4 md:px-8 pt-6 pb-28 max-w-[1440px] mx-auto w-full space-y-8">
+      <main className="flex-grow px-4 md:px-6 pt-6 pb-28 max-w-[1200px] mx-auto w-full space-y-8">
 
         {/* ═══ Hero Portfolio Card ═══ */}
-        <section className="bg-ml-ledger-paper border border-ml-surface-container-high vintage-shadow relative rounded-xl">
-          {/* Artwork header — background layer */}
-          <div className="relative h-64 w-full overflow-hidden">
+        <section className="bg-ml-ledger-paper border border-ml-surface-container-high overflow-hidden vintage-shadow relative rounded-xl">
+          {/* Header Image Area */}
+          <div className="relative h-64 w-full overflow-hidden" style={{ zIndex: 0 }}>
             <img alt="Central Foundry" className="w-full h-full object-cover sepia-img"
               src="/foundry-art/victorian-station-header.png" />
-            {/* Badges floated on image */}
-            <div className="absolute top-4 left-4 bg-ledger-paper/90 backdrop-blur-sm px-3 py-1 rounded-sm shadow-sm border border-ml-outline/20">
+            <div className="absolute top-4 left-4 bg-ledger-paper/90 backdrop-blur-sm border border-ml-outline/20 px-3 py-1 rounded-sm shadow-sm">
               <span className="label-caps text-ml-ink-black">Central Foundry</span>
             </div>
-            <div className="absolute top-4 right-4 bg-ledger-paper/90 backdrop-blur-sm px-2.5 py-1 rounded-sm flex items-center gap-1.5 shadow-sm border border-ml-outline/20">
-              <span className="data-lg font-bold" style={{ color: (total_pl || 0) >= 0 ? "#2D5A27" : "#ba1a1a" }}>
+            <div className="absolute top-4 right-4 bg-ledger-paper/90 backdrop-blur-sm border border-ml-outline/20 px-2.5 py-1 rounded-sm flex items-center gap-1.5 shadow-sm">
+              <span className="data-lg font-bold" style={{ color: (total_pl || 0) >= 0 ? "#4ade80" : "#f87171" }}>
                 {(total_pl || 0) >= 0 ? "+" : ""}{((total_pl || 0) / (totalEquity - (total_pl || 0) || 1) * 100).toFixed(1)}%
               </span>
             </div>
           </div>
 
-          {/* Content — overlaid on top of image, gradient fade at overlap zone */}
-          <div className="relative px-8 pb-8 space-y-8 z-50 -mt-16 bg-ml-ledger-paper border-t border-ml-surface-container-high card-fade-top">
-            <div className="text-center space-y-3 pt-4">
+          {/* Card Content Area */}
+          <div className="relative p-6 space-y-8 bg-ml-ledger-paper z-20 -mt-16 card-fade-top shadow-[0_-20px_40px_-15px_rgba(0,0,0,0.15)] border-t border-ml-surface-container-high">
+            {/* Primary Metric */}
+            <div className="text-center space-y-2 pt-8 relative">
               <p className="label-caps text-ml-ink-grey tracking-[0.25em]">Aggregate Capital</p>
               <h3 className="data-display text-ml-ink-black tracking-tighter">{fmtAmount(totalEquity, "USD")}</h3>
             </div>
 
             <div className="h-px bg-ml-surface-container-high w-full" />
 
-            {/* Bento grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <BentoCard icon="inventory_2" label="Lock" value={fmtAmount(margin, "USD")} />
-              <BentoCard icon="local_fire_department" label="Buffer" value={fmtAmount(buffer, "USD")} />
-              <BentoCard icon="trending_up" label="Market" value={fmtAmount(money_market, "USD")} />
-              <BentoCard icon="monetization_on" label="Avail" value={fmtAmount(available_cash, "USD")} highlight />
+            {/* Ledger Grid Layout */}
+            <div className="grid grid-cols-2 gap-x-8 gap-y-8">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 text-ml-ink-grey/60">
+                  <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 0" }}>inventory_2</span>
+                  <span className="label-mono">Lock</span>
+                </div>
+                <p className="data-lg font-bold text-ml-ink-black" style={{ fontFeatureSettings: "'tnum'" }}>{fmtAmount(margin, "USD")}</p>
+              </div>
+              <div className="space-y-1 text-right">
+                <div className="flex items-center justify-end gap-1.5 text-ml-ink-grey/60">
+                  <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 0" }}>local_fire_department</span>
+                  <span className="label-mono">Buffer</span>
+                </div>
+                <p className="data-lg font-bold text-ml-ink-black text-right" style={{ fontFeatureSettings: "'tnum'" }}>{fmtAmount(buffer, "USD")}</p>
+              </div>
+              <div className="space-y-1 border-t border-ml-surface-container-high pt-6">
+                <div className="flex items-center gap-1.5 text-ml-ink-grey/60">
+                  <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 0" }}>trending_up</span>
+                  <span className="label-mono">Market</span>
+                </div>
+                <p className="data-lg font-bold text-ml-ink-black" style={{ fontFeatureSettings: "'tnum'" }}>{fmtAmount(money_market, "USD")}</p>
+              </div>
+              <div className="space-y-1 border-t border-ml-surface-container-high pt-6 text-right">
+                <div className="flex items-center justify-end gap-1.5 text-ml-ink-grey/60">
+                  <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 0" }}>monetization_on</span>
+                  <span className="label-mono">Avail</span>
+                </div>
+                <p className="data-lg font-bold text-ml-success text-right" style={{ fontFeatureSettings: "'tnum'" }}>{fmtAmount(available_cash, "USD")}</p>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* ═══ Foundry Status + Coal Reserve ═══ */}
+        {/* ═══ Steam Pressure + Reserve ═══ */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* System Integrity */}
-          <div className="bg-ml-surface-container-low border border-ml-surface-container-high p-6 rounded-xl">
-            <div className="flex items-center gap-4">
-              <div className="bg-ml-ledger-paper p-3 rounded-xl border border-ml-surface-container-high shadow-sm">
-                <span className="material-symbols-outlined text-ml-ink-black text-2xl"
-                  style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
-              </div>
-              <div>
-                <h5 className="headline-sm text-ml-primary italic font-semibold">System Integrity</h5>
-                <p className="data-lg text-ml-secondary">
-                  Foundry status: <span className="text-ml-primary font-bold">{gaugePercent}% efficiency</span> · OPERATIONAL
-                </p>
-              </div>
+          {/* Steam Pressure */}
+          <div className="bg-ml-ledger-paper border border-ml-surface-container-high p-8 rounded-xl shadow-sm card-hover animate-fade-up stagger-2">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="headline-sm text-ml-primary italic font-semibold flex items-center gap-2">
+                <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>settings</span>
+                Steam Pressure
+              </h3>
+              <span className="label-caps px-3 py-1 rounded-full"
+                style={{
+                  background: gaugePercent >= 70 ? "rgba(45,90,39,0.12)" : gaugePercent >= 40 ? "rgba(184,134,11,0.12)" : "rgba(186,26,26,0.12)",
+                  color: gaugePercent >= 70 ? "#2D5A27" : gaugePercent >= 40 ? "#B8860B" : "#ba1a1a",
+                }}>
+                ● {gaugePercent >= 70 ? "Optimal" : gaugePercent >= 40 ? "Monitoring" : "Critical"}
+              </span>
+            </div>
+            <div className="flex flex-col items-center">
+              <p className="data-display text-ml-ink-black m-0">{gaugePercent}%</p>
+              <p className="label-caps text-ml-ink-grey mt-2">Pressure</p>
+              <p className="mt-6 text-sm text-center px-4 leading-relaxed font-body" style={{ color: "#636E72" }}>
+                Boiler efficiency at {gaugePercent}%. {gaugePercent < 40 ? "Feed more coal urgently!" : gaugePercent < 70 ? "Monitor steam levels." : "Engines at full power."}
+              </p>
             </div>
           </div>
 
-          {/* Coal Reserve */}
-          <div className="bg-ml-ledger-paper border border-ml-surface-container-high p-6 rounded-xl vintage-shadow">
-            <div className="flex items-center justify-between mb-6">
-              <h5 className="headline-sm text-ml-primary italic font-semibold flex items-center gap-2">
+          {/* Reserve */}
+          <div className="bg-ml-ledger-paper border border-ml-surface-container-high p-8 rounded-xl shadow-sm card-hover animate-fade-up stagger-3">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="headline-sm text-ml-primary italic font-semibold flex items-center gap-2">
                 <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 0" }}>inventory_2</span>
-                Coal Reserve
-              </h5>
+                Reserve
+              </h3>
               <span className="label-caps px-3 py-1 rounded-full"
                 style={{
                   background: !isReserveDanger ? "rgba(45,90,39,0.12)" : "rgba(186,26,26,0.12)",
@@ -296,51 +321,6 @@ export default function GamifiedDashboard() {
             </div>
           </div>
         </div>
-
-        {/* ═══ Steam Pressure Gauge ═══ */}
-        <section className="bg-ml-ledger-paper border border-ml-surface-container-high p-8 rounded-xl vintage-shadow">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="headline-sm text-ml-primary italic font-semibold flex items-center gap-2">
-              <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 0" }}>speed</span>
-              Steam Pressure
-            </h3>
-            <span className="label-caps px-3 py-1 rounded-full"
-              style={{
-                background: gaugePercent >= 70 ? "rgba(45,90,39,0.12)" : gaugePercent >= 40 ? "rgba(184,134,11,0.12)" : "rgba(186,26,26,0.12)",
-                color: gaugePercent >= 70 ? "#2D5A27" : gaugePercent >= 40 ? "#B8860B" : "#ba1a1a",
-              }}>
-              ● {gaugePercent >= 70 ? "Optimal" : gaugePercent >= 40 ? "Monitoring" : "Critical"}
-            </span>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="relative w-56 h-28 overflow-hidden">
-              <svg width="224" height="224" viewBox="0 0 100 100">
-                <path d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent" stroke="#ede7de" strokeWidth="12" />
-                <path
-                  d="M 10 50 A 40 40 0 0 1 90 50" fill="transparent"
-                  stroke={gaugePercent >= 70 ? "#2D5A27" : gaugePercent >= 40 ? "#B8860B" : "#ba1a1a"}
-                  strokeWidth="12" strokeDasharray={gaugeCircumference} strokeDashoffset={gaugeDashoffset}
-                  className="health-gauge-path" style={{ transition: "stroke-dashoffset 1.5s ease" }}
-                />
-                <line x1="50" y1="50" x2="50" y2="18" stroke="#2D3436" strokeWidth="2" strokeLinecap="round"
-                  className="steam-needle" style={{
-                    transformOrigin: "50px 50px",
-                    transform: `rotate(${-90 + (gaugePercent / 100) * 180}deg)`,
-                    transition: "transform 1.5s ease",
-                  }} />
-                <circle cx="50" cy="50" r="5" fill="#675c54" />
-                <circle cx="50" cy="50" r="2.5" fill="#ede7de" />
-              </svg>
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-center">
-                <p className="data-display text-ml-ink-black m-0" style={{ fontSize: "36px" }}>{gaugePercent}%</p>
-                <p className="label-caps text-ml-ink-grey m-0">Pressure</p>
-              </div>
-            </div>
-            <p className="mt-8 text-sm text-center px-8 leading-relaxed font-body" style={{ color: "#636E72" }}>
-              Boiler efficiency at {gaugePercent}%. {gaugePercent < 40 ? "Feed more coal urgently!" : gaugePercent < 70 ? "Monitor steam levels." : "Engines at full power."}
-            </p>
-          </div>
-        </section>
 
         {/* ═══ Factory Cards ═══ */}
         <section>
@@ -403,24 +383,3 @@ export default function GamifiedDashboard() {
   );
 }
 
-function BentoCard({ icon, label, value, highlight }: { icon: string; label: string; value: string; highlight?: boolean }) {
-  return (
-    <div
-      className="p-5 rounded-xl flex flex-col justify-between transition-all"
-      style={{
-        background: highlight ? "rgba(45,90,39,0.06)" : "#ffffff",
-        border: `1px solid ${highlight ? "rgba(45,90,39,0.2)" : "#ede7de"}`,
-      }}
-    >
-      <div className="flex justify-between items-start mb-3">
-        <span className="label-mono text-ml-ink-grey uppercase tracking-widest">{label}</span>
-        <span className="material-symbols-outlined text-lg"
-          style={{ color: "rgba(99,110,114,0.5)", fontVariationSettings: "'FILL' 0" }}>{icon}</span>
-      </div>
-      <span className={`data-lg font-bold ${highlight ? "text-ml-success" : "text-ml-ink-black"}`}
-        style={{ fontFeatureSettings: "'tnum'" }}>
-        {value}
-      </span>
-    </div>
-  );
-}

@@ -951,6 +951,12 @@ a:focus-visible {
   animation: smokeDrift 3s ease-out infinite;
 }
 
+/* ML Gear spin */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* ML Trend line draw */
 .trend-line {
   stroke-dasharray: 1000;
