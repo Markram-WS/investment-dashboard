@@ -59,3 +59,52 @@ netsh interface portproxy add v4tov4 listenport=5173 listenaddress=0.0.0.0 conne
 | `frontend/src/App.tsx` | `<Navigation /><Routes>...` | `<Navigation /><main className="pt-16"><Routes>...</Routes></main>` |
 
 `pt-16` = 4rem = navbar height. Content now starts below the sticky navbar.
+
+---
+
+## Feature: Machine Ledger Gamified Dashboard (2026-06-22)
+
+### Overview
+Applied "Industrial Antiquarian" design system from `requirement/UI-game-v2` to the `/game` route (`GamifiedDashboard.tsx`). Parchment/ink-on-paper aesthetic with CCG-style card overlap.
+
+### Design Reference
+- `requirement/UI-game-v2/DESIGN.md` — Machine Ledger design tokens
+- `requirement/UI-game-v2/example-card.md` — CCG card HTML reference
+- `requirement/UI-game-v2/example-detail.md` — Detail page HTML reference
+- `requirement/UI-game-v2/stitch_algorithmic_portfolio_dashboard/` — Extracted art assets (both zips)
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `frontend/index.html` | Added Crimson Pro, JetBrains Mono, Inter, Material Symbols Outlined fonts |
+| `frontend/tailwind.config.js` | Added all ML color tokens (`ml-*`), ML border radii, ML font families |
+| `frontend/src/index.css` | Added `.machine-ledger` theme, typography utilities, `.card-fade-top`, `.card-overlap-shadow`, animations |
+| `frontend/src/pages/GamifiedDashboard.tsx` | Complete retheme: parchment cards, bento grid, CCG factory cards with image/content overlap, bottom nav |
+| `frontend/public/foundry-art/` | 14 Victorian industrial artwork images copied from extracted zips |
+
+### Card Overlap Pattern
+- Image on top (full-bleed, sepia filter), content below with `-mt-16` negative margin overlap
+- `.card-fade-top::before` pseudo-element: `linear-gradient(transparent → #FDFBF7)` creates smooth 48px fade at top of content
+- Content div has **no solid background** — image shows through at overlap zone
+- `.card-overlap-shadow` provides soft depth at the junction
+
+### Icon Mapping (Material Symbols Outlined)
+| Label | Icon | Meaning |
+|-------|------|---------|
+| Lock | `inventory_2` | กล่องสินค้า (box) |
+| Buffer | `local_fire_department` | ถ่านหิน (coal/fire) |
+| Market | `trending_up` | ตลาด (market) |
+| Avail | `monetization_on` | เหรียญเงิน (coin) |
+
+### Key CSS Classes
+- `.machine-ledger` — theme wrapper, overrides CSS variables
+- `.card-fade-top` — gradient fade pseudo-element for overlap transition
+- `.card-overlap-shadow` — soft shadow at image/content junction
+- `.label-caps` — `font-size: 10px, letter-spacing: 0.2em, text-transform: uppercase`
+- `.label-mono` — JetBrains Mono, `font-size: 9px, letter-spacing: 0.1em`
+- `.data-display` — JetBrains Mono, `font-size: 48px, letter-spacing: -0.05em`
+- `.headline-lg` — Crimson Pro italic, `font-size: 24px`
+
+### HMR Note
+Vite HMR does not detect file changes on Windows mounts (`/mnt/d/`) inside WSL. Must `docker compose restart frontend` after edits.

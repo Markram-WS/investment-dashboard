@@ -517,6 +517,145 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
+/* ============================================
+   Gamification Theme — Brass 1800s Industrial
+   ============================================ */
+.gamified {
+  --color-canvas: #1C1814;
+  --color-surface: #2A2420;
+  --color-surface-soft: #302A25;
+  --color-hairline: #4A4038;
+  --color-hairline-soft: #3D352E;
+  --color-ink: #E8DCC8;
+  --color-slate: #A0947A;
+  --color-on-surface: #E8DCC8;
+  --color-on-surface-variant: #B5A88E;
+  --color-primary: #B8860B;
+  --color-on-primary: #1C1814;
+  --color-brand-yellow: #C4A96A;
+  --color-brand-teal: #2D5A27;
+  --color-brand-coral: #8B3A3A;
+  --color-brand-blue: #8B7355;
+  --color-success: #2D5A27;
+  --color-error: #8B3A3A;
+  --color-warning: #B8860B;
+  --color-accent: #C4A96A;
+  --color-teal-light: #1A2E18;
+  --color-coral-light: #2E1A1A;
+  --color-yellow-light: #2E2A18;
+  --color-outline: #6A5E4E;
+  --font-heading: 'Playfair Display', 'Georgia', serif;
+  font-family: 'Sora', system-ui, sans-serif;
+}
+.gamified .page-title,
+.gamified .section-title,
+.gamified .stat-value {
+  font-family: var(--font-heading);
+  letter-spacing: 0.01em;
+}
+.gamified .card {
+  background: #352E28;
+  border-color: #8B7355;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+.gamified .card-hover:hover {
+  box-shadow: 0 4px 20px rgba(184,134,11,0.2);
+}
+.gamified .badge-teal { background: rgba(45,90,39,0.3); color: #6BAF5E; }
+.gamified .badge-coral { background: rgba(139,58,58,0.3); color: #C47A7A; }
+.gamified .badge-yellow { background: rgba(196,169,106,0.25); color: #C4A96A; }
+.gamified .badge-neutral { background: #3D352E; color: #A0947A; }
+.gamified .nav-link.active { background: #B8860B; color: #1C1814; }
+.gamified .nav-link:hover { color: #E8DCC8; background: #3D352E; }
+
+/* ponytail: SVG smoke particles via CSS, no JS particle system */
+@keyframes smokeRise {
+  0% { opacity: 0; transform: translateY(0) scale(0.8); }
+  20% { opacity: 0.6; }
+  100% { opacity: 0; transform: translateY(-60px) scale(1.5); }
+}
+@keyframes smokeDrift {
+  0% { opacity: 0; transform: translateX(0) translateY(0) scale(0.6); }
+  30% { opacity: 0.5; }
+  100% { opacity: 0; transform: translateX(15px) translateY(-80px) scale(1.8); }
+}
+.gamified .factory-smoke .particle {
+  opacity: 0;
+}
+.gamified .factory-card:hover .factory-smoke .particle {
+  animation: smokeRise 2.5s ease-out infinite;
+}
+.gamified .factory-card:hover .factory-smoke .drift {
+  animation: smokeDrift 3s ease-out infinite;
+}
+
+/* ponytail: brass shimmer on card border, cheap but effective */
+@keyframes brassShimmer {
+  0% { border-color: #8B7355; }
+  50% { border-color: #C4A96A; box-shadow: 0 0 12px rgba(196,169,106,0.3); }
+  100% { border-color: #8B7355; }
+}
+.gamified .brass-accent {
+  border-color: #8B7355;
+  transition: border-color 0.3s ease;
+}
+
+/* Steam gauge needle */
+@keyframes needleSweep {
+  from { transform: rotate(-60deg); }
+  to { transform: rotate(60deg); }
+}
+.gamified .steam-needle {
+  animation: needleSweep 2s ease-out forwards;
+  transform-origin: 50px 50px;
+}
+
+/* Game card border with beveled corners */
+.gamified .ornate-frame {
+  position: relative;
+}
+.gamified .ornate-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 13px;
+  box-shadow:
+    0 0 0 1px #2A2420,
+    inset 0 0 0 1px rgba(74,62,50,0.4);
+  pointer-events: none;
+  z-index: 1;
+}
+.gamified .ornate-frame::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(50,42,34,0.4);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Wax seal styling */
+.gamified .wax-seal {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #8B3A3A;
+  border: 2px solid #5E2C2C;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.gamified .wax-seal::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #C4A96A;
+  position: absolute;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -541,4 +680,307 @@ a:focus-visible {
 }
 .animate-menu-slide {
   animation: menuSlideDown 200ms var(--ease-out-quart) forwards;
+}
+
+/* ============================================
+   Machine Ledger Theme — Industrial Antiquarian
+   ============================================ */
+.machine-ledger {
+  /* Surfaces */
+  --ml-surface: #fff9ef;
+  --ml-surface-dim: #dfd9d0;
+  --ml-surface-bright: #fff9ef;
+  --ml-surface-container-lowest: #ffffff;
+  --ml-surface-container-low: #f9f3e9;
+  --ml-surface-container: #f3ede3;
+  --ml-surface-container-high: #ede7de;
+  --ml-surface-container-highest: #e7e2d8;
+  /* Ink & text */
+  --ml-on-surface: #1d1b16;
+  --ml-on-surface-variant: #434749;
+  --ml-ink-black: #2D3436;
+  --ml-ink-grey: #636E72;
+  /* Primary / secondary */
+  --ml-primary: #181f21;
+  --ml-on-primary: #ffffff;
+  --ml-primary-container: #2d3436;
+  --ml-secondary: #675c54;
+  --ml-on-secondary: #ffffff;
+  --ml-secondary-container: #efe0d5;
+  /* Accents */
+  --ml-surface-highlight: #E8DFD0;
+  --ml-faded-border: #B2A59B;
+  --ml-ledger-paper: #FDFBF7;
+  --ml-parchment-base: #FCF8F3;
+  --ml-outline: #747879;
+  --ml-outline-variant: #c3c7c8;
+  --ml-error: #ba1a1a;
+  --ml-on-error: #ffffff;
+  --ml-error-container: #ffdad6;
+  --ml-success: #2D5A27;
+  --ml-warning: #B8860B;
+  /* Override app vars */
+  --color-surface: var(--ml-surface);
+  --color-canvas: var(--ml-ledger-paper);
+  --color-surface-soft: var(--ml-surface-container-low);
+  --color-hairline: var(--ml-surface-container-high);
+  --color-hairline-soft: var(--ml-surface-container);
+  --color-ink: var(--ml-on-surface);
+  --color-slate: var(--ml-ink-grey);
+  --color-on-surface: var(--ml-on-surface);
+  --color-on-surface-variant: var(--ml-on-surface-variant);
+  --color-primary: var(--ml-primary);
+  --color-on-primary: var(--ml-on-primary);
+  --color-outline: var(--ml-outline);
+  --color-success: var(--ml-success);
+  --color-error: var(--ml-error);
+  --color-warning: var(--ml-warning);
+  --font-heading: 'Crimson Pro', Georgia, serif;
+  background-color: var(--ml-surface);
+  background-image: url("https://www.transparenttextures.com/patterns/felt.png");
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--ml-on-surface);
+}
+
+/* ML Typography utilities */
+.machine-ledger .font-headline { font-family: 'Crimson Pro', Georgia, serif; }
+.machine-ledger .font-data { font-family: 'JetBrains Mono', monospace; }
+.machine-ledger .font-label { font-family: 'Inter', sans-serif; }
+
+.machine-ledger .page-title,
+.machine-ledger .section-title {
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-style: italic;
+  letter-spacing: -0.01em;
+}
+
+/* ML Card */
+.machine-ledger .card {
+  background: var(--ml-ledger-paper);
+  border: 1px solid var(--ml-surface-container-high);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.08);
+}
+
+/* Vintage shadow utility */
+.vintage-shadow {
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.08);
+}
+
+/* Sepia image filter for industrial artwork */
+.sepia-img {
+  filter: sepia(0.2) saturate(0.9) contrast(1.05);
+}
+
+/* Overlap shadow — soft lift where content meets image */
+.card-overlap-shadow {
+  box-shadow: 0 -20px 40px -15px rgba(0, 0, 0, 0.06);
+}
+
+/* Card fade top — tall fade + white groove line at overlap zone */
+.card-fade-top {
+  position: relative;
+}
+.card-fade-top::before {
+  content: '';
+  position: absolute;
+  top: -24px;
+  left: 0;
+  right: 0;
+  height: 96px;
+  background: linear-gradient(to bottom, transparent 0%, rgba(253,251,247,0.6) 40%, #FDFBF7 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+.card-fade-top::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  pointer-events: none;
+  z-index: 1;
+}
+.card-fade-top > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* ML Label styles */
+.label-caps {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.label-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ML Data display */
+.data-display {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 48px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+.data-lg {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.headline-xl {
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-style: italic;
+}
+.headline-lg {
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.headline-sm {
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* ML Button styles */
+.machine-ledger .btn-primary {
+  background: var(--ml-primary);
+  color: var(--ml-on-primary);
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-weight: 700;
+  font-size: 18px;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
+}
+.machine-ledger .btn-primary:active {
+  transform: scale(0.98);
+}
+.machine-ledger .btn-secondary {
+  background: var(--ml-ledger-paper);
+  border: 1px solid var(--ml-surface-container-high);
+  color: var(--ml-ink-black);
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
+}
+.machine-ledger .btn-secondary:active {
+  background: var(--ml-surface-container);
+}
+
+/* ML Gauge */
+.machine-ledger .health-gauge-path {
+  transition: stroke-dashoffset 1.5s cubic-bezier(0.65, 0, 0.35, 1);
+  stroke-linecap: round;
+}
+
+/* ML Wax seal */
+.machine-ledger .wax-seal {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--ml-error);
+  border: 2px solid var(--ml-on-error-container);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+}
+.machine-ledger .wax-seal::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ml-surface-highlight);
+  position: absolute;
+}
+
+/* ML Ornate frame for factory cards */
+.machine-ledger .ornate-frame {
+  position: relative;
+}
+.machine-ledger .ornate-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px var(--ml-surface-container-high),
+    inset 0 0 0 1px rgba(237, 231, 222, 0.4);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ML Smoke particles */
+@keyframes smokeRise {
+  0% { opacity: 0; transform: translateY(0) scale(0.8); }
+  20% { opacity: 0.4; }
+  100% { opacity: 0; transform: translateY(-60px) scale(1.5); }
+}
+@keyframes smokeDrift {
+  0% { opacity: 0; transform: translateX(0) translateY(0) scale(0.6); }
+  30% { opacity: 0.3; }
+  100% { opacity: 0; transform: translateX(15px) translateY(-80px) scale(1.8); }
+}
+.machine-ledger .factory-smoke .particle { opacity: 0; }
+.machine-ledger .factory-card:hover .factory-smoke .particle {
+  animation: smokeRise 2.5s ease-out infinite;
+}
+.machine-ledger .factory-card:hover .factory-smoke .drift {
+  animation: smokeDrift 3s ease-out infinite;
+}
+
+/* ML Trend line draw */
+.trend-line {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: draw 2s ease-out forwards;
+}
+@keyframes draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ML Nav active state */
+.machine-ledger .nav-link-active {
+  background: var(--ml-primary);
+  color: var(--ml-on-primary);
+  font-weight: 700;
+}
+
+/* ML Focus ring */
+.machine-ledger :focus-visible {
+  outline: 2px solid var(--ml-ink-black);
+  outline-offset: 2px;
+}
+
+/* ML Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .machine-ledger *, .machine-ledger *::before, .machine-ledger *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

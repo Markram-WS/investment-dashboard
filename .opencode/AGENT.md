@@ -94,7 +94,7 @@
 - **Vite 5.4.21** (downgraded from Vite 8 due to optimizer hang on Linux/Docker)
 - **Tailwind CSS v3.4.19** npm package (not CDN) with `darkMode: 'class'`
 - **Dark mode**: `.dark` class on `<html>` toggles all CSS variables; ThemeToggle with localStorage + anti-flash script
-- **Font**: Sora (Google Fonts) replaces Inter + Plus Jakarta Sans
+- **Font**: Sora (Google Fonts) replaces Inter + Plus Jakarta Sans. **Machine Ledger page** (`/game`) additionally loads Crimson Pro (serif), JetBrains Mono (monospace), Inter (sans-serif), and Material Symbols Outlined (icons) via Google Fonts.
 - **Notification system**: `NotificationContext` — `notify(msg, type)` centralizes all toasts. `NotificationBell` in navbar with unread badge + dropdown history panel. Persisted to localStorage. Auto-dismiss 3s. ToastAlert inline in context (not separate component), positioned `right-6`.
 - **PageLayout component**: `max-w-[1200px] mx-auto px-6 py-10` shared container used by PortfolioOverview, TransactionsPage, AllAssets, RiskAnalytics — single change point for layout.
 - **TransactionsPage redesign**: Unified inline form (From/To dropdowns) replaces 3 separate Deposit/Withdraw/Transfer modals. Table uses From/To columns instead of single Flow column. Always-visible form (no toggle). Same-port and deposit-vs-withdraw conflicts enforced in dropdowns. Filters and New Transaction in same row (50/50).
@@ -163,6 +163,17 @@
 - **Font**: Sora replaces Inter + Plus Jakarta Sans
 - **Anti-pattern fixes**: 254 → 35 inline styles; `side-tab` → `border-l-2`; `btn-primary`/`btn-ghost` CSS classes removed (use `<Button variant="primary">`)
 - **Cash field order**: Lock → Buffer → Money Market → Available
+
+### Machine Ledger Theme (`/game` route)
+- **Theme class**: `.machine-ledger` on wrapper `<div>` — overrides CSS variables for parchment/ink aesthetic
+- **Fonts**: Crimson Pro (headlines, serif), JetBrains Mono (data, monospace), Inter (body/UI), Material Symbols Outlined (icons)
+- **Color palette**: Parchment `#fff9ef` (surface), `#FDFBF7` (ledger-paper cards), `#2D3436` (ink-black text), `#636E72` (ink-grey secondary), `#181f21` (primary buttons), `#E8DFD0` (surface-highlight active), `#B2A59B` (faded-border)
+- **Card overlap**: Image on top, content below with `-mt-16` overlap. `.card-fade-top::before` pseudo-element provides `linear-gradient(transparent → #FDFBF7)` for smooth image-to-paper transition. Content has no solid background — image shows through at overlap zone.
+- **Card icons**: Lock=`inventory_2` (box), Buffer=`local_fire_department` (coal/fire), Market=`trending_up`, Avail=`monetization_on` (coin)
+- **Art assets**: Victorian industrial artwork in `frontend/public/foundry-art/` (14 images from `stitch_algorithmic_portfolio_dashboard` zip)
+- **Bottom nav**: Fixed, with Material Symbols (`factory`, `query_stats`, `currency_exchange`, `badge`) + `.label-mono`
+- **Reference**: `requirement/UI-game-v2/DESIGN.md`, `example-card.md`, `example-detail.md`
+- **Design tokens**: All ML colors prefixed `ml-` in Tailwind config (`ml-surface`, `ml-ledger-paper`, `ml-ink-black`, etc.)
 
 ## 9. Common Pitfalls
 - **Vite 5.4.21** — not Vite 8 (Vite 8 optimizer hangs on Linux/Docker)

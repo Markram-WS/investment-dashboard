@@ -17,6 +17,7 @@ const PortfolioMutualFund = lazy(() => import('./screens/PortfolioMutualFund'));
 const PortfolioGrid = lazy(() => import('./screens/PortfolioGrid'));
 const AllAssets = lazy(() => import('./pages/AllAssets'));
 const RiskAnalytics = lazy(() => import('./pages/RiskAnalytics'));
+const GamifiedDashboard = lazy(() => import('./pages/GamifiedDashboard'));
 
 const queryClient = new QueryClient();
 
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/managed-fund/:portfolioId" element={<PortfolioMutualFund />} />
             <Route path="/all-assets" element={<AllAssets />} />
             <Route path="/risk-analytics" element={<RiskAnalytics />} />
+            <Route path="/game" element={<GamifiedDashboard />} />
           </Route>
         </Routes>
         </Suspense>
