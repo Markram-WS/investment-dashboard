@@ -6,20 +6,20 @@ import { fmtAmount } from "../utils/format";
 
 /* ─── Foundry art assets (from stitch_algorithmic_portfolio_dashboard zip) ─── */
 const FOUNDRY_ART = [
-  "/foundry-art/coal_station_1.png",
-  "/foundry-art/coal_station_2.png",
-  "/foundry-art/coal_power_plant.png",
+  "/foundry-art/coal_powerplant.png",
+  "/foundry-art/steel_mill.png",
+  "/foundry-art/railway_station.png",
   "/foundry-art/dam_construction.png",
   "/foundry-art/food_cannery.png",
-  "/foundry-art/railway_construction.png",
+  "/foundry-art/textile_mill.png",
 ];
 const FOUNDRY_META = [
-  { id: "TG-082", icon: "precision_manufacturing", title: "Test Grid", desc: "Heavy casting" },
-  { id: "IW-441", icon: "settings_suggest", title: "Ironworks", desc: "Metal smelting" },
   { id: "CP-003", icon: "factory", title: "Coal Plant", desc: "Steam turbine" },
+  { id: "SM-101", icon: "hardware", title: "Steel Mill", desc: "Blast furnace" },
+  { id: "RW-055", icon: "train", title: "Railway", desc: "Locomotive hub" },
   { id: "DC-117", icon: "water", title: "Dam Works", desc: "Hydro power" },
   { id: "FC-029", icon: "restaurant", title: "Cannery", desc: "Food processing" },
-  { id: "RC-055", icon: "train", title: "Railway", desc: "Locomotive hub" },
+  { id: "TM-077", icon: "widgets", title: "Textile Mill", desc: "Loom works" },
 ];
 
 function pickFoundry(i: number) {
@@ -223,7 +223,6 @@ export default function GamifiedDashboard() {
 
           {/* Content — gradient fade at top for smooth image→paper transition */}
           <div className="relative px-8 pb-8 space-y-8 z-10 -mt-16 border-t border-ml-surface-container-high card-fade-top">
-            {/* Aggregate Capital */}
             <div className="text-center space-y-3 pt-4">
               <p className="label-caps text-ml-ink-grey tracking-[0.25em]">Aggregate Capital</p>
               <h3 className="data-display text-ml-ink-black tracking-tighter">{fmtAmount(totalEquity, "USD")}</h3>
