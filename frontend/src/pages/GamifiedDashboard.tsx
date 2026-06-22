@@ -126,7 +126,7 @@ function ResourceBento({ icon, label, value, align, highlight }: {
 }) {
   return (
     <div
-      className="p-4 rounded-xl flex flex-col justify-between transition-all"
+      className="rounded-xl flex flex-col justify-between transition-all"
       style={{
         background: highlight ? "rgba(45,90,39,0.06)" : "#ffffff",
         border: `1px solid ${highlight ? "rgba(45,90,39,0.2)" : "#ede7de"}`,
