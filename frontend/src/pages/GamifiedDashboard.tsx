@@ -206,14 +206,12 @@ export default function GamifiedDashboard() {
       <main className="flex-grow px-4 md:px-8 pt-6 pb-28 max-w-[1440px] mx-auto w-full space-y-8">
 
         {/* ═══ Hero Portfolio Card ═══ */}
-        <section className="bg-ml-ledger-paper border border-ml-surface-container-high overflow-hidden vintage-shadow relative rounded-xl">
+        <section className="bg-ml-ledger-paper border border-ml-surface-container-high vintage-shadow relative rounded-xl">
           {/* Artwork header — background layer */}
-          <div className="absolute inset-0 w-full h-64 overflow-hidden" style={{ zIndex: 0 }}>
+          <div className="relative h-64 w-full overflow-hidden">
             <img alt="Central Foundry" className="w-full h-full object-cover sepia-img"
               src="/foundry-art/victorian-station-header.png" />
-          </div>
-          {/* Badges floated on image area */}
-          <div className="relative h-64" style={{ zIndex: 1 }}>
+            {/* Badges floated on image */}
             <div className="absolute top-4 left-4 bg-ledger-paper/90 backdrop-blur-sm px-3 py-1 rounded-sm shadow-sm border border-ml-outline/20">
               <span className="label-caps text-ml-ink-black">Central Foundry</span>
             </div>
@@ -225,7 +223,7 @@ export default function GamifiedDashboard() {
           </div>
 
           {/* Content — overlaid on top of image, gradient fade at overlap zone */}
-          <div className="relative px-8 pb-8 space-y-8 z-10 -mt-16 border-t border-ml-surface-container-high card-fade-top">
+          <div className="relative px-8 pb-8 space-y-8 z-50 -mt-16 bg-ml-ledger-paper border-t border-ml-surface-container-high card-fade-top">
             <div className="text-center space-y-3 pt-4">
               <p className="label-caps text-ml-ink-grey tracking-[0.25em]">Aggregate Capital</p>
               <h3 className="data-display text-ml-ink-black tracking-tighter">{fmtAmount(totalEquity, "USD")}</h3>
