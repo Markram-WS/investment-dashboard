@@ -14,6 +14,7 @@ import {
   IconX,
   IconPlus,
 } from "./icons";
+import AccentMenu from "./AccentMenu";
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
 
@@ -66,7 +67,7 @@ export default function Navigation() {
   }, [portfolioOpen, portfoliosDropdownOpen, handleOutsideClick]);
 
   useEffect(() => {
-    const onResize = () => { if (window.innerWidth >= 768) setMobileOpen(false); };
+    const onResize = () => { if (window.innerWidth >= 1024) setMobileOpen(false); };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
@@ -90,14 +91,14 @@ export default function Navigation() {
           </NavLink>
         </div>
 
-        <div className="hidden md:flex items-center gap-px mx-auto">
+        <div className="hidden lg:flex items-center gap-px mx-auto">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               style={({ isActive }) => ({
                 background: isActive ? 'var(--color-primary)' : 'transparent',
-                color: isActive ? '#fff' : 'var(--color-slate)',
+                color: isActive ? 'var(--color-on-primary)' : 'var(--color-slate)',
               })}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium no-underline transition-colors"
               end
@@ -118,24 +119,36 @@ export default function Navigation() {
             </button>
 
             {portfoliosDropdownOpen && (
-              <div className="absolute left-0 mt-1 w-50 bg-canvas border border-hairline rounded-xl shadow-lg overflow-hidden z-10">
-                {portfolios.map((p) => {
-                  const pl = plMap.get(p.id) ?? 0;
-                  const dotColor = pl > 0 ? 'bg-emerald-500' : pl < 0 ? 'bg-red-500' : 'bg-slate/30';
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => { setSelectedId(p.id); setPortfoliosDropdownOpen(false); navigate(`/analytics/portfolio/${p.id}`); }}
-                      className="w-full px-4 py-3 text-sm font-medium text-slate bg-transparent border-none flex items-center gap-2.5 cursor-pointer hover:bg-surface"
-                    >
-                      <span className={`w-2 h-2 rounded-full inline-block ${dotColor}`} />
-                      {p.name}
-                    </button>
-                  );
-                })}
-                {portfolios.length === 0 && (
-                  <p className="px-4 py-3 text-[13px] text-slate m-0">No portfolios</p>
-                )}
+              <div className="absolute left-0 mt-1 w-52 bg-canvas border border-hairline rounded-xl shadow-lg overflow-hidden z-10">
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: "var(--color-slate)",
+                    padding: "8px 12px 4px",
+                    margin: 0,
+                  }}
+                >
+                  {portfolios.length} portfolio{portfolios.length === 1 ? "" : "s"}
+                </p>
+                <div style={{ maxHeight: "min(320px, 60vh)", overflowY: "auto" }}>
+                  {portfolios.map((p) => {
+                    const pl = plMap.get(p.id) ?? 0;
+                    const dotColor = pl > 0 ? 'bg-emerald-500' : pl < 0 ? 'bg-red-500' : 'bg-slate/30';
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => { setSelectedId(p.id); setPortfoliosDropdownOpen(false); navigate(`/analytics/portfolio/${p.id}`); }}
+                        className="w-full px-4 py-3 text-sm font-medium text-slate bg-transparent border-none flex items-center gap-2.5 cursor-pointer hover:bg-surface"
+                      >
+                        <span className={`w-2 h-2 rounded-full inline-block ${dotColor}`} />
+                        {p.name}
+                      </button>
+                    );
+                  })}
+                  {portfolios.length === 0 && (
+                    <p className="px-4 py-3 text-[13px] text-slate m-0">No portfolios</p>
+                  )}
+                </div>
                 <div className="h-px bg-hairline my-1" />
                 <div className="px-3 py-2">
                   <button
@@ -153,12 +166,13 @@ export default function Navigation() {
         <div className="flex items-center gap-2 ml-auto">
           <ThemeToggle />
           <NotificationBell />
+          <AccentMenu />
         </div>
 
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
           aria-label={mobileOpen ? "Close menu" : "Open menu"}
-          className="bg-none border-none p-2 rounded-md cursor-pointer md:hidden"
+          className="bg-none border-none p-2 rounded-md cursor-pointer lg:hidden"
         >
           {mobileOpen ? <IconX className="w-5 h-5 nav-icon-hover" /> : <IconMenu className="w-5 h-5 nav-icon-hover" />}
         </button>
@@ -178,7 +192,7 @@ export default function Navigation() {
                   <div className="px-4 py-3 rounded-md text-[15px] font-medium mb-0.5 flex items-center gap-2.5"
                     style={{
                       background: isActive ? 'var(--color-primary)' : 'transparent',
-                      color: isActive ? '#fff' : 'var(--color-ink)',
+                      color: isActive ? 'var(--color-on-primary)' : 'var(--color-ink)',
                     }}>
                     <item.Icon className="w-5 h-5 nav-icon-hover" />
                     {item.name}
