@@ -113,6 +113,9 @@ done
 echo "==> Applying kustomize overlay deploy/overlays/kind"
 kubectl apply -k deploy/overlays/kind
 
+echo "==> Restarting workloads so the freshly built images are used"
+kubectl -n investment-dashboard rollout restart deployment/backend deployment/frontend
+
 echo "==> Waiting for postgres-main"
 kubectl -n investment-dashboard wait --for=condition=Ready pod/postgres-main-0 --timeout=180s
 
