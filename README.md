@@ -8,7 +8,7 @@ Full-stack portfolio management system with real-time analytics, options strateg
 |-------|------|
 | **Frontend** | React 18 + TypeScript + Vite 5.4.21 + Tailwind CSS 3.4.19 |
 | **Backend** | FastAPI + SQLAlchemy 2.0 (async) + PostgreSQL |
-| **Container** | Docker Compose with bridge networking |
+| **Deployment** | Kubernetes (kustomize) |
 | **Styling** | Tailwind CSS (npm), dark mode via CSS variables |
 | **Drag & Drop** | react-dnd + react-dnd-html5-backend |
 | **Password Encryption** | Fernet (cryptography library, `FERNET_KEY` env var) |
@@ -17,23 +17,25 @@ Full-stack portfolio management system with real-time analytics, options strateg
 
 ```bash
 # From project root
-docker compose up -d
+cp deploy/base/secrets.env.example deploy/base/secrets.env
+# edit deploy/base/secrets.env with real values
 
-# Frontend dev mode (with HMR)
-cd frontend && npm run dev
+./scripts/kind-up.sh
 
-# Backend API
-curl http://localhost:8000/health
+# UI
+open http://localhost:8080
 ```
+
+The dev cluster runs on podman via kind. Tear it down with `./scripts/kind-down.sh`.
 
 ## Architecture
 
 ```
-Browser → localhost:5173 → Frontend (Docker, bridge network)
-                              ↓ Vite Proxy (/api/*)
-                           Backend (http://backend:8000, Docker DNS)
+Browser → frontend Service (nginx, NodePort 30080 → localhost:8080)
+                              ↓ /api/*
+                           backend Service (:8000)
                               ↓
-                           PostgreSQL (Main :5432, AI :5433)
+                           PostgreSQL (main, ai)
                               ↓
                            External DBs (Custom Portfolios)
 ```
@@ -62,22 +64,21 @@ Custom Portfolios use **isolated external PostgreSQL databases** configured by t
 ```
 InvestmentDashboard/
 ├── frontend/           # React + TypeScript + Vite
-│   ├── src/
+│   ├── src/                # Sources; Vitest tests live beside them (*.test.tsx)
 │   │   ├── components/     # Navigation, NotificationBell, ThemeToggle, icons
 │   │   ├── contexts/       # NotificationContext
 │   │   ├── pages/          # Top-level routes
 │   │   ├── screens/        # Detail layouts + modals + sub-components
 │   │   ├── hooks/          # Custom React hooks
-│   │   ├── lib/            # API client (api.ts)
 │   │   ├── types/          # TypeScript interfaces
 │   │   ├── constants/      # Design tokens, buttonTheme
 │   │   └── utils/          # Formatting, risk helpers
-│   ├── tests/              # Vitest test suite
+│   ├── Dockerfile          # Multi-stage build, served by nginx
+│   ├── nginx.conf          # SPA fallback + /api proxy
 │   ├── tailwind.config.js
 │   └── vite.config.ts
 ├── backend/            # FastAPI
 │   ├── app/
-│   │   ├── main.py
 │   │   ├── models.py
 │   │   ├── managed_fund_models.py  # 4 Managed Fund models
 │   │   ├── custom_models.py    # FK-free models for custom DBs
@@ -88,13 +89,17 @@ InvestmentDashboard/
 │   │   └── services/           # yfinance_service.py
 │   ├── tests/
 │   ├── requirements.txt
+│   ├── requirements-dev.txt
 │   └── Dockerfile
 ├── database/           # SQL schemas
 │   ├── main_db_schema.sql
 │   ├── ai_db_schema.sql
 │   └── README.md               # Schema docs incl. custom_portfolio_connections
+├── deploy/             # Kubernetes base + kind dev overlay
+│   ├── base/                   # Environment-agnostic resources
+│   └── overlays/kind/          # Dev-only kind cluster adapter
+├── scripts/            # kind-up.sh / kind-down.sh
 ├── requirement/        # Functional specs + UI designs
-├── docker-compose.yml
 └── .opencode/          # AI agent governance
 ```
 

@@ -8,17 +8,20 @@ React + TypeScript + Vite frontend สำหรับระบบจัดกา
 frontend/
 ├── package.json              # Dependencies: React 18, Vite 5.4.21, TanStack Query, React Router, react-dnd
 ├── vite.config.ts           # Vite config + proxy /api → backend:8000; manualChunks as function
-├── Dockerfile               # Node 20 Alpine - expose 5173; npm install (not npm ci)
+├── Dockerfile               # Multi-stage: node:20-alpine build → nginx:1.27-alpine, listens on :80
+├── nginx.conf               # SPA fallback (try_files → /index.html) + /api/ proxy to backend:8000
 ├── postcss.config.js        # Tailwind CSS + Autoprefixer
 ├── tailwind.config.js       # Tailwind v3.4.19 with darkMode: 'class'; custom colors + zIndex extend
+├── vitest.config.ts         # Vitest + jsdom setup (setupTests.ts)
 ├── index.html               # Entry point with Sora font + anti-flash dark-mode script
 ├── src/
 │   ├── main.tsx             # React entry: StrictMode + QueryClientProvider
 │   ├── App.tsx              # Router + DndProvider + NotificationProvider
 │   ├── index.css            # CSS variables (light/dark), Tailwind directives, animations
 │   │
+│   ├── setupTests.ts        # Vitest setup (jsdom matchers)
 │   ├── contexts/
-│   │   └── NotificationContext.tsx   # Centralized notifications: list, inline toast overlay, localStorage, 3s auto-dismiss, right-6 position
+│   │   └── NotificationContext.tsx   # Centralized notifications: list, localStorage, 3s auto-dismiss; toasts render from this context (no standalone component), positioned right-6
 │   │
 │   ├── types/
 │   │   └── index.ts        # Shared TypeScript interfaces (portfolio, transaction, spread, fund, order)
@@ -75,7 +78,6 @@ frontend/
 │   │   ├── CloseOrderModal.tsx    # Close order form with exit price/P&L
 │   │   ├── EditOrderModal.tsx     # Order edit modal with unlink-on-save
 │   │   ├── EditPortfolioModal.tsx # Portfolio field editor + live Available Cash projection
-│   │   ├── TransferModal.tsx      # Two-step transfer (create → confirm)
 │   │   ├── ZoneEditModal.tsx      # Zone edit modal
 │   │   ├── ZoneGroupModal.tsx     # Orders Group CRUD
 │   │   └── components/
@@ -91,32 +93,23 @@ frontend/
 │   │       ├── OptionsStrategyTable.tsx # Options sandbox; uses buttonTheme; per-portfolio localStorage
 │   │       ├── TradeHistoryTable.tsx   # Collapsible closed-orders table
 │   │       ├── TradePlanView.tsx       # Trade plan markdown display
-│   │       ├── QuickStatsView.tsx      # Active pairs/positions stats
+│   │       ├── ModalShell.tsx          # Shared modal shell (overlay + panel)
+│   │       ├── TransferModal.tsx       # Two-step transfer (create → confirm)
 │   │       ├── ZoneGroupRow.tsx        # Grouped order row with drag handle + link icon
-│   │       ├── GroupCombobox.tsx       # Searchable combobox for group selection
-│   │       └── HistoricalGridView.tsx  # Historical trades accordion
+│   │       └── GroupCombobox.tsx       # Searchable combobox for group selection
 │   │
-│   └── assets/             # SVG icons
-│       ├── dashboard.svg, wallet.svg, swap.svg, security.svg
-│       ├── folder.svg, expand.svg, notifications.svg, more.svg
-│       └── hero.png, react.svg, vite.svg
+│   └── (Vitest tests are colocated with their sources: *.test.tsx)
 │
-├── public/
-│   └── vite.svg            # Custom favicon
-│
-└── tests/                  # Vitest test suite
-    ├── setupTests.ts
-    ├── simple.test.ts
-    ├── Navigation.test.tsx
-    ├── PortfolioOverview.test.tsx
-    ├── RiskAnalytics.test.tsx
-    └── PortfolioAnalytics.test.tsx
+└── public/
+    └── vite.svg            # Custom favicon
 ```
+
+Tests live beside the sources they cover (`src/components/Navigation.test.tsx`, `src/pages/PortfolioOverview.test.tsx`, `src/pages/RiskAnalytics.test.tsx`, `src/screens/PortfolioAnalytics.test.tsx`) with `src/setupTests.ts` as the Vitest setup file.
 
 ## 🛠️ Tech Stack
 
 - **Framework**: React 18 + TypeScript
-- **Build Tool**: Vite 5.4.21 (downgraded from Vite 8 due to optimizer hang on Linux/Docker)
+- **Build Tool**: Vite 5.4.21 (downgraded from Vite 8 due to optimizer hang on Linux/podman)
 - **Routing**: React Router DOM v7
 - **State/Data**: TanStack React Query v5
 - **Drag & Drop**: react-dnd + react-dnd-html5-backend
@@ -184,7 +177,7 @@ Centralized via `NotificationContext` (wraps entire app in App.tsx):
 - Types: `success` (green check), `warning` (yellow triangle), `danger` (red x)
 - Persisted to `localStorage('app_notifications')` — survives refresh
 - Per-notification dismiss, Mark all read, Clear all
-- Replaces scattered local `useState<ToastAlert>` across 4 pages
+- Toasts are rendered from `NotificationContext` itself — there is no standalone toast component
 
 ## 📊 Asset Page (AllAssets.tsx)
 
@@ -247,41 +240,41 @@ Portfolio Grid (xl:grid-cols-2)
 | `/trades` | TradePlanManager | Trade plan management |
 | `/orders` | ActiveOrders | Active orders page |
 
-## 🐳 Docker Development
+## 🚀 Production build
 
-### Network Architecture
+`frontend/Dockerfile` is a multi-stage build:
 
-```
-Browser (host)
-   ↓ http://localhost:5173
-Frontend Docker (bridge network: investment-network)
-   ↓ Vite Proxy: /api/* → http://backend:8000 (Docker DNS)
-Backend Docker (bridge network: investment-network)
-   ↓ http://backend:8000
-```
-
-### Commands
+1. `node:20-alpine` runs `npm ci && npm run build` (Vite → `dist/`).
+2. The `dist/` output is copied into an `nginx:1.27-alpine` runtime image.
+3. `frontend/nginx.conf` serves the SPA — `try_files $uri $uri/ /index.html` — and proxies `/api/` to `http://backend:8000` (the Kubernetes Service name).
+4. The image listens on port **80**. In the local kind cluster the frontend Service is a NodePort (`30080`) mapped to <http://localhost:8080>.
 
 ```bash
-# Development mode
-npm run dev
+# Build the image locally
+podman build -t investment-dashboard/frontend:dev frontend
 
-# Production build
-npm run build
+# Or bring up the whole stack (builds, loads and applies the overlay)
+./scripts/kind-up.sh
+```
 
-# Testing
-npm run test
-npm run test:ui
+### Local dev server
+
+Vite's dev server is now only for local HMR work outside the cluster:
+
+```bash
+npm run dev     # http://localhost:5173, proxies /api → BACKEND_API_BASE_URL (default http://localhost:8000)
+npm run build   # production bundle in dist/
+npm run test    # vitest run
+npm run test:ui # vitest watch mode
 ```
 
 ### Environment Variables
 
 | Variable | File | Purpose |
 |----------|------|---------|
-| `BACKEND_API_BASE_URL` | vite.config.ts / docker-compose | Proxy target: `http://backend:8000` |
-| `VITE_API_BASE_URL` | api.ts / docker-compose | `""` (empty = relative path → Vite Proxy) |
+| `BACKEND_API_BASE_URL` | vite.config.ts | Vite dev proxy target (default `http://localhost:8000`) |
 
-JS calls `/api/v1/...` (relative) → Vite dev server proxy → backend (Docker DNS: `backend:8000`).
+In the cluster no frontend env vars are needed: the browser calls `/api/v1/...` on the same origin and nginx proxies it to `http://backend:8000`.
 
 ## 🧩 Key Features
 
@@ -314,13 +307,16 @@ JS calls `/api/v1/...` (relative) → Vite dev server proxy → backend (Docker 
 ### Testing Strategy
 
 ```typescript
-// Unit tests (.test.tsx)
-- Navigation.test.tsx
-- PortfolioOverview.test.tsx
-- RiskAnalytics.test.tsx
-- PortfolioAnalytics.test.tsx
+// Unit tests (*.test.tsx), colocated with their sources
+- src/components/Navigation.test.tsx
+- src/pages/PortfolioOverview.test.tsx
+- src/pages/RiskAnalytics.test.tsx
+- src/screens/PortfolioAnalytics.test.tsx
 
-// Vitest config (via npm scripts)
+// Vitest config (vitest.config.ts)
+- environment: 'jsdom', setupFiles: ['./src/setupTests.ts']
+
+// npm scripts
 - test: "vitest run" (CI)
 - test:ui: "vitest" (watch mode)
 ```
@@ -335,4 +331,4 @@ optimizeDeps: { include: ['react', 'react-dom', ...] }
 
 ---
 
-*Last updated: 8 June 2026 (Managed Fund: 6 new modal components + PortfolioMutualFund screen with 3-section tree table + 15 API methods + auto-sync from all portfolios on AllAssets page; portfolio delete → navbar query invalidation)*
+*Last updated: 10 November 2026 (docs aligned with the nginx multi-stage production image; stale tree entries for removed components, assets and tests dropped)*

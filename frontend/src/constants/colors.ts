@@ -18,25 +18,6 @@ export const colors = {
   error: "#ba1a1a",
 };
 
-export const rounded = {
-  sm: "6px",
-  md: "8px",
-  lg: "12px",
-  xl: "16px",
-  xxl: "20px",
-  full: "9999px",
-};
-
-export const spacing = {
-  xs: "8px",
-  sm: "12px",
-  md: "16px",
-  lg: "24px",
-  xl: "32px",
-  xxl: "48px",
-  section: "64px",
-};
-
 export const EXCHANGE_RATE = 35;
 
 // === Theme color system for buttons and toggles ===

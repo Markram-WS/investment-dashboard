@@ -8,7 +8,7 @@ A FastAPI-powered backend for professional investment management, including port
 
 1. [Overview](#overview)
 2. [Prerequisites](#prerequisites)
-3. [Quick Start – Docker Compose](#quick-start--docker-compose)
+3. [Quick Start – Local Cluster](#quick-start--local-cluster)
 4. [Environment Variables](#environment-variables)
 5. [API Reference](#api-reference)
 6. [Project Structure](#project-structure)
@@ -26,7 +26,7 @@ This backend is built with:
 - **FastAPI** – modern, async REST API
 - **SQLAlchemy 2.0 (async)** – ORM & DB engine
 - **PostgreSQL** – two core databases (`investment_main`, `investment_ai`) plus user-configured external databases for Custom Portfolios
-- **Podman / Docker** – containerization
+- **Podman + kind** – image builds and the local Kubernetes dev cluster
 
 **Key additions:**
 
@@ -48,20 +48,22 @@ This backend is built with:
 
 ## Prerequisites
 
-- Podman **or** Docker
-- Podman Compose **or** Docker Compose v2+
+- Podman (rootless) with `kind` and `kubectl` for the local Kubernetes dev cluster
 - (Optional) Python 3.11+ if running locally without containers
 
 ---
 
-## Quick Start – Docker Compose
+## Quick Start – Local Cluster
+
+The backend runs as a Kubernetes Deployment in the local kind cluster created by `scripts/kind-up.sh` from the repository root.
 
 ```bash
-# 1. Enter the backend directory
-cd /mnt/d/InvestmentDashboard/backend
+# 1. From the repository root: create secrets and start the cluster
+cp deploy/base/secrets.env.example deploy/base/secrets.env   # then fill in real values
+./scripts/kind-up.sh
 
-# 2. Build & start all services
-docker compose up -d       # or: podman compose up -d
+# 2. Forward the backend Service to the host
+kubectl -n investment-dashboard port-forward svc/backend 8000:8000
 
 # 3. Verify the API is running
 curl http://localhost:8000/health
@@ -78,7 +80,7 @@ open http://localhost:8000/docs
 > `portfolios.tags` is a JSONB map of key→bool for metadata filtering.
 > `risk_score` (0–100) is computed server-side from `available_cash`, `margin_locked`, `cash_buffer_limit`.
 > Order status values are uppercase: `PENDING`, `FILLED`, `CLOSE`, `CANCELED`.
-> All services auto-restart unless stopped. Logs: `docker compose logs -f backend`.
+> The backend, frontend and both PostgreSQL instances run in the `investment-dashboard` namespace as Deployments/StatefulSets. Logs: `kubectl -n investment-dashboard logs -f deploy/backend`.
 
 ---
 
@@ -86,8 +88,8 @@ open http://localhost:8000/docs
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | `postgresql+asyncpg://dashboard:dashboard@db_main:5432/investment_main` | Main DB connection |
-| `AI_DATABASE_URL` | `postgresql+asyncpg://dashboard:dashboard@db_ai:5433/investment_ai` | AI-specific DB |
+| `DATABASE_URL` | `postgresql+asyncpg://dashboard:dashboard@localhost:5432/investment_main` | Main DB connection (the kind overlay sets it to the `postgres-main` Service) |
+| `AI_DATABASE_URL` | `postgresql+asyncpg://dashboard:dashboard@localhost:5433/investment_ai` | AI-specific DB (the kind overlay sets it to the `postgres-ai` Service) |
 | `PORT` | `8000` | HTTP port exposed by the container |
 | `FERNET_KEY` | *(required for Custom Portfolio)* | Symmetric key for encrypting DB passwords. Generate: `python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'` |
 
@@ -256,11 +258,13 @@ backend/
 │       ├── journal.py           # Decision journal
 │       ├── managed_funds.py     # Managed Fund CRUD: settings, holdings, orders, history, rebalance, sync-prices, alerts
 │       ├── rebalance.py         # Dual-mode rebalancing
-│       ├── ai_agents.py         # AI autonomy
-│       └── etl_sync.py          # ETL sync utilities
-├── tests/
-├── requirements.txt             # cryptography added for Fernet password encryption
-├── Dockerfile
+│       └── ai_agents.py         # AI autonomy
+├── tests/                       # pytest suite (collected from this directory only)
+├── pytest.ini                   # testpaths = tests
+├── requirements.txt             # runtime deps (cryptography included for Fernet password encryption)
+├── requirements-dev.txt         # dev/test deps (pytest, httpx, ...)
+├── Dockerfile                   # python:3.11-slim runtime; ARG INSTALL_DEV adds dev deps
+├── .dockerignore
 └── README.md
 ```
 
@@ -337,23 +341,38 @@ curl -X POST http://localhost:8000/api/v1/assets/1/update-price
 
 > **Tip:** Open `http://localhost:8000/docs` for interactive Swagger UI.
 
+### Automated tests
+
+`pytest` collects from `tests/` only (`testpaths = tests` in `pytest.ini`). Dev/test dependencies come from `requirements-dev.txt` and are not part of the runtime image unless it is built with `ARG INSTALL_DEV=true`.
+
+```bash
+cd backend
+pip install -r requirements.txt -r requirements-dev.txt
+pytest
+```
+
 ---
 
 ## Advanced Usage
 
-### Rebuilding the Container
+### Rebuilding the Backend Image
 
 ```bash
-cd /mnt/d/InvestmentDashboard/backend
-docker compose build --no-cache    # force full rebuild
-docker compose up -d
+# From the repository root
+podman build -t investment-dashboard/backend:dev backend
+kind load docker-image --name investment-dashboard investment-dashboard/backend:dev
+kubectl -n investment-dashboard rollout restart deploy/backend
 ```
 
-> Use `--no-cache` when crypto.py, database.py, or requirements.txt changes.
+> Use `podman build --no-cache` when crypto.py, database.py, or requirements.txt changes.
 
 ### Accessing the Database
 
 ```bash
+# Forward both Postgres Services to the host, then connect
+kubectl -n investment-dashboard port-forward svc/postgres-main 5432:5432
+kubectl -n investment-dashboard port-forward svc/postgres-ai 5433:5433
+
 # Main database
 psql -h localhost -p 5432 -U dashboard -d investment_main
 
@@ -364,9 +383,9 @@ psql -h localhost -p 5433 -U dashboard -d investment_ai
 ### Viewing Logs
 
 ```bash
-docker compose logs -f backend
-docker compose logs -f db_main
-docker compose logs -f db_ai
+kubectl -n investment-dashboard logs -f deploy/backend
+kubectl -n investment-dashboard logs -f statefulset/postgres-main
+kubectl -n investment-dashboard logs -f statefulset/postgres-ai
 ```
 
 ### Swagger UI
@@ -381,8 +400,8 @@ docker compose logs -f db_ai
 ### API Not Responding
 
 ```bash
-docker compose ps
-docker compose logs backend
+kubectl -n investment-dashboard get pods
+kubectl -n investment-dashboard logs deploy/backend
 curl http://localhost:8000/health
 ```
 
@@ -394,17 +413,17 @@ The yfinance service uses direct HTTP to Yahoo Finance. If prices return 0.0, th
 
 - Verify `FERNET_KEY` is set in the environment
 - Check `test-connection` endpoint with the same credentials
-- Ensure the external PostgreSQL accepts connections from the backend container's network
-- Check logs: `docker compose logs backend`
+- Ensure the external PostgreSQL accepts connections from the cluster pod network
+- Check logs: `kubectl -n investment-dashboard logs deploy/backend`
 
 ### Database Connection Issues
 
 ```bash
-docker compose ps
-docker compose logs db_main
-docker compose logs db_ai
+kubectl -n investment-dashboard get pods
+kubectl -n investment-dashboard logs statefulset/postgres-main
+kubectl -n investment-dashboard logs statefulset/postgres-ai
 ```
 
 ---
 
-*Last updated: 8 June 2026 (Managed Fund feature: 4 new tables + 15 API endpoints; sync-from-all endpoint; target_ratio auto-normalization; portfolio cascade deletes for managed_fund tables; navbar query invalidation on delete)*
+*Last updated: 10 November 2026 (docs aligned with the kind/podman local cluster; router list matches `backend/app/routers/`; pytest scope documented)*

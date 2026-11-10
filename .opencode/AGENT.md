@@ -1,19 +1,13 @@
-# Project Context & AI Agent Governance (Native Windows Edition)
+# Project Context & AI Agent Governance (Linux · Podman · kind Edition)
 
 ## 1. System Environment & Execution Constraints
-- **OS:** Windows 11 (Native Execution)
-- **Containerization:** Docker inside WSL (Ubuntu-26.04) — `docker compose` commands run from WSL shell
-  - WSL Docker uses bridge networking with `networks: - investment-network` for frontend
-  - Backend accessible at `http://backend:8000` via Docker DNS
-- **Port Forwarding:** Windows → WSL via `netsh interface portproxy`:
-  - `127.0.0.1:8000` → WSL_IP:8000 (backend)
-  - `127.0.0.1:5173` → WSL_IP:5173 (frontend)
-  - `127.0.0.1:5432` → WSL_IP:5432 (PostgreSQL main)
-  - Check current WSL IP with `wsl -- hostname -I`
+- **OS:** Linux workstation; repository checked out at `/mnt/storage/investment-dashboard`.
+- **Containerization:** Rootless Podman. The local dev/test cluster is a kind cluster on rootless podman, created by `scripts/kind-up.sh` (which sets `KIND_EXPERIMENTAL_PROVIDER=podman`) and deleted by `scripts/kind-down.sh`. All workloads run in the `investment-dashboard` namespace.
+- **Cluster access:** the UI is served at `http://localhost:8080`; reach the backend with `kubectl -n investment-dashboard port-forward svc/backend 8000:8000`. Windows/WSL port forwarding is no longer used.
 - **Shell Preference:** Bash-like Syntax ONLY (via Git Bash, MinGW, or equivalent).
 - **Command Constraints:** ALWAYS use `/` for paths. NEVER recommend PowerShell-specific cmdlets.
 - **Workflow:** Verify Before Done (VBD). Check if service is up after changes.
-- **Disk Space:** If backend crashes with disk full, run `docker system prune -f` inside WSL.
+- **Disk Space:** If a build fails with disk full, run `podman system prune -f`.
 
 ## 2. Coding Philosophy: SOLID & Modularization
 - **Core Principle:** Strictly follow SOLID principles.
@@ -33,16 +27,17 @@
 - **R2 (Direct Action):** Minor logic fixes and unit test updates.
 
 ## 5. Deployment & Testing
-- Run `docker compose up -d` from WSL (Ubuntu 26.04) at `D:\InvestmentDashboard` (mounted as `/mnt/d/InvestmentDashboard`).
-- Frontend has volume mount (`./frontend:/app`) for live HMR.
-- Backend has NO volume mount — code changes require `docker compose build backend --no-cache && docker compose up -d backend` inside WSL.
-- `npm install` on WSL with mounted Windows drives requires `--no-bin-links` flag.
-- Verify WSL Docker status: `wsl -- docker compose ps`.
+- **Local cluster:** `./scripts/kind-up.sh` from the repo root creates the kind cluster, builds and loads both images, applies `deploy/overlays/kind`, and waits for rollouts. Tear it down with `./scripts/kind-down.sh`.
+- **UI:** <http://localhost:8080>.
+- **Backend API from the host:** `kubectl -n investment-dashboard port-forward svc/backend 8000:8000`.
+- **Manifests:** `deploy/base` (environment-agnostic) + `deploy/overlays/kind` (dev adapter); apply them with `kubectl apply -k deploy/overlays/kind`.
+- **Production** is the existing homelab Talos cluster and is not managed from this repository.
+- **Tests:** `cd backend && pytest` (collects `tests/` only per `pytest.ini`; dev deps in `requirements-dev.txt`) and `cd frontend && npm run test`.
 
 ## 6. Architecture Overview
 
 ### Backend (FastAPI)
-- **20+ routers** in `backend/app/routers/`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `asset_groups.py`, `assets.py`, `etl_sync.py`, `journal.py`, `managed_funds.py`, `orders_groups.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py` (+ `yfinance_service.py` in services/)
+- **17 routers** in `backend/app/routers/`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `asset_groups.py`, `assets.py`, `journal.py`, `managed_funds.py`, `orders_groups.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py` (+ `yfinance_service.py` in services/)
 - **22 SQLAlchemy models**: Portfolio, CustomPortfolioConnection, TradePlan, ActiveOrder, OptionDetails, PortfolioNavHistory, SimulationModels, TradeHistory, Transaction, DecisionJournal, WhitelistAssets, Watchlist, AssetGroup, OrdersGroup, AiAgent, AiActionLog, AiAgentState, CustomTradePlan (in custom_models.py), ManagedFundHolding, ManagedFundOrder, ManagedFundOrderHistory, ManagedFundSetting (in managed_fund_models.py)
 - **Custom Portfolio** (`port_type = "Custom Portfolio"`) replaces legacy "Spread Strategy" — requires external PostgreSQL connection.
 - **Multi-DB Architecture**:
@@ -91,11 +86,11 @@
 - **Route**: `PortfolioAnalyticsDetail.tsx` routes `port_type` containing "managed" → `PortfolioMutualFund`
 
 ### Frontend (React 18 + TypeScript + Vite 5.4.21)
-- **Vite 5.4.21** (downgraded from Vite 8 due to optimizer hang on Linux/Docker)
+- **Vite 5.4.21** (downgraded from Vite 8 due to optimizer hang on Linux/podman)
 - **Tailwind CSS v3.4.19** npm package (not CDN) with `darkMode: 'class'`
 - **Dark mode**: `.dark` class on `<html>` toggles all CSS variables; ThemeToggle with localStorage + anti-flash script
 - **Font**: Sora (Google Fonts) replaces Inter + Plus Jakarta Sans
-- **Notification system**: `NotificationContext` — `notify(msg, type)` centralizes all toasts. `NotificationBell` in navbar with unread badge + dropdown history panel. Persisted to localStorage. Auto-dismiss 3s. ToastAlert inline in context (not separate component), positioned `right-6`.
+- **Notification system**: `NotificationContext` — `notify(msg, type)` centralizes all toasts. `NotificationBell` in navbar with unread badge + dropdown history panel. Persisted to localStorage. Auto-dismiss 3s. Toasts render from the context itself (no standalone component), positioned `right-6`.
 - **PageLayout component**: `max-w-[1200px] mx-auto px-6 py-10` shared container used by PortfolioOverview, TransactionsPage, AllAssets, RiskAnalytics — single change point for layout.
 - **TransactionsPage redesign**: Unified inline form (From/To dropdowns) replaces 3 separate Deposit/Withdraw/Transfer modals. Table uses From/To columns instead of single Flow column. Always-visible form (no toggle). Same-port and deposit-vs-withdraw conflicts enforced in dropdowns. Filters and New Transaction in same row (50/50).
 - **Custom Portfolio form**: `CreateNewPortfolio.tsx` has "Custom Portfolio" type with external DB connection fields (host, port, DB name, user, password) + Test Connection button
@@ -110,14 +105,14 @@
 - **DndProvider** wraps entire app in App.tsx (moved from PortfolioOverview)
 - **Inline styles**: 254 → 35 (only dynamic runtime values)
 - **Z-index 100**: custom `zIndex` extend in tailwind.config.js for navbar
-- **Docker networking**: bridge network (`investment-network`); `BACKEND_API_BASE_URL=http://backend:8000`
+- **Networking**: the production image serves the SPA from nginx and proxies `/api/` to `http://backend:8000` (in-cluster Service); Vite's dev proxy uses `BACKEND_API_BASE_URL` (default `http://localhost:8000`)
 - **`manualChunks`**: function syntax (Vite 5 compat)
 - **Button component**: 5 variants (primary/secondary/outline/danger/ghost), 3 sizes. Replaces all inline button styling.
 - **PageLayout component**: `max-w-[1200px] mx-auto px-6 py-10` shared container; used by 4 pages (PortfolioOverview, TransactionsPage, AllAssets, RiskAnalytics)
 - **TransactionsPage redesign**: Unified inline form (From/To dropdowns) replaces 3 separate modals (Deposit/Withdraw/Transfer). Table shows From/To columns instead of Flow. Filters + form in same row (50/50). Always-visible form (no toggle). Validates same-port and deposit-vs-withdraw conflicts in dropdowns.
 - **Navigation updates**: Portfolio dropdown links navigate to `/analytics/portfolio/{id}`; +Portfolio button uses `text-brand-teal` (green text, no background/border); `IconPlus` replaced with inline SVG. Each portfolio item has a colored dot: `bg-emerald-500` (green = profit), `bg-red-500` (red = loss), `bg-slate/30` (gray = zero/unknown) — P/L fetched from overview endpoint.
 - **StrategyNotes**: Internal Notes textarea focus ring changed to `focus:ring-2 focus:ring-yellow-500` to match Primary Strategy yellow theme.
-- **ToastAlert**: Now inline in `NotificationContext` (not a separate rendered component). Positioned `right-6` instead of centered. Auto-dismisses after 3s (was 5s).
+- **Toasts**: rendered inline in `NotificationContext` (no separate component). Positioned `right-6` instead of centered. Auto-dismisses after 3s (was 5s).
 
 ### Database (`database/`)
 - **Main DB** — 14 tables (added `custom_portfolio_connections`)
@@ -165,12 +160,12 @@
 - **Cash field order**: Lock → Buffer → Money Market → Available
 
 ## 9. Common Pitfalls
-- **Vite 5.4.21** — not Vite 8 (Vite 8 optimizer hangs on Linux/Docker)
-- **Docker networking** — bridge network (`investment-network`), not `network_mode: host`
+- **Vite 5.4.21** — not Vite 8 (Vite 8 optimizer hangs on Linux/podman)
+- **Networking** — the frontend nginx proxies `/api/` to the `backend` Service inside the cluster; no host networking
 - **React Hooks before early returns** — all hooks must precede any early return
 - **Number inputs**: Use local string state to avoid "delete 0" controlled-input bug
-- **Backend rebuild**: No volume mount — `docker compose build backend --no-cache && docker compose up -d backend`
-- **npm install on WSL**: needs `--no-bin-links` flag for `/mnt/d/` mounts
+- **Backend rebuild**: no volume mount — `podman build -t investment-dashboard/backend:dev backend`, then `kind load docker-image --name investment-dashboard investment-dashboard/backend:dev`, then `kubectl -n investment-dashboard rollout restart deploy/backend`
+- **Frontend dependencies**: the image build uses `npm ci` from `package-lock.json`; run `npm install` only for local dev outside the cluster
 - **yfinance**: Direct HTTP to Yahoo Finance (no yfinance library). Rate limits apply — wait and retry.
 - **FERNET_KEY required**: Custom Portfolio creation requires `FERNET_KEY` env var. Generate: `python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'`
 - **Custom DB lazy-init**: External connections are established on first API request, NOT at startup. If a custom DB is unreachable, individual portfolio endpoints return 503.
@@ -229,8 +224,8 @@
 | `database/main_db_schema.sql` | `custom_portfolio_connections` table |
 | `database/README.md` | Multi-DB schema documentation |
 
-## backend detail : D:\InvestmentDashboard\backend\README.md
-## frontend detail : D:\InvestmentDashboard\frontend\README.md
-## database : D:\InvestmentDashboard\database\README.md
-## overall detail : D:\InvestmentDashboard\README.md
-## design : DESIGN.md/
+## backend detail : backend/README.md
+## frontend detail : frontend/README.md
+## database : database/README.md
+## overall detail : README.md
+## design : DESIGN.md
