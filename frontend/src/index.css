@@ -330,6 +330,7 @@ body {
 .ledger-table {
   display: flex;
   flex-direction: column;
+  border-top: 1px solid var(--color-hairline);
 }
 
 .ledger-head,

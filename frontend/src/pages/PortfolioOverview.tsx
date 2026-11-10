@@ -301,7 +301,7 @@ export default function PortfolioOverview() {
         </div>
       </header>
 
-      <section className="mb-10">
+      <section style={{ marginBottom: "var(--space-section)" }}>
         <div className="flex flex-col min-[1024px]:flex-row min-[1024px]:items-stretch">
           <div style={{ flex: "1 1 auto", maxWidth: 360 }}>
             <p style={labelStyle}>Total equity</p>
@@ -394,7 +394,10 @@ export default function PortfolioOverview() {
       <section>
         {portfolios.length > 0 && (
           <div className="flex items-baseline justify-between gap-4 mb-3">
-            <h2 className="m-0" style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>
+            <h2
+              className="m-0"
+              style={{ fontSize: "1.25rem", lineHeight: 1.3, fontWeight: 600, color: "var(--color-ink)" }}
+            >
               Portfolios
             </h2>
             <span style={{ fontSize: 12, color: "var(--color-slate)" }}>
