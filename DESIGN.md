@@ -225,13 +225,13 @@ Flat by default, depth through tonal layering. The system uses **zero ambient sh
 Interaction states and overlays (modals, dropdowns, sticky nav) use the three-step shadow vocabulary for structural hierarchy, not decorative depth. This keeps the financial data on a single visual plane where nothing "floats" above the content.
 
 ### Shadow Vocabulary
-- **Sm** (`0 1px 2px rgba(0,0,0,0.05)`): Subtle separation for hover states on cards and buttons.
+- **Sm** (`0 1px 2px rgba(0,0,0,0.05)`): Subtle separation on legacy pages only (for example `frontend/src/pages/TransactionsPage.tsx:154`). Card hover uses Md, not Sm.
 - **Md** (`0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04)`): Dropdowns, modal containers, sticky elements.
 - **Lg** (`0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04)`): Modals, popovers, large overlays.
 
 ### Named Rules
 
-**The Flat-By-Default Rule.** Containers are flat at rest. Shadows appear only as a structural cue (dropdown lifted above the page) or a response to interaction (card hover — and only `shadow-sm`, not a larger grade).
+**The Flat-By-Default Rule.** Containers are flat at rest. Shadows appear only as a structural cue (dropdown lifted above the page) or as a response to interaction: card hover adds `--shadow-md` plus a 1px lift (`index.css:162-165`), which is the interaction grade, not a decorative drop shadow.
 
 ## 5. Components
 
@@ -242,13 +242,15 @@ Interaction states and overlays (modals, dropdowns, sticky nav) use the three-st
 - **Outline:** `border brand-teal text-brand-teal` — transparent fill. Hover gets `bg-teal-50`.
 - **Danger:** `bg-red-600 text-white` — destructive actions. Hover darkens.
 - **Ghost:** `bg-transparent text-slate border hairline` — lowest emphasis.
-- **States:** All disabled at `opacity-50 cursor-not-allowed`. All use `transition-colors`. No transform or scale on press.
-- **Sizes:** sm (10px, 12px/16px padding), md (12px, 16px/24px), lg (14px, 24px/32px).
+- **States:** Hover is per variant (`hover:bg-teal-600`, `hover:bg-surface`, `hover:bg-teal-50`, `hover:bg-red-700`, `hover:bg-surface`) at `frontend/src/screens/components/Button.tsx:14-18`. Press scales the button to 0.97 (`active:scale-[0.97]`, `Button.tsx:40`). Disabled renders at `opacity-50` with `cursor-not-allowed` and cancels the press scale (`disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100`, `Button.tsx:40`). The transition is `transition-all duration-150` (`Button.tsx:40`).
+- **Focus:** not set by the component. It inherits the global `:focus-visible` outline at 2px brand-teal with 2px offset (`index.css:585-596`).
+- **Sizes:** sm `px-3 py-1.5 text-[10px]` renders 11.25px horizontal, 5.625px vertical, 10px type; md `px-4 py-2 text-xs` renders 15px, 7.5px, 11.25px; lg `px-6 py-3 text-sm` renders 22.5px, 11.25px, 13.125px (`Button.tsx:21-25`). The rem-based utilities scale down because the root is 15px (`index.css:84`).
+- **Loading:** not implemented. The `loading` prop is declared (`Button.tsx:6`) and only feeds `disabled` (`Button.tsx:39`); no spinner, label change, or width reservation renders.
 
 ### Cards / Containers
 - **Corner Style:** Generous 16px radius (`rounded-xl`).
 - **Background:** Canvas (`#ffffff`). A canvas container on the `surface` page body needs no hairline, because the tonal step already draws the boundary; the 1px hairline exists for canvas-on-canvas separation (a card inside a canvas area) and for the legacy `.card` helper (`index.css:152`).
-- **Shadow Strategy:** Flat by default; `shadow-sm` on hover via `.card-hover`.
+- **Shadow Strategy:** Flat by default; `.card-hover` adds `box-shadow: var(--shadow-md)` and `transform: translateY(-1px)` over 150ms on hover (`index.css:159-165`).
 - **Internal Padding:** 24px is the default for a card holding one block; a summary strip with two columns uses 20px vertical and 24px horizontal so the block stays compact (see Overview Totals Strip).
 - **Tinted variants:** Background shifts to teal-light, coral-light, or yellow-light for status cards.
 - **Page body:** The page body is `surface`, so a container that must read as a block takes `canvas`; a container filled with `surface` is invisible on the body and must not be used as a section boundary.
@@ -264,10 +266,11 @@ The summary block a dashboard page starts with: a canvas card sitting on the sur
 - **Threshold data:** data that used to live in a legend under the bar belongs in the `title` and `aria-label` of the status dot that reports it.
 
 ### Inputs & Fields
-- **Style:** 1px hairline stroke, canvas fill, 8px radius.
-- **Focus:** Border shifts to brand-teal. Uses `:focus-visible` outline at 2px brand-teal with 2px offset for accessibility.
-- **Placeholder:** `--color-outline` (#77767b) — meets 4.5:1 contrast against canvas.
-- **Disabled/Error:** Inherit standard browser defaults.
+- **No shared component.** The `.input` class exists at `index.css:238-248` (8px 14px padding, 8px radius, hairline stroke, a teal border on `:focus` at `:247`, an `--color-outline` placeholder at `:248`), but no screen binds it: searching `frontend/src` for a `className` containing `input` returns nothing, against 87 `<input>` elements in the tree. Shipped inputs are styled per screen, either with Tailwind utility strings (for example `frontend/src/screens/ZoneGroupModal.tsx:142`) or with inline styles (the Overview dense toolbar).
+- **Overview search and sort:** the search input is 13px text, 1px hairline, 8px radius, `6px 12px` padding, canvas fill, 200px minimum and 280px maximum width; the sort select is the same radius and text size with `6px 10px` padding (`frontend/src/pages/PortfolioOverview.tsx:459-483`).
+- **Focus:** where a screen binds `.input`, `:focus` removes the outline and shifts the border to brand-teal (`index.css:247`); that is all it does, and no screen currently binds the class. The 2px brand-teal outline with 2px offset comes from the global `:focus-visible` rule, which applies to every element (`index.css:585-596`). The narrower `:focus-visible` outline with 1px offset exists only on `.select-trigger` (`index.css:208`).
+- **Placeholder:** `--color-outline` (`#77767b`, `index.css:45`) is applied by `.input::placeholder` (`index.css:248`), which is unused; the Overview toolbar passes no placeholder colour and renders the browser default.
+- **Disabled/Error:** not implemented. No shipped input renders an error, disabled, or loading state.
 
 ### Navigation
 - **Style:** Horizontal pill links in the top bar. Inactive: slate text. Active: ink background with white text.
@@ -298,7 +301,7 @@ The summary block a dashboard page starts with: a canvas card sitting on the sur
 The Overview page is the reference standard. A dashboard page reads top to bottom as one sequence:
 
 ```
-page header              26px title left, status dots right, 16px below
+page header              26px title left, status dots right, 15px below (mb-4)
   -> totals strip        canvas card
   -> 48px
   -> section heading row 18.75px title, filter chip and count right
@@ -341,3 +344,123 @@ page header              26px title left, status dots right, 16px below
 - **Don't** draw a section boundary with the same 1px hairline the group uses between its own rows.
 - **Don't** render a static threshold scale as a legend block under a table; put it in the status dot's `title`/`aria-label`.
 - **Don't** fill a section container with the page body colour.
+
+## 8. Responsive Behavior
+
+Width is handled in two places: Tailwind variants inside components, and media or container queries in `index.css`. The root font size is 15px, not the 16px Tailwind assumes (`index.css:84`, inside `:root` at `index.css:10-90`), so every rem-based utility renders at 0.9375x its nominal value: `px-4` is 15px, `h-16` is 60px, and `text-sm` is 13.125px. Every px value in this document is that computed value measured in the browser, and class names are given alongside it so the source stays traceable. `frontend/tailwind.config.js` declares no custom `screens`, so `md` and `lg` are the Tailwind defaults. `sm` (640px) and `xl` (1280px) utilities never appear in `frontend/src`; the one 1280px reaction is a plain media query in CSS. The page shell uses `px-4 md:px-6` (`PageLayout.tsx:5`), so content never sits on a 64px gutter: the horizontal padding is 15px at rest and 22.5px from `md` up, and only the totals strip's own 24px padding is literal (`PortfolioOverview.tsx:312`).
+
+| Name | Width | What changes |
+|---|---|---|
+| `md` | 768px (Tailwind default) | 39 lines carry a `md:` utility. Page shell padding (`px-4 md:px-6 py-6 md:py-10`) steps from 15px horizontal and 22.5px vertical to 22.5px and 37.5px (`PageLayout.tsx:5`). Card grids go from one column to two, three, or four (`PortfolioAnalyticsDetail.tsx:36`, `CreateNewPortfolio.tsx:171`, `CreateNewPortfolio.tsx:232`, `CreateNewPortfolio.tsx:321`, `SummaryCard.tsx:90`, `PortfolioMutualFund.tsx:219`). Table columns start appearing (`TransactionsPage.tsx:215-249`, `OrderManagement.tsx:580-699`, `TradeHistoryTable.tsx:95-130`). |
+| `lg` | 1024px (Tailwind default) | 16 lines carry an `lg:` utility. The inline nav appears and the hamburger disappears (`Navigation.tsx:94`, `Navigation.tsx:175`). Remaining table columns appear (`TransactionsPage.tsx:218`, `OrderManagement.tsx:586`, `TradeHistoryTable.tsx:102`). The chart side panel appears (`PayoffChart.tsx:355`) and card spans widen (`SummaryCard.tsx:33`). |
+| `min-[1024px]` | 1024px, as an arbitrary variant | Totals strip padding becomes 20px vertical and 24px horizontal (`PortfolioOverview.tsx:312`). The strip changes from a stacked column with 20px gaps to a three-track grid with 24px gaps (`PortfolioOverview.tsx:320-321`), and the 1px divider becomes visible (`PortfolioOverview.tsx:387`). |
+| `max-width: 1023px` | below 1024px | `.ledger-head` is hidden and `.ledger-row` collapses to two tracks, `minmax(0,1fr) auto`, with a 16px column gap and a 10px row gap. Name, allocation, and status cells span the full width and value cells align left (`index.css:407-424`). |
+| `min-width: 1280px` | 1280px | `.portfolio-grid` becomes two equal columns (`index.css:477-485`). No component binds `.portfolio-grid`, so the rule currently renders nothing. |
+| `@container` | 104px of the segment's own inline size | A liquidity segment reveals its label and value (`index.css:459-462`). Below 104px both stay `display: none` through `.liquidity-seg-text` (`index.css:442-443`, `LiquidityStack.tsx:71-72`). |
+| `pointer: coarse` | input modality, not width | Buttons, links, inputs, selects, textareas, and `[role="button"]` get `min-height: 44px`; `.nav-link` gets 36px (`index.css:569-575`). |
+| `prefers-reduced-motion` | user preference | Every animation and transition collapses to 0.01ms with one iteration (`index.css:598-604`). |
+
+### Touch Targets
+
+- **Ledger rows:** 64px minimum height with 14px vertical and 8px horizontal padding (`index.css:378-386`); the dense variant drops to 56px with 8px padding all round (`index.css:398-401`).
+- **Interactive floor:** 44px is not a resting size. It applies only under `(pointer: coarse)`, where the min-height is forced to 44px and `.nav-link` to 36px (`index.css:569-575`). On a fine pointer no floor is applied.
+- **Buttons:** sm `px-3 py-1.5 text-[10px]` renders 11.25px horizontal, 5.625px vertical, 10px type; md `px-4 py-2 text-xs` renders 15px, 7.5px, 11.25px; lg `px-6 py-3 text-sm` renders 22.5px, 11.25px, 13.125px (`Button.tsx:21-25`, computed at the 15px root). No size sets an explicit height.
+- **Toolbar controls:** the search input and sort select use 6px vertical padding with 13px type (`PortfolioOverview.tsx:460-464`, `PortfolioOverview.tsx:475-479`). Only the search sets widths: 200px minimum, 280px maximum (`PortfolioOverview.tsx:465-466`).
+- **Navigation:** desktop pills are `px-4 py-2`, which renders 15px horizontal and 7.5px vertical padding (`Navigation.tsx:103`); drawer rows are `px-4 py-3`, rendering 15px and 11.25px, with `text-[15px]` giving literal 15px type (`Navigation.tsx:192`). The unbound `.nav-link` rule would set 8px and 16px (`index.css:310`).
+
+### Collapsing Strategy
+
+Width is handled by collapse, not by scaling. Below 1024px the ledger keeps its 64px rows but loses its column head and its five-track grid. Each row becomes a two-track grid (`minmax(0,1fr) auto`) with 16px between columns and 10px between rows; name, allocation, and status span the full width, and value cells align left (`index.css:407-424`). The Overview ledger does not gain horizontal scroll; `.table-responsive` is bound only by `OptionsStrategyTable.tsx:84` (`index.css:579-581`).
+
+Filtering is data-driven rather than responsive. The toolbar (search plus sort) renders only when the portfolio count exceeds `DENSE_THRESHOLD = 8` (`PortfolioOverview.tsx:30`, `PortfolioOverview.tsx:267`, `PortfolioOverview.tsx:443`), and the same flag switches rows to `.ledger-row-compact` (`PortfolioOverview.tsx:550`). Nine portfolios is the point where a narrow viewport gains a search box it did not have at eight.
+
+Navigation collapses at `lg`. Below 1024px the inline nav is removed (`Navigation.tsx:94`) and a hamburger appears (`Navigation.tsx:175`). It toggles a full-width drawer positioned absolutely at `top-16` under the bar, which renders 60px (`h-16` at the 15px root) (`Navigation.tsx:76`, `Navigation.tsx:182`), animated over 200ms (`index.css:619-620`). The drawer lists nav items and portfolios as rows rather than pills (`Navigation.tsx:192-212`).
+
+## 9. Interaction States
+
+States ship per component, not per token. A state that the code does not implement is named as not implemented, so it cannot be mistaken for a target that is already met.
+
+### Buttons
+
+| State | Visual change | Where |
+|---|---|---|
+| Resting | Variant fill, full pill, bold text, 150ms transition on all properties | `Button.tsx:14-20`, `Button.tsx:40` |
+| Hover | Teal-600 (primary), surface (secondary), teal-50 (outline), red-700 (danger), surface (ghost) | `Button.tsx:14-18` |
+| Pressed | Scales to 0.97 | `Button.tsx:40` |
+| Focus-visible | 2px brand-teal outline at 2px offset, inherited from the global rule | `index.css:585-596` |
+| Disabled | Opacity 0.5, `cursor-not-allowed`, press scale cancelled | `Button.tsx:40` |
+| Loading | Not implemented: the prop only feeds `disabled` | `Button.tsx:6`, `Button.tsx:39` |
+
+### Inputs and Selects
+
+| State | Visual change | Where |
+|---|---|---|
+| Resting | 1px hairline border, 8px radius, canvas fill, 13px text | `PortfolioOverview.tsx:459-467`, `PortfolioOverview.tsx:474-482` |
+| Focus-visible | 2px brand-teal outline at 2px offset, from the global rule | `index.css:585-596` |
+| Focus (border shift) | Not implemented for shipped inputs: `.input:focus` exists but no element binds `.input` | `index.css:247` |
+| Hover | Not implemented | none |
+| Placeholder | Browser default in the toolbar; `--color-outline` applies only through the unbound `.input::placeholder` | `PortfolioOverview.tsx:456`, `index.css:248` |
+| Error | Not implemented | none |
+| Disabled | Not implemented | none |
+| Loading | Not implemented | none |
+
+### Chips
+
+| State | Visual change | Where |
+|---|---|---|
+| Attention chip, resting | Ink on warning at 18% via `color-mix`, 120ms background transition | `index.css:337-340` |
+| Attention chip, hover | Warning at 30% | `index.css:346-348` |
+| Attention chip, pressed | `aria-pressed="true"`: solid warning fill with `--color-on-brand-yellow` text | `index.css:342-345` |
+| Attention chip, pressed and hovered | Warning at 85% over canvas | `index.css:349-351` |
+| Attention chip, focus-visible | 2px brand-teal outline at 2px offset | `index.css:352-355` |
+| Attention chip, disabled or loading | Not implemented | none |
+| P/L percent chip | Static tint only: 18% positive or danger, or `surface-soft` when flat; a `<span>`, so no hover, pressed, or focus state exists | `PortfolioOverview.tsx:342-351` |
+| Tag chip | Static `surface` fill, 11px, full pill, 2px/8px padding | `PortfolioOverview.tsx:115-129` |
+
+### Table Rows
+
+| State | Visual change | Where |
+|---|---|---|
+| Resting | 64px minimum height, 14px/8px padding, hairline bottom, 4px radius, 120ms background transition | `index.css:378-386` |
+| Hover | Surface background | `index.css:387-389` |
+| Focus-visible | 2px brand-teal outline at 2px offset; rows are `<Link>` elements, so they receive focus | `index.css:390-393`, `PortfolioOverview.tsx:101-108` |
+| Compact | 56px height and 8px padding, same grid | `index.css:398-401`, `PortfolioOverview.tsx:550` |
+| Drop target | 8% brand-teal wash while a dragged amount is over the row | `index.css:394-396`, `PortfolioOverview.tsx:107` |
+| Pressed | Not implemented: no active style on the row | none |
+| Selected | Not implemented | none |
+| Disabled | Not implemented | none |
+| Loading | Not implemented | none |
+
+### Nav Links
+
+| State | Visual change | Where |
+|---|---|---|
+| Resting | Transparent background, slate text, `w-5 h-5` icon rendering 18.75px, `transition-colors` | `Navigation.tsx:97-107` |
+| Active | `--color-primary` background with `--color-on-primary` text | `Navigation.tsx:100-101` |
+| Hover | Not implemented on the shipped pill: the link carries no hover class | `Navigation.tsx:103` |
+| Hover (unused rule) | `.nav-link:hover` would set ink text on surface, but no element binds `.nav-link` | `index.css:305-319` |
+| Focus-visible | 2px brand-teal outline at 2px offset, from the global rule | `index.css:585-596` |
+| Icon hover | Icon scales to 1.12 over 200ms | `index.css:561-566` |
+| Drawer row | Primary background and on-primary text when active, `text-[15px]` (literal), `px-4 py-3` rendering 15px horizontal and 11.25px vertical | `Navigation.tsx:192-197` |
+| Pressed | Not implemented | none |
+| Disabled | Not implemented | none |
+
+## 10. Iteration Guide
+
+1. Change the token or the component in code first, then update this document in the same commit. `6c1760b` is that pair: it changed `DESIGN.md`, `frontend/src/index.css`, and `frontend/src/pages/PortfolioOverview.tsx` together.
+2. Never document a value the code does not set. When a value is a target rather than an implementation, mark it as a target: the 44px floor is a coarse-pointer rule (`index.css:569-575`), not a universal one.
+3. Every interactive element ships resting, hover, pressed, and focus-visible, or says "not implemented" in section 9. Today the nav pill itself has no hover (background and colour are inline styles with no hover variant), while its icon scales to 1.12 (`index.css:561-566`, `Navigation.tsx:106`); no input has an error state, and no button renders a loading spinner.
+4. New pages converge on the Overview composition before adding a new layout (section 6). The totals strip is the first block of a dashboard page, and its geometry is set at `PortfolioOverview.tsx:311-400`.
+5. Measure contrast on the composited background, not on the raw token. A chip's fill is a `color-mix` result over its container (`index.css:339`); pale ink `#e8e8e8` (`index.css:110`) on the solid warning fill measures 1.20:1 (measured from the token values), which is why the pressed state switches to `--color-on-brand-yellow` (`index.css:342-345`).
+6. Keep the frontmatter machine-readable: a new token goes into the frontmatter and into `frontend/src/index.css` in the same change. The frontmatter `colors` and `components` blocks mirror the `:root` variables (`index.css:10-90`).
+
+## 11. Known Gaps
+
+- **Dark mode is not enumerated per token.** `.dark` redefines 31 properties (`index.css:92-130`), including canvas `#13131f`, ink `#e8e8e8`, and all three pastel tints. Section 2 describes the intent and names three examples; the full mapping exists only in CSS.
+- **Three pages predate the standard.** `pages/CreateNewPortfolio.tsx:116` and `:131` use `min-h-screen` with `bg-gradient-to-br from-cream-to-peach`; `screens/PortfolioGrid.tsx:431` and `screens/PortfolioMutualFund.tsx:180` use `min-h-screen` and their own page padding. They break the no-gradient rule and the rule that the page body is `surface`. `cream` and `peach` are not colours in `tailwind.config.js`, so that gradient emits nothing, but the pages still bypass the shell.
+- **Data visualisation has no spec.** `PayoffChart.tsx` and `PerformanceChart.tsx` render SVG (`PayoffChart.tsx:253`) with local margins, gridline colours, and stroke widths, and nothing documents axis, tick, or series treatment. The chart animations `donutDraw`, `lineDraw`, and `barGrow` (`index.css:510-527`) are undocumented.
+- **Motion has no duration scale.** Easing is tokenised (`index.css:488-492`), but durations are literals at the call sites: 120ms (`index.css:340`, `index.css:385`), 150ms (`index.css:160`), and 200ms, 250ms, 300ms for the animation classes (`index.css:607-620`). A new component has no duration token to reach for.
+- **Several states are not implemented.** No input has an error, disabled, or loading state; no button renders a spinner (`Button.tsx:6`, `Button.tsx:39`); no ledger row has a selected or disabled state; the nav pill itself has no hover, since its background and colour are inline styles with no hover variant, though the icon inside it scales to 1.12 (`index.css:561-566`, `Navigation.tsx:106`).
+- **Dead CSS outnumbers live CSS in places.** `.input` (`index.css:238-248`), `.nav-link` (`index.css:305-319`), `.badge` and its variants (`index.css:170-188`), `.select-trigger`, `.select-dropdown`, and `.select-option` (`index.css:191-235`), and `.portfolio-grid` (`index.css:477-485`) are bound by no component. There is no shared input component at all: 87 `<input>` elements are styled per screen.
+- **Components outside Overview are undocumented.** `SummaryCard`, `PerformanceSection`, `OrderManagement`, `TradeHistoryTable`, `ZoneGroupModal`, `OptionsStrategyTable`, and the chart components ship their own padding, type sizes, and states; section 5 covers the Overview set only.
+- **Three places hardcode 60px for the nav while the bar derives its height from a rem class.** `main` reserves 60px (`GlobalLayout.tsx:8`), `.ledger-head` sticks at `top: 60px` (`index.css:368`), and `h-16` renders 60px only because the root is 15px (`Navigation.tsx:76`, `index.css:84`). They agree today, but a change to the root font size or to the bar class silently desyncs the sticky offset and the shell reserve.
