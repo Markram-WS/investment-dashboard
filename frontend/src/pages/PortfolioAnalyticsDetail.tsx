@@ -1,37 +1,9 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import PortfolioMutualFund from "../screens/PortfolioMutualFund";
 import PortfolioGrid from "../screens/PortfolioGrid";
 import { PortfolioType, AnalyticsLayout } from "../types";
 import PageLayout from "../components/PageLayout";
-
-function BreadcrumbBar() {
-  const { portfolio_id } = useParams<{ portfolio_id: string }>();
-  return (
-    <div
-      className="flex items-center gap-2 pb-2"
-      style={{ fontSize: 12, fontWeight: 500, color: "var(--color-slate)" }}
-    >
-      <Link
-        to="/"
-        className="inline-flex items-center gap-1.5 no-underline transition-colors hover:text-ink"
-        style={{ color: "var(--color-slate)" }}
-      >
-        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M19 12H5" />
-          <path d="M12 19l-7-7 7-7" />
-        </svg>
-        Portfolios
-      </Link>
-      {portfolio_id && (
-        <span style={{ color: "var(--color-slate)" }}>/</span>
-      )}
-      {portfolio_id && (
-        <span style={{ color: "var(--color-ink)" }}>Portfolio #{portfolio_id}</span>
-      )}
-    </div>
-  );
-}
 
 function LoadingSkeleton() {
   return (
@@ -122,7 +94,6 @@ export default function PortfolioAnalyticsDetail() {
 
   return (
     <PageLayout>
-      <BreadcrumbBar />
       {!portfolio_id && <MissingPortfolio />}
       {loading && <LoadingSkeleton />}
       {error && (
