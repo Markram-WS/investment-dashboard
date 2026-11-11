@@ -58,6 +58,7 @@
   --space-md: 16px;
   --space-lg: 24px;
   --space-xl: 32px;
+  --space-xxl: 48px;
   --space-section: 64px;
 
   /* Typography */
@@ -330,7 +331,27 @@ body {
 .ledger-table {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--color-hairline);
+}
+
+/* Attention filter chip (Portfolios heading) */
+.attention-chip {
+  color: var(--color-ink);
+  background: color-mix(in srgb, var(--color-status-warning) 18%, transparent);
+  transition: background-color 120ms ease;
+}
+.attention-chip[aria-pressed="true"] {
+  color: var(--color-on-brand-yellow);
+  background: var(--color-status-warning);
+}
+.attention-chip:hover {
+  background: color-mix(in srgb, var(--color-status-warning) 30%, transparent);
+}
+.attention-chip[aria-pressed="true"]:hover {
+  background: color-mix(in srgb, var(--color-status-warning) 85%, var(--color-canvas));
+}
+.attention-chip:focus-visible {
+  outline: 2px solid var(--color-brand-teal);
+  outline-offset: 2px;
 }
 
 .ledger-head,
@@ -355,7 +376,7 @@ body {
 }
 
 .ledger-row {
-  min-height: 72px;
+  min-height: 64px;
   padding: 14px 8px;
   border-bottom: 1px solid var(--color-hairline);
   color: inherit;
@@ -383,20 +404,6 @@ body {
   text-align: right;
 }
 
-/* Reserve zone labels: three columns on desktop, one row per zone on mobile */
-.reserve-legend {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-.reserve-legend-row {
-  display: block;
-}
-.reserve-legend-swatch,
-.reserve-legend-mobile {
-  display: none;
-}
-
 @media (max-width: 1023px) {
   .ledger-head {
     display: none;
@@ -414,29 +421,6 @@ body {
   }
   .ledger-cell-value {
     text-align: left;
-  }
-  .reserve-legend {
-    grid-template-columns: minmax(0, 1fr);
-    row-gap: 6px;
-  }
-  .reserve-legend-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    text-align: left;
-  }
-  .reserve-legend-swatch {
-    display: block;
-    width: 6px;
-    height: 6px;
-    border-radius: 2px;
-    flex: none;
-  }
-  .reserve-legend-mobile {
-    display: inline;
-  }
-  .reserve-legend-desktop {
-    display: none;
   }
 }
 

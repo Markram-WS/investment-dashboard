@@ -213,6 +213,7 @@ export default function PortfolioOverview() {
   }>({ source: null, destination: null });
   const [portfolioQuery, setPortfolioQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("value");
+  const [attentionOnly, setAttentionOnly] = useState(false);
 
   useEffect(() => {
     api.getOverview()
@@ -245,9 +246,11 @@ export default function PortfolioOverview() {
   const totalCash = (margin || 0) + (buffer || 0) + (available_cash || 0) + (money_market || 0);
   const deployedPct = totalCash > 0 ? (margin + buffer) / totalCash * 100 : 0;
   const deployedElevated = Math.round(deployedPct) > 85;
-  const attentionCount = portfolios.filter(
+  const attentionPortfolios = portfolios.filter(
     (p) => p.risk_status === "Warning" || p.risk_status === "Danger"
-  ).length;
+  );
+  const attentionCount = attentionPortfolios.length;
+  const attentionIds = new Set(attentionPortfolios.map((p) => p.portfolio_id));
 
   const gaugePercent = Math.min(100, Math.max(0, Math.round(pool_health_index)));
   const poolHealthColor = gaugePercent >= 70 ? "var(--color-brand-teal)" : "var(--color-danger-text)";
@@ -257,20 +260,17 @@ export default function PortfolioOverview() {
       ? "var(--color-danger-text)"
       : money_reserve_status === "Warning" ? "var(--color-status-warning)" : "var(--color-on-surface-variant)";
 
-  const lowerBound = (margin + buffer) * 1.2;
-  const upperBound = (margin + buffer) * 2.0;
-  const reserveZone = money_reserve_status === "Danger" ? 0 : money_reserve_status === "Optimal" ? 1 : 2;
-  const reserveZones = [
-    { width: "25%", hue: "var(--color-danger-text)" },
-    { width: "50%", hue: "var(--color-brand-teal)" },
-    { width: "25%", hue: "var(--color-brand-blue)" },
-  ];
+  const reserveDangerLimit = (margin + buffer) * 1.2;
+  const reserveOptimalLimit = (margin + buffer) * 2.0;
+  const reserveRangeLabel = `Reserve ${money_reserve_status.toLowerCase()} — Danger under ${fmtAmount(reserveDangerLimit, currency)}, Optimal ${fmtAmount(reserveDangerLimit, currency)} to ${fmtAmount(reserveOptimalLimit, currency)}, Neutral over ${fmtAmount(reserveOptimalLimit, currency)}`;
 
   const dense = portfolios.length > DENSE_THRESHOLD;
   const normalizedQuery = portfolioQuery.trim().toLowerCase();
-  const filteredPortfolios = normalizedQuery
-    ? portfolios.filter((p) => (p.portfolio_name || "").toLowerCase().includes(normalizedQuery))
-    : portfolios;
+  const filteredPortfolios = portfolios.filter((p) => {
+    if (attentionOnly && !attentionIds.has(p.portfolio_id)) return false;
+    if (normalizedQuery && !(p.portfolio_name || "").toLowerCase().includes(normalizedQuery)) return false;
+    return true;
+  });
   const sortedPortfolios = filteredPortfolios
     .map((p) => ({
       p,
@@ -285,7 +285,7 @@ export default function PortfolioOverview() {
 
   return (
     <PageLayout>
-      <header className="flex flex-wrap items-baseline justify-between gap-4 mb-8">
+      <header className="flex flex-wrap items-baseline justify-between gap-4 mb-4">
         <h1 className="m-0 text-ink" style={{ fontSize: 26, fontWeight: 600, letterSpacing: "-0.01em" }}>
           Overview
         </h1>
@@ -294,117 +294,150 @@ export default function PortfolioOverview() {
             <span className="status-dot" style={{ background: poolHealthColor }} />
             Pool health {gaugePercent}%
           </span>
-          <span className="flex items-center gap-2" style={{ fontSize: 12, color: "var(--color-slate)" }}>
+          <span
+            className="flex items-center gap-2"
+            role="img"
+            title={reserveRangeLabel}
+            aria-label={reserveRangeLabel}
+            style={{ fontSize: 12, color: "var(--color-slate)" }}
+          >
             <span className="status-dot" style={{ background: reserveStatusColor }} />
             Reserve {money_reserve_status.toLowerCase()}
           </span>
         </div>
       </header>
 
-      <section style={{ marginBottom: "var(--space-section)" }}>
-        <div className="flex flex-col min-[1024px]:flex-row min-[1024px]:items-stretch">
-          <div style={{ flex: "1 1 auto", maxWidth: 360 }}>
+      {/* Overview totals strip: equity on the left, cash allocation on the right, one tonal surface. */}
+      <section
+        className="p-[20px] min-[1024px]:px-[24px]"
+        style={{
+          background: "var(--color-canvas)",
+          borderRadius: 16,
+          marginBottom: "var(--space-xxl)",
+        }}
+      >
+        <div
+          className="flex flex-col gap-[20px] min-[1024px]:grid min-[1024px]:items-center min-[1024px]:gap-[24px]"
+          style={{ gridTemplateColumns: "minmax(0, 340px) 1px minmax(0, 1fr)" }}
+        >
+          <div style={{ minWidth: 0 }}>
             <p style={labelStyle}>Total equity</p>
-            <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", columnGap: 12 }}>
-              <p
-                className="m-0 text-ink"
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+              <span
+                className="text-ink"
                 style={{
-                  fontSize: 30,
+                  fontSize: 22,
                   fontWeight: 600,
-                  letterSpacing: "-0.02em",
+                  letterSpacing: "-0.01em",
                   lineHeight: 1.15,
-                  marginTop: 6,
                   ...tabular,
                 }}
               >
                 <Amount value={totalEquity} currency={currency} />
-              </p>
+              </span>
               <span
                 style={{
-                  fontSize: 14,
+                  fontSize: 12,
                   fontWeight: 600,
-                  fontVariantNumeric: "tabular-nums",
-                  color:
+                  padding: "2px 10px",
+                  borderRadius: 999,
+                  ...tabular,
+                  color: "var(--color-ink)",
+                  background:
                     overallPLSign > 0
-                      ? "var(--color-positive-text)"
+                      ? "color-mix(in srgb, var(--color-positive-text) 18%, transparent)"
                       : overallPLSign < 0
-                        ? "var(--color-danger-text)"
-                        : "var(--color-slate)",
+                        ? "color-mix(in srgb, var(--color-danger-text) 18%, transparent)"
+                        : "var(--color-surface-soft)",
                 }}
               >
-                {overallPLSign > 0 ? "▲ " : overallPLSign < 0 ? "▼ " : ""}
+                {overallPLSign !== 0 && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      color:
+                        overallPLSign > 0
+                          ? "var(--color-positive-text)"
+                          : "var(--color-danger-text)",
+                    }}
+                  >
+                    {overallPLSign > 0 ? "▲ " : "▼ "}
+                  </span>
+                )}
                 {overallPLSign > 0 ? "+" : ""}{overallPLPct.toFixed(1)}%
               </span>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 24, marginTop: 12 }}>
+              <div>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 500, color: "var(--color-slate)" }}>P/L</p>
+                <p style={{ margin: 0, marginTop: 4, fontSize: 15, fontWeight: 600, color: plColor, ...tabular }}>
+                  {plPrefix}{fmtAmount(Math.abs(total_pl || 0), currency)}
+                </p>
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 500, color: "var(--color-slate)" }}>Deployed</p>
+                <p style={{ margin: 0, marginTop: 4, fontSize: 15, fontWeight: 600, ...tabular, color: deployedElevated ? "var(--color-status-warning)" : "var(--color-ink)" }}>
+                  {Math.round(deployedPct)}%
+                </p>
+              </div>
             </div>
           </div>
 
           <div
             className="hidden min-[1024px]:block"
-            style={{ width: 1, flexShrink: 0, background: "var(--color-hairline)", marginLeft: 24, marginRight: 24 }}
+            style={{ width: 1, alignSelf: "stretch", background: "var(--color-hairline)" }}
           />
 
-          <div
-            className="mt-[16px] min-[1024px]:mt-0 grid grid-cols-3 gap-[12px] min-[1024px]:flex-1 min-[1024px]:gap-[32px] min-[1024px]:self-center"
-            style={{ alignItems: "baseline" }}
-          >
-            <div>
-              <p style={{ margin: 0, fontSize: 11, fontWeight: 500, color: "var(--color-slate)" }}>P/L</p>
-              <p style={{ margin: 0, marginTop: 4, fontSize: 17, fontWeight: 600, color: plColor, ...tabular }}>
-                {plPrefix}{fmtAmount(Math.abs(total_pl || 0), currency)}
-              </p>
-            </div>
-            <div>
-              <p style={{ margin: 0, fontSize: 11, fontWeight: 500, color: "var(--color-slate)" }}>Deployed</p>
-              <p style={{ margin: 0, marginTop: 4, fontSize: 17, fontWeight: 600, ...tabular, color: deployedElevated ? "var(--color-status-warning)" : "var(--color-ink)" }}>
-                {Math.round(deployedPct)}%
-              </p>
-            </div>
-            <div>
-              <p style={{ margin: 0, fontSize: 11, fontWeight: 500, color: "var(--color-slate)" }}>Needs attention</p>
-              <p
-                style={{
-                  margin: 0,
-                  marginTop: 4,
-                  fontSize: 17,
-                  fontWeight: 600,
-                  ...tabular,
-                  color: attentionCount > 0 ? "var(--color-status-warning)" : "var(--color-slate)",
-                }}
-              >
-                {attentionCount} {attentionCount === 1 ? "portfolio" : "portfolios"}
-              </p>
-            </div>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ ...labelStyle, marginBottom: 10 }}>Cash allocation</p>
+            <LiquidityStack
+              margin={margin}
+              buffer={buffer}
+              moneyMarket={money_market}
+              available={available_cash}
+              height={36}
+              showLabels
+              formatValue={(v) => fmtAmount(v, currency)}
+              label={`Cash allocation — margin ${fmtAmount(margin, currency)}, buffer ${fmtAmount(buffer, currency)}, money market ${fmtAmount(money_market, currency)}, available ${fmtAmount(available_cash, currency)}`}
+            />
           </div>
-        </div>
-
-        <div style={{ marginTop: 24 }}>
-          <LiquidityStack
-            margin={margin}
-            buffer={buffer}
-            moneyMarket={money_market}
-            available={available_cash}
-            height={40}
-            showLabels
-            formatValue={(v) => fmtAmount(v, currency)}
-            label={`Cash allocation — margin ${fmtAmount(margin, currency)}, buffer ${fmtAmount(buffer, currency)}, money market ${fmtAmount(money_market, currency)}, available ${fmtAmount(available_cash, currency)}`}
-          />
         </div>
       </section>
 
       <section>
         {portfolios.length > 0 && (
-          <div className="flex items-baseline justify-between gap-4 mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
             <h2
               className="m-0"
               style={{ fontSize: "1.25rem", lineHeight: 1.3, fontWeight: 600, color: "var(--color-ink)" }}
             >
               Portfolios
             </h2>
-            <span style={{ fontSize: 12, color: "var(--color-slate)" }}>
-              {dense
-                ? `${sortedPortfolios.length} of ${portfolios.length} portfolios`
-                : `${portfolios.length} ${portfolios.length === 1 ? "portfolio" : "portfolios"}`}
-            </span>
+            <div className="flex items-center gap-3">
+              {attentionCount > 0 && (
+                <button
+                  type="button"
+                  className="attention-chip"
+                  aria-pressed={attentionOnly}
+                  onClick={() => setAttentionOnly((value) => !value)}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: "2px 10px",
+                    borderRadius: 999,
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  Needs attention · {attentionCount}
+                </button>
+              )}
+              <span style={{ fontSize: 12, color: "var(--color-slate)" }}>
+                {dense
+                  ? `${sortedPortfolios.length} of ${portfolios.length} portfolios`
+                  : `${portfolios.length} ${portfolios.length === 1 ? "portfolio" : "portfolios"}`}
+              </span>
+            </div>
           </div>
         )}
         {dense && (
@@ -476,7 +509,7 @@ export default function PortfolioOverview() {
               <span style={{ textAlign: "right" }}>P&amp;L</span>
               <span>Status</span>
             </div>
-            {dense && sortedPortfolios.length === 0 ? (
+            {sortedPortfolios.length === 0 ? (
               <div
                 style={{
                   minHeight: 56,
@@ -489,11 +522,14 @@ export default function PortfolioOverview() {
                 }}
               >
                 <span style={{ fontSize: 14, color: "var(--color-slate)" }}>
-                  No portfolios match "{portfolioQuery}"
+                  {attentionOnly ? "No portfolios need attention" : `No portfolios match "${portfolioQuery}"`}
                 </span>
                 <button
                   type="button"
-                  onClick={() => setPortfolioQuery("")}
+                  onClick={() => {
+                    if (attentionOnly) setAttentionOnly(false);
+                    else setPortfolioQuery("");
+                  }}
                   className="bg-transparent border-none cursor-pointer"
                   style={{
                     padding: 0,
@@ -502,7 +538,7 @@ export default function PortfolioOverview() {
                     textDecoration: "underline",
                   }}
                 >
-                  Clear search
+                  {attentionOnly ? "Show all portfolios" : "Clear search"}
                 </button>
               </div>
             ) : (
@@ -518,47 +554,6 @@ export default function PortfolioOverview() {
             )}
           </div>
         )}
-
-        <div style={{ marginTop: 28 }}>
-          <div className="flex overflow-hidden" style={{ height: 6, borderRadius: 999, background: "var(--color-hairline-soft)" }}>
-            {reserveZones.map((zone, index) => (
-              <div
-                key={zone.hue}
-                style={{
-                  width: zone.width,
-                  background: index === reserveZone
-                    ? zone.hue
-                    : `color-mix(in srgb, ${zone.hue} 18%, transparent)`,
-                }}
-              />
-            ))}
-          </div>
-          <div className="reserve-legend" style={{ marginTop: 10, fontSize: 11, color: "var(--color-slate)", ...tabular }}>
-            {[
-              {
-                className: "text-left",
-                desktop: `Danger < ${fmtAmount(lowerBound, currency)}`,
-                mobile: `Danger — under ${fmtAmount(lowerBound, currency)}`,
-              },
-              {
-                className: "text-center",
-                desktop: `Optimal ${fmtAmount(lowerBound, currency)}–${fmtAmount(upperBound, currency)}`,
-                mobile: `Optimal — ${fmtAmount(lowerBound, currency)} to ${fmtAmount(upperBound, currency)}`,
-              },
-              {
-                className: "text-right",
-                desktop: `Neutral > ${fmtAmount(upperBound, currency)}`,
-                mobile: `Neutral — over ${fmtAmount(upperBound, currency)}`,
-              },
-            ].map((label, index) => (
-              <span key={label.desktop} className={`reserve-legend-row ${label.className}`}>
-                <span className="reserve-legend-swatch" style={{ background: reserveZones[index].hue }} />
-                <span className="reserve-legend-desktop">{label.desktop}</span>
-                <span className="reserve-legend-mobile">{label.mobile}</span>
-              </span>
-            ))}
-          </div>
-        </div>
       </section>
 
       <TransferModal

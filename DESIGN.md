@@ -38,6 +38,17 @@ typography:
     fontSize: "1.25rem"
     fontWeight: 600
     lineHeight: 1.3
+  page-title:
+    fontFamily: "Sora, system-ui, sans-serif"
+    fontSize: "26px"
+    fontWeight: 600
+    letterSpacing: "-0.01em"
+  datum:
+    fontFamily: "Sora, system-ui, sans-serif"
+    fontSize: "22px"
+    fontWeight: 600
+    lineHeight: 1.15
+    letterSpacing: "-0.01em"
   body:
     fontFamily: "Sora, system-ui, -apple-system, sans-serif"
     fontSize: "0.9375rem"
@@ -98,6 +109,18 @@ components:
     rounded: "{rounded.full}"
     padding: "8px 16px"
   chip:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.full}"
+    padding: "2px 10px"
+  overview-strip:
+    backgroundColor: "{colors.canvas}"
+    rounded: "{rounded.xl}"
+    padding: "20px 24px"
+  stat-chip:
+    backgroundColor: "{colors.surface-soft}"
+    rounded: "{rounded.full}"
+    padding: "2px 10px"
+  filter-chip:
     backgroundColor: "{colors.surface}"
     rounded: "{rounded.full}"
     padding: "2px 10px"
@@ -173,6 +196,19 @@ Each light color has a dark-mode counterpart defined as CSS custom properties on
 - **Body** (400, 0.9375rem / 15px, 1.5): Primary reading size. Used for statistics, descriptions, table cells. Max line length 75ch.
 - **Label Caps** (600, 0.75rem / 12px, 1, +0.03125em tracking, uppercase): Stat labels, section eyebrows, badge text. Never used for sentences — 4 words max.
 
+### Dashboard Scale (Overview is the reference)
+
+Dashboard pages use a fixed px scale, never `clamp`. This is a product register: users sit at a consistent DPI, and a number that shrinks with the viewport is harder to compare between visits. The clamp-based `display` and `heading` entries above stay documented for brand surfaces, but no dashboard page uses them.
+
+- **Page title** (600, 26px, -0.01em): The page name in the header, one per page. It sets size, weight, and tracking only, and leaves line-height at the browser default.
+- **Primary datum** (600, 22px, 1.15, -0.01em): The total on a summary strip, the largest number on the page.
+- **Section title** (600, 1.25rem / 18.75px, 1.3): The heading above a list or a block of rows.
+- **Body / table cell** (400, 15px): Row text, values, and prose.
+- **Secondary label** (500, 12px): Column heads, chip text, and captions.
+- **Micro label** (500, 11px): Stat labels inside a strip, the smallest text in the system.
+
+**The 1.15x Rule.** Within the hierarchy levels (page title, primary datum, section title, body), no two adjacent levels may sit within 1.15x of each other. A step smaller than 1.15x reads as a rounding error, not a level: drop it or move it. The 12px and 11px sizes are a context-bound label pair, not a hierarchy step: they are chosen by what the text labels (column head or chip versus stat label inside a strip), not by depth in the scale.
+
 ### Named Rules
 
 **The One-Family Rule.** All text uses Sora. No serif, no mono, no secondary display face. Hierarchy is carried by weight (300 to 800), size (12px to 48px), and letter-spacing, not by font switching.
@@ -211,10 +247,21 @@ Interaction states and overlays (modals, dropdowns, sticky nav) use the three-st
 
 ### Cards / Containers
 - **Corner Style:** Generous 16px radius (`rounded-xl`).
-- **Background:** Canvas (`#ffffff`) with 1px hairline border.
+- **Background:** Canvas (`#ffffff`). A canvas container on the `surface` page body needs no hairline, because the tonal step already draws the boundary; the 1px hairline exists for canvas-on-canvas separation (a card inside a canvas area) and for the legacy `.card` helper (`index.css:152`).
 - **Shadow Strategy:** Flat by default; `shadow-sm` on hover via `.card-hover`.
-- **Internal Padding:** 24px consistently.
+- **Internal Padding:** 24px is the default for a card holding one block; a summary strip with two columns uses 20px vertical and 24px horizontal so the block stays compact (see Overview Totals Strip).
 - **Tinted variants:** Background shifts to teal-light, coral-light, or yellow-light for status cards.
+- **Page body:** The page body is `surface`, so a container that must read as a block takes `canvas`; a container filled with `surface` is invisible on the body and must not be used as a section boundary.
+
+### Overview Totals Strip
+
+The summary block a dashboard page starts with: a canvas card sitting on the surface page body.
+
+- **Shape:** 16px radius, padding 20px vertical and 24px horizontal at 1024px and up (20px all round below that), 48px bottom margin (`--space-xxl`).
+- **Grid:** three tracks, `minmax(0,340px) 1px minmax(0,1fr)`, 24px gaps, items vertically centred. The 1px track is a hairline divider and exists only at 1024px and up; below 1024px the tracks stack with a 20px gap and the divider is removed.
+- **Left column:** a 12px slate label, then the primary datum at 22px with the cents at 0.6em in slate, then a P/L percent chip, then micro stats (11px label over a 15px value) for P/L and Deployed.
+- **Right column:** a 12px slate label plus a 36px liquidity bar whose segments carry their own name and value, dropping both lines under 104px of segment width.
+- **Threshold data:** data that used to live in a legend under the bar belongs in the `title` and `aria-label` of the status dot that reports it.
 
 ### Inputs & Fields
 - **Style:** 1px hairline stroke, canvas fill, 8px radius.
@@ -231,9 +278,11 @@ Interaction states and overlays (modals, dropdowns, sticky nav) use the three-st
 
 ### Chips / Badges
 - **Style:** Pill shape (9999px), 2px/10px padding, 12px font, 500 weight.
-- **Colors match accent roles:** teal, yellow, coral, blue — each with a 12-18% opacity tinted background.
+- **Colors match accent roles:** teal, yellow, coral, blue, each with a 12-18% opacity tinted background.
 - **Neutral variant:** Surface background, slate text.
 - **Dark mode:** Background opacity increases to 25%.
+
+**States.** Every chip that can be interacted with needs resting, hover, pressed, and focus-visible. Pressed and hover backgrounds are expressed with `color-mix` on the status token: 18% at rest, 30% on hover, 100% when pressed, 85% when pressed and hovered. Text on a tinted background is `--color-ink`; text on a solid `--color-status-warning` fill is `--color-on-brand-yellow` (#1c1c1e in both themes), because ink flips to a pale grey in dark mode and collapses to 1.20:1 there, while on-brand-yellow measures 11.60:1. Measured text contrast for the chips that ship: P/L sign chip 13.33:1 light and 11.33:1 dark; attention chip 13.22:1 light and 9.02:1 dark at rest, 4.86:1 and 11.60:1 pressed, 5.99:1 and 8.56:1 pressed and hovered.
 
 ### Status Dot
 - **Style:** 8px circle, filled with the matching accent color (teal, yellow, coral, blue).
@@ -244,7 +293,27 @@ Interaction states and overlays (modals, dropdowns, sticky nav) use the three-st
 - **Dropdown Panel:** Positioned absolute below trigger. Canvas background, hairline border, 12px radius, `shadow-lg`. 4px internal padding around options.
 - **Options:** 8px/12px padding, 6px radius. Hover gets surface background. Active gets `surface-container-low` background with 500 font-weight.
 
-## 6. Do's and Don'ts
+## 6. Page Composition (Overview is the reference)
+
+The Overview page is the reference standard. A dashboard page reads top to bottom as one sequence:
+
+```
+page header              26px title left, status dots right, 16px below
+  -> totals strip        canvas card
+  -> 48px
+  -> section heading row 18.75px title, filter chip and count right
+  -> list                hairline rows, sticky head
+```
+
+**The No-Repeated-Rule Rule.** A section boundary is never drawn with the separator the group itself uses for its rows. The Portfolios ledger keeps a hairline under its sticky head and between rows, and has no rule above it; two same-width blocks are separated by space plus a container step, not by another hairline.
+
+**The Above-The-Fold Rule.** The app shell reserves the 60px nav (`main` is `min-h-[calc(100vh-60px)]`); a dashboard page at a 1258x575 viewport must show header, strip, heading, and its rows with no page scroll, which is what the Overview measures today (`scrollHeight` 575 = `clientHeight`).
+
+**The Row Anatomy Rule.** Table rows are 64px minimum with a 44px interactive floor, the head is sticky, and both keep their hover and focus-visible states.
+
+**The Converge-On-Overview Rule.** Pages converge on Overview; a new page that needs a summary block uses the totals strip before inventing a new layout.
+
+## 7. Do's and Don'ts
 
 ### Do:
 - **Do** use Brand Yellow as the single bold surface — it carries signal weight because nothing else competes at that saturation.
@@ -255,6 +324,8 @@ Interaction states and overlays (modals, dropdowns, sticky nav) use the three-st
 - **Do** use `text-wrap: balance` on heading elements and `text-wrap: pretty` on long prose.
 - **Do** use uppercase labels only for short stat labels and badges (4 words max).
 - **Do** use Sora across the entire interface — one family, weight contrast for hierarchy.
+- **Do** keep a dashboard page's primary datum at 22px and its page title at 26px, with a fixed px scale.
+- **Do** separate same-width blocks with a surface step plus at least 48px.
 
 ### Don't:
 - **Don't** use gradient text (`background-clip: text` + gradient). Solid color or nothing.
@@ -267,3 +338,6 @@ Interaction states and overlays (modals, dropdowns, sticky nav) use the three-st
 - **Don't** stack nested cards — cards are flat by default and should not contain other cards.
 - **Don't** use fonts outside the Sora family — no serif, mono, or competing sans-serif.
 - **Don't** place uppercase tracked eyebrows ("OVERVIEW", "RISK") above every section as a default pattern.
+- **Don't** draw a section boundary with the same 1px hairline the group uses between its own rows.
+- **Don't** render a static threshold scale as a legend block under a table; put it in the status dot's `title`/`aria-label`.
+- **Don't** fill a section container with the page body colour.
