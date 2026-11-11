@@ -21,7 +21,7 @@ Create Order (pending) → Confirm Done → Update Holdings + Adjust available_c
 
 ### Key behaviors
 - `portfolio.available_cash` is auto-adjusted on order confirm: Buy→deduct, Sell→add
-- `portfolio.current_nav` = `available_cash + money_market + sum(holding.qty × holding.current_price)`
+- `portfolio.current_nav` = `available_cash + sum(holding.qty × holding.current_price)`
 - Buy orders merge into existing holdings (weighted avg entry price); Sell orders reduce qty or delete holding
 - Order symbols auto-sync to `whitelist_assets` on creation with `source='manual'`
 - target_ratio supports both decimal (0.4 = 40%) and percentage (40) input — auto-normalized to percentage on read
@@ -35,7 +35,7 @@ Create Order (pending) → Confirm Done → Update Holdings + Adjust available_c
 
 | Table | Purpose |
 |-------|---------|
-| `portfolios` | Portfolio config: name, type, `is_custom` flag, cash fields (`available_cash`, `money_market`, `margin_locked`, `cash_buffer_limit`), `risk_status`, `tags` (JSONB), `internal_notes`, `trade_plan_md` |
+| `portfolios` | Portfolio config: name, type, `is_custom` flag, cash fields (`available_cash`, `margin_locked`, `cash_buffer_limit`), `risk_status`, `tags` (JSONB), `internal_notes`, `trade_plan_md` |
 | `custom_portfolio_connections` | Encrypted credentials for external DBs: `portfolio_id` FK, `db_host`, `db_port`, `db_name`, `db_user`, `encrypted_password` (Fernet) |
 | `portfolio_nav_history` | NAV time-series per portfolio |
 | `trade_plans` | Per-portfolio trade plan: entry/exit zones, leverage, margin rate, TP/SL levels |
@@ -148,7 +148,7 @@ On first access, `ensure_custom_tables()` runs an auto-migration: it queries `in
 
 ## Notes
 
-- `portfolios.available_cash` is auto-adjusted when Money Market/Margin Locked/Cash Buffer Limit change
+- `portfolios.available_cash` is auto-adjusted when Margin Locked/Cash Buffer Limit change
 - `AssetGroup` seeds Ungrouped + Watchlist on first query via the `asset_groups` router
 - `WhitelistAssets` extended to include price tracking columns; `source` distinguishes yfinance vs manual
 - Yfinance prices fetched via direct HTTP (not yfinance library) to avoid rate limiting

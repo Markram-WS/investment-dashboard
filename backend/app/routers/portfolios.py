@@ -28,7 +28,6 @@ class PortfolioCreate(BaseModel):
     margin_locked: Optional[float] = 0.0
     cash_buffer_limit: Optional[float] = 0.0
     available_cash: Optional[float] = 0.0
-    money_market: Optional[float] = 0.0
     trade_plan_md: Optional[str] = None
     risk_status: Optional[str] = "Safe"
     tags: Optional[Dict[str, Any]] = None
@@ -52,7 +51,6 @@ class PortfolioResponse(BaseModel):
     margin_locked: Optional[float]
     cash_buffer_limit: Optional[float]
     available_cash: Optional[float]
-    money_market: Optional[float]
     risk_status: Optional[str]
     tags: Optional[Dict[str, Any]]
     last_rebalance_date: Optional[date]
@@ -99,7 +97,6 @@ class PortfolioUpdate(BaseModel):
     margin_locked: Optional[float] = None
     cash_buffer_limit: Optional[float] = None
     available_cash: Optional[float] = None
-    money_market: Optional[float] = None
     trade_plan_md: Optional[str] = None
     internal_notes: Optional[str] = None
     risk_status: Optional[str] = None
@@ -163,7 +160,6 @@ async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depend
         margin_locked=portfolio.margin_locked,
         cash_buffer_limit=portfolio.cash_buffer_limit,
         available_cash=portfolio.available_cash,
-        money_market=portfolio.money_market,
         trade_plan_md=portfolio.trade_plan_md,
         risk_status=portfolio.risk_status,
         tags=portfolio.tags,
@@ -198,7 +194,6 @@ async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depend
         "margin_locked": db_portfolio.margin_locked,
         "cash_buffer_limit": db_portfolio.cash_buffer_limit,
         "available_cash": db_portfolio.available_cash,
-        "money_market": db_portfolio.money_market,
         "risk_status": db_portfolio.risk_status,
         "tags": db_portfolio.tags,
         "last_rebalance_date": db_portfolio.last_rebalance_date,
@@ -235,7 +230,6 @@ async def get_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)):
         "margin_locked": portfolio.margin_locked,
         "cash_buffer_limit": portfolio.cash_buffer_limit,
         "available_cash": portfolio.available_cash,
-        "money_market": portfolio.money_market,
         "risk_status": portfolio.risk_status,
         "tags": portfolio.tags,
         "last_rebalance_date": portfolio.last_rebalance_date,

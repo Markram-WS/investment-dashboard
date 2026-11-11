@@ -75,10 +75,10 @@ class TestPoolHealthLogic:
 
     def test_pool_health_example_calculation(self):
         """Verify Pool Health Index calculation with example values."""
-        # Total: margin=10000, buffer=5000, available=3000, money_market=1000
+        # Total: margin=10000, buffer=5000, available=4000
         # From portfolio 1 in test data
-        global_cash = 3000 + 1000  # 4000
-        total_cash = 10000 + 5000 + 3000 + 1000  # 19000
+        global_cash = 4000  # 4000
+        total_cash = 10000 + 5000 + 4000  # 19000
         expected_index = (global_cash / total_cash) * 100  # 21.05
         
         assert round(expected_index, 2) == 21.05
@@ -171,11 +171,10 @@ class TestPortfolioSafetyLogic:
         """Global Risk Alert when (Margin + Buffer) / Total Cash > 85%."""
         total_margin = 10000.0
         total_buffer = 5000.0
-        total_available_cash = 3000.0
-        total_money_market = 1000.0
+        total_available_cash = 4000.0
         
         margin_plus_buffer_all = total_margin + total_buffer  # 15000
-        total_cash_all = 10000 + 5000 + 3000 + 1000  # 19000
+        total_cash_all = 10000 + 5000 + 4000  # 19000
         
         ratio = margin_plus_buffer_all / total_cash_all  # 0.789
         global_risk_alert = ratio > 0.85

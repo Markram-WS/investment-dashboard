@@ -1,7 +1,6 @@
 interface LiquidityStackProps {
   margin: number;
   buffer: number;
-  moneyMarket: number;
   available: number;
   /** Height of the stack in px. 40 for the aggregate block, 8 for table rows. */
   height?: number;
@@ -15,13 +14,12 @@ interface LiquidityStackProps {
 }
 
 /**
- * One liquidity primitive, two scales: the four cash buckets rendered as a
+ * One liquidity primitive, two scales: the three cash buckets rendered as a
  * single proportional bar. Available cash is the only canary-yellow segment.
  */
 export default function LiquidityStack({
   margin,
   buffer,
-  moneyMarket,
   available,
   height = 40,
   label,
@@ -32,7 +30,6 @@ export default function LiquidityStack({
   const segments = [
     { name: "Margin", value: margin, color: "var(--color-tier-1)" },
     { name: "Buffer", value: buffer, color: "var(--color-tier-2)" },
-    { name: "Money market", value: moneyMarket, color: "var(--color-tier-3)" },
     { name: "Available", value: available, color: "var(--color-brand-yellow)" },
   ];
 

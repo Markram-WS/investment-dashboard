@@ -26,7 +26,6 @@ tags:
         - `margin_locked`: เงินประกันที่วางไว้ (Margin) - *ถอนไม่ได้ชั่วคราว*.
         - `cash_buffer_limit`: เงินสำรองความเสี่ยงตามกฎความปลอดภัย.
         - `available_cash`: เงินสดที่พร้อมเทรดทันที.
-        - `money_market`: เงินในตลาดเงินหรือรอเคลียร์ (T+3) - *โยกย้ายได้แต่ต้องรอ Settlement*.
     - `trade_plan_md`: แผนกลยุทธ์แบบ Markdown (ArgoCD Style).
     - `risk_status`: สถานะความเสี่ยงปัจจุบัน (Safe, Warning, Danger).
     - `tags` (JSONB): แท็กประเภทตลาด (e.g., Crypto, US-Stock).

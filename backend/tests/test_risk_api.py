@@ -31,18 +31,18 @@ class TestPoolHealthEndpoint:
         data = response.json()
 
         # 4 portfolios from conftest.py:
-        # p1: margin=10000, buffer=5000, available=3000, money_market=1000
-        # p2: margin=5000, buffer=2000, available=500, money_market=300
-        # p3: margin=8000, buffer=4000, available=0, money_market=0
-        # p4: margin=23000, buffer=11000, available=3800, money_market=1600
+        # p1: margin=10000, buffer=5000, available=4000
+        # p2: margin=5000, buffer=2000, available=800
+        # p3: margin=8000, buffer=4000, available=0
+        # p4: margin=23000, buffer=11000, available=5400
         # Total margin = 46000, Total buffer = 22000
-        # Total available = 7300, Total money_market = 2900
-        # Global Cash = 7300 + 2900 = 10200
-        # Total Cash = 46000 + 22000 + 7300 + 2900 = 78200
+        # Total available = 10200
+        # Global Cash = 10200
+        # Total Cash = 46000 + 22000 + 10200 = 78200
         # Expected Index = (10200 / 78200) * 100 ≈ 13.04
 
-        expected_global = 7300.0 + 2900.0  # 10200
-        expected_total = 46000.0 + 22000.0 + 7300.0 + 2900.0  # 78200
+        expected_global = 10200.0
+        expected_total = 46000.0 + 22000.0 + 10200.0  # 78200
         expected_index = (expected_global / expected_total) * 100
 
         assert abs(data["pool_health_index"] - round(expected_index, 2)) < 0.1
@@ -134,7 +134,7 @@ class TestPortfolioSafetyEndpoint:
     @pytest.mark.asyncio
     async def test_warning_when_port_cash_below_20_percent(self, async_client, sample_portfolios):
         """Warning when Port Cash < 20% of (Port Margin + Port Buffer)."""
-        # Portfolio 2: margin=5000, buffer=2000, available=500, money_market=300
+        # Portfolio 2: margin=5000, buffer=2000, available=800
         # Port Cash = 800, Margin+Buffer = 7000, 20% threshold = 1400
         # 800 < 1400 -> Warning
         response = await async_client.get("/api/v1/risk/portfolio-safety/2")
@@ -148,7 +148,7 @@ class TestPortfolioSafetyEndpoint:
     @pytest.mark.asyncio
     async def test_safe_when_port_cash_above_threshold(self, async_client, sample_portfolios):
         """Safe when Port Cash >= 20% of (Port Margin + Port Buffer)."""
-        # Portfolio 1: margin=10000, buffer=5000, available=3000, money_market=1000
+        # Portfolio 1: margin=10000, buffer=5000, available=4000
         # Port Cash = 4000, Margin+Buffer = 15000, 20% threshold = 3000
         # 4000 >= 3000 -> Safe
         response = await async_client.get("/api/v1/risk/portfolio-safety/1")

@@ -43,7 +43,6 @@ interface EditPortfolioModalProps {
   cashBufferLimit: number;
   rawAvailableCash: number;
   cumulativePl: number;
-  moneyMarket: number;
   tags: Record<string, boolean> | null;
   showModal: boolean;
   onClose: () => void;
@@ -55,14 +54,13 @@ interface EditPortfolioModalProps {
 
 const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
   portfolioId, portfolioName, marginLocked, cashBufferLimit,
-  rawAvailableCash, cumulativePl, moneyMarket, tags, showModal, onClose, onSaved,
+  rawAvailableCash, cumulativePl, tags, showModal, onClose, onSaved,
   onDepositWithdraw, activeOrderCount, onDeleted,
 }) => {
   const [form, setForm] = useState({
     portfolio_name: portfolioName,
     margin_locked: marginLocked,
     cash_buffer_limit: cashBufferLimit,
-    money_market: moneyMarket,
     tags: tags ? Object.keys(tags).join(", ") : "",
   });
   const [saving, setSaving] = useState(false);
@@ -93,25 +91,22 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
     setSaveErr("");
     const newMargin = parseFloat(form.margin_locked as any) || 0;
     const newBuffer = parseFloat(form.cash_buffer_limit as any) || 0;
-    const newMM = parseFloat(form.money_market as any) || 0;
 
     if (newMargin > rawAvailableCash) { setSaveErr(`Margin Locked max is $${rawAvailableCash.toLocaleString()}`); return; }
     if (newBuffer > rawAvailableCash) { setSaveErr(`Cash Buffer Limit max is $${rawAvailableCash.toLocaleString()}`); return; }
-    if (newMM > rawAvailableCash) { setSaveErr(`Money Market max is $${rawAvailableCash.toLocaleString()}`); return; }
 
     setSaving(true);
     try {
       const tagsObj: Record<string, boolean> = {};
       form.tags.split(",").map((t) => t.trim()).filter(Boolean).forEach((t) => { tagsObj[t] = true; });
 
-      const totalDiff = (newMargin - marginLocked) + (newBuffer - cashBufferLimit) + (newMM - moneyMarket);
+      const totalDiff = (newMargin - marginLocked) + (newBuffer - cashBufferLimit);
       const newAvailable = Math.max(0, rawAvailableCash - totalDiff);
 
       await api.updatePortfolio(portfolioId, {
         portfolio_name: form.portfolio_name || undefined,
         margin_locked: newMargin,
         cash_buffer_limit: newBuffer,
-        money_market: newMM,
         available_cash: newAvailable,
         tags: Object.keys(tagsObj).length > 0 ? tagsObj : undefined,
       });
@@ -200,8 +195,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
 
   const projectedMargin = parseFloat(form.margin_locked as any) || 0;
   const projectedBuffer = parseFloat(form.cash_buffer_limit as any) || 0;
-  const projectedMM = parseFloat(form.money_market as any) || 0;
-  const projectedDiff = (projectedMargin - marginLocked) + (projectedBuffer - cashBufferLimit) + (projectedMM - moneyMarket);
+  const projectedDiff = (projectedMargin - marginLocked) + (projectedBuffer - cashBufferLimit);
   const projectedAvailableCash = Math.max(0, rawAvailableCash - projectedDiff);
   const displayEquity = projectedAvailableCash + cumulativePl;
 
@@ -238,11 +232,6 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
               <div>
                 <label style={LABEL}>Cash buffer limit</label>
                 <input type="number" value={form.cash_buffer_limit} onChange={(e) => handleChange("cash_buffer_limit", e.target.value)}
-                  className="border border-hairline focus:border-brand-teal" style={INPUT} />
-              </div>
-              <div>
-                <label style={LABEL}>Money market</label>
-                <input type="number" value={form.money_market} onChange={(e) => handleChange("money_market", e.target.value)}
                   className="border border-hairline focus:border-brand-teal" style={INPUT} />
               </div>
               <div>

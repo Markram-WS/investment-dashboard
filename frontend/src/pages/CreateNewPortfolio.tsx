@@ -59,7 +59,6 @@ const CreateNewPortfolio: React.FC = () => {
     margin_locked: 0,
     cash_buffer_limit: 0,
     available_cash: 0,
-    money_market: 0,
     trade_plan_md: '',
     tags: {} as any,
     // Custom portfolio connection
@@ -433,18 +432,6 @@ const CreateNewPortfolio: React.FC = () => {
                       placeholder="0.00"
                     />
                   </div>
-                  <div>
-                    <label style={subLabelStyle} htmlFor="money_market">Money Market (T+3)</label>
-                    <input
-                      id="money_market"
-                      type="number"
-                      name="money_market"
-                      value={formData.money_market !== null && formData.money_market !== undefined ? formData.money_market : ''}
-                      onChange={handleNumberChange}
-                      style={{ ...fieldStyle, fontVariantNumeric: "tabular-nums" }}
-                      placeholder="0.00"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -673,7 +660,7 @@ const CreateNewPortfolio: React.FC = () => {
                       {formData.port_type || 'Select portfolio type'}
                     </span>
                     <span style={{ marginLeft: 12 }}>
-                      ${((formData.available_cash || 0) + (formData.money_market || 0)).toFixed(2)} available
+                      ${(formData.available_cash || 0).toFixed(2)} available
                     </span>
                   </p>
                   {formData.port_type === 'Custom Portfolio' && formData.db_host && (

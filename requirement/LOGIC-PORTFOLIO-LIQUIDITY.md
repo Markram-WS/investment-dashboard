@@ -20,8 +20,8 @@ tags:
 เน้นการตรวจสอบความปลอดภัยรายพอร์ต (Individual Portfolio Safety) เป็นหัวใจสำคัญ.
 
 ### 2.1 Core Formulas
-- **Global Total Cash:** `Margin + Buffer + Available Cash + Money Market`.
-- **Portfolio Available Liquidity:** `Port Cash = Available Cash + Money Market` (ภายในพอร์ตนั้น).
+- **Global Total Cash:** `Margin + Buffer + Available Cash`.
+- **Portfolio Available Liquidity:** `Port Cash = Available Cash` (ภายในพอร์ตนั้น).
 
 ### 2.2 Safety Thresholds (Port-Level)
 ระบบตรวจสอบสถานะความปลอดภัยของแต่ละพอร์ตแยกกัน:

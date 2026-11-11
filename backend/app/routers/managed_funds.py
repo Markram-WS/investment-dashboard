@@ -540,7 +540,7 @@ async def _confirm_order_done(db: AsyncSession, portfolio_id: int, order: Manage
         for h in holdings_result.scalars().all():
             total_holdings_value += (h.qty or Decimal('0')) * (h.current_price or Decimal('0'))
 
-        new_nav = (portfolio.available_cash or Decimal('0')) + (portfolio.money_market or Decimal('0')) + total_holdings_value
+        new_nav = (portfolio.available_cash or Decimal('0')) + total_holdings_value
         portfolio.current_nav = new_nav
 
         today = date.today()

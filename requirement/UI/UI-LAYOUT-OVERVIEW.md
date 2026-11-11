@@ -130,11 +130,10 @@ components:
 
 ## 2. Hero Summary Card (Global Cash Breakdown)
 - **HTML:** `<section class="hero-summary-card">`
-- **Visual Display:** แยกการ์ดย่อยเป็น 4 ก้อน (Macro View):
+- **Visual Display:** แยกการ์ดย่อยเป็น 3 ก้อน (Macro View):
     - **Margin:** เงินประกันรวมทั้งระบบ.
     - **Buffer:** เงินสำรองความเสี่ยงรวม.
     - **Available Cash:** เงินสดพร้อมใช้รวม.
-    - **Money Market:** เงินในตลาดเงิน/รอเคลียร์รวม.
 
 ## 3. Analysis Widgets (Global Metrics)
 ส่วนแสดงการวิเคราะห์ภาพรวมระบบอ้างอิง [[Detailed-Functional-Requirements#📊 Global Analysis Metrics]].

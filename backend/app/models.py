@@ -25,7 +25,6 @@ class Portfolio(Base):
     margin_locked = Column(Numeric(20, 8), default=Decimal('0.00'))
     cash_buffer_limit = Column(Numeric(20, 8), default=Decimal('0.00'))
     available_cash = Column(Numeric(20, 8), default=Decimal('0.00'))
-    money_market = Column(Numeric(20, 8), default=Decimal('0.00'))
     trade_plan_md = Column(String)
     internal_notes = Column(String)
     risk_status = Column(String, check_constraint="risk_status IN ('Safe', 'Warning', 'Danger')")

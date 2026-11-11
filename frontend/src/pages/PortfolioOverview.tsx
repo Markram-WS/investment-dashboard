@@ -91,7 +91,7 @@ function PortfolioRow({
   }), [portfolio.portfolio_id, portfolio.portfolio_name, portfolio.available_cash]);
 
   const p = portfolio;
-  const total = (p.margin || 0) + (p.buffer || 0) + (p.available_cash || 0) + (p.money_market || 0) + (p.total_pl || 0);
+  const total = (p.margin || 0) + (p.buffer || 0) + (p.available_cash || 0) + (p.total_pl || 0);
   const tags = getPortfolioTags(p);
   const profitPct = getProfitPct(p);
   const profitSign = profitPct > 0 ? 1 : profitPct < 0 ? -1 : 0;
@@ -139,7 +139,6 @@ function PortfolioRow({
           <LiquidityStack
             margin={p.margin}
             buffer={p.buffer}
-            moneyMarket={p.money_market}
             available={p.available_cash}
             height={8}
           />
@@ -231,8 +230,8 @@ export default function PortfolioOverview() {
 
   if (!data) return null;
 
-  const { margin, buffer, available_cash, money_market, total_pl, pool_health_index, money_reserve_status, portfolios } = data;
-  const totalEquity = (margin || 0) + (buffer || 0) + (available_cash || 0) + (money_market || 0) + (total_pl || 0);
+  const { margin, buffer, available_cash, total_pl, pool_health_index, money_reserve_status, portfolios } = data;
+  const totalEquity = (margin || 0) + (buffer || 0) + (available_cash || 0) + (total_pl || 0);
   const initialCapital = totalEquity - (total_pl || 0);
   const overallPLPct = initialCapital > 0 ? ((total_pl || 0) / initialCapital * 100) : 0;
   const overallPLSign = overallPLPct > 0 ? 1 : overallPLPct < 0 ? -1 : 0;
@@ -244,7 +243,7 @@ export default function PortfolioOverview() {
         ? "var(--color-danger-text)"
         : "var(--color-slate)";
   const plPrefix = total_pl > 0 ? "+" : total_pl < 0 ? "-" : "";
-  const totalCash = (margin || 0) + (buffer || 0) + (available_cash || 0) + (money_market || 0);
+  const totalCash = (margin || 0) + (buffer || 0) + (available_cash || 0);
   const deployedPct = totalCash > 0 ? (margin + buffer) / totalCash * 100 : 0;
   const deployedElevated = Math.round(deployedPct) > 85;
   const attentionPortfolios = portfolios.filter(
@@ -275,7 +274,7 @@ export default function PortfolioOverview() {
   const sortedPortfolios = filteredPortfolios
     .map((p) => ({
       p,
-      value: (p.margin || 0) + (p.buffer || 0) + (p.available_cash || 0) + (p.money_market || 0) + (p.total_pl || 0),
+      value: (p.margin || 0) + (p.buffer || 0) + (p.available_cash || 0) + (p.total_pl || 0),
     }))
     .sort((a, b) => {
       if (sortKey === "name") return (a.p.portfolio_name || "").localeCompare(b.p.portfolio_name || "");
@@ -394,12 +393,11 @@ export default function PortfolioOverview() {
             <LiquidityStack
               margin={margin}
               buffer={buffer}
-              moneyMarket={money_market}
               available={available_cash}
               height={36}
               showLabels
               formatValue={(v) => fmtAmount(v, currency)}
-              label={`Cash allocation — margin ${fmtAmount(margin, currency)}, buffer ${fmtAmount(buffer, currency)}, money market ${fmtAmount(money_market, currency)}, available ${fmtAmount(available_cash, currency)}`}
+              label={`Cash allocation — margin ${fmtAmount(margin, currency)}, buffer ${fmtAmount(buffer, currency)}, available ${fmtAmount(available_cash, currency)}`}
             />
           </div>
         </div>

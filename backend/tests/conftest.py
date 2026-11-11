@@ -67,26 +67,24 @@ async def sample_portfolios():
         await session.execute(text("DELETE FROM portfolios"))
         await session.commit()
     
-    # Portfolio 1: Safe (id=1) - margin=10000, buffer=5000, available=3000, money_market=1000
+    # Portfolio 1: Safe (id=1) - margin=10000, buffer=5000, available=4000
     p1 = Portfolio(
         portfolio_name="Safe Portfolio",
         port_type="Main",
         risk_status="Safe",
         margin_locked=Decimal("10000"),
         cash_buffer_limit=Decimal("5000"),
-        available_cash=Decimal("3000"),
-        money_market=Decimal("1000")
+        available_cash=Decimal("4000")
     )
     
-    # Portfolio 2: Warning (id=2) - margin=5000, buffer=2000, available=500, money_market=300
+    # Portfolio 2: Warning (id=2) - margin=5000, buffer=2000, available=800
     p2 = Portfolio(
         portfolio_name="Warning Portfolio",
         port_type="Secondary",
         risk_status="Warning",
         margin_locked=Decimal("5000"),
         cash_buffer_limit=Decimal("2000"),
-        available_cash=Decimal("500"),
-        money_market=Decimal("300")
+        available_cash=Decimal("800")
     )
     
     # Portfolio 3: Danger (id=3) - zero cash
@@ -96,20 +94,18 @@ async def sample_portfolios():
         risk_status="Danger",
         margin_locked=Decimal("8000"),
         cash_buffer_limit=Decimal("4000"),
-        available_cash=Decimal("0"),
-        money_market=Decimal("0")
+        available_cash=Decimal("0")
     )
     
     # Portfolio 4: Main pool data (id=4) - the values from test expectations
-    # margin=23000, buffer=11000, available=3800, money_market=1600
+    # margin=23000, buffer=11000, available=5400
     p4 = Portfolio(
         portfolio_name="Main Pool",
         port_type="Main",
         risk_status="Safe",
         margin_locked=Decimal("23000"),
         cash_buffer_limit=Decimal("11000"),
-        available_cash=Decimal("3800"),
-        money_market=Decimal("1600")
+        available_cash=Decimal("5400")
     )
     
     async with Session() as session:

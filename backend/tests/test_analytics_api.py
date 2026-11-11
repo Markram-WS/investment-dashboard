@@ -10,7 +10,6 @@ def portfolio_payload():
         "target_ratio": {"BTC": 0.5, "ETH": 0.5},
         "cash_buffer_limit": 1000,
         "available_cash": 5000,
-        "money_market": 0,
         "margin_locked": 0,
         "risk_status": "Safe",
     }

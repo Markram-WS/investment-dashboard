@@ -66,7 +66,7 @@
 - **Router**: `backend/app/routers/managed_funds.py` — 15 endpoints (settings CRUD, holdings CRUD, orders CRUD with confirm/cancel, history, rebalance/calculate, sync-prices, alerts)
 - **Order flow**: Create (pending) → PATCH status=done → update holdings + adjust available_cash + record NAV history → move to order_history table
 - **Cash tracking**: Buy confirm deducts `available_cash`; Sell confirm adds to `available_cash`
-- **NAV**: Recalculated on order confirm as `available_cash + money_market + sum(holding.qty × current_price)`
+- **NAV**: Recalculated on order confirm as `available_cash + sum(holding.qty × current_price)`
 - **Rebalance**: Reads `target_ratio` from `ManagedFundSetting`; compares against current allocation; recommends buy/sell/qty/estimated_price per asset that deviates >0.5% from target
 - **Auto-sync**: New order symbols auto-inserted into `whitelist_assets` with `source='manual'`
 - **target_ratio normalization**: Values ≤1.0 auto-multiplied by 100 (normalized to percentage) in both get_settings and calculate_rebalance
@@ -137,10 +137,10 @@
 
 ## 7. Key Business Logic
 - **Cash** = `available_cash + cumulativePl`
-- **Total Value** = `available_cash + cumulativePl + marginLocked + cashBufferLimit + money_market + totalNotional`
+- **Total Value** = `available_cash + cumulativePl + marginLocked + cashBufferLimit + totalNotional`
 - **Available Cash** (raw) = `available_cash` (DB field)
 - **Available Cash** (tooltip) = `Cash + Total P/L`
-- **P/L %** = `(cumulativePl / (available_cash + money_market + marginLocked + cashBufferLimit)) × 100` (allCash denominator — synced across Overview cards, Overview hero, and Portfolio Summary)
+- **P/L %** = `(cumulativePl / (available_cash + marginLocked + cashBufferLimit)) × 100` (allCash denominator — synced across Overview cards, Overview hero, and Portfolio Summary)
 - **Edit Portfolio auto-adjust**: `newAvailable = max(0, rawAvailableCash − totalDiff)`
 - **Risk Level gauge**: 3-branch formula (mirrored frontend + backend):
   - `cashBufferLimit ≠ 0`: `((availableCash − marginLocked) / cashBufferLimit) × 100`
@@ -157,7 +157,7 @@
 - **Global Focus Ring**: All `<input>`, `<select>`, `<textarea>` use `ink` ring via `index.css`
 - **Font**: Sora replaces Inter + Plus Jakarta Sans
 - **Anti-pattern fixes**: 254 → 35 inline styles; `side-tab` → `border-l-2`; `btn-primary`/`btn-ghost` CSS classes removed (use `<Button variant="primary">`)
-- **Cash field order**: Lock → Buffer → Money Market → Available
+- **Cash field order**: Lock → Buffer → Available
 
 ## 9. Common Pitfalls
 - **Vite 5.4.21** — not Vite 8 (Vite 8 optimizer hangs on Linux/podman)

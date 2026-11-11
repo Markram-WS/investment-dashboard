@@ -407,7 +407,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const cumulativePl = performanceData?.total_pl || 0;
   const marginLocked = selectedPortfolio?.margin_locked || 0;
   const cashBufferLimit = selectedPortfolio?.cash_buffer_limit || 0;
-  const totalCash = (selectedPortfolio?.available_cash || 0) + (selectedPortfolio?.money_market || 0);
+  const totalCash = selectedPortfolio?.available_cash || 0;
   const allCash = totalCash + marginLocked + cashBufferLimit;
   const totalValue = allCash + cumulativePl + totalNotional;
   const plPercent = allCash > 0 ? (cumulativePl / allCash) * 100 : 0;
@@ -446,7 +446,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           availableCash={availableCash}
           marginLocked={marginLocked}
           cashBufferLimit={cashBufferLimit}
-          moneyMarket={selectedPortfolio.money_market || 0}
           riskStatus={riskStatusText}
           riskPercent={riskScore}
           tags={selectedPortfolio.tags}
@@ -576,7 +575,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         cashBufferLimit={cashBufferLimit}
         rawAvailableCash={selectedPortfolio.available_cash || 0}
         cumulativePl={cumulativePl}
-        moneyMarket={selectedPortfolio.money_market || 0}
         tags={selectedPortfolio.tags}
         showModal={showEditPortfolioModal}
         onClose={() => setShowEditPortfolioModal(false)}

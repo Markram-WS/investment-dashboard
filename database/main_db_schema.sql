@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS portfolios (
     margin_locked NUMERIC(20,8) DEFAULT 0.00,
     cash_buffer_limit NUMERIC(20,8) DEFAULT 0.00,
     available_cash NUMERIC(20,8) DEFAULT 0.00,
-    money_market NUMERIC(20,8) DEFAULT 0.00,
     trade_plan_md TEXT,
     internal_notes TEXT,           -- Free-text observations (yellow sticky note)
     risk_status TEXT CHECK (risk_status IN ('Safe', 'Warning', 'Danger')),

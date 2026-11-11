@@ -509,7 +509,6 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
           available_cash: portfolio.available_cash || 0,
           margin_locked: portfolio.margin_locked || 0,
           cash_buffer_limit: portfolio.cash_buffer_limit || 0,
-          money_market: portfolio.money_market || 0,
           tags: portfolio.tags || null,
         }}
         settings={settings}

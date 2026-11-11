@@ -31,15 +31,14 @@ async def get_overview_data(db: AsyncSession = Depends(get_db)):
     total_margin = sum(p.margin_locked or 0 for p in portfolios)
     total_buffer = sum(p.cash_buffer_limit or 0 for p in portfolios)
     total_available_cash = sum(p.available_cash or 0 for p in portfolios)
-    total_money_market = sum(p.money_market or 0 for p in portfolios)
 
-    total_cash = total_available_cash + total_money_market
+    global_cash = total_available_cash
 
     # Global risk alert: show when (Total Margin + Total Buffer) / Total Cash > 85%
     global_risk_alert_show = False
     global_risk_alert_message = ""
-    if total_cash > 0:
-        ratio = (total_margin + total_buffer) / total_cash
+    if global_cash > 0:
+        ratio = (total_margin + total_buffer) / global_cash
         if ratio > 0.85:
             global_risk_alert_show = True
             global_risk_alert_message = f"Global risk alert: (Margin+Buffer)/TotalCash = {ratio:.0%} > 85%"
@@ -63,7 +62,7 @@ async def get_overview_data(db: AsyncSession = Depends(get_db)):
     money_reserve_status = "Optimal"
     money_reserve_percentage = 0
     if (total_margin + total_buffer) > 0:
-        money_reserve_percentage = (total_cash / (total_margin + total_buffer)) * 100
+        money_reserve_percentage = (global_cash / (total_margin + total_buffer)) * 100
         if money_reserve_percentage < 120:
             money_reserve_status = "Danger"
         elif money_reserve_percentage > 200:
@@ -81,7 +80,6 @@ async def get_overview_data(db: AsyncSession = Depends(get_db)):
             "margin_locked": p.margin_locked,
             "cash_buffer_limit": p.cash_buffer_limit,
             "available_cash": p.available_cash,
-            "money_market": p.money_market,
             "risk_status": p.risk_status,
             "trade_plan_md": p.trade_plan_md
         })
@@ -90,8 +88,7 @@ async def get_overview_data(db: AsyncSession = Depends(get_db)):
         "global_cash_breakdown": {
             "margin": total_margin,
             "buffer": total_buffer,
-            "available_cash": total_available_cash,
-            "money_market": total_money_market
+            "available_cash": total_available_cash
         },
         "global_risk_alert": {
             "show": global_risk_alert_show,
@@ -126,7 +123,6 @@ class PortfolioGridData(BaseModel):
     trade_plan_md: Optional[str] = None
     internal_notes: Optional[str] = None
     available_cash: Optional[float] = None
-    money_market: Optional[float] = None
     margin_locked: Optional[float] = None
     cash_buffer_limit: Optional[float] = None
     tags: Optional[Dict[str, Any]] = None
@@ -407,7 +403,6 @@ async def get_portfolio_grid_data(
                 trade_plan_md=portfolio.trade_plan_md or (trade_plan.entry_reason if trade_plan else None),
                 internal_notes=portfolio.internal_notes,
                 available_cash=_to_float(portfolio.available_cash),
-                money_market=_to_float(portfolio.money_market),
                 margin_locked=_to_float(portfolio.margin_locked),
                 cash_buffer_limit=_to_float(portfolio.cash_buffer_limit),
                 tags=portfolio.tags,
@@ -663,7 +658,6 @@ async def get_portfolio_detail(
             trade_plan_md=portfolio.trade_plan_md or (trade_plan.entry_reason if trade_plan else None),
             internal_notes=portfolio.internal_notes,
             available_cash=_to_float(portfolio.available_cash),
-            money_market=_to_float(portfolio.money_market),
             margin_locked=_to_float(portfolio.margin_locked),
             cash_buffer_limit=_to_float(portfolio.cash_buffer_limit),
             tags=portfolio.tags,

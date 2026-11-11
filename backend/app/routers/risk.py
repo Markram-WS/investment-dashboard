@@ -53,23 +53,22 @@ async def _get_totals(db: AsyncSession):
     margin = sum(_to_float(p.margin_locked) for p in portfolios)
     buffer = sum(_to_float(p.cash_buffer_limit) for p in portfolios)
     available = sum(_to_float(p.available_cash) for p in portfolios)
-    mm = sum(_to_float(p.money_market) for p in portfolios)
-    return margin, buffer, available, mm
+    return margin, buffer, available
 
 
 @router.get("/pool-health", tags=["risk"], response_model=PoolHealthResponse)
 async def get_pool_health(db: AsyncSession = Depends(get_db)):
-    margin, buffer, available, mm = await _get_totals(db)
-    total = margin + buffer + available + mm
-    global_cash = available + mm
+    margin, buffer, available = await _get_totals(db)
+    total = margin + buffer + available
+    global_cash = available
     phi = min(100.0, max(0.0, (global_cash / total) * 100)) if total > 0 else 0.0
     return PoolHealthResponse(pool_health_index=round(phi, 2), global_cash=round(global_cash, 2), total_cash=round(total, 2))
 
 
 @router.get("/money-reserve-status", tags=["risk"], response_model=MoneyReserveStatusResponse)
 async def get_money_reserve_status(db: AsyncSession = Depends(get_db)):
-    margin, buffer, available, mm = await _get_totals(db)
-    global_cash = available + mm
+    margin, buffer, available = await _get_totals(db)
+    global_cash = available
     mpb = margin + buffer
     lower = mpb * 1.2
     upper = mpb * 2.0
@@ -96,7 +95,7 @@ async def get_portfolio_safety(portfolio_id: int, db: AsyncSession = Depends(get
 
     port_margin = _to_float(portfolio.margin_locked)
     port_buffer = _to_float(portfolio.cash_buffer_limit)
-    port_cash = _to_float(portfolio.available_cash) + _to_float(portfolio.money_market)
+    port_cash = _to_float(portfolio.available_cash)
     mpb = port_margin + port_buffer
     threshold = mpb * 0.2
 
@@ -107,8 +106,8 @@ async def get_portfolio_safety(portfolio_id: int, db: AsyncSession = Depends(get
     else:
         safety = "Safe"
 
-    margin_all, buffer_all, avail_all, mm_all = await _get_totals(db)
-    total_all = margin_all + buffer_all + avail_all + mm_all
+    margin_all, buffer_all, avail_all = await _get_totals(db)
+    total_all = margin_all + buffer_all + avail_all
     mpb_all = margin_all + buffer_all
     global_alert = (mpb_all / total_all) > 0.85 if total_all > 0 else False
 
@@ -122,10 +121,10 @@ async def get_portfolio_safety(portfolio_id: int, db: AsyncSession = Depends(get
 
 @router.get("/analytics", tags=["risk"], response_model=RiskAnalyticsResponse)
 async def get_risk_analytics(db: AsyncSession = Depends(get_db)):
-    margin, buffer, available, mm = await _get_totals(db)
-    total = margin + buffer + available + mm
+    margin, buffer, available = await _get_totals(db)
+    total = margin + buffer + available
     equity_ratio = (margin + buffer) / total if total > 0 else 0.5
-    cash_ratio = (available + mm) / total if total > 0 else 0.5
+    cash_ratio = available / total if total > 0 else 0.5
 
     seed_val = int(total) % 1000
     random.seed(seed_val)

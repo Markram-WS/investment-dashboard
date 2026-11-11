@@ -68,7 +68,7 @@ async def initiate_transfer(transfer_data: TransferCreate, db: AsyncSession = De
     
     Creates a pending transfer that requires manual confirmation before execution.
     Validates:
-    - Source portfolio has sufficient balance (available_cash + money_market)
+    - Source portfolio has sufficient available_cash balance
     - Source and destination portfolios exist and are different
     - Amount is positive
     
@@ -105,8 +105,8 @@ async def initiate_transfer(transfer_data: TransferCreate, db: AsyncSession = De
             detail=f"Destination portfolio {transfer_data.destination_portfolio_id} not found"
         )
 
-    # Calculate available balance (available_cash + money_market)
-    source_available = (source_portfolio.available_cash or 0) + (source_portfolio.money_market or 0)
+    # Calculate available balance
+    source_available = source_portfolio.available_cash or 0
     
     # Balance verification
     if source_available < transfer_data.amount:
@@ -128,7 +128,7 @@ async def initiate_transfer(transfer_data: TransferCreate, db: AsyncSession = De
         audit_labels={
             **(transfer_data.audit_labels or {}),
             "source_balance_before": float(source_available),
-            "destination_balance_before": float((dest_portfolio.available_cash or 0) + (dest_portfolio.money_market or 0))
+            "destination_balance_before": float(dest_portfolio.available_cash or 0)
         }
     )
     
@@ -147,7 +147,7 @@ async def initiate_transfer(transfer_data: TransferCreate, db: AsyncSession = De
         reference_id=transaction.reference_id,
         source_balance_before=float(source_available),
         source_balance_after=None,  # Will be set after confirmation
-        destination_balance_before=float((dest_portfolio.available_cash or 0) + (dest_portfolio.money_market or 0)),
+        destination_balance_before=float(dest_portfolio.available_cash or 0),
         destination_balance_after=None,
         created_at=transaction.created_at,
         confirmed_at=None
@@ -200,8 +200,8 @@ async def confirm_transfer(
     dest_portfolio = dest_result.scalar_one_or_none()
 
     # Store balances before update
-    source_balance_before = float((source_portfolio.available_cash or 0) + (source_portfolio.money_market or 0))
-    dest_balance_before = float((dest_portfolio.available_cash or 0) + (dest_portfolio.money_market or 0))
+    source_balance_before = float(source_portfolio.available_cash or 0)
+    dest_balance_before = float(dest_portfolio.available_cash or 0)
 
     # Double-check balance at confirmation time
     if source_balance_before < float(transaction.amount):
@@ -211,23 +211,13 @@ async def confirm_transfer(
         )
 
     # Execute the transfer - deduct from source, add to destination
-    # Deduct from available_cash first, then money_market if needed
     amount_to_transfer = float(transaction.amount)
     
     source_available = float(source_portfolio.available_cash or 0)
-    source_money_market = float(source_portfolio.money_market or 0)
     
-    # First, try to deduct from available_cash
-    if source_available >= amount_to_transfer:
-        source_available -= amount_to_transfer
-    else:
-        # Use all available_cash, pull rest from money_market
-        amount_from_mm = amount_to_transfer - source_available
-        source_available = 0
-        source_money_market -= amount_from_mm
+    source_available -= amount_to_transfer
     
     source_portfolio.available_cash = source_available
-    source_portfolio.money_market = source_money_market
 
     # Add to destination available_cash
     dest_available = float(dest_portfolio.available_cash or 0)
@@ -240,8 +230,8 @@ async def confirm_transfer(
         **(transaction.audit_labels or {}),
         "confirmed_by": confirm_data.confirmed_by,
         "confirmation_token": confirm_data.confirmation_token,
-        "source_balance_after": float((source_portfolio.available_cash or 0) + (source_portfolio.money_market or 0)),
-        "destination_balance_after": float((dest_portfolio.available_cash or 0) + (dest_portfolio.money_market or 0))
+        "source_balance_after": float(source_portfolio.available_cash or 0),
+        "destination_balance_after": float(dest_portfolio.available_cash or 0)
     }
 
     db.add(source_portfolio)

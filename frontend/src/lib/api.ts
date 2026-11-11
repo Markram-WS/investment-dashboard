@@ -39,7 +39,6 @@ export interface PortfolioRecord {
   current_nav: number;
   margin_locked: number;
   available_cash: number;
-  money_market: number;
   cash_buffer_limit: number;
   risk_status: string | null;
   last_rebalance_date: string | null;
@@ -60,7 +59,6 @@ export interface PortfolioPayload {
   margin_locked?: number;
   cash_buffer_limit?: number;
   available_cash?: number;
-  money_market?: number;
   trade_plan_md?: string;
   risk_status?: string;
   tags?: Record<string, boolean>;
@@ -79,7 +77,6 @@ export interface PortfolioUpdatePayload {
   margin_locked?: number;
   cash_buffer_limit?: number;
   available_cash?: number;
-  money_market?: number;
   trade_plan_md?: string;
   internal_notes?: string;
   risk_status?: string;

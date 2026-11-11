@@ -13,7 +13,6 @@ const mockOverviewData = {
   margin: 10000,
   buffer: 5000,
   available_cash: 15000,
-  money_market: 5000,
   pool_health_index: 75,
   money_reserve_status: 'optimal',
   portfolios: [
@@ -49,7 +48,6 @@ const mockRiskAlertData = {
   margin: 50000,
   buffer: 40000,
   available_cash: 5000,
-  money_market: 5000,
   pool_health_index: 50,
   money_reserve_status: 'danger',
   portfolios: [],
@@ -60,7 +58,6 @@ const mockEmptyPortfoliosData = {
   margin: 10000,
   buffer: 5000,
   available_cash: 15000,
-  money_market: 0,
   pool_health_index: 100,
   money_reserve_status: 'optimal',
   portfolios: [],
@@ -195,15 +192,6 @@ describe('PortfolioOverview Component', () => {
       await waitFor(() => {
         expect(screen.getByText('Available Cash')).toBeInTheDocument()
         expect(screen.getByText('$15,000.00')).toBeInTheDocument()
-      })
-    })
-
-    it('renders Money Market value', async () => {
-      render(<PortfolioOverview />)
-
-      await waitFor(() => {
-        expect(screen.getByText('Money Market')).toBeInTheDocument()
-        expect(screen.getByText('$5,000.00')).toBeInTheDocument()
       })
     })
   })
@@ -465,28 +453,12 @@ describe('PortfolioOverview Component', () => {
 
   // ===== Edge Cases =====
   describe('Edge Cases', () => {
-    it('handles zero money market value', async () => {
-      const zeroMoneyMarketData = { ...mockOverviewData, money_market: 0 }
-
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve(zeroMoneyMarketData),
-      })
-      render(<PortfolioOverview />)
-
-      await waitFor(() => {
-        expect(screen.getByText('Money Market')).toBeInTheDocument()
-        expect(screen.getByText('$0.00')).toBeInTheDocument()
-      })
-    })
-
     it('handles very large portfolio values', async () => {
       const largeValuesData = {
         ...mockOverviewData,
         margin: 10000000,
         buffer: 5000000,
         available_cash: 2000000,
-        money_market: 3000000,
       }
 
       mockFetch.mockResolvedValue({

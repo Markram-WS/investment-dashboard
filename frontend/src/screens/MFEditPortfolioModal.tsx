@@ -51,7 +51,6 @@ interface MFEditPortfolioModalProps {
     available_cash: number;
     margin_locked: number;
     cash_buffer_limit: number;
-    money_market: number;
     tags: Record<string, boolean> | null;
   };
   settings: MFSetting | null;
@@ -72,7 +71,6 @@ export default function MFEditPortfolioModal({
   const [name, setName] = useState(portfolio.portfolio_name);
   const [marginLocked, setMarginLocked] = useState(String(portfolio.margin_locked || 0));
   const [cashBuffer, setCashBuffer] = useState(String(portfolio.cash_buffer_limit || 0));
-  const [moneyMarket, setMoneyMarket] = useState(String(portfolio.money_market || 0));
   const [tagsStr, setTagsStr] = useState(
     portfolio.tags ? Object.keys(portfolio.tags).join(", ") : ""
   );
@@ -113,7 +111,6 @@ export default function MFEditPortfolioModal({
       setName(portfolio.portfolio_name);
       setMarginLocked(String(portfolio.margin_locked || 0));
       setCashBuffer(String(portfolio.cash_buffer_limit || 0));
-      setMoneyMarket(String(portfolio.money_market || 0));
       setTagsStr(portfolio.tags ? Object.keys(portfolio.tags).join(", ") : "");
       setGlobalThreshold(String(settings?.global_profit_threshold ?? 0));
       setDwAmount("");
@@ -133,10 +130,8 @@ export default function MFEditPortfolioModal({
     setSaveErr("");
     const m = parseFloat(marginLocked) || 0;
     const b = parseFloat(cashBuffer) || 0;
-    const mm = parseFloat(moneyMarket) || 0;
     if (m > cash) { setSaveErr(`Margin Locked max $${cash.toLocaleString()}`); return; }
     if (b > cash) { setSaveErr(`Cash Buffer max $${cash.toLocaleString()}`); return; }
-    if (mm > cash) { setSaveErr(`Money Market max $${cash.toLocaleString()}`); return; }
 
     setSaving(true);
     try {
@@ -144,15 +139,13 @@ export default function MFEditPortfolioModal({
       tagsStr.split(",").map(t => t.trim()).filter(Boolean).forEach(t => { tagsObj[t] = true; });
 
       const totalDiff = (m - (portfolio.margin_locked || 0))
-        + (b - (portfolio.cash_buffer_limit || 0))
-        + (mm - (portfolio.money_market || 0));
+        + (b - (portfolio.cash_buffer_limit || 0));
       const newAvailable = Math.max(0, cash - totalDiff);
 
       await api.updatePortfolio(portfolioId, {
         portfolio_name: name || undefined,
         margin_locked: m,
         cash_buffer_limit: b,
-        money_market: mm,
         available_cash: newAvailable,
         tags: Object.keys(tagsObj).length > 0 ? tagsObj : undefined,
       });
@@ -228,7 +221,7 @@ export default function MFEditPortfolioModal({
     }
   };
 
-  const availableDisplay = cash + (portfolio.margin_locked || 0) + (portfolio.cash_buffer_limit || 0) + (portfolio.money_market || 0);
+  const availableDisplay = cash + (portfolio.margin_locked || 0) + (portfolio.cash_buffer_limit || 0);
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Edit managed fund" zIndex={50}>
@@ -264,11 +257,6 @@ export default function MFEditPortfolioModal({
             <div>
               <label style={LABEL}>Cash buffer limit</label>
               <input type="number" value={cashBuffer} onChange={e => setCashBuffer(e.target.value)}
-                className="border border-hairline focus:border-brand-teal" style={INPUT} />
-            </div>
-            <div>
-              <label style={LABEL}>Money market</label>
-              <input type="number" value={moneyMarket} onChange={e => setMoneyMarket(e.target.value)}
                 className="border border-hairline focus:border-brand-teal" style={INPUT} />
             </div>
             <div>

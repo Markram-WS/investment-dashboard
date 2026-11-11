@@ -12,7 +12,6 @@ interface SummaryCardProps {
   availableCash: number;
   marginLocked: number;
   cashBufferLimit: number;
-  moneyMarket: number;
   riskStatus: string;
   riskPercent: number | null;
   tags: Record<string, boolean> | null;
@@ -51,7 +50,7 @@ const InfoHint: React.FC<{ text: string; maxWidth?: number; align?: "left" | "ri
 
 const SummaryCard: React.FC<SummaryCardProps> = ({
   totalValue, totalCash, totalNotional, cashAvailable, cumulativePl, plPercent, availableCash,
-  marginLocked, cashBufferLimit, moneyMarket, riskStatus, riskPercent, tags, assetAllocation,
+  marginLocked, cashBufferLimit, riskStatus, riskPercent, tags, assetAllocation,
   onEditPortfolio,
 }) => {
   let offset = 0;
@@ -91,7 +90,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
       <div className="flex flex-col">
         <div className="flex items-center" style={{ ...LABEL, marginBottom: 6, gap: 4 }}>
           Total value
-          <InfoHint text="Cash + P/L + MM + Margin + Buffer + Notional" />
+          <InfoHint text="Cash + P/L + Margin + Buffer + Notional" />
         </div>
         <p style={STAT}>${totalValue.toLocaleString()}</p>
         <p className="flex items-center" style={{ fontSize: 12, fontWeight: 500, color: pctColor, marginTop: 6, gap: 4 }}>
@@ -120,7 +119,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
 
     <div style={{ paddingBottom: 16, marginBottom: 16, borderBottom: HAIRLINE }}>
       <p style={{ ...LABEL, marginBottom: 12 }}>Cash details</p>
-      <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: 16 }}>
+      <div className="grid grid-cols-2 md:grid-cols-3" style={{ gap: 16 }}>
         <div>
           <p style={{ ...LABEL, marginBottom: 4 }}>Margin locked</p>
           <p style={CELL}>${marginLocked.toLocaleString()}</p>
@@ -128,10 +127,6 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
         <div>
           <p style={{ ...LABEL, marginBottom: 4 }}>Cash buffer</p>
           <p style={CELL}>${cashBufferLimit.toLocaleString()}</p>
-        </div>
-        <div>
-          <p style={{ ...LABEL, marginBottom: 4 }}>Money market</p>
-          <p style={CELL}>${moneyMarket.toLocaleString()}</p>
         </div>
         <div>
           <div className="flex items-center" style={{ ...LABEL, marginBottom: 4, gap: 4 }}>

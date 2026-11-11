@@ -20,14 +20,13 @@ tags:
 - **Reference Files:** `UI/overview/code.html` | `UI/overview/screen.png`
 - **Detailed Layout:** [[UI-LAYOUT-OVERVIEW]]
 - **Cash Breakdown Logic:**
-    - **Global Summary (4 Categories):** เพื่อความละเอียดสูงสุดในภาพรวมระบบ.
+    - **Global Summary (3 Categories):** เพื่อความละเอียดสูงสุดในภาพรวมระบบ.
         - **Margin:** เงินประกันที่ถูกวางไว้ (Lock).
         - **Buffer:** เงินสำรองความเสี่ยง.
         - **Available Cash:** เงินสดพร้อมใช้ทันที.
-        - **Money Market:** เงินในตลาดเงิน/รอเคลียร์ (T+3).
     - **Portfolio Cards (3 Categories):** เพื่อความเรียบง่ายในการดูรายพอร์ต.
         - **Margin** | **Buffer**
-        - **Available:** (Available Cash + Money Market) สื่อถึงสภาพคล่องรวมที่พอร์ตนั้นสามารถโยกย้ายได้.
+        - **Available:** (Available Cash) สื่อถึงสภาพคล่องรวมที่พอร์ตนั้นสามารถโยกย้ายได้.
 - **Global Risk Warning:** แสดงผลอัตโนมัติเมื่อ `(Margin + Buffer) / Total Cash > 85%`.
 - **AI Portfolio Cards:** แสดงสถานะภาพรวมของ AI (Active, Scanning, Planning) และค่า Health Index.
 
@@ -59,8 +58,8 @@ tags:
 - **Spread Strategy:** จับคู่เทรดแบบ 1:1 และติดตามค่า Spread (ไม่รวมในการ Rebalance).
 ### 2.2 Liquidity Safety (The Risk Framework)
 เน้นการตรวจสอบความปลอดภัยรายพอร์ต (Individual Portfolio Safety) และภาพรวมระบบ (Global Pool):
-- **Core Formula (Global):** `Total Cash = Margin + Buffer + Available Cash + Money Market`.
-- **Global Portfolio Liquidity:** `Global Cash = Available Cash + Money Market` (รวมทั้งระบบ).
+- **Core Formula (Global):** `Total Cash = Margin + Buffer + Available Cash`.
+- **Global Portfolio Liquidity:** `Global Cash = Available Cash` (รวมทั้งระบบ).
 
 #### 📊 Global Analysis Metrics
 1. **Pool Health Index (Gauge):** 

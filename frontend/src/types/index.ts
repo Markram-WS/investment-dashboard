@@ -5,7 +5,6 @@ export interface PortfolioOverviewItem {
   margin: number;
   buffer: number;
   available_cash: number;
-  money_market: number;
   total_pl: number;
   risk_status: string | null;
   profit_percentage?: number;
@@ -18,7 +17,6 @@ export interface OverviewResponse {
   margin: number;
   buffer: number;
   available_cash: number;
-  money_market: number;
   total_pl: number;
   pool_health_index: number;
   money_reserve_status: string;
@@ -92,7 +90,6 @@ export interface PortfolioData {
   trade_plan_md: string | null;
   internal_notes: string | null;
   available_cash: number | null;
-  money_market: number | null;
   margin_locked: number | null;
   cash_buffer_limit: number | null;
   tags: Record<string, boolean> | null;
@@ -157,7 +154,6 @@ export interface FundPortfolio {
   current_nav: number;
   margin_locked: number;
   available_cash: number;
-  money_market: number;
   cash_buffer_limit: number;
   target_ratio: Record<string, number>;
   current_allocations: Record<string, number>;

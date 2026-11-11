@@ -205,7 +205,7 @@ Header (sticky top-0 z-100)
 
 Hero Card
   ├─ Asset Total + Overall P/L
-  └─ Cash Breakdown: Lock / Buffer / Money Market / Available
+  └─ Cash Breakdown: Lock / Buffer / Available
 
 Widgets Row (2-column grid)
   ├─ Pool Health Gauge (semi-circle SVG)
@@ -297,10 +297,10 @@ In the cluster no frontend env vars are needed: the browser calls `/api/v1/...` 
 ### Key Business Logic
 
 - **Cash** = `available_cash + cumulativePl`
-- **Total Value** = `Cash + marginLocked + cashBufferLimit + money_market + totalNotional`
+- **Total Value** = `Cash + marginLocked + cashBufferLimit + totalNotional`
 - **Available Cash** (raw) = `available_cash` from DB
 - **Available Cash** (tooltip) = `Cash + Total P/L`
-- **P/L %** = `(cumulativePl / (available_cash + money_market)) × 100`
+- **P/L %** = `(cumulativePl / available_cash) × 100`
 - **Edit Portfolio auto-adjust**: `newAvailable = max(0, rawAvailableCash − totalDiff)`
 
 ### Testing Strategy

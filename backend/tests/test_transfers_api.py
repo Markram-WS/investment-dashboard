@@ -13,8 +13,7 @@ async def test_initiate_transfer_success(async_client):
     portfolio_data_1 = {
         "portfolio_name": "Source Portfolio",
         "port_type": "Active Trading",
-        "available_cash": 1000.0,
-        "money_market": 0.0
+        "available_cash": 1000.0
     }
     resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_1)
     assert resp.status_code == 201
@@ -23,8 +22,7 @@ async def test_initiate_transfer_success(async_client):
     portfolio_data_2 = {
         "portfolio_name": "Dest Portfolio",
         "port_type": "Active Trading",
-        "available_cash": 500.0,
-        "money_market": 0.0
+        "available_cash": 500.0
     }
     resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_2)
     assert resp.status_code == 201
@@ -55,8 +53,7 @@ async def test_initiate_transfer_insufficient_balance(async_client):
     portfolio_data_1 = {
         "portfolio_name": "Low Balance Portfolio",
         "port_type": "Active Trading",
-        "available_cash": 100.0,
-        "money_market": 0.0
+        "available_cash": 100.0
     }
     resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_1)
     source_id = resp.json()["portfolio_id"]
@@ -64,8 +61,7 @@ async def test_initiate_transfer_insufficient_balance(async_client):
     portfolio_data_2 = {
         "portfolio_name": "Recipient Portfolio",
         "port_type": "Active Trading",
-        "available_cash": 500.0,
-        "money_market": 0.0
+        "available_cash": 500.0
     }
     resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_2)
     dest_id = resp.json()["portfolio_id"]
@@ -101,8 +97,7 @@ async def test_confirm_transfer_success(async_client):
     portfolio_data_1 = {
         "portfolio_name": "Source",
         "port_type": "Active Trading",
-        "available_cash": 1000.0,
-        "money_market": 0.0
+        "available_cash": 1000.0
     }
     resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_1)
     source_id = resp.json()["portfolio_id"]
@@ -110,8 +105,7 @@ async def test_confirm_transfer_success(async_client):
     portfolio_data_2 = {
         "portfolio_name": "Dest",
         "port_type": "Active Trading",
-        "available_cash": 500.0,
-        "money_market": 0.0
+        "available_cash": 500.0
     }
     resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_2)
     dest_id = resp.json()["portfolio_id"]
@@ -276,14 +270,13 @@ async def test_get_specific_transfer(async_client):
 
 
 @pytest.mark.asyncio
-async def test_transfer_uses_money_market(async_client):
-    """Test transfer uses money_market when available_cash is insufficient."""
-    # Setup with low available_cash but high money_market
+async def test_transfer_debits_available_cash_only(async_client):
+    """Test a transfer is debited from available_cash, the only cash balance."""
+    # Setup: 600 available_cash, enough for the 300 transfer
     portfolio_data_1 = {
         "portfolio_name": "Source",
         "port_type": "Active Trading",
-        "available_cash": 100.0,
-        "money_market": 500.0
+        "available_cash": 600.0
     }
     resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_1)
     source_id = resp.json()["portfolio_id"]
@@ -292,7 +285,7 @@ async def test_transfer_uses_money_market(async_client):
     resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_2)
     dest_id = resp.json()["portfolio_id"]
 
-    # Transfer should succeed (100 available + 500 money_market = 600 total)
+    # Transfer should succeed (600 available_cash covers it)
     transfer_data = {
         "source_portfolio_id": source_id,
         "destination_portfolio_id": dest_id,
@@ -307,11 +300,10 @@ async def test_transfer_uses_money_market(async_client):
     resp = await async_client.post(f"/api/v1/transfers/{tx_id}/confirm", json=confirm_data)
     data = resp.json()
     
-    # Available_cash should be 0, money_market should be 300 (100-300=-200→0, 500-200=300)
+    # Available_cash should be 300 (600 - 300)
     resp = await async_client.get(f"/api/v1/portfolios/{source_id}")
     portfolio = resp.json()
-    assert portfolio["available_cash"] == 0.0
-    assert portfolio["money_market"] == 300.0
+    assert portfolio["available_cash"] == 300.0
 
 
 @pytest.mark.asyncio
