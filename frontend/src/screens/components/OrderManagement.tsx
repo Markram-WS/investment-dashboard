@@ -45,6 +45,44 @@ const CONTRACT_TABS = [
   { value: 'option' as const, label: 'Options' },
 ];
 
+/** Column head / label: 12px/500 slate, sentence case. */
+const headCell: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: 'var(--color-slate)', margin: 0 };
+
+/** Badge: 12px/500 slate on surface-soft, pill radius. */
+const BADGE: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 500,
+  color: 'var(--color-slate)',
+  background: 'var(--color-surface-soft)',
+  borderRadius: 999,
+  padding: '2px 10px',
+  whiteSpace: 'nowrap',
+};
+
+/** Tab pill: ink when active, hairline outline when idle. */
+const tabStyle = (active: boolean): React.CSSProperties => ({
+  fontSize: 12,
+  fontWeight: 500,
+  padding: '4px 12px',
+  borderRadius: 999,
+  border: active ? '1px solid var(--color-ink)' : '1px solid var(--color-hairline)',
+  background: active ? 'var(--color-ink)' : 'var(--color-canvas)',
+  color: active ? 'var(--color-canvas)' : 'var(--color-slate)',
+  cursor: 'pointer',
+});
+
+/** Body value: 15px, tabular figures. */
+const VALUE: React.CSSProperties = { fontSize: 15, fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)' };
+
+/** Status pill text colour — semantic tokens, never raw palette. */
+const statusColor = (status?: string | null): string => {
+  const s = (status || '').toUpperCase();
+  if (s === 'FILLED') return 'var(--color-positive-text)';
+  if (s === 'PENDING') return 'var(--color-status-warning)';
+  if (s === 'CLOSE') return 'var(--color-danger-text)';
+  return 'var(--color-slate)';
+};
+
 const OrderManagement: React.FC<OrderManagementProps> = ({
   activeOrders, zoneGroups, groups, groupByZone, onGroupByZoneToggle, isGridType,
   tradeHistory, onEditOrder, onEditZone, onCloseOrder,
@@ -57,13 +95,13 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
 }) => {
   const createDragGhost = (order: SpreadOrder): HTMLElement => {
     const el = document.createElement('div');
-    el.style.cssText = 'position:absolute;top:-1000px;left:-1000px;padding:8px 16px;background:#1c1c1e;color:#fff;border-radius:9999px;font-size:12px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:12px;box-shadow:0 4px 16px rgba(0,0,0,0.25);pointer-events:none;font-family:inherit;letter-spacing:0';
+    el.style.cssText = 'position:absolute;top:-1000px;left:-1000px;padding:8px 16px;background:var(--color-ink);color:var(--color-canvas);border-radius:9999px;font-size:12px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:12px;box-shadow:0 4px 16px rgba(0,0,0,0.25);pointer-events:none;font-family:inherit;letter-spacing:0';
     el.innerHTML = `
       <span style="opacity:0.6">#${order.order_id?.slice(0, 8) || ''}</span>
       <span style="opacity:0.3">|</span>
       <span>${order.asset_type || ''}</span>
       <span style="opacity:0.3">|</span>
-      <span style="color:${(order.side || '').toUpperCase() === 'BUY' ? '#0fbcb0' : '#ff9999'}">${(order.side || '').toUpperCase()}</span>
+      <span style="color:${(order.side || '').toUpperCase() === 'BUY' ? 'var(--color-brand-teal)' : 'var(--color-brand-coral)'}">${(order.side || '').charAt(0).toUpperCase()}${(order.side || '').slice(1).toLowerCase()}</span>
       <span style="opacity:0.3">|</span>
       <span>$${order.entry_price?.toLocaleString() || '-'}</span>
     `;
@@ -95,13 +133,13 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
     e.dataTransfer.setData('text/x-link', '1');
     const ghost = document.createElement('div');
     ghost.innerHTML = `
-      <span style="display:inline-flex;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35))">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <span style="display:inline-flex;color:var(--color-brand-teal);filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35))">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
         </svg>
       </span>
-      <span style="font-size:10px;font-weight:600;color:#374151">#${order.order_id?.slice(0, 8) || ''}</span>
+      <span style="font-size:12px;font-weight:500;color:var(--color-slate)">#${order.order_id?.slice(0, 8) || ''}</span>
     `;
     ghost.style.cssText = 'position:absolute;top:-1000px;left:-1000px;display:flex;align-items:center;gap:6px;white-space:nowrap;font-family:inherit';
     document.body.appendChild(ghost);
@@ -125,7 +163,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
     if (types.indexOf('text/x-link') !== -1) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'link';
-      (e.currentTarget as HTMLElement).style.outline = '2px solid #4262ff';
+      (e.currentTarget as HTMLElement).style.outline = '2px solid var(--color-brand-teal)';
       (e.currentTarget as HTMLElement).style.outlineOffset = '-2px';
     }
   };
@@ -314,14 +352,15 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             />
           </div>
           <div className="w-2/6 p-4 space-y-5">
-            <div className="text-[10px] font-bold text-slate uppercase tracking-widest">Config</div>
+            <div style={headCell}>Config</div>
 
             {/* IV Mode toggle */}
             <div>
-              <div className="text-[9px] text-slate font-medium mb-1">BS IV Mode</div>
+              <div className="mb-1" style={headCell}>BS IV mode</div>
               <button
                 onClick={() => onIvModeChange?.(!ivMode)}
-                className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${ivMode ? "bg-purple-600" : "bg-gray-300"}`}
+                className="relative inline-flex h-4 w-7 items-center rounded-full transition-colors"
+                style={{ background: ivMode ? 'var(--color-ink)' : 'var(--color-hairline)' }}
               >
                 <span className={`inline-block h-3 w-3 transform rounded-full bg-canvas transition-transform ${ivMode ? "translate-x-3.5" : "translate-x-0.5"}`} />
               </button>
@@ -332,7 +371,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             {/* Active IV inputs */}
             {activeOrders.filter(o => o.contract_type === 'option').length > 0 && (
               <div>
-                <div className="text-[9px] text-slate font-medium mb-1">Active Order IV</div>
+                <div className="mb-1" style={headCell}>Active order IV</div>
                 {/* Apply All row */}
                 <div className="flex items-center gap-1 mb-1.5">
                   <input
@@ -341,9 +380,10 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                     placeholder="IV"
                     value={masterIvStr}
                     onChange={(e) => setMasterIvStr(e.target.value)}
-                    className="w-12 text-[10px] border border-hairline rounded px-1 py-0.5 text-right"
+                    className="w-12 border border-hairline rounded px-1 py-0.5 text-right text-ink"
+                    style={{ fontSize: 12 }}
                   />
-                  <span className="text-[9px] text-slate">%</span>
+                  <span style={headCell}>%</span>
                   <button
                     onClick={() => {
                       const val = parseFloat(masterIvStr);
@@ -356,15 +396,16 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                         setMasterIvStr("");
                       }
                     }}
-                    className="text-[9px] px-1.5 py-0.5 rounded bg-purple-600 text-white font-medium ml-auto"
+                    className="ml-auto rounded-full bg-ink text-canvas"
+                    style={{ fontSize: 12, fontWeight: 500, padding: '2px 10px' }}
                   >
-                    Apply All
+                    Apply all
                   </button>
                 </div>
                 <div className="space-y-1 max-h-20 overflow-y-auto">
                   {activeOrders.filter(o => o.contract_type === 'option').map(order => (
                     <div key={order.order_id} className="flex items-center justify-between gap-1">
-                      <span className="text-[9px] text-ink truncate max-w-[80px]">
+                      <span className="text-ink truncate max-w-[80px]" style={{ fontSize: 12 }}>
                         {order.asset_type} {order.option_type} {order.strike_price}
                       </span>
                       <input
@@ -392,9 +433,10 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                             });
                           }
                         }}
-                        className="w-14 text-[10px] border border-hairline rounded px-1 py-0.5 text-right text-gray-700"
+                        className="w-14 border border-hairline rounded px-1 py-0.5 text-right text-ink"
+                        style={{ fontSize: 12 }}
                       />
-                      <span className="text-[9px] text-slate">%</span>
+                      <span style={headCell}>%</span>
                     </div>
                   ))}
                 </div>
@@ -403,7 +445,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
 
             {/* Price Range inputs */}
             <div>
-              <div className="text-[9px] text-slate font-medium mb-1">Price Range</div>
+              <div className="mb-1" style={headCell}>Price range</div>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <input
@@ -426,7 +468,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                         setPriceMinStr(payoffMinPrice != null ? String(payoffMinPrice) : "0");
                       }
                     }}
-                    className="w-full text-[10px] border border-hairline rounded px-1.5 py-1 text-right"
+                    className="w-full border border-hairline rounded px-1.5 py-1 text-right text-ink"
+                    style={{ fontSize: 12 }}
                     placeholder="Min"
                   />
                 </div>
@@ -451,7 +494,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                         setPriceMaxStr(payoffMaxPrice != null ? String(payoffMaxPrice) : "100");
                       }
                     }}
-                    className="w-full text-[10px] border border-hairline rounded px-1.5 py-1 text-right"
+                    className="w-full border border-hairline rounded px-1.5 py-1 text-right text-ink"
+                    style={{ fontSize: 12 }}
                     placeholder="Max"
                   />
                 </div>
@@ -466,16 +510,17 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
       <div className="px-8 pt-8 pb-4 flex justify-between">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-4">
-            <h3 className="text-[11px] font-bold text-ink uppercase tracking-widest">Order Management</h3>
-            <span className="px-2 py-0.5 bg-ink text-[10px] text-white font-bold rounded-full uppercase tracking-tighter">
-              {filteredActiveOrders.length} ACTIVE
+            <h3 className="text-ink" style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em', margin: 0 }}>Order management</h3>
+            <span style={BADGE}>
+              {filteredActiveOrders.length} active
             </span>
           </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <button
                   onClick={onGroupByZoneToggle}
-                  className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${groupByZone ? "bg-brand-teal" : "bg-gray-300"}`}
+                  className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors"
+                  style={{ background: groupByZone ? 'var(--color-brand-teal)' : 'var(--color-hairline)' }}
                 >
                   <span className={`inline-block h-3 w-3 transform rounded-full bg-canvas transition-transform ${groupByZone ? "translate-x-4" : "translate-x-0"}`} />
                 </button>
@@ -489,17 +534,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                   <button
                     key={tab.value}
                     onClick={() => onContractFilterChange(tab.value)}
-                    className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-full border transition-all ${
-                      contractFilter === tab.value
-                        ? tab.value === 'all'
-                          ? 'bg-ink text-white border-ink'
-                          : tab.value === 'spot'
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : tab.value === 'future'
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-purple-600 text-white border-purple-600'
-                        : 'border-hairline bg-canvas text-slate hover:border-gray-300 hover:text-slate'
-                    }`}
+                    className="transition-all"
+                    style={tabStyle(contractFilter === tab.value)}
                   >
                     {tab.label}
                   </button>
@@ -510,18 +546,23 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowOptionsStrategy(!showOptionsStrategy)}
-            className={`h-8 w-8 rounded-full border transition-all flex items-center justify-center ${
-              showOptionsStrategy
-                ? "bg-purple-100 text-purple-700 border-purple-200"
-                : "bg-canvas text-slate border-hairline hover:bg-surface"
-            }`}
+            className="h-8 w-8 rounded-full border border-hairline transition-all flex items-center justify-center"
+            style={{
+              background: showOptionsStrategy ? 'var(--color-surface-soft)' : 'var(--color-canvas)',
+              color: showOptionsStrategy ? 'var(--color-ink)' : 'var(--color-slate)',
+            }}
             title="Options Strategy"
           >
             <IconContract className="w-4 h-4" />
           </button>
-          <button onClick={onAddOrder} className="h-9 px-4 rounded-full bg-brand-teal text-white text-xs font-bold shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5" title="Add Order">
+          <button
+            onClick={onAddOrder}
+            className="h-9 px-4 rounded-full bg-ink text-canvas hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5"
+            style={{ fontSize: 12, fontWeight: 500 }}
+            title="Add Order"
+          >
             <IconPlus className="w-4 h-4" />
-            Add Order
+            Add order
           </button>
         </div>
       </div>
@@ -534,21 +575,21 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             <tr className="bg-surface border-y border-hairline">
               <th className="p-4 w-8" />
               <th className="p-4 w-8" />
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">ID</th>
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Asset</th>
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Side</th>
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry Date</th>
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Entry Price</th>
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Qty</th>
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Current</th>
-              {showLev && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Leverage</th>}
-              {showLev && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Margin</th>}
-              {showExp && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Expiry</th>}
-              {showStrikePrice && <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Strike Price</th>}
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">TP Target</th>
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">SL</th>
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">P/L</th>
-              <th className="p-4 text-[10px] font-bold text-slate uppercase tracking-widest">Status</th>
+              <th className="p-4" style={headCell}>ID</th>
+              <th className="p-4" style={headCell}>Asset</th>
+              <th className="p-4" style={headCell}>Side</th>
+              <th className="p-4" style={headCell}>Entry date</th>
+              <th className="p-4" style={headCell}>Entry price</th>
+              <th className="p-4" style={headCell}>Qty</th>
+              <th className="p-4" style={headCell}>Current</th>
+              {showLev && <th className="p-4" style={headCell}>Leverage</th>}
+              {showLev && <th className="p-4" style={headCell}>Margin</th>}
+              {showExp && <th className="p-4" style={headCell}>Expiry</th>}
+              {showStrikePrice && <th className="p-4" style={headCell}>Strike price</th>}
+              <th className="p-4" style={headCell}>TP target</th>
+              <th className="p-4" style={headCell}>SL</th>
+              <th className="p-4" style={headCell}>P/L</th>
+              <th className="p-4" style={headCell}>Status</th>
               <th className="p-4 w-12" />
             </tr>
           </thead>
@@ -576,21 +617,21 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
             <tr>
               <th className="px-3 py-2 w-8" />
               <th className="px-3 py-2 w-8" />
-              <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">ID</th>
-              <th className="hidden md:table-cell px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Asset</th>
-              <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Side</th>
-              <th className="hidden md:table-cell px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Open Date</th>
-              <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Qty</th>
-              <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Entry</th>
-              <th className="hidden md:table-cell px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Current</th>
-              {showLev && <th className="hidden lg:table-cell px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Leverage</th>}
-              {showLev && <th className="hidden lg:table-cell px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Margin</th>}
-              {showExp && <th className="hidden md:table-cell px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Expiry</th>}
-              {showStrikePrice && <th className="hidden md:table-cell px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">Strike Price</th>}
-              <th className="hidden md:table-cell px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">TP</th>
-              <th className="hidden md:table-cell px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">SL</th>
-              <th className="px-3 py-2 text-right font-medium text-xs uppercase tracking-wider">P/L</th>
-              <th className="px-3 py-2 text-left font-medium text-xs uppercase tracking-wider">Status</th>
+              <th className="px-3 py-2 text-left" style={headCell}>ID</th>
+              <th className="hidden md:table-cell px-3 py-2 text-left" style={headCell}>Asset</th>
+              <th className="px-3 py-2 text-left" style={headCell}>Side</th>
+              <th className="hidden md:table-cell px-3 py-2 text-left" style={headCell}>Open date</th>
+              <th className="px-3 py-2 text-right" style={headCell}>Qty</th>
+              <th className="px-3 py-2 text-right" style={headCell}>Entry</th>
+              <th className="hidden md:table-cell px-3 py-2 text-right" style={headCell}>Current</th>
+              {showLev && <th className="hidden lg:table-cell px-3 py-2 text-right" style={headCell}>Leverage</th>}
+              {showLev && <th className="hidden lg:table-cell px-3 py-2 text-right" style={headCell}>Margin</th>}
+              {showExp && <th className="hidden md:table-cell px-3 py-2 text-left" style={headCell}>Expiry</th>}
+              {showStrikePrice && <th className="hidden md:table-cell px-3 py-2 text-right" style={headCell}>Strike price</th>}
+              <th className="hidden md:table-cell px-3 py-2 text-right" style={headCell}>TP</th>
+              <th className="hidden md:table-cell px-3 py-2 text-right" style={headCell}>SL</th>
+              <th className="px-3 py-2 text-right" style={headCell}>P/L</th>
+              <th className="px-3 py-2 text-left" style={headCell}>Status</th>
               <th className="px-3 py-2 w-10" />
             </tr>
           </thead>
@@ -601,6 +642,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
               const showGray = isSpot && contractFilter !== 'spot' && contractFilter !== 'all';
               const linkInfo = flatLinkInfoMap[order.order_id];
               const isLinked = order.link_type && order.link_type !== 'none';
+              const isBuy = order.side === 'BUY' || order.side === 'Buy' || order.side === 'LONG';
               return (
                 <tr
                   key={order.order_id}
@@ -613,7 +655,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                     <span
                       draggable={!linkInfo?.isSub && !(linkInfo?.linkType === 'spread' && !linkInfo?.isFirstInGroup)}
                       onDragStart={(e) => handleDragStart(e, order)}
-                      className={`${linkInfo?.isSub || (linkInfo?.linkType === 'spread' && !linkInfo?.isFirstInGroup) ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'} cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-slate transition-opacity`}
+                      className={`${linkInfo?.isSub || (linkInfo?.linkType === 'spread' && !linkInfo?.isFirstInGroup) ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'} cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-slate transition-opacity`}
                       title="Drag to assign group or close"
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -635,7 +677,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                           className="absolute left-2 top-1/2 -translate-y-1/2 z-10 cursor-grab active:cursor-grabbing inline-flex items-center justify-center"
                           title="Drag to link order"
                         >
-                          <span className={`bg-white rounded-full p-0.5 inline-flex items-center justify-center shadow-sm ${linkInfo?.linkType === 'spread' ? 'text-blue-600' : 'text-yellow-500'}`}>
+                          <span className={`bg-canvas rounded-full p-0.5 inline-flex items-center justify-center ${linkInfo?.linkType === 'spread' ? 'text-brand-teal' : 'text-brand-yellow'}`}>
                             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" draggable="false">
                               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -651,9 +693,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                             y1={linkInfo?.linkType === 'spread' && linkInfo?.isFirstInGroup ? '50%' : '0'}
                             x2="6"
                             y2={linkInfo?.linkType === 'spread' && linkInfo?.isLastInGroup ? '50%' : linkInfo?.linkType === 'pending_close' ? '50%' : '100%'}
-                            stroke={linkInfo?.linkType === 'spread' ? '#93c5fd' : '#fde047'}
                             strokeWidth="2"
-                            style={{ animation: 'linkLineGlow 1.2s ease-out forwards' }}
+                            style={{ stroke: linkInfo?.linkType === 'spread' ? 'var(--color-brand-blue)' : 'var(--color-brand-accent)', animation: 'linkLineGlow 1.2s ease-out forwards' }}
                           />
                         </svg>
                       </>
@@ -665,7 +706,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                         className={`${isLinked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} cursor-grab active:cursor-grabbing inline-flex items-center justify-center transition-opacity`}
                         title="Drag to link order"
                       >
-                        <span className={`bg-white rounded-full p-0.5 inline-flex items-center justify-center ${linkInfo?.linkType === 'spread' ? 'text-blue-600' : linkInfo?.linkType === 'pending_close' ? 'text-yellow-500' : 'text-gray-300'}`}>
+                        <span className={`bg-canvas rounded-full p-0.5 inline-flex items-center justify-center ${linkInfo?.linkType === 'spread' ? 'text-brand-teal' : linkInfo?.linkType === 'pending_close' ? 'text-brand-yellow' : 'text-slate'}`}>
                           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" draggable="false">
                             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -674,33 +715,35 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                       </span>
                     )}
                   </td>
-                  <td draggable={false} className="px-3 py-2 text-xs text-slate font-mono">#{order.order_id}</td>
-                  <td draggable={false} className="hidden md:table-cell px-3 py-2 font-medium text-sm">{order.asset_type}</td>
+                  <td draggable={false} className="px-3 py-2 font-mono text-slate" style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>#{order.order_id}</td>
+                  <td draggable={false} className="hidden md:table-cell px-3 py-2" style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-ink)' }}>{order.asset_type}</td>
                   <td draggable={false} className="px-3 py-2">
-                    <span className={`text-xs px-1 rounded ${order.side === "BUY" || order.side === "Buy" || order.side === "LONG" ? "bg-teal-light text-brand-teal" : "bg-coral-light text-brand-coral"}`}>{order.side}</span>
+                    <span style={{ ...BADGE, color: isBuy ? 'var(--color-positive-text)' : 'var(--color-danger-text)' }}>
+                      {order.side ? order.side.charAt(0).toUpperCase() + order.side.slice(1).toLowerCase() : ''}
+                    </span>
                   </td>
-                  <td draggable={false} className="hidden md:table-cell px-3 py-2 text-xs text-slate">{openDate}</td>
-                  <td draggable={false} className="px-3 py-2 text-right text-xs">{order.qty}</td>
-                  <td draggable={false} className="px-3 py-2 text-right text-xs">${order.entry_price || "-"}</td>
-                  <td draggable={false} className="hidden md:table-cell px-3 py-2 text-right text-xs">${order.current_price || "-"}</td>
+                  <td draggable={false} className="hidden md:table-cell px-3 py-2 text-slate" style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{openDate}</td>
+                  <td draggable={false} className="px-3 py-2 text-right" style={VALUE}>{order.qty}</td>
+                  <td draggable={false} className="px-3 py-2 text-right" style={VALUE}>${order.entry_price || "-"}</td>
+                  <td draggable={false} className="hidden md:table-cell px-3 py-2 text-right" style={VALUE}>${order.current_price || "-"}</td>
                   {showLev && (
-                    <td className="hidden lg:table-cell px-3 py-2 text-right text-xs">{order.leverage != null ? `${order.leverage}x` : '-'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-right" style={VALUE}>{order.leverage != null ? `${order.leverage}x` : '-'}</td>
                   )}
                   {showLev && (
-                    <td className="hidden lg:table-cell px-3 py-2 text-right text-xs">${order.margin_rate != null ? order.margin_rate : '-'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-right" style={VALUE}>${order.margin_rate != null ? order.margin_rate : '-'}</td>
                   )}
                   {showExp && (
-                    <td className="hidden md:table-cell px-3 py-2 text-xs">{order.expiry_date ? order.expiry_date.slice(0, 10) : '-'}</td>
+                    <td className="hidden md:table-cell px-3 py-2 text-slate" style={{ fontSize: 12 }}>{order.expiry_date ? order.expiry_date.slice(0, 10) : '-'}</td>
                   )}
                   {showStrikePrice && (
-                    <td className="hidden md:table-cell px-3 py-2 text-right text-xs">${order.strike_price != null ? order.strike_price : '-'}</td>
+                    <td className="hidden md:table-cell px-3 py-2 text-right" style={VALUE}>${order.strike_price != null ? order.strike_price : '-'}</td>
                   )}
-                  <td draggable={false} className="hidden md:table-cell px-3 py-2 text-right text-xs">${order.tp_price || "-"}</td>
-                  <td draggable={false} className="hidden md:table-cell px-3 py-2 text-right text-xs">${order.sl_price || "-"}</td>
-                  <td draggable={false} className={`px-3 py-2 text-right text-xs font-bold ${(() => {
+                  <td draggable={false} className="hidden md:table-cell px-3 py-2 text-right" style={VALUE}>${order.tp_price || "-"}</td>
+                  <td draggable={false} className="hidden md:table-cell px-3 py-2 text-right" style={VALUE}>${order.sl_price || "-"}</td>
+                  <td draggable={false} className="px-3 py-2 text-right" style={{ ...VALUE, fontWeight: 600, color: (() => {
                     const pl = order.current_price && order.entry_price ? (order.current_price - order.entry_price) * Number(order.qty) : 0;
-                    return pl >= 0 ? 'text-emerald-600' : 'text-red-500';
-                  })()}`}>
+                    return pl >= 0 ? 'var(--color-positive-text)' : 'var(--color-danger-text)';
+                  })() }}>
                     {(() => {
                       const pl = order.current_price && order.entry_price ? (order.current_price - order.entry_price) * Number(order.qty) : 0;
                       return pl >= 0 ? '+' : '';
@@ -710,13 +753,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                     })()}
                   </td>
                   <td draggable={false} className="px-3 py-2">
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${
-                      (order.order_status || "").toUpperCase() === "FILLED" ? "bg-green-100 text-green-700" :
-                      (order.order_status || "").toUpperCase() === "PENDING" ? "bg-yellow-100 text-yellow-700" :
-                      (order.order_status || "").toUpperCase() === "CLOSE" ? "bg-red-100 text-red-700" :
-                      (order.order_status || "").toUpperCase() === "CANCELED" ? "bg-surface-soft text-slate" :
-                      "text-slate"
-                    }`}>{order.order_status}</span>
+                    <span style={{ ...BADGE, color: statusColor(order.order_status) }}>
+                      {order.order_status ? order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1).toLowerCase() : ''}
+                    </span>
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
@@ -726,7 +765,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 11.5 8 16l4.5-7.5z" />
                         </svg>
                       </button>
-                      <button onClick={() => onCloseOrder(order)} className="p-1 hover:bg-red-50 rounded transition-colors text-red-300 hover:text-red-500" title="Close">
+                      <button onClick={() => onCloseOrder(order)} className="p-1 hover:bg-surface-soft rounded transition-colors text-brand-coral" title="Close">
                         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <line x1="18" y1="6" x2="6" y2="18" />
                           <line x1="6" y1="6" x2="18" y2="18" />

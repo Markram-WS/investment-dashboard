@@ -27,27 +27,31 @@ const PerformanceSection: React.FC<PerformanceSectionProps> = ({
   const safeActiveIVs = activeIVs || {};
   const safePayoffMinPrice = payoffMinPrice ?? 0;
   const safePayoffMaxPrice = payoffMaxPrice ?? 0;
+  const equityCurve = performanceData?.equity_curve;
+  const hasEquityData = Array.isArray(equityCurve) && equityCurve.length > 0;
   return (
-  <section className="mb-6">
-    <div className="rounded-2xl bg-purple-50 p-8 flex flex-col border border-hairline-soft">
-      <div className="flex justify-between items-center mb-8">
-        <h3 className="text-[11px] font-bold text-ink uppercase tracking-widest">Performance</h3>
-        <div className="flex items-center gap-4">
+  <section style={{ marginBottom: 48 }}>
+    <div className="flex flex-col" style={{ background: "var(--color-canvas)", borderRadius: 16, padding: 24 }}>
+      <div className="flex justify-between items-center" style={{ marginBottom: 16 }}>
+        <h3 style={{ fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: 0 }}>Performance</h3>
+        <div className="flex items-center" style={{ gap: 16 }}>
           {performanceData && viewMode === "equity" && (
-            <span className="text-xs text-slate font-medium">
+            <span style={{ fontSize: 12, color: "var(--color-slate)" }}>
               Total P/L: ${performanceData.total_pl?.toLocaleString()}
             </span>
           )}
-          <div className="flex p-1 bg-canvas rounded-full border border-hairline shadow-sm">
+          <div className="flex" style={{ background: "var(--color-surface-soft)", borderRadius: 999, padding: 3 }}>
             <button
               onClick={() => onViewModeChange("equity")}
-              className={`px-4 py-1.5 text-[10px] font-bold rounded-full shadow-sm transition-all ${viewMode === "equity" ? "bg-ink text-white" : "bg-gray-200 text-ink hover:bg-gray-300"}`}
+              className={`px-4 py-1.5 rounded-full transition-colors ${viewMode === "equity" ? "bg-ink text-canvas" : "text-slate hover:text-ink"}`}
+              style={{ fontSize: 11, fontWeight: 500 }}
             >
               Equity
             </button>
             <button
               onClick={() => onViewModeChange("payoff")}
-              className={`px-4 py-1.5 text-[10px] font-bold rounded-full transition-all ${viewMode === "payoff" ? "bg-ink text-white" : "bg-gray-200 text-ink hover:bg-gray-300"}`}
+              className={`px-4 py-1.5 rounded-full transition-colors ${viewMode === "payoff" ? "bg-ink text-canvas" : "text-slate hover:text-ink"}`}
+              style={{ fontSize: 11, fontWeight: 500 }}
             >
               Payoff
             </button>
@@ -55,10 +59,12 @@ const PerformanceSection: React.FC<PerformanceSectionProps> = ({
         </div>
       </div>
       {viewMode === "equity" ? (
-        performanceData ? (
+        hasEquityData ? (
           <PerformanceChart data={performanceData} viewMode={viewMode} />
         ) : (
-          <div className="h-40 flex items-center justify-center text-xs text-slate">Loading performance data...</div>
+          <div className="flex items-center justify-center" style={{ paddingTop: 32, paddingBottom: 32 }}>
+            <span style={{ fontSize: 12, color: "var(--color-slate)" }}>No trade data yet</span>
+          </div>
         )
       ) : (
         <PayoffChart

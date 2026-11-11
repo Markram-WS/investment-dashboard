@@ -60,7 +60,8 @@ export default function NotificationBell() {
             {unreadCount > 0 && (
               <button
                 onClick={markAllRead}
-                className="text-[10px] font-bold uppercase tracking-wider text-brand-teal bg-transparent border-none cursor-pointer hover:underline"
+                className="bg-transparent border-none cursor-pointer hover:underline"
+                style={{ fontSize: 12, fontWeight: 500, color: "var(--color-slate)" }}
               >
                 Mark all read
               </button>
@@ -114,7 +115,8 @@ export default function NotificationBell() {
             <div className="border-t border-hairline px-4 py-2">
               <button
                 onClick={clearAll}
-                className="w-full text-[10px] font-bold uppercase tracking-wider text-slate/50 bg-transparent border-none cursor-pointer hover:text-slate transition-colors"
+                className="w-full bg-transparent border-none cursor-pointer transition-colors"
+                style={{ fontSize: 12, fontWeight: 500, color: "var(--color-slate)" }}
               >
                 Clear all
               </button>

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../lib/api';
-import Button from './components/Button';
+import { api, type AssetGroupRecord } from '../lib/api';
 import ModalShell from './components/ModalShell';
 
 interface AssetGroupModalProps {
@@ -10,8 +9,58 @@ interface AssetGroupModalProps {
 
 const emptyForm = { name: '' };
 
+/** Column head: 12px/500 slate, sentence case. */
+const headCell = { fontSize: 12, fontWeight: 500, color: 'var(--color-slate)', margin: 0 } as const;
+
+/** Field control: 15px ink on canvas, 1px hairline, radius 8. */
+const fieldControl = {
+  width: '100%',
+  fontSize: 15,
+  color: 'var(--color-ink)',
+  background: 'var(--color-canvas)',
+  border: '1px solid var(--color-hairline)',
+  borderRadius: 8,
+  padding: '8px 12px',
+} as const;
+
+/** Badge: 12px/500 slate on surface-soft, pill radius. */
+const badgeStyle = {
+  fontSize: 12,
+  fontWeight: 500,
+  color: 'var(--color-slate)',
+  background: 'var(--color-surface-soft)',
+  borderRadius: 999,
+  padding: '2px 10px',
+  whiteSpace: 'nowrap',
+} as const;
+
+const primaryButton = {
+  padding: '8px 16px',
+  fontSize: 13,
+  fontWeight: 500,
+  background: 'var(--color-ink)',
+  color: 'var(--color-canvas)',
+  border: '1px solid var(--color-ink)',
+  borderRadius: 999,
+  cursor: 'pointer',
+} as const;
+
+const secondaryButton = {
+  padding: '8px 16px',
+  fontSize: 13,
+  fontWeight: 500,
+  background: 'var(--color-canvas)',
+  color: 'var(--color-ink)',
+  border: '1px solid var(--color-hairline)',
+  borderRadius: 999,
+  cursor: 'pointer',
+} as const;
+
+const actionButtonClass = 'transition-opacity disabled:opacity-50 disabled:cursor-not-allowed';
+const modalPanel = 'bg-canvas border border-hairline rounded-xl p-6 w-full max-w-lg mx-4';
+
 const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
-  const [groups, setGroups] = useState<any[]>([]);
+  const [groups, setGroups] = useState<AssetGroupRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -41,7 +90,7 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
     setShowForm(true);
   };
 
-  const handleEdit = (g: any) => {
+  const handleEdit = (g: AssetGroupRecord) => {
     setForm({ name: g.name });
     setEditingId(g.id);
     setShowForm(true);
@@ -72,51 +121,51 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
 
   return (
     <ModalShell open={open} onClose={onClose} title="Asset Groups">
-      <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-lg mx-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">Asset Groups</h3>
-          <button onClick={onClose} className="text-slate hover:text-ink text-xl leading-none">&times;</button>
+      <div className={modalPanel}>
+        <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
+          <h3 style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0 }}>Asset groups</h3>
+          <button onClick={onClose} className="text-slate hover:text-ink leading-none" style={{ fontSize: 20, background: 'none', border: 'none', cursor: 'pointer' }}>&times;</button>
         </div>
 
         {showForm && (
-          <div className="mb-6 p-4 bg-surface rounded-lg border border-hairline">
-            <h4 className="font-semibold text-sm mb-3">{editingId ? 'Edit Group' : 'New Group'}</h4>
-            <div className="flex gap-2">
+          <div className="mb-6" style={{ borderTop: '1px solid var(--color-hairline)', borderBottom: '1px solid var(--color-hairline)', padding: '16px 0' }}>
+            <h4 style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink)', margin: '0 0 10px' }}>{editingId ? 'Edit group' : 'New group'}</h4>
+            <div className="flex" style={{ gap: 8 }}>
               <input type="text" value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="Group name"
-                className="flex-1 text-sm border border-hairline rounded-lg px-3 py-2 bg-canvas text-ink" />
+                style={fieldControl} />
             </div>
-            <div className="flex justify-end gap-2 mt-3">
-              <button onClick={resetForm} className="px-4 py-2 text-xs font-medium border rounded hover:bg-surface transition-colors">Cancel</button>
-              <Button variant="primary" onClick={handleSave} disabled={!form.name.trim()}>
+            <div className="flex justify-end" style={{ gap: 8, marginTop: 12 }}>
+              <button type="button" onClick={resetForm} style={secondaryButton}>Cancel</button>
+              <button type="button" onClick={handleSave} disabled={!form.name.trim()} className={actionButtonClass} style={primaryButton}>
                 {editingId ? 'Update' : 'Create'}
-              </Button>
+              </button>
             </div>
           </div>
         )}
 
         {loading ? (
-          <p className="text-slate text-sm py-4 text-center">Loading...</p>
+          <p className="text-center py-4" style={{ fontSize: 13, color: 'var(--color-slate)' }}>Loading...</p>
         ) : groups.length === 0 && !showForm ? (
-          <p className="text-slate text-sm py-4 text-center">No asset groups defined yet.</p>
+          <p className="text-center py-4" style={{ fontSize: 13, color: 'var(--color-slate)' }}>No asset groups defined yet.</p>
         ) : (
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-hairline">
-                <th className="pb-2 text-[10px] font-bold text-slate uppercase tracking-widest">Group</th>
-                <th className="pb-2 text-[10px] font-bold text-slate uppercase tracking-widest text-right">Default</th>
-                <th className="pb-2 w-16" />
+              <tr style={{ borderBottom: '1px solid var(--color-hairline)' }}>
+                <th style={{ ...headCell, paddingBottom: 8 }}>Group</th>
+                <th style={{ ...headCell, paddingBottom: 8, textAlign: 'right' }}>Default</th>
+                <th className="w-16" style={{ paddingBottom: 8 }} />
               </tr>
             </thead>
             <tbody>
               {groups.map((g) => (
-                <tr key={g.id} className="border-b border-gray-100 dark:border-white/5">
-                  <td className="py-3 font-semibold text-sm">{g.name}</td>
-                  <td className="py-3 text-sm text-right">
-                    {g.is_default && <span className="text-[9px] text-slate bg-surface px-1.5 py-0.5 rounded">default</span>}
+                <tr key={g.id} style={{ borderBottom: '1px solid var(--color-hairline-soft)' }}>
+                  <td style={{ padding: '10px 0', fontSize: 15, fontWeight: 600, color: 'var(--color-ink)' }}>{g.name}</td>
+                  <td style={{ padding: '10px 0', textAlign: 'right' }}>
+                    {g.is_default && <span style={badgeStyle}>default</span>}
                   </td>
-                  <td className="py-3 text-right whitespace-nowrap">
+                  <td className="whitespace-nowrap" style={{ padding: '10px 0', textAlign: 'right' }}>
                     <button onClick={() => handleEdit(g)} className="inline-flex items-center justify-center p-1.5 text-slate hover:text-ink transition-colors" title="Edit">
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -124,7 +173,7 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
                       </svg>
                     </button>
                     {!g.is_default && (
-                      <button onClick={() => handleDelete(g.id)} className="inline-flex items-center justify-center p-1.5 text-red-300 hover:text-red-500 transition-colors" title="Delete">
+                      <button onClick={() => handleDelete(g.id)} className="inline-flex items-center justify-center p-1.5 transition-opacity hover:opacity-70" style={{ color: 'var(--color-danger-text)' }} title="Delete">
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="3 6 5 6 21 6" />
                           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -138,13 +187,13 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
           </table>
         )}
 
-        <div className="flex items-center justify-between mt-6">
+        <div className="flex items-center justify-between" style={{ marginTop: 24 }}>
           {!showForm && (
-            <button onClick={handleAdd} className="px-4 py-2 text-xs font-bold bg-ink text-canvas rounded-full hover:opacity-80 transition-all">
-              + Add Group
+            <button onClick={handleAdd} style={primaryButton}>
+              + Add group
             </button>
           )}
-          <button onClick={onClose} className="ml-auto px-5 py-2 text-sm font-medium border border-hairline rounded-full hover:bg-surface transition-colors">
+          <button onClick={onClose} className="ml-auto" style={secondaryButton}>
             Close
           </button>
         </div>

@@ -21,8 +21,8 @@ const PerformanceChart: React.FC<PerformanceChartProps> = ({ data, viewMode }) =
 
   if (!points || points.length === 0) {
     return (
-      <div className="aspect-[4/1] flex items-center justify-center text-xs text-slate">
-        No trade data yet
+      <div className="flex items-center justify-center" style={{ paddingTop: 32, paddingBottom: 32 }}>
+        <span style={{ fontSize: 12, color: "var(--color-slate)" }}>No trade data yet</span>
       </div>
     );
   }
@@ -72,12 +72,12 @@ const PerformanceChart: React.FC<PerformanceChartProps> = ({ data, viewMode }) =
                 style={{ animation: `fadeUp 0.4s ease-out ${0.3 + i * 0.03}s both` }} />
             ))}
           </svg>
-          <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[9px] text-slate font-medium py-[2px]">
+          <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-slate" style={{ fontSize: 11, fontWeight: 500, paddingTop: 2, paddingBottom: 2 }}>
             <span style={{ animation: 'fadeUp 0.4s ease-out 0.5s both' }}>${max.toLocaleString()}</span>
             <span style={{ animation: 'fadeUp 0.4s ease-out 0.6s both' }}>${min.toLocaleString()}</span>
           </div>
         </div>
-        <div className="flex justify-between mt-1 text-[10px] font-bold text-slate uppercase tracking-widest px-1">
+        <div className="flex justify-between text-slate px-1" style={{ marginTop: 4, fontSize: 11, fontWeight: 500 }}>
           {xLabels.map((xl: any, i: number) => <span key={i} style={{ animation: `fadeUp 0.4s ease-out ${0.5 + i * 0.1}s both` }}>{xl.label}</span>)}
         </div>
       </div>
@@ -109,7 +109,7 @@ const PerformanceChart: React.FC<PerformanceChartProps> = ({ data, viewMode }) =
           })}
         </svg>
       </div>
-      <div className="flex justify-between mt-1 text-[10px] font-bold text-slate uppercase tracking-widest px-1">
+      <div className="flex justify-between text-slate px-1" style={{ marginTop: 4, fontSize: 11, fontWeight: 500 }}>
           {points.filter((_: any, i: number) => i % Math.max(1, Math.floor(points.length / 5)) === 0)
           .map((p: any, i: number) => <span key={i} style={{ animation: `fadeUp 0.4s ease-out ${0.3 + i * 0.1}s both` }}>{(p.date || "").slice(0, 7)}</span>)}
       </div>

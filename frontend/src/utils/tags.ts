@@ -14,10 +14,3 @@ export function getProfitPct(p: PortfolioOverviewItem): number {
   const invested = (p.margin || 0) + (p.buffer || 0) + (p.available_cash || 0) + (p.money_market || 0);
   return invested > 0 ? ((p.total_pl || 0) / invested * 100) : 0;
 }
-
-export function getStatusMessage(p: PortfolioOverviewItem): string {
-  if (p.status_message) return p.status_message;
-  if (p.risk_status === "Danger") return "Rebalancing recommended: Variance above threshold.";
-  if (p.risk_status === "Warning") return "Pool health monitoring required.";
-  return "Pool health remains stable at 92% efficiency.";
-}

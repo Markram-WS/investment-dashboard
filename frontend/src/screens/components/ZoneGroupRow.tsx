@@ -1,6 +1,38 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { SpreadOrder, GroupOption, OrderLinkGroup } from '../../types';
 
+/** Section / grid caption: 12px/500 slate, sentence case. */
+const CAPTION: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: 'var(--color-slate)', margin: 0 };
+
+/** Badge: 12px/500 slate on surface-soft, pill radius. */
+const BADGE: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 500,
+  color: 'var(--color-slate)',
+  background: 'var(--color-surface-soft)',
+  borderRadius: 999,
+  padding: '2px 10px',
+  whiteSpace: 'nowrap',
+};
+
+/** Body value: 15px, tabular figures. */
+const VALUE: React.CSSProperties = { fontSize: 15, fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)' };
+
+/** Secondary value: 12px slate, tabular figures. */
+const VALUE_MUTED: React.CSSProperties = { fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--color-slate)' };
+
+const DRAG_TINT = 'color-mix(in srgb, var(--color-brand-teal) 8%, var(--color-canvas))';
+const DRAG_EDGE = '2px solid var(--color-brand-teal)';
+
+/** Status pill text colour — semantic tokens, never raw palette. */
+const statusColor = (status?: string | null): string => {
+  const s = (status || '').toUpperCase();
+  if (s === 'FILLED') return 'var(--color-positive-text)';
+  if (s === 'PENDING') return 'var(--color-status-warning)';
+  if (s === 'CLOSE') return 'var(--color-danger-text)';
+  return 'var(--color-slate)';
+};
+
 interface OrderGroupRowProps {
   groupInfo: {
     group_id: number | null;
@@ -23,12 +55,6 @@ interface OrderGroupRowProps {
 const formatDate = (dateStr: string | null): string => {
   if (!dateStr) return '-';
   return dateStr.slice(0, 10);
-};
-
-const getSideBadgeClass = (side: string): string => {
-  return (side === 'BUY' || side === 'Buy' || side === 'buy' || side === 'LONG' || side === 'Long')
-    ? 'bg-tealLight text-brandTeal border border-brandTeal/20 uppercase'
-    : 'bg-coralLight text-brandCoral border border-brandCoral/20 uppercase';
 };
 
 export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups, onEdit, onClose, onAssignGroup, onLinkOrder, contractFilter, showLev, showExp, showStrikePrice }) => {
@@ -71,13 +97,13 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
 
   const createDragGhost = useCallback((order: SpreadOrder): HTMLElement => {
     const el = document.createElement('div');
-    el.style.cssText = 'position:absolute;top:-1000px;left:-1000px;padding:8px 16px;background:#1c1c1e;color:#fff;border-radius:9999px;font-size:12px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:12px;box-shadow:0 4px 16px rgba(0,0,0,0.25);pointer-events:none;font-family:inherit;letter-spacing:0';
+    el.style.cssText = 'position:absolute;top:-1000px;left:-1000px;padding:8px 16px;background:var(--color-ink);color:var(--color-canvas);border-radius:9999px;font-size:12px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:12px;box-shadow:0 4px 16px rgba(0,0,0,0.25);pointer-events:none;font-family:inherit;letter-spacing:0';
     el.innerHTML = `
       <span style="opacity:0.6">#${order.order_id?.slice(0, 8) || ''}</span>
       <span style="opacity:0.3">|</span>
       <span>${order.asset_type || ''}</span>
       <span style="opacity:0.3">|</span>
-      <span style="color:${(order.side || '').toUpperCase() === 'BUY' ? '#0fbcb0' : '#ff9999'}">${(order.side || '').toUpperCase()}</span>
+      <span style="color:${(order.side || '').toUpperCase() === 'BUY' ? 'var(--color-brand-teal)' : 'var(--color-brand-coral)'}">${(order.side || '').charAt(0).toUpperCase()}${(order.side || '').slice(1).toLowerCase()}</span>
       <span style="opacity:0.3">|</span>
       <span>$${order.entry_price?.toLocaleString() || '-'}</span>
     `;
@@ -131,13 +157,13 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
     e.dataTransfer.setData('text/x-link', '1');
     const ghost = document.createElement('div');
     ghost.innerHTML = `
-      <span style="display:inline-flex;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35))">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <span style="display:inline-flex;color:var(--color-brand-teal);filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35))">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
         </svg>
       </span>
-      <span style="font-size:10px;font-weight:600;color:#374151">#${order.order_id?.slice(0, 8) || ''}</span>
+      <span style="font-size:12px;font-weight:500;color:var(--color-slate)">#${order.order_id?.slice(0, 8) || ''}</span>
     `;
     ghost.style.cssText = 'position:absolute;top:-1000px;left:-1000px;display:flex;align-items:center;gap:6px;white-space:nowrap;font-family:inherit';
     document.body.appendChild(ghost);
@@ -174,23 +200,23 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
   return (
     <>
       <tr
-        className={`${isUngrouped ? 'bg-surface' : 'bg-surface'} border-b border-hairline transition-colors ${isDragOver ? 'bg-blue-50' : ''}`}
+        className="bg-surface border-b border-hairline transition-colors"
         onDragOver={handleDragOver}
         onDragEnter={handleGroupDragEnter}
         onDragLeave={handleGroupDragLeave}
         onDrop={handleGroupDrop}
-        style={isDragOver ? { borderLeft: '2px solid #3b82f6' } : undefined}
+        style={isDragOver ? { background: DRAG_TINT, borderLeft: DRAG_EDGE } : undefined}
       >
         <td className="pl-8 py-3" colSpan={totalCols}>
           <div className="flex items-center gap-2">
-            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${isUngrouped ? 'bg-surface-soft text-slate border border-hairline' : 'bg-tealLight text-brandTeal border border-brandTeal/20'} uppercase tracking-wide`}>
+            <span style={{ ...BADGE, color: isUngrouped ? 'var(--color-slate)' : 'var(--color-brand-teal)' }}>
               {groupLabel}
             </span>
             {maxOrders != null && (
-              <span className="text-[10px] text-slate font-medium">{count}/{maxOrders}</span>
+              <span style={CAPTION}>{count}/{maxOrders}</span>
             )}
             {isDragOver && (
-              <span className="text-[10px] text-blue-600 font-semibold ml-2">Drop to assign</span>
+              <span className="ml-2" style={{ ...CAPTION, fontWeight: 600, color: 'var(--color-brand-teal)' }}>Drop to assign</span>
             )}
           </div>
         </td>
@@ -205,22 +231,23 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
         const showGray = isSpot && contractFilter !== 'spot' && contractFilter !== 'all';
         const linkInfo = linkInfoMap[order.order_id];
         const isLinked = order.link_type && order.link_type !== 'none';
+        const isBuy = order.side === 'BUY' || order.side === 'Buy' || order.side === 'buy' || order.side === 'LONG' || order.side === 'Long';
 
         return (
           <tr
             key={order.order_id}
-            className={`border-b border-hairline transition-colors trade-group-border group ${showGray ? 'bg-surface' : 'hover:bg-surface/50'} ${isDragOver ? 'bg-blue-50/30' : ''}`}
+            className={`border-b border-hairline transition-colors trade-group-border group ${showGray ? 'bg-surface' : 'hover:bg-surface/50'}`}
             onDragOver={handleDragOver}
             onDragEnter={handleGroupDragEnter}
             onDragLeave={handleGroupDragLeave}
             onDrop={(e) => handleGroupDrop(e, order.order_id)}
-            style={isDragOver ? { borderLeft: '2px solid #3b82f6' } : undefined}
+            style={isDragOver ? { background: DRAG_TINT, borderLeft: DRAG_EDGE } : undefined}
           >
             <td className="py-4 w-8 text-center">
               <span
                 draggable={!linkInfo?.isSub && !linkInfo?.isSpreadPartner}
                 onDragStart={(e) => handleDragStart(e, order)}
-                className={`${linkInfo?.isSub || linkInfo?.isSpreadPartner ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'} cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-gray-300 hover:text-slate transition-opacity`}
+                className={`${linkInfo?.isSub || linkInfo?.isSpreadPartner ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'} cursor-grab active:cursor-grabbing inline-flex items-center justify-center text-slate transition-opacity`}
                 title="Drag to assign group or close"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -242,7 +269,7 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                     className="absolute left-2 top-1/2 -translate-y-1/2 z-10 cursor-grab active:cursor-grabbing inline-flex items-center justify-center"
                     title="Drag to link order"
                   >
-                    <span className={`bg-white rounded-full p-0.5 inline-flex items-center justify-center shadow-sm ${linkInfo?.linkType === 'spread' ? 'text-blue-600' : 'text-yellow-500'}`}>
+                    <span className={`bg-canvas rounded-full p-0.5 inline-flex items-center justify-center ${linkInfo?.linkType === 'spread' ? 'text-brand-teal' : 'text-brand-yellow'}`}>
                       <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" draggable="false">
                         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                         <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -258,9 +285,8 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                       y1={linkInfo?.linkType === 'spread' && linkInfo?.isFirstInGroup ? '50%' : '0'}
                       x2="6"
                       y2={linkInfo?.linkType === 'spread' && linkInfo?.isLastInGroup ? '50%' : linkInfo?.linkType === 'pending_close' ? '50%' : '100%'}
-                      stroke={linkInfo?.linkType === 'spread' ? '#93c5fd' : '#fde047'}
                       strokeWidth="2"
-                      style={{ animation: 'linkLineGlow 1.2s ease-out forwards' }}
+                      style={{ stroke: linkInfo?.linkType === 'spread' ? 'var(--color-brand-blue)' : 'var(--color-brand-accent)', animation: 'linkLineGlow 1.2s ease-out forwards' }}
                     />
                   </svg>
                 </>
@@ -272,7 +298,7 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                   className={`${isLinked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} cursor-grab active:cursor-grabbing inline-flex items-center justify-center transition-opacity`}
                   title="Drag to link order"
                 >
-                  <span className={`bg-white rounded-full p-0.5 inline-flex items-center justify-center ${linkInfo?.linkType === 'spread' ? 'text-blue-600' : linkInfo?.linkType === 'pending_close' ? 'text-yellow-500' : 'text-gray-300'}`}>
+                  <span className={`bg-canvas rounded-full p-0.5 inline-flex items-center justify-center ${linkInfo?.linkType === 'spread' ? 'text-brand-teal' : linkInfo?.linkType === 'pending_close' ? 'text-brand-yellow' : 'text-slate'}`}>
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" draggable="false">
                       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -281,48 +307,44 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                 </span>
               )}
             </td>
-            <td draggable={false} className="py-4 font-bold text-xs">#{order.order_id}</td>
-            <td draggable={false} className="py-4 font-bold text-xs uppercase">{order.asset_type}</td>
+            <td draggable={false} className="py-4" style={VALUE_MUTED}>#{order.order_id}</td>
+            <td draggable={false} className="py-4" style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-ink)' }}>{order.asset_type}</td>
             <td draggable={false} className="py-4">
-              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${getSideBadgeClass(order.side)}`}>
-                {order.side}
+              <span style={{ ...BADGE, color: isBuy ? 'var(--color-positive-text)' : 'var(--color-danger-text)' }}>
+                {order.side ? order.side.charAt(0).toUpperCase() + order.side.slice(1).toLowerCase() : ''}
               </span>
             </td>
-            <td draggable={false} className="py-4 text-[10px] text-slate">{formatDate(order.created_at)}</td>
-            <td draggable={false} className="py-4 text-xs font-medium">${order.entry_price ? order.entry_price.toLocaleString() : '-'}</td>
-            <td draggable={false} className="py-4 text-xs font-medium">{order.qty}</td>
-            <td draggable={false} className="py-4 text-xs font-medium">${order.current_price ? order.current_price.toLocaleString() : '-'}</td>
+            <td draggable={false} className="py-4" style={VALUE_MUTED}>{formatDate(order.created_at)}</td>
+            <td draggable={false} className="py-4" style={VALUE}>${order.entry_price ? order.entry_price.toLocaleString() : '-'}</td>
+            <td draggable={false} className="py-4" style={VALUE}>{order.qty}</td>
+            <td draggable={false} className="py-4" style={VALUE}>${order.current_price ? order.current_price.toLocaleString() : '-'}</td>
             {showLev && (
-              <td className="py-4 text-xs font-medium">{order.leverage != null ? `${order.leverage}x` : '-'}</td>
+              <td className="py-4" style={VALUE}>{order.leverage != null ? `${order.leverage}x` : '-'}</td>
             )}
             {showLev && (
-              <td className="py-4 text-xs font-medium">${order.margin_rate != null ? order.margin_rate : '-'}</td>
+              <td className="py-4" style={VALUE}>${order.margin_rate != null ? order.margin_rate : '-'}</td>
             )}
             {showExp && (
-              <td className="py-4 text-[10px] text-slate">{order.expiry_date ? formatDate(order.expiry_date) : '-'}</td>
+              <td className="py-4" style={VALUE_MUTED}>{order.expiry_date ? formatDate(order.expiry_date) : '-'}</td>
             )}
             {showStrikePrice && (
-              <td className="py-4 text-xs font-medium">${order.strike_price != null ? order.strike_price.toLocaleString() : '-'}</td>
+              <td className="py-4" style={VALUE}>${order.strike_price != null ? order.strike_price.toLocaleString() : '-'}</td>
             )}
-            <td draggable={false} className="py-4 text-xs font-medium">${order.tp_price ? order.tp_price.toLocaleString() : '-'}</td>
-            <td draggable={false} className="py-4 text-xs font-medium">${order.sl_price ? order.sl_price.toLocaleString() : '-'}</td>
-            <td draggable={false} className={`py-4 text-xs font-bold ${pl >= 0 ? 'text-brandTeal' : 'text-brandCoral'}`}>
+            <td draggable={false} className="py-4" style={VALUE}>${order.tp_price ? order.tp_price.toLocaleString() : '-'}</td>
+            <td draggable={false} className="py-4" style={VALUE}>${order.sl_price ? order.sl_price.toLocaleString() : '-'}</td>
+            <td draggable={false} className="py-4" style={{ ...VALUE, fontWeight: 600, color: pl >= 0 ? 'var(--color-positive-text)' : 'var(--color-danger-text)' }}>
               {pl >= 0 ? '+' : ''}${pl.toFixed(2)}
             </td>
             <td draggable={false} className="py-4">
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                (order.order_status || "").toUpperCase() === "FILLED" ? "bg-green-100 text-green-700" :
-                (order.order_status || "").toUpperCase() === "PENDING" ? "bg-yellow-100 text-yellow-700" :
-                (order.order_status || "").toUpperCase() === "CLOSE" ? "bg-red-100 text-red-700" :
-                (order.order_status || "").toUpperCase() === "CANCELED" ? "bg-surface-soft text-slate" :
-                "text-slate"
-              }`}>{order.order_status}</span>
+              <span style={{ ...BADGE, color: statusColor(order.order_status) }}>
+                {order.order_status ? order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1).toLowerCase() : ''}
+              </span>
             </td>
             <td className="pr-6 text-right py-4">
               <div className="flex items-center justify-end gap-1">
                 <button
                   onClick={() => onEdit(order)}
-                  className="p-1.5 hover:bg-white rounded-full transition-colors text-slate"
+                  className="p-1.5 hover:bg-surface-soft rounded-full transition-colors text-slate"
                   title="Edit"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -333,7 +355,7 @@ export const OrderGroupRow: React.FC<OrderGroupRowProps> = ({ groupInfo, groups,
                 {onClose && (
                   <button
                     onClick={() => onClose(order)}
-                    className="p-1.5 hover:bg-red-50 rounded-full transition-colors text-red-300 hover:text-red-500"
+                    className="p-1.5 hover:bg-surface-soft rounded-full transition-colors text-brand-coral"
                     title="Close Order"
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

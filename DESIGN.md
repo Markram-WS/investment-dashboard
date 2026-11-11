@@ -57,9 +57,9 @@ typography:
   label:
     fontFamily: "Sora, sans-serif"
     fontSize: "0.75rem"
-    fontWeight: 600
+    fontWeight: 500
     lineHeight: 1
-    letterSpacing: "0.03125em"
+    letterSpacing: "0"
 rounded:
   sm: "6px"
   md: "8px"
@@ -134,7 +134,7 @@ components:
 
 A workshop where every tool is within reach and every number is instantly legible. Clean white and near-white surfaces form the workbench; bold canary yellow and pastel teal/coral/blue accents provide signal without noise. This is a space for confident action — monitoring, rebalancing, transferring, closing — not decoration.
 
-The system sits at the intersection of playful and precise. Generous rounded corners (16px on cards, full pills on buttons) and soft pastel tints keep the tool approachable, while tight typography (Sora at 15px body, crisp uppercase labels) and flat tonal layering keep the data authoritative. Depth is conveyed through background color shifts and hairline borders, not shadows — surfaces are flat at rest.
+The system sits at the intersection of playful and precise. Generous rounded corners (16px on cards, full pills on buttons) and soft pastel tints keep the tool approachable, while tight typography (Sora at 15px body, crisp sentence-case labels) and flat tonal layering keep the data authoritative. Depth is conveyed through background color shifts and hairline borders, not shadows — surfaces are flat at rest.
 
 What this system explicitly rejects: fintech navy-and-gold, dark-mode-terminal aesthetics, SaaS-cream minimalism, gradient text, glassmorphism, and side-stripe borders.
 
@@ -145,7 +145,7 @@ What this system explicitly rejects: fintech navy-and-gold, dark-mode-terminal a
 - Pastel tints for status backgrounds (teal-light, coral-light, yellow-light)
 - Sora geometric sans throughout — one family, weight contrast carries hierarchy
 - 16px card corners as the dominant container radius
-- Uppercase tracking on short labels only — never on body copy
+- Sentence-case labels at 12px/500 — no uppercase or tracked letterforms anywhere
 
 ## 2. Colors
 
@@ -194,7 +194,9 @@ Each light color has a dark-mode counterpart defined as CSS custom properties on
 - **Heading** (600, `clamp(1.5rem, 3vw, 2rem)`, 1.25): Section headings (e.g. "Active Portfolios"). Bold but not dominant.
 - **Title** (600, 1.25rem, 1.3): Card titles, dialog headings, secondary section titles.
 - **Body** (400, 0.9375rem / 15px, 1.5): Primary reading size. Used for statistics, descriptions, table cells. Max line length 75ch.
-- **Label Caps** (600, 0.75rem / 12px, 1, +0.03125em tracking, uppercase): Stat labels, section eyebrows, badge text. Never used for sentences — 4 words max.
+- **Label** (500, 0.75rem / 12px, `--color-slate`, sentence case, no letter-spacing): Column heads, chip text, stat labels, and captions. Always sentence case, never uppercase — 4 words max, so it stays a label and not a sentence.
+
+Uppercase and tracked letterforms are not used on dashboard pages: a tracked all-caps kicker above every block is a template tell, and the ledger's own column heads are sentence case.
 
 ### Dashboard Scale (Overview is the reference)
 
@@ -213,7 +215,7 @@ Dashboard pages use a fixed px scale, never `clamp`. This is a product register:
 
 **The One-Family Rule.** All text uses Sora. No serif, no mono, no secondary display face. Hierarchy is carried by weight (300 to 800), size (12px to 48px), and letter-spacing, not by font switching.
 
-**The No-All-Caps-Body Rule.** Uppercase is reserved for stat labels and short badges (≤4 words). Never use all-caps for sentences, section intros, or body copy.
+**The No-All-Caps Rule.** No dashboard text is set in uppercase or with added letter-spacing. Labels are sentence case at 12px/500 in `--color-slate`; a tracked all-caps kicker above every block is a template tell, and the ledger's own column heads are sentence case.
 
 ## 4. Elevation
 
@@ -281,6 +283,7 @@ The summary block a dashboard page starts with: a canvas card sitting on the sur
 
 ### Chips / Badges
 - **Style:** Pill shape (9999px), 2px/10px padding, 12px font, 500 weight.
+- **Case:** badge and chip text is sentence case at 12px/500; uppercase tracking is not used.
 - **Colors match accent roles:** teal, yellow, coral, blue, each with a 12-18% opacity tinted background.
 - **Neutral variant:** Surface background, slate text.
 - **Dark mode:** Background opacity increases to 25%.
@@ -325,7 +328,7 @@ page header              26px title left, status dots right, 15px below (mb-4)
 - **Do** use flat containers with hairline borders at rest and tonal surface shifts for depth.
 - **Do** keep body text at 15px with a max line length of 75ch.
 - **Do** use `text-wrap: balance` on heading elements and `text-wrap: pretty` on long prose.
-- **Do** use uppercase labels only for short stat labels and badges (4 words max).
+- **Do** write labels in sentence case at 12px/500 `--color-slate`, 4 words max.
 - **Do** use Sora across the entire interface — one family, weight contrast for hierarchy.
 - **Do** keep a dashboard page's primary datum at 22px and its page title at 26px, with a fixed px scale.
 - **Do** separate same-width blocks with a surface step plus at least 48px.
@@ -336,7 +339,7 @@ page header              26px title left, status dots right, 15px below (mb-4)
 - **Don't** use side-stripe borders (border-left >1px as a colored accent on cards or callouts).
 - **Don't** use the hero-metric template (big number + small label + gradient accent) — a SaaS cliché.
 - **Don't** use numbered section markers (01 / 02 / 03) as default scaffolding above sections.
-- **Don't** use all-caps for body copy, sentences, or section introductions.
+- **Don't** use all-caps or tracked labels anywhere on a dashboard page, including column heads, chips and stat labels.
 - **Don't** use navy-and-gold fintech aesthetics, dark-mode-terminal-only looks, or SaaS-cream minimalism.
 - **Don't** stack nested cards — cards are flat by default and should not contain other cards.
 - **Don't** use fonts outside the Sora family — no serif, mono, or competing sans-serif.

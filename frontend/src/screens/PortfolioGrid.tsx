@@ -16,6 +16,7 @@ import { api } from "../lib/api";
 import { allocationColors } from "../constants/colors";
 
 import PortfolioHeader from "./components/PortfolioHeader";
+import PageLayout from "../components/PageLayout";
 import SummaryCard from "./components/SummaryCard";
 import StrategyNotes from "./components/StrategyNotes";
 import PerformanceSection from "./components/PerformanceSection";
@@ -412,12 +413,12 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const plPercent = allCash > 0 ? (cumulativePl / allCash) * 100 : 0;
   const availableCash = (selectedPortfolio?.available_cash || 0) + cumulativePl;
 
-  const riskPercent = selectedPortfolio?.risk_score ?? 0;
-  const riskStatusText = riskPercent >= 100 ? "Safe" : riskPercent >= 50 ? "Warning" : "Danger";
+  const riskScore = selectedPortfolio?.risk_score ?? null;
+  const riskStatusText = riskScore === null ? "" : riskScore >= 100 ? "Safe" : riskScore >= 50 ? "Warning" : "Danger";
 
-  if (loading) return <div className="p-6"><p className="text-slate">Loading portfolio analytics...</p></div>;
-  if (error) return <div className="p-6"><p className="text-red-500">Error: {error}</p></div>;
-  if (!selectedPortfolio) return <div className="p-6"><p className="text-slate">No portfolio data available.</p></div>;
+  if (loading) return <PageLayout><p className="text-slate">Loading portfolio analytics...</p></PageLayout>;
+  if (error) return <PageLayout><p style={{ color: "var(--color-danger-text)" }}>Error: {error}</p></PageLayout>;
+  if (!selectedPortfolio) return <PageLayout><p className="text-slate">No portfolio data available.</p></PageLayout>;
 
   const handleRefresh = () => {
     fetchAnalyticsData();
@@ -427,15 +428,14 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   };
 
   return (
-    <>
-      <div className="min-h-screen">
+    <PageLayout>
       <PortfolioHeader
         portfolioName={selectedPortfolio.portfolio_name}
         lastUpdated={lastUpdated}
         onRefresh={handleRefresh}
       />
 
-      <section className="grid grid-cols-12 gap-6 mb-6">
+      <section className="grid grid-cols-12" style={{ gap: 24, marginBottom: 48 }}>
         <SummaryCard
           totalValue={totalValue}
           totalCash={totalCash}
@@ -448,7 +448,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           cashBufferLimit={cashBufferLimit}
           moneyMarket={selectedPortfolio.money_market || 0}
           riskStatus={riskStatusText}
-          riskPercent={riskPercent}
+          riskPercent={riskScore}
           tags={selectedPortfolio.tags}
           assetAllocation={assetAllocation}
           onEditPortfolio={() => setShowEditPortfolioModal(true)}
@@ -593,8 +593,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           navigate("/");
         }}
       />
-    </div>
-    </>
+    </PageLayout>
   );
 };
 

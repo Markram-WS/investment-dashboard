@@ -10,6 +10,8 @@ interface StrategyNotesProps {
   onSaved: () => void;
 }
 
+const LABEL: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: 0 };
+
 const StrategyNotes: React.FC<StrategyNotesProps> = ({
   tradePlanMd, portfolioId, renderMarkdown, internalNotes, onSaved,
 }) => {
@@ -31,12 +33,15 @@ const StrategyNotes: React.FC<StrategyNotesProps> = ({
   };
 
   return (
-    <div className="col-span-12 lg:col-span-4 rounded-2xl bg-yellow-100 dark:bg-yellow-900/30 p-8 flex flex-col border border-hairline-soft">
-      <h3 className="text-[11px] font-bold text-ink uppercase tracking-widest mb-6">Strategy & Notes</h3>
-      <div className="space-y-6">
+    <div
+      className="col-span-12 lg:col-span-4 flex flex-col"
+      style={{ background: "var(--color-yellow-light)", borderRadius: 16, padding: 24 }}
+    >
+      <h3 style={{ ...LABEL, marginBottom: 16 }}>Strategy &amp; notes</h3>
+      <div className="flex flex-col" style={{ gap: 16 }}>
         <div>
-          <span className="text-[10px] font-bold text-slate uppercase tracking-wider">Primary Strategy</span>
-          <div className="mt-2">
+          <span style={LABEL}>Primary strategy</span>
+          <div style={{ marginTop: 8 }}>
             <TradePlanView
               tradePlanMd={tradePlanMd}
               renderMarkdown={renderMarkdown}
@@ -45,34 +50,43 @@ const StrategyNotes: React.FC<StrategyNotesProps> = ({
             />
           </div>
         </div>
-        <div className="pt-6 border-t border-ink/10">
-          <label className="text-[10px] font-bold text-slate block mb-2 uppercase tracking-wider">Internal Notes</label>
+        <div style={{ paddingTop: 16, borderTop: "1px solid var(--color-hairline)" }}>
+          <label style={{ ...LABEL, display: "block", marginBottom: 8 }}>Internal notes</label>
           {editingNotes ? (
             <div>
               <textarea
                 value={notesContent}
                 onChange={(e) => setNotesContent(e.target.value)}
-                className="w-full h-32 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg p-4 text-sm focus:ring-2 focus:ring-yellow-500 outline-none resize-none"
+                className="w-full h-32 resize-none rounded-md p-2 outline-none focus:ring-2 focus:ring-brand-yellow"
+                style={{ background: "transparent", fontSize: 15, color: "var(--color-ink)" }}
                 placeholder="Type your observation..."
                 autoFocus
               />
-              <div className="flex justify-end gap-2 mt-2">
-                <button onClick={() => setEditingNotes(false)} className="px-3 py-1 text-xs border rounded hover:bg-white/50">Cancel</button>
+              <div className="flex justify-end" style={{ gap: 8, marginTop: 8 }}>
+                <button
+                  onClick={() => setEditingNotes(false)}
+                  className="rounded-full hover:bg-surface-soft transition-colors"
+                  style={{ padding: "6px 12px", fontSize: 12, fontWeight: 500, color: "var(--color-slate)" }}
+                >
+                  Cancel
+                </button>
                 <button onClick={handleSaveNotes} disabled={savingNotes}
-                  className="px-3 py-1 text-xs bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50">
+                  className="rounded-full transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ padding: "6px 12px", fontSize: 12, fontWeight: 500, background: "var(--color-ink)", color: "var(--color-canvas)" }}>
                   {savingNotes ? "Saving..." : "Save"}
                 </button>
               </div>
             </div>
           ) : (
             <div
-              className="w-full min-h-[80px] bg-yellow-100 dark:bg-yellow-900/30 rounded-lg p-4 text-sm cursor-pointer hover:bg-yellow-200/80 transition-colors"
+              className="w-full min-h-[80px] cursor-pointer"
+              style={{ fontSize: 15, color: "var(--color-ink)" }}
               onClick={() => { setNotesContent(internalNotes || ""); setEditingNotes(true); }}
             >
               {internalNotes ? (
-                <p className="whitespace-pre-wrap text-sm text-gray-700">{internalNotes}</p>
+                <p className="whitespace-pre-wrap" style={{ fontSize: 15, color: "var(--color-ink)", margin: 0 }}>{internalNotes}</p>
               ) : (
-                <p className="text-sm text-slate italic">Click to add notes...</p>
+                <p className="italic" style={{ fontSize: 15, color: "var(--color-slate)", margin: 0 }}>Click to add notes...</p>
               )}
             </div>
           )}

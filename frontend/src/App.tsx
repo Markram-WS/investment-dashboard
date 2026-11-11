@@ -34,7 +34,7 @@ export default function App() {
             <Route path="/transactions" element={<TransactionsPage />} />
             <Route path="/orders" element={<ActiveOrders />} />
             <Route path="/analytics/portfolio/:portfolio_id" element={<PortfolioAnalyticsDetail />} />
-            <Route path="/analytics/detail" element={<div className="max-w-[1200px] mx-auto px-6 py-6"><PortfolioGrid /></div>} />
+            <Route path="/analytics/detail" element={<PortfolioGrid />} />
             <Route path="/create-portfolio" element={<CreateNewPortfolio />} />
             <Route path="/managed-fund" element={<PortfolioMutualFund />} />
             <Route path="/managed-fund/:portfolioId" element={<PortfolioMutualFund />} />

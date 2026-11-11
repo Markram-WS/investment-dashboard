@@ -8,13 +8,9 @@ export function fmtAmount(n: number | null | undefined, currency: "USD" | "THB")
     : `฿${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function convertAmount(amount: number | null | undefined, currency: "USD" | "THB"): number {
-  if (amount == null) return 0;
-  return currency === "THB" ? amount * EXCHANGE_RATE : amount;
-}
-
 export function formatCurrency(amount: number | null | undefined, currency: "USD" | "THB"): string {
-  const converted = convertAmount(amount, currency);
+  const base = amount ?? 0;
+  const converted = currency === "THB" ? base * EXCHANGE_RATE : base;
   if (currency === "USD") {
     return `$${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }

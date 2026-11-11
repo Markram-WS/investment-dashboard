@@ -1,7 +1,59 @@
 import React, { useState, useEffect, useRef } from "react";
 import { SpreadOrder } from "../types";
-import Button from "./components/Button";
 import ModalShell from "./components/ModalShell";
+
+/** Field label: 12px/500 slate, sentence case. */
+const fieldLabel = {
+  display: "block",
+  fontSize: 12,
+  fontWeight: 500,
+  color: "var(--color-slate)",
+  margin: "0 0 5px",
+} as const;
+
+/** Text field: 15px ink on canvas, 1px hairline, radius 8. */
+const fieldInput = {
+  width: "100%",
+  fontSize: 15,
+  color: "var(--color-ink)",
+  background: "var(--color-canvas)",
+  border: "1px solid var(--color-hairline)",
+  borderRadius: 8,
+  padding: "8px 12px",
+} as const;
+
+const primaryButton = {
+  padding: "8px 16px",
+  fontSize: 13,
+  fontWeight: 500,
+  background: "var(--color-ink)",
+  color: "var(--color-canvas)",
+  border: "1px solid var(--color-ink)",
+  borderRadius: 999,
+  cursor: "pointer",
+} as const;
+
+const secondaryButton = {
+  padding: "8px 16px",
+  fontSize: 13,
+  fontWeight: 500,
+  background: "var(--color-canvas)",
+  color: "var(--color-ink)",
+  border: "1px solid var(--color-hairline)",
+  borderRadius: 999,
+  cursor: "pointer",
+} as const;
+
+const summaryLabel = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)" } as const;
+const summaryValue = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: "var(--color-ink)",
+  fontVariantNumeric: "tabular-nums",
+} as const;
+
+const actionButtonClass = "transition-opacity disabled:opacity-50 disabled:cursor-not-allowed";
+const modalPanel = "bg-canvas border border-hairline rounded-xl p-6 w-full max-w-sm mx-4";
 
 interface CloseOrderModalProps {
   order: SpreadOrder | null;
@@ -106,89 +158,89 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title={"Close Order " + (order?.order_id || '')} closeOnBackdrop={false}>
-      <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
-        <h3 className="text-lg font-bold mb-4">
-          Close Order {linkedInfo ? `(linked to #${linkedInfo.order_id?.slice(0, 8)})` : ''}
+      <div className={modalPanel}>
+        <h3 style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 16px' }}>
+          Close order {linkedInfo ? `(linked to #${linkedInfo.order_id?.slice(0, 8)})` : ''}
         </h3>
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-bold uppercase text-slate mb-1">Close ID</label>
+            <label className="block" style={fieldLabel}>Close ID</label>
             <input
               type="text"
               value={closeId}
               onChange={(e) => setCloseId(e.target.value)}
               placeholder="CLS-XXXXXXXX"
-              className="w-full border rounded px-3 py-2 text-sm"
+              className="w-full" style={fieldInput}
             />
           </div>
 
-          <div className="bg-surface rounded-lg p-3 text-xs space-y-1.5">
+          <div className="space-y-1.5">
             <div className="flex justify-between">
-              <span className="text-slate">Order</span>
-              <span className="font-semibold">#{order.order_id} &middot; {order.asset_type} &middot; {order.side}</span>
+              <span style={summaryLabel}>Order</span>
+              <span style={summaryValue}>#{order.order_id} &middot; {order.asset_type} &middot; {order.side}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate">Qty</span>
-              <span className="font-semibold">{qty}</span>
+              <span style={summaryLabel}>Qty</span>
+              <span style={summaryValue}>{qty}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate">Entry Price</span>
-              <span className="font-semibold">${entryPrice.toLocaleString()}</span>
+              <span style={summaryLabel}>Entry price</span>
+              <span style={summaryValue}>${entryPrice.toLocaleString()}</span>
             </div>
             {linkedInfo && (
               <>
                 <div className="flex justify-between">
-                  <span className="text-slate">Linked Order</span>
-                  <span className="font-semibold">#{linkedInfo.order_id?.slice(0, 8)} &middot; {linkedInfo.asset_type} &middot; {linkedInfo.side}</span>
+                  <span style={summaryLabel}>Linked order</span>
+                  <span style={summaryValue}>#{linkedInfo.order_id?.slice(0, 8)} &middot; {linkedInfo.asset_type} &middot; {linkedInfo.side}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate">Linked Entry</span>
-                  <span className="font-semibold">${linkedInfo.entry_price?.toLocaleString() || '-'}</span>
+                <div className="flex justify-between" style={{ borderTop: '1px solid var(--color-hairline)', paddingTop: 6 }}>
+                  <span style={summaryLabel}>Linked entry</span>
+                  <span style={summaryValue}>${linkedInfo.entry_price?.toLocaleString() || '-'}</span>
                 </div>
               </>
             )}
           </div>
 
-          <div className="border-t pt-3 space-y-3">
+          <div className="pt-3 space-y-3" style={{ borderTop: '1px solid var(--color-hairline)' }}>
             <div>
-              <label className="block text-xs font-bold uppercase text-slate mb-1">Cost (spread/commission)</label>
+              <label className="block" style={fieldLabel}>Cost (spread/commission)</label>
               <input
                 type="number"
                 step="any"
                 value={cost}
                 onChange={(e) => handleCostChange(e.target.value)}
-                className="w-full border rounded px-3 py-2 text-sm"
+                className="w-full" style={fieldInput}
               />
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase text-slate mb-1">Exit Price</label>
+              <label className="block" style={fieldLabel}>Exit price</label>
               <input
                 type="number"
                 step="any"
                 value={exitPrice}
                 onChange={(e) => handleExitPriceChange(e.target.value)}
                 placeholder={order.current_price ? String(order.current_price) : "0"}
-                className="w-full border rounded px-3 py-2 text-sm"
+                className="w-full" style={fieldInput}
               />
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase text-slate mb-1">P/L</label>
+              <label className="block" style={fieldLabel}>P/L</label>
               <input
                 type="number"
                 step="any"
                 value={realizedPl}
                 onChange={(e) => handlePlChange(e.target.value)}
                 placeholder="0"
-                className="w-full border rounded px-3 py-2 text-sm"
+                className="w-full" style={fieldInput}
               />
             </div>
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 mt-6">
-          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button variant="danger" onClick={handleConfirm} loading={saving}>Close Order</Button>
+        <div className="flex justify-end" style={{ gap: 8, marginTop: 24 }}>
+          <button type="button" onClick={onClose} disabled={saving} className={actionButtonClass} style={secondaryButton}>Cancel</button>
+          <button type="button" onClick={handleConfirm} disabled={saving} className={actionButtonClass} style={primaryButton}>Close Order</button>
         </div>
       </div>
     </ModalShell>

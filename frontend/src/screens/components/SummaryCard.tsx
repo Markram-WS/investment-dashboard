@@ -14,13 +14,40 @@ interface SummaryCardProps {
   cashBufferLimit: number;
   moneyMarket: number;
   riskStatus: string;
-  riskPercent: number;
+  riskPercent: number | null;
   tags: Record<string, boolean> | null;
   assetAllocation: AllocationItem[];
   onEditPortfolio?: () => void;
 }
 
 const R = 16, CIRCUMFERENCE = 2 * Math.PI * R;
+
+const HAIRLINE = "1px solid var(--color-hairline)";
+const LABEL: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: 0 };
+const STAT: React.CSSProperties = {
+  fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em",
+  fontVariantNumeric: "tabular-nums", color: "var(--color-ink)", lineHeight: 1.15, margin: 0,
+};
+const CELL: React.CSSProperties = {
+  fontSize: 15, fontWeight: 600, fontVariantNumeric: "tabular-nums", color: "var(--color-ink)", margin: 0,
+};
+
+const InfoHint: React.FC<{ text: string; maxWidth?: number; align?: "left" | "right" }> = ({ text, maxWidth = 256, align = "left" }) => (
+  <span
+    className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group"
+    title={text}
+    aria-label={text}
+  >
+    i
+    <div
+      className={`absolute bottom-full mb-2 px-3 py-2 bg-ink text-canvas text-[11px] font-normal leading-relaxed rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 hidden md:block ${align === "right" ? "right-0" : "left-0"}`}
+      style={{ width: "max-content", maxWidth: `min(${maxWidth}px, calc(100vw - 48px))` }}
+    >
+      {text}
+      <div className={`absolute top-full -mt-px w-2 h-2 bg-ink rotate-45 ${align === "right" ? "right-1" : "left-1"}`}></div>
+    </div>
+  </span>
+);
 
 const SummaryCard: React.FC<SummaryCardProps> = ({
   totalValue, totalCash, totalNotional, cashAvailable, cumulativePl, plPercent, availableCash,
@@ -29,10 +56,25 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
 }) => {
   let offset = 0;
 
+  const plColor = cumulativePl >= 0 ? "var(--color-positive-text)" : "var(--color-danger-text)";
+  const pctColor = plPercent >= 0 ? "var(--color-positive-text)" : "var(--color-danger-text)";
+  const riskValue: number | null =
+    typeof riskPercent === "number" && Number.isFinite(riskPercent) ? riskPercent : null;
+  const riskColor = riskValue === null
+    ? "var(--color-hairline)"
+    : riskValue >= 100
+      ? "var(--color-brand-teal)"
+      : riskValue >= 50
+        ? "var(--color-brand-yellow)"
+        : "var(--color-danger-text)";
+
   return (
-  <div className="col-span-12 lg:col-span-8 bg-canvas rounded-xl border border-hairline p-8 flex flex-col card-hover">
-    <div className="flex justify-between items-center mb-6">
-      <h3 className="text-[11px] font-bold text-slate uppercase tracking-widest">Portfolio Summary</h3>
+  <div
+    className="col-span-12 lg:col-span-8 flex flex-col"
+    style={{ background: "var(--color-canvas)", borderRadius: 16, padding: 24 }}
+  >
+    <div className="flex justify-between items-center" style={{ marginBottom: 16 }}>
+      <h3 style={LABEL}>Portfolio summary</h3>
       <button onClick={onEditPortfolio} className="p-1 hover:bg-surface-soft rounded-full transition-colors" title="Edit Portfolio">
         <svg className="w-5 h-5 text-slate" viewBox="0 0 24 24" fill="currentColor">
           <circle cx="5" cy="12" r="1.5" />
@@ -42,20 +84,17 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
       </button>
     </div>
 
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 pb-8 border-b border-hairline">
+    <div
+      className="grid grid-cols-1 md:grid-cols-3"
+      style={{ gap: 24, paddingBottom: 16, marginBottom: 16, borderBottom: HAIRLINE }}
+    >
       <div className="flex flex-col">
-        <div className="text-xs font-medium text-slate mb-2 flex items-center gap-1">
-          Total Value
-          <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
-            i
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 px-3 py-2 bg-ink text-white text-[10px] leading-relaxed rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-              Cash + P/L + MM + Margin + Buffer + Notional
-              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 bg-ink rotate-45"></div>
-            </div>
-          </span>
+        <div className="flex items-center" style={{ ...LABEL, marginBottom: 6, gap: 4 }}>
+          Total value
+          <InfoHint text="Cash + P/L + MM + Margin + Buffer + Notional" />
         </div>
-        <p className="text-3xl font-bold leading-none">${totalValue.toLocaleString()}</p>
-        <p className="text-brand-teal text-sm font-semibold mt-2 flex items-center gap-1">
+        <p style={STAT}>${totalValue.toLocaleString()}</p>
+        <p className="flex items-center" style={{ fontSize: 12, fontWeight: 500, color: pctColor, marginTop: 6, gap: 4 }}>
           {plPercent >= 0 ? "+" : ""}{plPercent.toFixed(1)}%
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
@@ -64,136 +103,123 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
         </p>
       </div>
       <div className="flex flex-col">
-        <p className="text-xs font-medium text-slate mb-2">Total P/L</p>
-        <p className={`text-3xl font-bold leading-none ${cumulativePl >= 0 ? "text-brand-teal" : "text-brand-coral"}`}>
+        <p style={{ ...LABEL, marginBottom: 6 }}>Total P/L</p>
+        <p style={{ ...STAT, color: plColor }}>
           {cumulativePl >= 0 ? "+" : ""}${cumulativePl.toLocaleString()}
         </p>
-        <p className="text-slate text-xs mt-2">All time performance</p>
+        <p style={{ fontSize: 12, color: "var(--color-slate)", margin: 0, marginTop: 6 }}>All time performance</p>
       </div>
       <div className="flex flex-col">
-        <div className="text-xs font-medium text-slate mb-2 flex items-center gap-1">
+        <div className="flex items-center" style={{ ...LABEL, marginBottom: 6, gap: 4 }}>
           Cash
-          <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
-            i
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 px-3 py-2 bg-ink text-white text-[10px] leading-relaxed rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-              Cash + P/L = Net Available
-              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 bg-ink rotate-45"></div>
-            </div>
-          </span>
+          <InfoHint text="Cash + P/L = Net Available" maxWidth={224} align="right" />
         </div>
-        <p className="text-3xl font-bold leading-none text-ink">${Math.max(0, availableCash).toLocaleString()}</p>
+        <p style={STAT}>${Math.max(0, availableCash).toLocaleString()}</p>
       </div>
     </div>
 
-    <div className="mb-8 pb-8 border-b border-hairline">
-      <p className="text-[11px] font-bold text-slate mb-4 uppercase tracking-widest">Cash Details</p>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+    <div style={{ paddingBottom: 16, marginBottom: 16, borderBottom: HAIRLINE }}>
+      <p style={{ ...LABEL, marginBottom: 12 }}>Cash details</p>
+      <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: 16 }}>
         <div>
-          <p className="text-[10px] font-medium text-slate mb-1">Margin Locked</p>
-          <p className="text-lg font-bold">${marginLocked.toLocaleString()}</p>
+          <p style={{ ...LABEL, marginBottom: 4 }}>Margin locked</p>
+          <p style={CELL}>${marginLocked.toLocaleString()}</p>
         </div>
         <div>
-          <p className="text-[10px] font-medium text-slate mb-1">Cash Buffer</p>
-          <p className="text-lg font-bold">${cashBufferLimit.toLocaleString()}</p>
+          <p style={{ ...LABEL, marginBottom: 4 }}>Cash buffer</p>
+          <p style={CELL}>${cashBufferLimit.toLocaleString()}</p>
         </div>
         <div>
-          <p className="text-[10px] font-medium text-slate mb-1">Money Market</p>
-          <p className="text-lg font-bold">${moneyMarket.toLocaleString()}</p>
+          <p style={{ ...LABEL, marginBottom: 4 }}>Money market</p>
+          <p style={CELL}>${moneyMarket.toLocaleString()}</p>
         </div>
         <div>
-          <div className="text-[10px] font-medium text-slate mb-1 flex items-center gap-1">
-            Available Cash
-            <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
-              i
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-3 py-2 bg-ink text-white text-[10px] leading-relaxed rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                Available Cash = Cash + Total P/L
-                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 bg-ink rotate-45"></div>
-              </div>
-            </span>
+          <div className="flex items-center" style={{ ...LABEL, marginBottom: 4, gap: 4 }}>
+            Available cash
+            <InfoHint text="Available Cash = Cash + Total P/L" maxWidth={224} align="right" />
           </div>
-          <p className="text-lg font-bold">${cashAvailable.toLocaleString()}</p>
+          <p style={CELL}>${cashAvailable.toLocaleString()}</p>
         </div>
       </div>
     </div>
 
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
-      <div className="flex border-r border-hairline pr-8">
-        <div className="flex flex-col w-full">
-          <div className="text-[11px] font-bold text-slate mb-6 uppercase tracking-widest flex items-center gap-1">
-            Risk Level
-            <span className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate text-slate cursor-help text-[9px] font-bold leading-none group">
-              i
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 px-3 py-2 bg-ink text-white text-[10px] leading-relaxed rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                min(100%, (Cash − Margin) ÷ max(Buffer, Margin) × 100)
-                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 bg-ink rotate-45"></div>
-              </div>
-            </span>
-          </div>
-          <div className="flex items-center gap-8 md:gap-12">
-            <div className="relative flex items-center justify-center w-40 h-40 shrink-0">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                <circle cx="18" cy="18" fill="transparent" r="16" stroke="#f0f0f0" strokeWidth="3" />
+    <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 48 }}>
+      <div className="flex flex-col">
+        <div className="flex items-center" style={{ ...LABEL, marginBottom: 12, gap: 4 }}>
+          Buffer coverage
+          <InfoHint text="min(100%, (Cash − Margin) ÷ max(Buffer, Margin) × 100)" />
+        </div>
+        <div className="flex items-center" style={{ gap: 32 }}>
+          <div className="relative flex items-center justify-center w-40 h-40 shrink-0">
+            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" fill="transparent" r="16" strokeWidth="3" style={{ stroke: "var(--color-hairline-soft)" }} />
+              {riskValue !== null && (
                 <circle cx="18" cy="18" fill="transparent" r="16" className="donut-animate"
-                  stroke={riskPercent >= 100 ? "#0fbcb0" : riskPercent >= 50 ? "#ffd02f" : "#e74c3c"}
-                  strokeDasharray={`${(riskPercent / 100) * CIRCUMFERENCE} ${CIRCUMFERENCE}`}
+                  style={{ stroke: riskColor }}
+                  strokeDasharray={`${(riskValue / 100) * CIRCUMFERENCE} ${CIRCUMFERENCE}`}
                   strokeDashoffset="0" strokeWidth="4" strokeLinecap="round" />
-              </svg>
-              <div className="absolute text-center">
-                <p className="text-[14px] font-bold text-ink">{riskPercent.toFixed(0)}%</p>
-              </div>
+              )}
+            </svg>
+            <div className="absolute text-center">
+              <p style={STAT}>{riskValue === null ? "—" : `${riskValue.toFixed(0)}%`}</p>
             </div>
-            <div className="flex flex-col gap-3 items-start">
-              <div className="flex items-center gap-2 bg-surface px-3 py-1.5 rounded-full border border-hairline">
-                <span className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: riskPercent >= 100 ? "#0fbcb0" : riskPercent >= 50 ? "#ffd02f" : "#e74c3c" }} />
-                <span className="text-[11px] font-bold uppercase tracking-wider">{riskStatus || "Safe"}</span>
-              </div>
-              <p className="text-[11px] text-slate font-medium max-w-[120px]">
-                {riskPercent >= 100
+          </div>
+          <div className="flex flex-col items-start" style={{ gap: 12 }}>
+            <div className="flex items-center" style={{ gap: 8 }}>
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: riskColor }} />
+              <span style={{
+                fontSize: 12,
+                fontWeight: 500,
+                color: riskValue === null ? "var(--color-slate)" : "var(--color-ink)",
+              }}>{riskValue === null ? "No risk score yet" : (riskStatus || "Safe")}</span>
+            </div>
+            <p style={{ fontSize: 11, color: "var(--color-slate)", margin: 0, maxWidth: 140, lineHeight: 1.5 }}>
+              {riskValue === null
+                ? "Waiting for a risk score"
+                : riskValue >= 100
                   ? "Buffer fully covers exposure"
-                  : riskPercent >= 50
+                  : riskValue >= 50
                     ? "Buffer partially covers exposure"
                     : "Exposure exceeds buffer capacity"}
-              </p>
-            </div>
+            </p>
           </div>
         </div>
       </div>
-      <div className="flex pl-8">
-        <div className="flex flex-col w-full">
-          <p className="text-[11px] font-bold text-slate mb-6 uppercase tracking-widest">Asset Allocation</p>
-          <div className="flex items-center gap-8 md:gap-12">
-            <div className="relative flex items-center justify-center w-40 h-40 shrink-0">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                <circle cx="18" cy="18" fill="transparent" r="16" stroke="#f0f0f0" strokeWidth="3" />
-                {assetAllocation.map((a) => {
-                  const dashLen = (a.percentage / 100) * CIRCUMFERENCE;
-                  const gapLen = CIRCUMFERENCE - dashLen;
-                  const segOffset = offset;
-                  offset -= dashLen;
-                  return (
-                    <circle key={a.label} cx="18" cy="18" fill="transparent" r="16" className="donut-animate"
-                      stroke={a.color} strokeDasharray={`${dashLen} ${gapLen}`}
-                      strokeDashoffset={segOffset} strokeWidth="4" />
-                  );
-                })}
-              </svg>
-              <div className="absolute text-center">
-                <p className="text-[14px] font-bold text-ink">{assetAllocation.length > 0 ? "100%" : "—"}</p>
-              </div>
+      <div className="flex flex-col">
+        <p style={{ ...LABEL, marginBottom: 12 }}>Asset allocation</p>
+        <div className="flex items-center" style={{ gap: 32 }}>
+          <div className="relative flex items-center justify-center w-40 h-40 shrink-0">
+            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" fill="transparent" r="16" strokeWidth="3" style={{ stroke: "var(--color-hairline-soft)" }} />
+              {assetAllocation.map((a) => {
+                const dashLen = (a.percentage / 100) * CIRCUMFERENCE;
+                const gapLen = CIRCUMFERENCE - dashLen;
+                const segOffset = offset;
+                offset -= dashLen;
+                return (
+                  <circle key={a.label} cx="18" cy="18" fill="transparent" r="16" className="donut-animate"
+                    stroke={a.color} strokeDasharray={`${dashLen} ${gapLen}`}
+                    strokeDashoffset={segOffset} strokeWidth="4" />
+                );
+              })}
+            </svg>
+            <div className="absolute text-center">
+              <p style={STAT}>{assetAllocation.length > 0 ? "100%" : "—"}</p>
             </div>
-            <div className="flex flex-col gap-3 justify-center">
-              {assetAllocation.length > 0 ? (
-                assetAllocation.map((a) => (
-                  <div key={a.label} className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: a.color }} />
-                    <span className="text-[11px] font-bold">{a.label} {a.percentage.toFixed(1)}%</span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-[11px] text-slate">No allocation data</p>
-              )}
-            </div>
+          </div>
+          <div className="flex flex-col justify-center" style={{ gap: 12 }}>
+            {assetAllocation.length > 0 ? (
+              assetAllocation.map((a) => (
+                <div key={a.label} className="flex items-center" style={{ gap: 8 }}>
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: a.color }} />
+                  <span style={{ fontSize: 11, fontWeight: 500, color: "var(--color-ink)", fontVariantNumeric: "tabular-nums" }}>
+                    {a.label} {a.percentage.toFixed(1)}%
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p style={{ fontSize: 11, color: "var(--color-slate)", margin: 0 }}>No allocation data</p>
+            )}
           </div>
         </div>
       </div>

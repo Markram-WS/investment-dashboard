@@ -334,7 +334,9 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
         </svg>
 
         {tooltip && (
-          <div className="absolute pointer-events-none z-10 bg-gray-900 text-white text-[10px] px-2.5 py-1.5 rounded shadow-lg" style={{
+          <div className="absolute pointer-events-none z-10 text-[10px] px-2.5 py-1.5 rounded" style={{
+            background: "var(--color-ink)",
+            color: "var(--color-canvas)",
             left: Math.min(tooltip.snappedX * (tooltip.containerW / WIDTH) + 12, tooltip.containerW - 100),
             top: Math.max(tooltip.cssY - 40, 0),
           }}>

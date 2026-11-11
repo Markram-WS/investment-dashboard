@@ -8,11 +8,25 @@ const TagsSection: React.FC<TagsSectionProps> = ({ tags }) => {
   const entries = tags ? Object.keys(tags) : [];
   if (entries.length === 0) return null;
   return (
-    <div className="mt-6 pt-6 border-t border-hairline">
-      <p className="text-[11px] font-bold text-slate mb-3 uppercase tracking-widest">Metadata Tags</p>
-      <div className="flex flex-wrap gap-2">
+    <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--color-hairline)" }}>
+      <p style={{ fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: 0, marginBottom: 12 }}>
+        Metadata tags
+      </p>
+      <div className="flex flex-wrap" style={{ gap: 8 }}>
         {entries.map((tag) => (
-          <span key={tag} className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-surface text-slate rounded-full border border-hairline">{tag}</span>
+          <span
+            key={tag}
+            className="rounded-full"
+            style={{
+              padding: "2px 10px",
+              fontSize: 12,
+              fontWeight: 500,
+              color: "var(--color-ink)",
+              background: "var(--color-surface-soft)",
+            }}
+          >
+            {tag}
+          </span>
         ))}
       </div>
     </div>

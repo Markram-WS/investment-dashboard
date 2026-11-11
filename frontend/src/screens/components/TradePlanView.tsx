@@ -16,16 +16,17 @@ export const TradePlanView: React.FC<TradePlanViewProps> = ({ tradePlanMd, rende
   if (!editing) {
     return (
       <div
-        className="bg-yellow-100 p-3 rounded mb-4 min-h-[100px] cursor-pointer hover:bg-yellow-200/80 transition-colors border border-yellow-300"
+        className="min-h-[100px] cursor-pointer"
+        style={{ fontSize: 15, color: 'var(--color-ink)' }}
         onClick={() => setEditing(true)}
       >
         {(tradePlanMd || content) ? (
           <div
-            className="text-sm text-gray-700 whitespace-pre-wrap"
+            style={{ fontSize: 15, color: 'var(--color-ink)' }}
             dangerouslySetInnerHTML={{ __html: renderMarkdown(tradePlanMd || content) }}
           />
         ) : (
-          <p className="text-sm text-slate italic">Click to add trade plan...</p>
+          <p className="italic" style={{ fontSize: 15, color: 'var(--color-slate)', margin: 0 }}>Click to add trade plan...</p>
         )}
       </div>
     );
@@ -46,25 +47,28 @@ export const TradePlanView: React.FC<TradePlanViewProps> = ({ tradePlanMd, rende
   };
 
   return (
-    <div className="bg-yellow-100 p-3 rounded mb-4 border border-yellow-300">
+    <div>
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        className="w-full bg-transparent text-sm text-gray-700 resize-none focus:outline-none min-h-[120px]"
+        className="w-full resize-none rounded-md p-2 outline-none focus:ring-2 focus:ring-brand-yellow min-h-[120px]"
+        style={{ background: 'transparent', fontSize: 15, color: 'var(--color-ink)' }}
         placeholder="Write your trade plan in markdown..."
         autoFocus
       />
-      <div className="flex justify-end gap-2 mt-2">
+      <div className="flex justify-end" style={{ gap: 8, marginTop: 8 }}>
         <button
           onClick={() => { setContent(tradePlanMd || ''); setEditing(false); }}
-          className="px-3 py-1 text-xs border rounded hover:bg-white/50"
+          className="rounded-full hover:bg-surface-soft transition-colors"
+          style={{ padding: '6px 12px', fontSize: 12, fontWeight: 500, color: 'var(--color-slate)' }}
         >
           Cancel
         </button>
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-3 py-1 text-xs bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50"
+          className="rounded-full transition-opacity hover:opacity-90 disabled:opacity-50"
+          style={{ padding: '6px 12px', fontSize: 12, fontWeight: 500, background: 'var(--color-ink)', color: 'var(--color-canvas)' }}
         >
           {saving ? 'Saving...' : 'Save'}
         </button>

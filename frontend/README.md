@@ -31,7 +31,6 @@ frontend/
 │   │
 │   ├── utils/
 │   │   ├── format.ts       # Currency formatting, date formatting
-│   │   ├── risk.ts         # Risk color helpers, drift calculation
 │   │   └── tags.ts         # Portfolio tag helpers
 │   │
 │   ├── lib/

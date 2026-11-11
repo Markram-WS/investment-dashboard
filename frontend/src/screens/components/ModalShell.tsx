@@ -19,7 +19,7 @@ export default function ModalShell({
   children,
   title,
   closeOnBackdrop = true,
-  backdropClassName = 'bg-black/50',
+  backdropClassName = 'modal-scrim',
   zIndex = 50,
 }: ModalShellProps) {
   const contentRef = useRef<HTMLDivElement>(null);

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { api } from '../../lib/api';
-import Button from './Button';
 import ModalShell from './ModalShell';
 
 interface TransferModalProps {
@@ -10,6 +9,29 @@ interface TransferModalProps {
   onClose: () => void;
   onSuccess: (msg: string) => void;
 }
+
+const CARD = { background: 'var(--color-canvas)', borderRadius: 16, padding: 24 } as const;
+const TITLE = {
+  fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0,
+} as const;
+const LABEL = { fontSize: 12, fontWeight: 500, color: 'var(--color-slate)', margin: 0 } as const;
+const VALUE = {
+  fontSize: 15, fontWeight: 500, color: 'var(--color-ink)', margin: '6px 0 0',
+} as const;
+const HELPER = { fontSize: 12, fontWeight: 400, color: 'var(--color-slate)', margin: 0 } as const;
+const INPUT = {
+  width: '100%', padding: '8px 12px', fontSize: 15, fontWeight: 500,
+  fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', background: 'transparent',
+  borderRadius: 8,
+} as const;
+const BTN = {
+  fontSize: 12, fontWeight: 500, borderRadius: 999, padding: '6px 14px',
+  border: '1px solid transparent', cursor: 'pointer',
+} as const;
+const BTN_PRIMARY = { ...BTN, background: 'var(--color-ink)', color: 'var(--color-canvas)' } as const;
+const BTN_SECONDARY = {
+  ...BTN, background: 'transparent', color: 'var(--color-ink)', borderColor: 'var(--color-hairline)',
+} as const;
 
 const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination, onClose, onSuccess }) => {
   const [amount, setAmount] = useState('');
@@ -44,24 +66,22 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
   };
 
   return (
-    <ModalShell open={open} onClose={onClose} title="Transfer Cash" backdropClassName="bg-black/40" zIndex={9999}>
-      <div className="bg-canvas rounded-[20px] p-8 w-[400px] max-w-[90vw] shadow-[0_20px_60px_rgba(0,0,0,0.2)]">
-        <h3 className="text-lg font-bold m-0 mb-6 text-ink">
-          Transfer Cash
-        </h3>
+    <ModalShell open={open} onClose={onClose} title="Transfer cash" zIndex={9999}>
+      <div className="w-full max-w-[400px] mx-4" style={CARD}>
+        <h3 style={TITLE}>Transfer cash</h3>
 
-        <div className="mb-5">
-          <div className="text-xs text-slate font-semibold uppercase tracking-wide mb-1">From</div>
-          <div className="text-[15px] font-semibold text-ink">{source.name}</div>
+        <div style={{ marginBottom: 20, marginTop: 24 }}>
+          <div style={LABEL}>From</div>
+          <div style={VALUE}>{source.name}</div>
         </div>
 
-        <div className="mb-6">
-          <div className="text-xs text-slate font-semibold uppercase tracking-wide mb-1">To</div>
-          <div className="text-[15px] font-semibold text-ink">{destination.name}</div>
+        <div style={{ marginBottom: 24 }}>
+          <div style={LABEL}>To</div>
+          <div style={VALUE}>{destination.name}</div>
         </div>
 
-        <div className="mb-2">
-          <label className="text-xs text-slate font-semibold uppercase tracking-wide mb-1.5 block">Amount</label>
+        <div style={{ marginBottom: 8 }}>
+          <label style={{ ...LABEL, display: 'block', marginBottom: 6 }}>Amount</label>
           <div className="flex gap-2">
             <input
               type="number"
@@ -69,25 +89,44 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
               placeholder="0"
               value={amount}
               onChange={e => setAmount(e.target.value)}
-              className="flex-1 px-3.5 py-2.5 rounded-lg border border-hairline text-base font-semibold text-ink outline-none focus:border-brand-teal"
+              className="flex-1 border border-hairline focus:border-brand-teal"
+              style={INPUT}
             />
-            <Button variant="ghost" size="sm" onClick={handleMax}>Max</Button>
+            <button
+              onClick={handleMax}
+              className="rounded-full hover:bg-surface-soft transition-colors"
+              style={BTN_SECONDARY}
+            >
+              Max
+            </button>
           </div>
         </div>
 
-        <div className="text-[11px] text-slate mb-5">
-          Available: <strong className="text-ink">${source.available.toLocaleString()}</strong>
+        <div style={{ ...HELPER, marginBottom: 20 }}>
+          Available: <strong style={{ color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' }}>${source.available.toLocaleString()}</strong>
         </div>
 
         {error && (
-          <div className="text-xs text-[#ba1a1a] bg-[#ffdad6] px-3 py-2 rounded-lg mb-4">
+          <div
+            style={{
+              fontSize: 12, fontWeight: 500, color: 'var(--color-danger-text)',
+              background: 'var(--color-coral-light)', borderRadius: 8, padding: '8px 12px', marginBottom: 16,
+            }}
+          >
             {error}
           </div>
         )}
 
-                <div className="flex gap-3 justify-end">
-          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button variant="primary" onClick={handleConfirm} loading={loading}>Confirm →</Button>
+        <div className="flex gap-3 justify-end">
+          <button onClick={onClose} disabled={loading} style={BTN_SECONDARY}>Cancel</button>
+          <button
+            onClick={handleConfirm}
+            disabled={loading}
+            className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={BTN_PRIMARY}
+          >
+            Confirm →
+          </button>
         </div>
       </div>
     </ModalShell>

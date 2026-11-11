@@ -33,10 +33,10 @@ export const buttonTheme = {
 } as const;
 
 export const allocationColors = [
-  "#ff9999",  // coral
   "#0fbcb0",  // teal
-  "#ffd02f",  // yellow
   "#4262ff",  // blue
+  "#ffd02f",  // yellow
+  "#ff9999",  // coral
   "#9b59b6",  // purple
   "#e67e22",  // orange
   "#2ecc71",  // green

@@ -7,6 +7,22 @@ interface TradeHistoryTableProps {
   onDropOnTradeHistory?: (orderId: string) => void;
 }
 
+/** Ledger column head: 12px/500 slate, sentence case. */
+const headCell = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)" } as const;
+
+/** Badge: 12px/500 slate on surface-soft, pill radius. */
+const badgeStyle = {
+  fontSize: 12,
+  fontWeight: 500,
+  color: "var(--color-slate)",
+  background: "var(--color-surface-soft)",
+  borderRadius: 999,
+  padding: "2px 10px",
+  whiteSpace: "nowrap",
+} as const;
+
+const dragSurface = "color-mix(in srgb, var(--color-brand-teal) 8%, var(--color-canvas))";
+
 const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
   tradeHistory, showHistory, onToggleHistory, onDropOnTradeHistory,
 }) => {
@@ -57,22 +73,25 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
 
   return (
     <div
-      className={`bg-surface rounded-b-xl border border-hairline transition-colors ${isDragOver ? 'bg-blue-50 border-blue-300' : ''}`}
+      className="bg-surface rounded-b-xl border border-hairline transition-colors"
       onDragOver={handleDragOver}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      style={isDragOver ? { borderLeft: '2px solid #3b82f6', borderRight: '2px solid #3b82f6' } : undefined}
+      style={isDragOver
+        ? { background: dragSurface, borderLeft: '2px solid var(--color-brand-teal)', borderRight: '2px solid var(--color-brand-teal)' }
+        : undefined}
     >
       <button
         onClick={onToggleHistory}
-        className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${isDragOver ? 'text-blue-700 bg-blue-100' : 'text-blue-700 hover:bg-blue-50'}`}
+        className="w-full flex items-center justify-between px-4 py-3 transition-colors text-ink hover:bg-surface-soft"
+        style={isDragOver ? { background: dragSurface } : undefined}
       >
         <span className="flex items-center gap-2">
-          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-surface-soft text-slate border border-hairline uppercase tracking-wide">
-            Trade History ({tradeHistory.length})
+          <span style={badgeStyle}>
+            Trade history ({tradeHistory.length})
           </span>
-          {isDragOver && <span className="text-[10px] text-blue-600 font-semibold">Drop to close/cancel</span>}
+          {isDragOver && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-brand-teal)' }}>Drop to close/cancel</span>}
         </span>
         <svg className={`w-3 h-3 transition-transform ${showHistory ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polyline points="6 9 12 15 18 9" />
@@ -81,53 +100,53 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
       {showHistory && (
         <div className="max-h-72 overflow-auto">
           {tradeHistory.length === 0 ? (
-            <p className="px-4 py-3 text-xs text-slate text-center">No closed orders yet.</p>
+            <p className="px-4 py-3 text-slate text-center" style={{ fontSize: 13 }}>No closed orders yet.</p>
           ) : (
             groupedByAsset.map(([asset, rows]) => (
               <div key={asset}>
                 <div className="px-3 py-2 bg-surface-soft border-b border-hairline sticky top-0">
-                  <span className="text-[10px] font-bold text-ink uppercase tracking-wider">{asset} ({rows.length})</span>
+                  <span className="text-ink" style={{ fontSize: 12, fontWeight: 600 }}>{asset} ({rows.length})</span>
                 </div>
-                <table className="w-full text-xs">
+                <table className="w-full">
                   <thead className="bg-surface">
                     <tr>
-                      <th className="px-3 py-1.5 text-left font-medium text-[10px] uppercase tracking-wider">Open ID</th>
-                      <th className="hidden md:table-cell px-3 py-1.5 text-left font-medium text-[10px] uppercase tracking-wider">Close ID</th>
-                      <th className="px-3 py-1.5 text-left font-medium text-[10px] uppercase tracking-wider">Side</th>
-                      <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Qty</th>
-                      <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Entry</th>
-                      <th className="hidden md:table-cell px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Exit</th>
-                      <th className="px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">P/L</th>
-                      <th className="px-3 py-1.5 text-left font-medium text-[10px] uppercase tracking-wider">Status</th>
-                      <th className="hidden lg:table-cell px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Open Date</th>
-                      <th className="hidden lg:table-cell px-3 py-1.5 text-right font-medium text-[10px] uppercase tracking-wider">Close Date</th>
+                      <th className="px-3 py-1.5 text-left" style={headCell}>Open ID</th>
+                      <th className="hidden md:table-cell px-3 py-1.5 text-left" style={headCell}>Close ID</th>
+                      <th className="px-3 py-1.5 text-left" style={headCell}>Side</th>
+                      <th className="px-3 py-1.5 text-right" style={{ ...headCell, textAlign: 'right' }}>Qty</th>
+                      <th className="px-3 py-1.5 text-right" style={{ ...headCell, textAlign: 'right' }}>Entry</th>
+                      <th className="hidden md:table-cell px-3 py-1.5 text-right" style={{ ...headCell, textAlign: 'right' }}>Exit</th>
+                      <th className="px-3 py-1.5 text-right" style={{ ...headCell, textAlign: 'right' }}>P/L</th>
+                      <th className="px-3 py-1.5 text-left" style={headCell}>Status</th>
+                      <th className="hidden lg:table-cell px-3 py-1.5 text-right" style={{ ...headCell, textAlign: 'right' }}>Open date</th>
+                      <th className="hidden lg:table-cell px-3 py-1.5 text-right" style={{ ...headCell, textAlign: 'right' }}>Close date</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((h: any) => (
-                      <tr key={h.history_id} className="border-b border-gray-100">
-                        <td className="px-3 py-1.5 text-slate">{h.order_id ?? "-"}</td>
-                        <td className="hidden md:table-cell px-3 py-1.5 text-slate">{h.close_order_id ?? "-"}</td>
+                      <tr key={h.history_id} className="border-b border-hairline-soft">
+                        <td className="px-3 py-1.5 text-slate" style={{ fontSize: 13 }}>{h.order_id ?? "-"}</td>
+                        <td className="hidden md:table-cell px-3 py-1.5 text-slate" style={{ fontSize: 13 }}>{h.close_order_id ?? "-"}</td>
                         <td className="px-3 py-1.5">
-                          <span className={`px-1 rounded text-[9px] font-bold ${h.type === "BUY" || h.type === "Buy" ? "bg-teal-light text-brand-teal" : "bg-coral-light text-brand-coral"}`}>
-                            {h.type}
+                          <span style={badgeStyle}>
+                            {h.type ? `${String(h.type).charAt(0).toUpperCase()}${String(h.type).slice(1).toLowerCase()}` : h.type}
                           </span>
                         </td>
-                        <td className="px-3 py-1.5 text-right">{h.amount ?? "-"}</td>
-                        <td className="px-3 py-1.5 text-right">{h.entry_price != null ? `$${Number(h.entry_price).toLocaleString()}` : "-"}</td>
-                        <td className="hidden md:table-cell px-3 py-1.5 text-right">{h.exit_price != null ? `$${Number(h.exit_price).toLocaleString()}` : "-"}</td>
-                        <td className={`px-3 py-1.5 text-right font-medium ${(h.realized_pl ?? 0) >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        <td className="px-3 py-1.5 text-right text-ink" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{h.amount ?? "-"}</td>
+                        <td className="px-3 py-1.5 text-right text-ink" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{h.entry_price != null ? `$${Number(h.entry_price).toLocaleString()}` : "-"}</td>
+                        <td className="hidden md:table-cell px-3 py-1.5 text-right text-ink" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{h.exit_price != null ? `$${Number(h.exit_price).toLocaleString()}` : "-"}</td>
+                        <td className="px-3 py-1.5 text-right font-medium" style={{
+                          fontSize: 13,
+                          fontVariantNumeric: 'tabular-nums',
+                          color: (h.realized_pl ?? 0) >= 0 ? 'var(--color-positive-text)' : 'var(--color-danger-text)',
+                        }}>
                           {h.realized_pl != null ? `$${Number(h.realized_pl).toLocaleString()}` : "-"}
                         </td>
                         <td className="px-3 py-1.5">
-                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                            h.comments?.note === "Canceled"
-                              ? "bg-surface-soft text-slate"
-                              : "bg-red-100 text-red-700"
-                          }`}>{h.comments?.note === "Canceled" ? "CANCELED" : "CLOSE"}</span>
+                          <span style={badgeStyle}>{h.comments?.note === "Canceled" ? "Canceled" : "Close"}</span>
                         </td>
-                        <td className="hidden lg:table-cell px-3 py-1.5 text-right text-slate">{fmt(h.entry_date)}</td>
-                        <td className="hidden lg:table-cell px-3 py-1.5 text-right text-slate">{fmt(h.exit_date)}</td>
+                        <td className="hidden lg:table-cell px-3 py-1.5 text-right text-slate" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{fmt(h.entry_date)}</td>
+                        <td className="hidden lg:table-cell px-3 py-1.5 text-right text-slate" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{fmt(h.exit_date)}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -1,6 +1,25 @@
 import React, { useState, useEffect, useRef } from "react";
 import { IconPlus, IconX } from "../../components/icons";
-import { buttonTheme } from "../../constants/colors";
+
+/** Section caption: 12px/500 slate, sentence case. */
+const CAPTION: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: 0 };
+
+/** Column head: 12px/500 slate, sentence case. */
+const headCell: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)", whiteSpace: "nowrap" };
+
+/** Segment toggle — ink pill when selected, quiet slate when not. */
+const toggleStyle = (active: boolean): React.CSSProperties => ({
+  fontSize: 12,
+  fontWeight: 500,
+  padding: "2px 10px",
+  border: "none",
+  cursor: "pointer",
+  background: active ? "var(--color-ink)" : "transparent",
+  color: active ? "var(--color-canvas)" : "var(--color-slate)",
+});
+
+/** Table input: 12px ink, hairline border. */
+const inputStyle: React.CSSProperties = { fontSize: 12, color: "var(--color-ink)" };
 
 export interface OptionRow {
   id: number;
@@ -72,7 +91,7 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
   return (
     <div className="h-full">
       <div className="flex items-center justify-between px-4 py-2 bg-surface border-b border-hairline">
-        <span className="text-[10px] font-bold text-slate uppercase tracking-widest">Options Strategy</span>
+        <span style={CAPTION}>Options strategy</span>
         <button
           onClick={onClose}
           className="h-8 w-8 rounded-full bg-canvas text-slate border border-hairline hover:bg-surface transition-all flex items-center justify-center"
@@ -85,53 +104,53 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
       <table className="w-full text-xs">
         <thead>
           <tr className="bg-surface">
-            <th className="px-2 py-1.5 text-center font-semibold text-ink">Side</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-ink">Type</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-ink">Strike</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-ink">Premium</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-ink">Qty</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-ink">Expiry</th>
-            <th className="px-2 py-1.5 text-center font-semibold text-ink">IV%</th>
+            <th className="px-2 py-1.5 text-center" style={headCell}>Side</th>
+            <th className="px-2 py-1.5 text-center" style={headCell}>Type</th>
+            <th className="px-2 py-1.5 text-center" style={headCell}>Strike</th>
+            <th className="px-2 py-1.5 text-center" style={headCell}>Premium</th>
+            <th className="px-2 py-1.5 text-center" style={headCell}>Qty</th>
+            <th className="px-2 py-1.5 text-center" style={headCell}>Expiry</th>
+            <th className="px-2 py-1.5 text-center" style={headCell}>IV%</th>
             <th className="px-2 py-1.5 w-8" />
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={8} className="px-4 py-4 text-center text-slate text-[10px]">
+              <td colSpan={8} className="px-4 py-4 text-center text-slate" style={{ fontSize: 12 }}>
                 No rows yet. Click [+] to add a strategy leg.
               </td>
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={row.id} className="border-t border-gray-100">
+              <tr key={row.id} className="border-t border-hairline-soft">
                 <td className="px-1 py-1">
-                  <div className="flex rounded-md overflow-hidden">
+                  <div className="flex rounded-full overflow-hidden bg-surface-soft">
                     <button
                       onClick={() => updateRow(row.id, "side", "LONG")}
-                      className={`text-[9px] font-bold px-2 py-0.5 transition-colors ${row.side === "LONG" ? `${buttonTheme.side.LONG.bg} ${buttonTheme.side.LONG.text}` : `${buttonTheme.side.LONG.inactiveBg} ${buttonTheme.side.LONG.inactiveText}`}`}
+                      style={toggleStyle(row.side === "LONG")}
                     >
-                      LONG
+                      Long
                     </button>
                     <button
                       onClick={() => updateRow(row.id, "side", "SHORT")}
-                      className={`text-[9px] font-bold px-2 py-0.5 transition-colors ${row.side === "SHORT" ? `${buttonTheme.side.SHORT.bg} ${buttonTheme.side.SHORT.text}` : `${buttonTheme.side.SHORT.inactiveBg} ${buttonTheme.side.SHORT.inactiveText}`}`}
+                      style={toggleStyle(row.side === "SHORT")}
                     >
-                      SHORT
+                      Short
                     </button>
                   </div>
                 </td>
                 <td className="px-1 py-1">
-                  <div className="flex rounded-md overflow-hidden">
+                  <div className="flex rounded-full overflow-hidden bg-surface-soft">
                     <button
                       onClick={() => updateRow(row.id, "type", "Call")}
-                      className={`text-[9px] font-bold px-2 py-0.5 transition-colors ${row.type === "Call" ? `${buttonTheme.optionType.Call.bg} ${buttonTheme.optionType.Call.text}` : `${buttonTheme.optionType.Call.inactiveBg} ${buttonTheme.optionType.Call.inactiveText}`}`}
+                      style={toggleStyle(row.type === "Call")}
                     >
                       Call
                     </button>
                     <button
                       onClick={() => updateRow(row.id, "type", "Put")}
-                      className={`text-[9px] font-bold px-2 py-0.5 transition-colors ${row.type === "Put" ? `${buttonTheme.optionType.Put.bg} ${buttonTheme.optionType.Put.text}` : `${buttonTheme.optionType.Put.inactiveBg} ${buttonTheme.optionType.Put.inactiveText}`}`}
+                      style={toggleStyle(row.type === "Put")}
                     >
                       Put
                     </button>
@@ -144,7 +163,8 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     placeholder="0"
                     value={row.strike}
                     onChange={(e) => updateRow(row.id, "strike", e.target.value)}
-                    className="text-[10px] border border-hairline rounded px-1 py-0.5 bg-canvas text-gray-700 w-full text-right"
+                    className="border border-hairline rounded px-1 py-0.5 bg-canvas w-full text-right"
+                    style={inputStyle}
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -154,7 +174,8 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     placeholder="0"
                     value={row.price}
                     onChange={(e) => updateRow(row.id, "price", e.target.value)}
-                    className="text-[10px] border border-hairline rounded px-1 py-0.5 bg-canvas text-gray-700 w-full text-right"
+                    className="border border-hairline rounded px-1 py-0.5 bg-canvas w-full text-right"
+                    style={inputStyle}
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -164,7 +185,8 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     placeholder="0"
                     value={row.qty}
                     onChange={(e) => updateRow(row.id, "qty", e.target.value)}
-                    className="text-[10px] border border-hairline rounded px-1 py-0.5 bg-canvas text-gray-700 w-full text-right"
+                    className="border border-hairline rounded px-1 py-0.5 bg-canvas w-full text-right"
+                    style={inputStyle}
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -172,7 +194,8 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     type="date"
                     value={row.expiry}
                     onChange={(e) => updateRow(row.id, "expiry", e.target.value)}
-                    className="text-[10px] border border-hairline rounded px-1 py-0.5 bg-canvas text-gray-700 w-full"
+                    className="border border-hairline rounded px-1 py-0.5 bg-canvas w-full"
+                    style={inputStyle}
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -182,13 +205,14 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     placeholder="0"
                     value={row.iv}
                     onChange={(e) => updateRow(row.id, "iv", e.target.value)}
-                    className="text-[10px] border border-hairline rounded px-1 py-0.5 bg-canvas text-gray-700 w-full text-right"
+                    className="border border-hairline rounded px-1 py-0.5 bg-canvas w-full text-right"
+                    style={inputStyle}
                   />
                 </td>
                 <td className="px-1 py-1 text-center">
                   <button
                     onClick={() => deleteRow(row.id)}
-                    className="text-red-300 hover:text-red-500 transition-colors"
+                    className="text-slate hover:bg-surface-soft rounded-full transition-colors"
                     title="Delete row"
                   >
                     <IconTrash2 className="w-5 h-5" />
@@ -202,7 +226,8 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
       <div className="flex justify-center px-4 py-1.5 border-t border-hairline bg-surface">
         <button
           onClick={addRow}
-          className="flex items-center gap-1 text-[10px] font-bold text-slate hover:text-gray-700 transition-colors"
+          className="flex items-center gap-1 rounded-full border border-hairline text-ink hover:bg-surface-soft transition-colors"
+          style={{ fontSize: 12, fontWeight: 600, padding: "4px 12px" }}
         >
           <IconPlus className="w-4 h-4" />
           Add leg

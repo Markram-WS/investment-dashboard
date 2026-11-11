@@ -4,6 +4,7 @@ import { useDrag, useDrop } from 'react-dnd';
 import { api } from '../lib/api';
 import { useNotification } from '../contexts/NotificationContext';
 import PageLayout from '../components/PageLayout';
+import PageHeader from '../components/PageHeader';
 import Button from '../screens/components/Button';
 import AddAssetModal from '../screens/AddAssetModal';
 import EditAssetModal from '../screens/EditAssetModal';
@@ -18,6 +19,20 @@ const TYPE_TABS = [
 ];
 
 const ITEM_TYPE = 'ASSET_ROW';
+
+/** Ledger column head: 12px/500 slate, sentence case. */
+const headCell = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)" } as const;
+
+/** Badge: 12px/500 slate on surface-soft, pill radius. */
+const badgeStyle = {
+  fontSize: 12,
+  fontWeight: 500,
+  color: "var(--color-slate)",
+  background: "var(--color-surface-soft)",
+  borderRadius: 999,
+  padding: "2px 10px",
+  whiteSpace: "nowrap",
+} as const;
 
 function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice }: { asset: any; onEdit: (a: any) => void; onRefreshPrice?: (asset: any) => void; onSavePrice?: (asset: any, price: number) => void }) {
   const cachedPrice = localStorage.getItem(`cached_price_${asset.ticker}`);
@@ -63,27 +78,31 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice }: { asset: a
 
   return (
     <tr ref={dragRef} className={`border-t border-hairline hover:bg-surface transition-colors ${isDragging ? 'opacity-40' : ''}`}>
-      <td className="px-4 py-3 text-sm font-semibold text-ink">{asset.ticker}</td>
-      <td className="px-4 py-3 text-sm text-slate">{asset.name || '—'}</td>
-      <td className="px-4 py-3 text-sm text-right text-ink font-medium cursor-pointer" onClick={startEdit}>
+      <td className="px-4 py-3 text-[15px] font-semibold text-ink">{asset.ticker}</td>
+      <td className="px-4 py-3 text-[15px] text-slate">{asset.name || '—'}</td>
+      <td className="px-4 py-3 text-[15px] text-right text-ink font-medium cursor-pointer" style={{ fontVariantNumeric: 'tabular-nums' }} onClick={startEdit}>
         {editing ? (
           <input type="number" step="any" value={editVal} autoFocus
             onChange={e => setEditVal(e.target.value)}
             onBlur={commitPrice}
             onKeyDown={handleKeyDown}
-            className="w-28 text-right text-sm border border-brand-teal rounded px-2 py-0.5 bg-canvas text-ink outline-none"
+            className="w-28 text-right text-[15px] border border-brand-teal rounded px-2 py-0.5 bg-canvas text-ink outline-none"
             onClick={e => e.stopPropagation()} />
         ) : (
           displayPrice != null ? `$${Number(displayPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
         )}
       </td>
-      <td className={`px-4 py-3 text-sm text-right font-medium ${change != null ? (change >= 0 ? 'text-emerald-600' : 'text-red-500') : 'text-slate'}`}>
+      <td className="px-4 py-3 text-[15px] text-right font-medium"
+        style={{
+          fontVariantNumeric: 'tabular-nums',
+          color: change != null
+            ? (change >= 0 ? 'var(--color-positive-text)' : 'var(--color-danger-text)')
+            : 'var(--color-slate)',
+        }}>
         {change != null ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—'}
       </td>
-      <td className="px-4 py-3 text-sm text-slate">
-        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${asset.source === 'yfinance' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-          {asset.source}
-        </span>
+      <td className="px-4 py-3">
+        <span style={badgeStyle}>{asset.source}</span>
       </td>
       <td className="px-4 py-3 text-center">
         <div className="flex items-center justify-center gap-1">
@@ -131,35 +150,42 @@ function GroupSection({ groupId, groupName, assets, onEdit, onDrop, onRefreshPri
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <section ref={dropRef} className={`bg-canvas rounded-xl border border-hairline overflow-hidden transition-shadow ${isOver ? 'shadow-[0_0_0_2px_rgba(15,188,176,0.5)]' : ''}`}>
-      <div className="flex items-center justify-between px-4 py-3 bg-surface border-b border-hairline">
+    <section ref={dropRef} className="overflow-hidden transition-colors"
+      style={{
+        background: 'var(--color-canvas)',
+        borderRadius: 16,
+        padding: '20px 20px 12px',
+        outline: isOver ? '2px solid var(--color-brand-teal)' : undefined,
+        outlineOffset: isOver ? -2 : undefined,
+      }}>
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <button onClick={() => setCollapsed(c => !c)} className="text-slate hover:text-ink transition-colors">
             <svg className={`w-4 h-4 transition-transform ${collapsed ? '-rotate-90' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
-          <h3 className="text-sm font-bold text-ink">{groupName}</h3>
-          <span className="text-[10px] text-slate bg-gray-100 dark:bg-white/10 px-2 py-0.5 rounded-full font-medium">{assets.length}</span>
+          <h3 className="m-0 text-ink" style={{ fontSize: 15, fontWeight: 600 }}>{groupName}</h3>
+          <span style={badgeStyle}>{assets.length}</span>
         </div>
       </div>
       {!collapsed && (
-        <div className="overflow-x-auto">
+        <div className="table-responsive">
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-hairline">
-                <th className="px-4 py-2.5 text-[10px] font-bold text-slate uppercase tracking-widest">Symbol</th>
-                <th className="px-4 py-2.5 text-[10px] font-bold text-slate uppercase tracking-widest">Name</th>
-                <th className="px-4 py-2.5 text-[10px] font-bold text-slate uppercase tracking-widest text-right">Price</th>
-                <th className="px-4 py-2.5 text-[10px] font-bold text-slate uppercase tracking-widest text-right">Change 24h</th>
-                <th className="px-4 py-2.5 text-[10px] font-bold text-slate uppercase tracking-widest">Source</th>
+                <th className="px-4 py-2.5" style={headCell}>Symbol</th>
+                <th className="px-4 py-2.5" style={headCell}>Name</th>
+                <th className="px-4 py-2.5 text-right" style={{ ...headCell, textAlign: 'right' }}>Price</th>
+                <th className="px-4 py-2.5 text-right" style={{ ...headCell, textAlign: 'right' }}>Change 24h</th>
+                <th className="px-4 py-2.5" style={headCell}>Source</th>
                 <th className="px-4 py-2.5 w-10" />
               </tr>
             </thead>
             <tbody>
               {assets.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-slate text-xs">No assets in this group</td>
+                  <td colSpan={6} className="px-4 py-6 text-center text-slate" style={{ fontSize: 12 }}>No assets in this group</td>
                 </tr>
               ) : (
                 assets.map((asset: any) => (
@@ -328,42 +354,54 @@ export default function AllAssets() {
         <AssetGroupModal open={showGroupModal} onClose={() => { setShowGroupModal(false); refetchAssets(); refetchGroups(); }} />
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <h1 className="text-[22px] font-bold text-ink">Asset</h1>
-          <div className="flex items-center gap-3">
-            {refreshMode === 'manual' ? (
-              <button onClick={refetchAll}
-                className="w-9 h-9 rounded-full border border-hairline flex items-center justify-center text-slate hover:text-ink hover:bg-surface transition-all"
-                title="Refresh prices">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="23 4 23 10 17 10" />
-                  <polyline points="1 20 1 14 7 14" />
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                </svg>
-              </button>
-            ) : (
-              <span className="text-[10px] text-slate font-medium">Auto-refreshing every 10m</span>
-            )}
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] text-slate font-medium uppercase tracking-wider">Auto</span>
-              <button
-                onClick={() => setRefreshMode(prev => prev === 'manual' ? 'auto' : 'manual')}
-                className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${refreshMode === 'auto' ? 'bg-brand-teal' : 'bg-gray-300'}`}>
-                <span className={`inline-block h-3 w-3 transform rounded-full bg-canvas transition-transform ${refreshMode === 'auto' ? 'translate-x-4' : 'translate-x-0.5'}`} />
-              </button>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title="Asset"
+          meta={
+            <>
+              {refreshMode === 'manual' ? (
+                <button onClick={refetchAll}
+                  className="w-9 h-9 rounded-full border border-hairline flex items-center justify-center text-slate hover:text-ink hover:bg-surface transition-all"
+                  title="Refresh prices">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                  </svg>
+                </button>
+              ) : (
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-slate)' }}>Auto-refreshing every 10m</span>
+              )}
+              <div className="flex items-center gap-2">
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-slate)' }}>Auto</span>
+                <button
+                  onClick={() => setRefreshMode(prev => prev === 'manual' ? 'auto' : 'manual')}
+                  className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors"
+                  style={{ background: refreshMode === 'auto' ? 'var(--color-brand-teal)' : 'var(--color-hairline)' }}>
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-canvas transition-transform ${refreshMode === 'auto' ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+            </>
+          }
+        />
 
         {/* Type tabs + action buttons */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-1">
-            {TYPE_TABS.map(tab => (
-              <button key={tab.value} onClick={() => setTypeFilter(tab.value)}
-                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-full border transition-all ${typeFilter === tab.value ? 'bg-ink text-white border-ink' : 'border-hairline bg-canvas text-slate hover:border-gray-300'}`}>
-                {tab.label}
-              </button>
-            ))}
+        <div className="flex flex-wrap items-center justify-between" style={{ gap: 12, marginBottom: 24 }}>
+          <div className="flex items-center gap-1 overflow-x-auto" style={{ maxWidth: '100%', minWidth: 0 }}>
+            {TYPE_TABS.map(tab => {
+              const active = typeFilter === tab.value;
+              return (
+                <button key={tab.value} onClick={() => setTypeFilter(tab.value)}
+                  className={`px-3 py-1.5 rounded-full border transition-all ${active ? 'border-ink' : 'border-hairline hover:text-ink'}`}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: active ? 'var(--color-canvas)' : 'var(--color-slate)',
+                    background: active ? 'var(--color-ink)' : 'var(--color-canvas)',
+                  }}>
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setShowGroupModal(true)}
@@ -398,26 +436,26 @@ export default function AllAssets() {
         </div>
 
         {/* Summary */}
-        <div className="mt-4 text-[10px] text-slate">
-          {assets.length} asset{assets.length !== 1 ? 's' : ''} · {groups.length} group{groups.length !== 1 ? 's' : ''} · {refreshMode === 'auto' ? 'Auto-refresh ON' : 'Manual refresh'}
+        <div className="mt-4" style={{ fontSize: 12, color: 'var(--color-slate)' }}>
+          {assets.length} asset{assets.length !== 1 ? 's' : ''} in {groups.length} group{groups.length !== 1 ? 's' : ''}, {refreshMode === 'auto' ? 'auto-refresh on' : 'manual refresh'}
         </div>
 
         {/* Symbol tips */}
         <details className="mt-2 group">
-          <summary className="text-[10px] text-slate/60 hover:text-slate cursor-pointer transition-colors select-none list-none">
+          <summary className="text-slate hover:text-ink cursor-pointer transition-colors select-none list-none" style={{ fontSize: 12 }}>
             <span className="inline-flex items-center gap-1">
               <svg className={`w-3 h-3 transition-transform group-open:rotate-90`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
               yfinance symbol patterns
             </span>
           </summary>
-          <div className="mt-2 p-3 rounded-lg border border-hairline bg-surface/50 text-[10px] text-slate leading-relaxed space-y-1">
+          <div className="mt-2 p-3 rounded-xl text-slate leading-relaxed space-y-1" style={{ background: 'var(--color-surface-soft)', fontSize: 12 }}>
             <div className="font-semibold text-ink mb-1.5">Yahoo Finance symbol format</div>
             <div><span className="font-mono text-brand-teal">PTT.BK</span> — Thai stocks (add <span className="font-mono">.BK</span> suffix)</div>
             <div><span className="font-mono text-brand-teal">BTC-USD</span> — Crypto (ticker <span className="font-mono">-USD</span>)</div>
             <div><span className="font-mono text-brand-teal">AAPL</span> — US stocks (plain ticker)</div>
             <div><span className="font-mono text-brand-teal">6758.T</span> — Japanese stocks (add <span className="font-mono">.T</span>)</div>
             <div><span className="font-mono text-brand-teal">TSLA.US</span> — Some non-US exchanges via <span className="font-mono">.US</span></div>
-            <div className="mt-1.5 pt-1.5 border-t border-hairline text-slate/50">Enter the symbol exactly as Yahoo Finance expects it when creating an asset with source=yfinance.</div>
+            <div className="mt-1.5 pt-1.5 border-t border-hairline">Enter the symbol exactly as Yahoo Finance expects it when creating an asset with source=yfinance.</div>
           </div>
         </details>
       </PageLayout>

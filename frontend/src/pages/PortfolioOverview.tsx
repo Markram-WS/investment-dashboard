@@ -10,6 +10,7 @@ import LiquidityStack from "../screens/components/LiquidityStack";
 import Button from "../screens/components/Button";
 import { useNotification } from "../contexts/NotificationContext";
 import PageLayout from "../components/PageLayout";
+import PageHeader from "../components/PageHeader";
 
 interface DragItem {
   sourcePortfolioId: number;
@@ -285,27 +286,27 @@ export default function PortfolioOverview() {
 
   return (
     <PageLayout>
-      <header className="flex flex-wrap items-baseline justify-between gap-4 mb-4">
-        <h1 className="m-0 text-ink" style={{ fontSize: 26, fontWeight: 600, letterSpacing: "-0.01em" }}>
-          Overview
-        </h1>
-        <div className="flex flex-wrap items-center gap-6">
-          <span className="flex items-center gap-2" style={{ fontSize: 12, color: "var(--color-slate)" }}>
-            <span className="status-dot" style={{ background: poolHealthColor }} />
-            Pool health {gaugePercent}%
-          </span>
-          <span
-            className="flex items-center gap-2"
-            role="img"
-            title={reserveRangeLabel}
-            aria-label={reserveRangeLabel}
-            style={{ fontSize: 12, color: "var(--color-slate)" }}
-          >
-            <span className="status-dot" style={{ background: reserveStatusColor }} />
-            Reserve {money_reserve_status.toLowerCase()}
-          </span>
-        </div>
-      </header>
+      <PageHeader
+        title="Overview"
+        meta={
+          <>
+            <span className="flex items-center gap-2" style={{ fontSize: 12, color: "var(--color-slate)" }}>
+              <span className="status-dot" style={{ background: poolHealthColor }} />
+              Pool health {gaugePercent}%
+            </span>
+            <span
+              className="flex items-center gap-2"
+              role="img"
+              title={reserveRangeLabel}
+              aria-label={reserveRangeLabel}
+              style={{ fontSize: 12, color: "var(--color-slate)" }}
+            >
+              <span className="status-dot" style={{ background: reserveStatusColor }} />
+              Reserve {money_reserve_status.toLowerCase()}
+            </span>
+          </>
+        }
+      />
 
       {/* Overview totals strip: equity on the left, cash allocation on the right, one tonal surface. */}
       <section
