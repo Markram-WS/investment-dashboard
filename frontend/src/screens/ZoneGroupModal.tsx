@@ -7,7 +7,7 @@ const TITLE: React.CSSProperties = {
   fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0,
 };
 const LABEL: React.CSSProperties = {
-  display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--color-slate)', margin: '0 0 6px',
+  display: 'block', fontSize: 11, fontWeight: 500, color: 'var(--color-slate)', margin: '0 0 4px',
 };
 const HEAD: React.CSSProperties = {
   fontSize: 11, fontWeight: 500, color: 'var(--color-slate)', paddingBottom: 6, textAlign: 'left',
@@ -17,12 +17,12 @@ const CELL: React.CSSProperties = {
   fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', padding: '6px 0',
 };
 const INPUT: React.CSSProperties = {
-  width: '100%', padding: '6px 10px', fontSize: 15, fontWeight: 500,
+  width: '100%', padding: '5px 10px', fontSize: 13, fontWeight: 500,
   fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', background: 'transparent',
   borderRadius: 8,
 };
 const BTN: React.CSSProperties = {
-  fontSize: 12, fontWeight: 500, borderRadius: 999, padding: '6px 14px',
+  fontSize: 12, fontWeight: 500, borderRadius: 999, padding: '6px 12px',
   border: '1px solid transparent', cursor: 'pointer',
 };
 const BTN_PRIMARY: React.CSSProperties = {
@@ -158,15 +158,15 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
   return (
     <ModalShell open={showModal} onClose={onClose} title="Order groups">
       <div className="w-full max-w-3xl mx-4" style={CARD}>
-        <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
+        <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
           <h3 style={TITLE}>Order groups</h3>
           <button onClick={onClose} className="text-slate hover:text-ink leading-none" style={{ fontSize: 20 }}>&times;</button>
         </div>
 
         {showForm && (
           <div style={{ paddingBottom: 20, marginBottom: 20, borderBottom: '1px solid var(--color-hairline)' }}>
-            <h4 style={{ ...LABEL, fontSize: 15, color: 'var(--color-ink)', marginBottom: 12 }}>{editingId ? 'Edit group' : 'New group'}</h4>
-            <div className="grid grid-cols-2 gap-3">
+            <h4 style={{ ...LABEL, fontSize: 13, color: 'var(--color-ink)', marginBottom: 12 }}>{editingId ? 'Edit group' : 'New group'}</h4>
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <label style={LABEL}>Group name</label>
                 <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="border border-hairline focus:border-brand-teal" style={INPUT} />
@@ -188,7 +188,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
                 <input type="number" step="any" value={form.range} onChange={(e) => setForm({ ...form, range: e.target.value })} className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="for grid calculation" />
               </div>
             </div>
-            <div className="flex justify-end gap-2" style={{ marginTop: 12 }}>
+            <div className="flex justify-end gap-2" style={{ marginTop: 10 }}>
               <button onClick={resetForm} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
               <button onClick={handleSave} style={BTN_PRIMARY} className="transition-opacity hover:opacity-90">
                 {editingId ? 'Update' : 'Create'}

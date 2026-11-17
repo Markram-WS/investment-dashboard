@@ -4,29 +4,29 @@ import { GroupCombobox } from './components/GroupCombobox';
 import type { AddOrderForm } from '../hooks/useAddOrder';
 import ModalShell from './components/ModalShell';
 
-/** Field label: 12px/500 slate, sentence case. */
+/** Field label: 11px/500 slate, sentence case. */
 const fieldLabel = {
   display: 'block',
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 500,
   color: 'var(--color-slate)',
-  margin: '0 0 5px',
+  margin: '0 0 4px',
 } as const;
 
-/** Text field: 15px ink on canvas, 1px hairline, radius 8. */
+/** Text field: 13px ink on canvas, 1px hairline, radius 8. */
 const fieldInput = {
   width: '100%',
-  fontSize: 15,
+  fontSize: 13,
   color: 'var(--color-ink)',
   background: 'var(--color-canvas)',
   border: '1px solid var(--color-hairline)',
   borderRadius: 8,
-  padding: '8px 12px',
+  padding: '6px 10px',
 } as const;
 
 const primaryButton = {
-  padding: '8px 16px',
-  fontSize: 13,
+  padding: '6px 12px',
+  fontSize: 12,
   fontWeight: 500,
   background: 'var(--color-ink)',
   color: 'var(--color-canvas)',
@@ -36,8 +36,8 @@ const primaryButton = {
 } as const;
 
 const secondaryButton = {
-  padding: '8px 16px',
-  fontSize: 13,
+  padding: '6px 12px',
+  fontSize: 12,
   fontWeight: 500,
   background: 'var(--color-canvas)',
   color: 'var(--color-ink)',
@@ -46,7 +46,7 @@ const secondaryButton = {
   cursor: 'pointer',
 } as const;
 
-const modalPanel = 'bg-canvas border border-hairline rounded-xl p-6 w-full max-w-md mx-4';
+const modalPanel = 'bg-canvas border border-hairline rounded-xl p-5 w-full max-w-md mx-4';
 
 interface AddOrderModalProps {
   formData: AddOrderForm;
@@ -160,8 +160,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   return (
     <ModalShell open={showModal} onClose={onClose} title="Add Order" closeOnBackdrop={false} zIndex={110}>
       <div className={modalPanel}>
-        <h3 style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 16px' }}>Add order</h3>
-        <div className="space-y-4">
+        <h3 style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 16px' }}>Add order</h3>
+        <div className="space-y-2.5">
           <div>
             <label className="block" style={fieldLabel}>Order ID</label>
             <input
@@ -193,7 +193,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               {assetTypeOptions.map((t) => <option key={t} value={t} />)}
             </datalist>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <div className="flex-1">
               <label className="block" style={fieldLabel}>Side</label>
               <ToggleBtn
@@ -213,7 +213,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               </div>
             )}
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <div className="flex-1">
               <label className="block" style={fieldLabel}>Entry Price</label>
               <input
@@ -235,7 +235,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               />
             </div>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <div className="flex-1">
               <label className="block" style={fieldLabel}>Cost (spread/commission)</label>
               <input
@@ -261,7 +261,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               <div className="flex-1" />
             )}
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <div className="flex-1">
               <label className="block" style={fieldLabel}>TP Price</label>
               <input
@@ -283,7 +283,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               />
             </div>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <div className="flex-1">
               <label className="block" style={fieldLabel}>Status</label>
               <ToggleBtn
@@ -310,7 +310,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             {groupWarnings.length > 0 && (
               <div className="mt-1 space-y-0.5">
                 {groupWarnings.map((w, i) => (
-                  <p key={i} style={{ fontSize: 12, color: 'var(--color-danger-text)', display: 'flex', alignItems: 'center', gap: 4, margin: 0 }}>
+                  <p key={i} style={{ fontSize: 11, color: 'var(--color-danger-text)', display: 'flex', alignItems: 'center', gap: 4, margin: 0 }}>
                     <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
                     {w}
                   </p>
