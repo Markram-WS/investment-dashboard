@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { SpreadOrder } from "../../types";
 import type { ZoneGroupRecord } from "../../lib/api";
-import { formatQty } from "../../utils/format";
+import { formatQty, priceLabel } from "../../utils/format";
 
 export type LadderView = "same" | "eq" | "option";
 type Density = "key" | "full";
@@ -32,14 +32,6 @@ const money = (v: number | null | undefined) =>
   v == null
     ? "—"
     : `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-/** Zone labels that are prices ("32.0") render as `$32.00`; other labels pass through. */
-const priceLabel = (label: string) => {
-  const trimmed = (label ?? "").trim();
-  if (trimmed === "") return label;
-  const n = Number(trimmed);
-  return Number.isFinite(n) ? money(n) : label;
-};
 
 /** A zone's price: its declared band, else a numeric name; non-numeric names sort last. */
 const zonePrice = (zone: ZoneGroupRecord) => {

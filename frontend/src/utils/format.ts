@@ -28,6 +28,17 @@ export function formatQty(value: number | string | null | undefined): string {
   return n.toLocaleString("en-US", { maximumFractionDigits: 8 });
 }
 
+/**
+ * Zone labels that are prices ("32.0") render as `$32.00`; other labels pass through.
+ */
+export function priceLabel(label: string): string {
+  const trimmed = (label ?? "").trim();
+  if (trimmed === "") return label;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return label;
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export function formatDate(dateString: string | null): string {
   if (!dateString) return "";
   const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };

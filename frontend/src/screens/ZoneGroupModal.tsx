@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../lib/api';
 import ModalShell from './components/ModalShell';
+import { priceLabel } from '../utils/format';
 
 const CARD: React.CSSProperties = { background: 'var(--color-canvas)', borderRadius: 16, padding: 24 };
 const TITLE: React.CSSProperties = {
-  fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0,
-};
-const LABEL: React.CSSProperties = {
-  display: 'block', fontSize: 11, fontWeight: 500, color: 'var(--color-slate)', margin: '0 0 4px',
+  fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0,
 };
 const HEAD: React.CSSProperties = {
   fontSize: 11, fontWeight: 500, color: 'var(--color-slate)', paddingBottom: 6, textAlign: 'left',
@@ -17,19 +15,23 @@ const CELL: React.CSSProperties = {
   fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', padding: '6px 0',
 };
 const INPUT: React.CSSProperties = {
-  width: '100%', padding: '5px 10px', fontSize: 13, fontWeight: 500,
+  width: '100%', boxSizing: 'border-box', padding: '5px 10px', fontSize: 13, fontWeight: 500,
   fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', background: 'transparent',
-  borderRadius: 8,
+  border: '1px solid var(--color-hairline)', borderRadius: 8,
 };
 const BTN: React.CSSProperties = {
   fontSize: 12, fontWeight: 500, borderRadius: 999, padding: '6px 12px',
   border: '1px solid transparent', cursor: 'pointer',
 };
-const BTN_PRIMARY: React.CSSProperties = {
-  ...BTN, background: 'var(--color-ink)', color: 'var(--color-canvas)',
-};
 const BTN_SECONDARY: React.CSSProperties = {
   ...BTN, background: 'transparent', color: 'var(--color-ink)', borderColor: 'var(--color-hairline)',
+};
+const ICON_BTN: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 2,
+  background: 'transparent', border: 'none', cursor: 'pointer', lineHeight: 1,
+};
+const ACTION_CELL: React.CSSProperties = {
+  padding: '2px 0', textAlign: 'right', whiteSpace: 'nowrap', width: 68,
 };
 
 interface ZoneGroupRecord {
@@ -57,6 +59,15 @@ const emptyForm = {
   range: '',
 };
 
+const toPayload = (form: typeof emptyForm) => {
+  const payload: Record<string, unknown> = { name: form.name };
+  if (form.max_orders !== '') payload.max_orders = parseInt(form.max_orders, 10);
+  if (form.min_price !== '') payload.min_price = parseFloat(form.min_price);
+  if (form.max_price !== '') payload.max_price = parseFloat(form.max_price);
+  if (form.range !== '') payload.range = parseFloat(form.range);
+  return payload;
+};
+
 export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
   showModal,
   onClose,
@@ -65,9 +76,9 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
 }) => {
   const [zones, setZones] = useState<ZoneGroupRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState({ ...emptyForm });
+  const [editForm, setEditForm] = useState({ ...emptyForm });
+  const [newForm, setNewForm] = useState({ ...emptyForm });
 
   const fetchZones = useCallback(async () => {
     setLoading(true);
@@ -97,19 +108,8 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
     });
   }, [zones]);
 
-  const resetForm = () => {
-    setForm({ ...emptyForm });
-    setShowForm(false);
-    setEditingId(null);
-  };
-
-  const handleAdd = () => {
-    resetForm();
-    setShowForm(true);
-  };
-
   const handleEdit = (zone: ZoneGroupRecord) => {
-    setForm({
+    setEditForm({
       name: zone.name,
       max_orders: zone.max_orders !== null ? String(zone.max_orders) : '',
       min_price: zone.min_price !== null ? String(zone.min_price) : '',
@@ -117,7 +117,11 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
       range: zone.range !== null ? String(zone.range) : '',
     });
     setEditingId(zone.id);
-    setShowForm(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditForm({ ...emptyForm });
   };
 
   const handleDelete = async (id: number) => {
@@ -130,22 +134,22 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
     }
   };
 
-  const handleSave = async () => {
-    const payload: Record<string, any> = {
-      name: form.name,
-    };
-    if (form.max_orders !== '') payload.max_orders = parseInt(form.max_orders, 10);
-    if (form.min_price !== '') payload.min_price = parseFloat(form.min_price);
-    if (form.max_price !== '') payload.max_price = parseFloat(form.max_price);
-    if (form.range !== '') payload.range = parseFloat(form.range);
-
+  const handleSaveEdit = async () => {
+    if (editingId === null) return;
     try {
-      if (editingId !== null) {
-        await api.updateZoneGroup(editingId, payload, portfolioId);
-      } else {
-        await api.createZoneGroup(portfolioId, payload);
-      }
-      resetForm();
+      await api.updateZoneGroup(editingId, toPayload(editForm), portfolioId);
+      handleCancelEdit();
+      fetchZones();
+      onSaved?.();
+    } catch (err) {
+      console.error('Failed to save order group:', err);
+    }
+  };
+
+  const handleCreate = async () => {
+    try {
+      await api.createZoneGroup(portfolioId, toPayload(newForm));
+      setNewForm({ ...emptyForm });
       fetchZones();
       onSaved?.();
     } catch (err) {
@@ -156,100 +160,228 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
   if (!showModal) return null;
 
   return (
-    <ModalShell open={showModal} onClose={onClose} title="Order groups">
+    <ModalShell open={showModal} onClose={onClose} title="Zones">
       <div className="w-full max-w-3xl mx-4" style={CARD}>
         <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-          <h3 style={TITLE}>Order groups</h3>
+          <h3 style={TITLE}>Zones</h3>
           <button onClick={onClose} className="text-slate hover:text-ink leading-none" style={{ fontSize: 20 }}>&times;</button>
         </div>
 
-        {showForm && (
-          <div style={{ paddingBottom: 20, marginBottom: 20, borderBottom: '1px solid var(--color-hairline)' }}>
-            <h4 style={{ ...LABEL, fontSize: 13, color: 'var(--color-ink)', marginBottom: 12 }}>{editingId ? 'Edit group' : 'New group'}</h4>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label style={LABEL}>Group name</label>
-                <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="border border-hairline focus:border-brand-teal" style={INPUT} />
-              </div>
-              <div>
-                <label style={LABEL}>Max orders <span style={{ fontWeight: 400 }}>(∞ if empty)</span></label>
-                <input type="number" step="1" value={form.max_orders} onChange={(e) => setForm({ ...form, max_orders: e.target.value })} className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="leave empty = unlimited" />
-              </div>
-              <div>
-                <label style={LABEL}>Min price</label>
-                <input type="number" step="any" value={form.min_price} onChange={(e) => setForm({ ...form, min_price: e.target.value })} className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="nullable" />
-              </div>
-              <div>
-                <label style={LABEL}>Max price</label>
-                <input type="number" step="any" value={form.max_price} onChange={(e) => setForm({ ...form, max_price: e.target.value })} className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="nullable" />
-              </div>
-              <div>
-                <label style={LABEL}>Range</label>
-                <input type="number" step="any" value={form.range} onChange={(e) => setForm({ ...form, range: e.target.value })} className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="for grid calculation" />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2" style={{ marginTop: 10 }}>
-              <button onClick={resetForm} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
-              <button onClick={handleSave} style={BTN_PRIMARY} className="transition-opacity hover:opacity-90">
-                {editingId ? 'Update' : 'Create'}
-              </button>
-            </div>
-          </div>
-        )}
-
         {loading ? (
           <p className="text-center" style={{ fontSize: 15, color: 'var(--color-slate)', padding: '16px 0', margin: 0 }}>Loading...</p>
-        ) : sortedZones.length === 0 && !showForm ? (
-          <p className="text-center" style={{ fontSize: 15, color: 'var(--color-slate)', padding: '16px 0', margin: 0 }}>No order groups defined yet.</p>
         ) : (
-          <div style={{ maxHeight: 'min(46vh, 340px)', overflowY: 'auto', overflowX: 'hidden' }}>
-          <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={HEAD}>Group</th>
-                <th style={{ ...HEAD, textAlign: 'right' }}>Max orders</th>
-                <th style={{ ...HEAD, textAlign: 'right' }}>Min price</th>
-                <th style={{ ...HEAD, textAlign: 'right' }}>Max price</th>
-                <th style={{ ...HEAD, textAlign: 'right' }}>Range</th>
-                <th style={{ ...HEAD, width: 56 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedZones.map((zone) => (
-                <tr key={zone.id} style={{ borderTop: '1px solid var(--color-hairline-soft)' }}>
-                  <td style={{ ...CELL, fontWeight: 600 }}>{zone.name}</td>
-                  <td style={{ ...CELL, textAlign: 'right' }}>{zone.max_orders != null ? zone.max_orders : '∞'}</td>
-                  <td style={{ ...CELL, textAlign: 'right' }}>{zone.min_price != null ? `$${zone.min_price.toLocaleString()}` : '-'}</td>
-                  <td style={{ ...CELL, textAlign: 'right' }}>{zone.max_price != null ? `$${zone.max_price.toLocaleString()}` : '-'}</td>
-                  <td style={{ ...CELL, textAlign: 'right' }}>{zone.range != null ? `$${zone.range.toLocaleString()}` : '-'}</td>
-                  <td style={{ padding: '2px 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button onClick={() => handleEdit(zone)} className="inline-flex items-center justify-center p-1 text-slate hover:text-ink transition-colors" title="Edit">
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => handleDelete(zone.id)} className="inline-flex items-center justify-center p-1 opacity-70 hover:opacity-100 transition-opacity" style={{ color: 'var(--color-danger-text)' }} title="Delete">
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                      </svg>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
+          <>
+            {sortedZones.length === 0 && (
+              <div style={{ padding: '4px 0 12px' }}>
+                <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-ink)', margin: 0 }}>No zones yet.</p>
+                <p style={{ fontSize: 11, color: 'var(--color-slate)', margin: '2px 0 0' }}>Add a price level to group orders under it.</p>
+              </div>
+            )}
+            <div style={{ maxHeight: 'min(46vh, 340px)', overflowY: 'auto', overflowX: 'hidden' }}>
+              <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={HEAD}>Zone</th>
+                    <th style={{ ...HEAD, textAlign: 'right' }}>Max orders</th>
+                    <th style={{ ...HEAD, textAlign: 'right' }}>Min price</th>
+                    <th style={{ ...HEAD, textAlign: 'right' }}>Max price</th>
+                    <th style={{ ...HEAD, textAlign: 'right' }}>Step</th>
+                    <th style={{ ...HEAD, ...ACTION_CELL }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedZones.map((zone) => {
+                    const isEditing = editingId === zone.id;
+                    return (
+                      <tr
+                        key={zone.id}
+                        style={{ borderTop: '1px solid var(--color-hairline-soft)' }}
+                        onKeyDown={(e) => {
+                          if (isEditing && e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
+                            e.preventDefault();
+                            handleSaveEdit();
+                          }
+                        }}
+                      >
+                        {isEditing ? (
+                          <>
+                            <td style={{ padding: '3px 0' }}>
+                              <input
+                                type="text"
+                                value={editForm.name}
+                                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                style={INPUT}
+                                aria-label="Zone name"
+                              />
+                            </td>
+                            <td style={{ padding: '3px 0' }}>
+                              <input
+                                type="number"
+                                step="1"
+                                value={editForm.max_orders}
+                                onChange={(e) => setEditForm({ ...editForm, max_orders: e.target.value })}
+                                placeholder="unlimited"
+                                style={{ ...INPUT, textAlign: 'right' }}
+                                aria-label="Max orders"
+                              />
+                            </td>
+                            <td style={{ padding: '3px 0' }}>
+                              <input
+                                type="number"
+                                step="any"
+                                value={editForm.min_price}
+                                onChange={(e) => setEditForm({ ...editForm, min_price: e.target.value })}
+                                placeholder="—"
+                                style={{ ...INPUT, textAlign: 'right' }}
+                                aria-label="Min price"
+                              />
+                            </td>
+                            <td style={{ padding: '3px 0' }}>
+                              <input
+                                type="number"
+                                step="any"
+                                value={editForm.max_price}
+                                onChange={(e) => setEditForm({ ...editForm, max_price: e.target.value })}
+                                placeholder="—"
+                                style={{ ...INPUT, textAlign: 'right' }}
+                                aria-label="Max price"
+                              />
+                            </td>
+                            <td style={{ padding: '3px 0' }}>
+                              <input
+                                type="number"
+                                step="any"
+                                value={editForm.range}
+                                onChange={(e) => setEditForm({ ...editForm, range: e.target.value })}
+                                placeholder="e.g. 2.00"
+                                style={{ ...INPUT, textAlign: 'right' }}
+                                aria-label="Step"
+                              />
+                            </td>
+                            <td style={ACTION_CELL}>
+                              <button onClick={handleSaveEdit} style={{ ...ICON_BTN, color: 'var(--color-ink)' }} className="hover:opacity-70 transition-opacity" title="Save" aria-label="Save">
+                                ✓
+                              </button>
+                              <button onClick={handleCancelEdit} style={{ ...ICON_BTN, color: 'var(--color-slate)' }} className="hover:text-ink transition-colors" title="Cancel" aria-label="Cancel">
+                                ✕
+                              </button>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td style={{ ...CELL, fontWeight: 600 }}>{priceLabel(zone.name)}</td>
+                            <td style={{ ...CELL, textAlign: 'right' }}>{zone.max_orders != null ? zone.max_orders : '∞'}</td>
+                            <td style={{ ...CELL, textAlign: 'right' }}>{zone.min_price != null ? `$${zone.min_price.toLocaleString()}` : '-'}</td>
+                            <td style={{ ...CELL, textAlign: 'right' }}>{zone.max_price != null ? `$${zone.max_price.toLocaleString()}` : '-'}</td>
+                            <td style={{ ...CELL, textAlign: 'right' }}>{zone.range != null ? `$${zone.range.toLocaleString()}` : '-'}</td>
+                            <td style={ACTION_CELL}>
+                              <button onClick={() => handleEdit(zone)} className="inline-flex items-center justify-center p-1 text-slate hover:text-ink transition-colors" title="Edit">
+                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                              </button>
+                              <button onClick={() => handleDelete(zone.id)} className="inline-flex items-center justify-center p-1 opacity-70 hover:opacity-100 transition-opacity" style={{ color: 'var(--color-danger-text)' }} title="Delete">
+                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                              </button>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })}
+
+                  <tr
+                    style={{ borderTop: '1px solid var(--color-hairline-soft)' }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
+                        e.preventDefault();
+                        handleCreate();
+                      }
+                    }}
+                  >
+                    <td style={{ padding: '3px 0' }}>
+                      <input
+                        type="text"
+                        value={newForm.name}
+                        onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
+                        placeholder="Zone name"
+                        style={INPUT}
+                        aria-label="New zone name"
+                      />
+                    </td>
+                    <td style={{ padding: '3px 0' }}>
+                      <input
+                        type="number"
+                        step="1"
+                        value={newForm.max_orders}
+                        onChange={(e) => setNewForm({ ...newForm, max_orders: e.target.value })}
+                        placeholder="unlimited"
+                        style={{ ...INPUT, textAlign: 'right' }}
+                        aria-label="New zone max orders"
+                      />
+                    </td>
+                    <td style={{ padding: '3px 0' }}>
+                      <input
+                        type="number"
+                        step="any"
+                        value={newForm.min_price}
+                        onChange={(e) => setNewForm({ ...newForm, min_price: e.target.value })}
+                        placeholder="—"
+                        style={{ ...INPUT, textAlign: 'right' }}
+                        aria-label="New zone min price"
+                      />
+                    </td>
+                    <td style={{ padding: '3px 0' }}>
+                      <input
+                        type="number"
+                        step="any"
+                        value={newForm.max_price}
+                        onChange={(e) => setNewForm({ ...newForm, max_price: e.target.value })}
+                        placeholder="—"
+                        style={{ ...INPUT, textAlign: 'right' }}
+                        aria-label="New zone max price"
+                      />
+                    </td>
+                    <td style={{ padding: '3px 0' }}>
+                      <input
+                        type="number"
+                        step="any"
+                        value={newForm.range}
+                        onChange={(e) => setNewForm({ ...newForm, range: e.target.value })}
+                        placeholder="e.g. 2.00"
+                        style={{ ...INPUT, textAlign: 'right' }}
+                        aria-label="New zone step"
+                      />
+                    </td>
+                    <td style={{ ...ACTION_CELL, padding: '3px 0' }}>
+                      <button
+                        onClick={handleCreate}
+                        className="transition-colors hover:bg-surface-soft"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: 24, height: 24, padding: 0, fontSize: 15, fontWeight: 500,
+                          color: 'var(--color-ink)', background: 'transparent',
+                          border: '1px solid var(--color-hairline)', borderRadius: 999, cursor: 'pointer',
+                        }}
+                        title="Add zone"
+                        aria-label="Add zone"
+                      >
+                        +
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
-        <div className="flex items-center justify-between" style={{ marginTop: 24 }}>
-          {!showForm && (
-            <button onClick={handleAdd} style={BTN_PRIMARY} className="transition-opacity hover:opacity-90">
-              + Add group
-            </button>
-          )}
-          <button onClick={onClose} style={BTN_SECONDARY} className="ml-auto transition-colors hover:bg-surface-soft">
+        <div className="flex justify-end" style={{ marginTop: 24 }}>
+          <button onClick={onClose} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">
             Close
           </button>
         </div>

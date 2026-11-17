@@ -35,7 +35,7 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
         <span className={value ? '' : 'text-slate'}>
           {selected
             ? `${selected.name}${selected.min_price != null && selected.max_price != null ? ` ($${selected.min_price.toLocaleString()}-$${selected.max_price.toLocaleString()})` : ''}`
-            : '-- No Group --'}
+            : 'No zone'}
         </span>
         <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polyline points="6 9 12 15 18 9" />
@@ -55,7 +55,7 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
             className="px-3 py-2 text-sm text-slate hover:bg-surface cursor-pointer"
             onClick={() => { onChange(null); setOpen(false); setQuery(''); }}
           >
-            -- No Group --
+            No zone
           </div>
           {filtered.map(g => (
             <div
@@ -70,7 +70,7 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
             </div>
           ))}
           {filtered.length === 0 && (
-            <div className="px-3 py-2 text-sm text-slate">No groups found</div>
+            <div className="px-3 py-2 text-sm text-slate">No zones found</div>
           )}
         </div>
       )}

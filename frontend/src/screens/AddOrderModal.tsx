@@ -3,6 +3,7 @@ import { GroupOption } from '../types';
 import { GroupCombobox } from './components/GroupCombobox';
 import type { AddOrderForm } from '../hooks/useAddOrder';
 import ModalShell from './components/ModalShell';
+import { priceLabel } from '../utils/format';
 
 /** Field label: 11px/500 slate, sentence case. */
 const fieldLabel = {
@@ -10,7 +11,16 @@ const fieldLabel = {
   fontSize: 11,
   fontWeight: 500,
   color: 'var(--color-slate)',
-  margin: '0 0 4px',
+  margin: '0 0 3px',
+} as const;
+
+/** Band label: 11px/600 ink, sentence case. */
+const bandLabel = {
+  display: 'block',
+  fontSize: 11,
+  fontWeight: 600,
+  color: 'var(--color-ink)',
+  margin: '0 0 6px',
 } as const;
 
 /** Text field: 13px ink on canvas, 1px hairline, radius 8. */
@@ -46,14 +56,22 @@ const secondaryButton = {
   cursor: 'pointer',
 } as const;
 
-const modalPanel = 'bg-canvas border border-hairline rounded-xl p-5 w-full max-w-md mx-4';
+const modalPanel = 'bg-canvas border border-hairline rounded-xl p-3.5 w-full max-w-md mx-4';
+
+const BAND_GAP = 14;
+const ROW_GAP = 12;
+const FIELD_GAP = 6;
+
+const bandStack: React.CSSProperties = { display: 'grid', gap: BAND_GAP };
+const fieldStack: React.CSSProperties = { display: 'grid', gap: FIELD_GAP };
+const twoCol: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: ROW_GAP };
 
 interface AddOrderModalProps {
   formData: AddOrderForm;
   showModal: boolean;
   onClose: () => void;
   onSave: () => Promise<void>;
-  onChange: (field: keyof AddOrderForm, value: any) => void;
+  onChange: (field: keyof AddOrderForm, value: unknown) => void;
   groups: GroupOption[];
   groupOrderCounts: Record<number, number>;
   assetTypeOptions: string[];
@@ -75,13 +93,14 @@ const STATUS_OPTS = [
   { value: 'PENDING', label: 'Pending' },
 ] as const;
 
-const ToggleBtn = React.memo(function ToggleBtn({ options, value, onChange }: {
+const ToggleBtn = React.memo(function ToggleBtn({ options, value, onChange, fullWidth = false }: {
   options: readonly { value: string; label: string }[];
   value: string;
   onChange: (v: string) => void;
+  fullWidth?: boolean;
 }) {
   return (
-    <div className="inline-flex" style={{ gap: 6 }}>
+    <div style={fullWidth ? { display: 'flex', gap: 6, width: '100%' } : { display: 'inline-flex', gap: 6 }}>
       {options.map((opt) => {
         const isActive = value === opt.value;
         return (
@@ -99,6 +118,7 @@ const ToggleBtn = React.memo(function ToggleBtn({ options, value, onChange }: {
               background: isActive ? 'var(--color-ink)' : 'var(--color-canvas)',
               color: isActive ? 'var(--color-canvas)' : 'var(--color-slate)',
               cursor: 'pointer',
+              flex: fullWidth ? 1 : undefined,
             }}
           >
             {opt.label}
@@ -155,173 +175,242 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     [contractType]
   );
 
+  const summary = useMemo(() => {
+    const asset = String(formData.asset_type ?? '').trim();
+    if (!asset) return '';
+
+    const sideLabel = sideOptions.find(o => o.value === formData.side)?.label ?? '';
+    const qty = String(formData.qty ?? '').trim();
+    const parts = [sideLabel, qty, asset].filter(Boolean);
+
+    let line = parts.join(' ');
+    const entry = Number(formData.entry_price);
+    if (String(formData.entry_price ?? '').trim() !== '' && Number.isFinite(entry)) {
+      line += ` @ ${Number.isInteger(entry) ? String(entry) : entry.toFixed(2)}`;
+    }
+    if (selectedGroup) line += ` · Zone ${priceLabel(selectedGroup.name)}`;
+    return line;
+  }, [formData.asset_type, formData.side, formData.qty, formData.entry_price, selectedGroup, sideOptions]);
+
   if (!showModal) return null;
 
   return (
-    <ModalShell open={showModal} onClose={onClose} title="Add Order" closeOnBackdrop={false} zIndex={110}>
+    <ModalShell open={showModal} onClose={onClose} title="Add order" closeOnBackdrop={false} zIndex={110}>
       <div className={modalPanel}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 16px' }}>Add order</h3>
-        <div className="space-y-2.5">
-          <div>
-            <label className="block" style={fieldLabel}>Order ID</label>
-            <input
-              type="text"
-              value={formData.order_id}
-              onChange={(e) => onChange('order_id', e.target.value)}
-              placeholder="Auto-generated"
-              className="w-full" style={fieldInput}
-            />
-          </div>
-          <div>
-            <label className="block" style={fieldLabel}>Contract Type</label>
-            <ToggleBtn
-              options={CONTRACT_TYPE_OPTS}
-              value={contractType}
-              onChange={(v) => onChange('contract_type', v)}
-            />
-          </div>
-          <div>
-            <label className="block" style={fieldLabel}>Asset Type</label>
-            <input
-              type="text"
-              value={formData.asset_type}
-              onChange={(e) => onChange('asset_type', e.target.value)}
-              list="asset-types-add"
-              className="w-full" style={fieldInput}
-            />
-            <datalist id="asset-types-add">
-              {assetTypeOptions.map((t) => <option key={t} value={t} />)}
-            </datalist>
-          </div>
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>Side</label>
+        <div className="flex items-baseline justify-between" style={{ gap: 12, margin: '0 0 12px' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0 }}>Add order</h3>
+          <span style={{ fontSize: 11, color: 'var(--color-slate)', whiteSpace: 'nowrap' }}>
+            ID {formData.order_id}
+          </span>
+        </div>
+
+        <div style={bandStack}>
+          <section>
+            <div style={bandLabel}>Instrument</div>
+            <div style={fieldStack}>
               <ToggleBtn
-                options={sideOptions}
-                value={formData.side}
-                onChange={(v) => onChange('side', v)}
+                options={CONTRACT_TYPE_OPTS}
+                value={contractType}
+                onChange={(v) => onChange('contract_type', v)}
+                fullWidth
               />
-            </div>
-            {contractType === 'option' && (
-              <div className="flex-1">
-                <label className="block" style={fieldLabel}>Option Type</label>
-                <ToggleBtn
-                  options={OPTION_TYPE_OPTS}
-                  value={formData.option_type}
-                  onChange={(v) => onChange('option_type', v)}
+              <div>
+                <label className="block" style={fieldLabel}>Asset type</label>
+                <input
+                  type="text"
+                  value={formData.asset_type}
+                  onChange={(e) => onChange('asset_type', e.target.value)}
+                  list="asset-types-add"
+                  className="w-full" style={fieldInput}
                 />
+                <datalist id="asset-types-add">
+                  {assetTypeOptions.map((t) => <option key={t} value={t} />)}
+                </datalist>
               </div>
-            )}
-          </div>
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>Entry Price</label>
-              <input
-                type="number"
-                step="any"
-                value={formData.entry_price}
-                onChange={(e) => onChange('entry_price', e.target.value)}
-                className="w-full" style={fieldInput}
-              />
+              {contractType === 'option' ? (
+                <div style={twoCol}>
+                  <div>
+                    <label className="block" style={fieldLabel}>Side</label>
+                    <ToggleBtn
+                      options={sideOptions}
+                      value={formData.side}
+                      onChange={(v) => onChange('side', v)}
+                      fullWidth
+                    />
+                  </div>
+                  <div>
+                    <label className="block" style={fieldLabel}>Option type</label>
+                    <ToggleBtn
+                      options={OPTION_TYPE_OPTS}
+                      value={formData.option_type}
+                      onChange={(v) => onChange('option_type', v)}
+                      fullWidth
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block" style={fieldLabel}>Side</label>
+                  <ToggleBtn
+                    options={sideOptions}
+                    value={formData.side}
+                    onChange={(v) => onChange('side', v)}
+                    fullWidth
+                  />
+                </div>
+              )}
             </div>
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>Qty</label>
-              <input
-                type="number"
-                step="any"
-                value={formData.qty}
-                onChange={(e) => onChange('qty', e.target.value)}
-                className="w-full" style={fieldInput}
-              />
+          </section>
+
+          <section>
+            <div style={bandLabel}>Size &amp; price</div>
+            <div style={fieldStack}>
+              <div style={twoCol}>
+                <div>
+                  <label className="block" style={fieldLabel}>Entry price</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={formData.entry_price}
+                    onChange={(e) => onChange('entry_price', e.target.value)}
+                    className="w-full" style={fieldInput}
+                  />
+                </div>
+                <div>
+                  <label className="block" style={fieldLabel}>Qty</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={formData.qty}
+                    onChange={(e) => onChange('qty', e.target.value)}
+                    className="w-full" style={fieldInput}
+                  />
+                </div>
+              </div>
+              {contractType === 'option' ? (
+                <div style={twoCol}>
+                  <div>
+                    <label className="block" style={fieldLabel}>Cost</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.cost}
+                      onChange={(e) => onChange('cost', e.target.value)}
+                      className="w-full" style={fieldInput}
+                    />
+                  </div>
+                  <div>
+                    <label className="block" style={fieldLabel}>Strike price</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.strike_price}
+                      onChange={(e) => onChange('strike_price', e.target.value)}
+                      className="w-full" style={fieldInput}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block" style={fieldLabel}>Cost</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={formData.cost}
+                    onChange={(e) => onChange('cost', e.target.value)}
+                    className="w-full" style={fieldInput}
+                  />
+                </div>
+              )}
             </div>
-          </div>
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>Cost (spread/commission)</label>
-              <input
-                type="number"
-                step="any"
-                value={formData.cost}
-                onChange={(e) => onChange('cost', e.target.value)}
-                className="w-full" style={fieldInput}
-              />
-            </div>
-            {contractType === 'option' ? (
-              <div className="flex-1">
-                <label className="block" style={fieldLabel}>Strike Price</label>
+          </section>
+
+          <section>
+            <div style={bandLabel}>Exits</div>
+            <div style={twoCol}>
+              <div>
+                <label className="block" style={fieldLabel}>TP price</label>
                 <input
                   type="number"
                   step="any"
-                  value={formData.strike_price}
-                  onChange={(e) => onChange('strike_price', e.target.value)}
+                  value={formData.tp_price}
+                  onChange={(e) => onChange('tp_price', e.target.value)}
                   className="w-full" style={fieldInput}
                 />
               </div>
-            ) : (
-              <div className="flex-1" />
-            )}
-          </div>
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>TP Price</label>
-              <input
-                type="number"
-                step="any"
-                value={formData.tp_price}
-                onChange={(e) => onChange('tp_price', e.target.value)}
-                className="w-full" style={fieldInput}
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>SL Price</label>
-              <input
-                type="number"
-                step="any"
-                value={formData.sl_price}
-                onChange={(e) => onChange('sl_price', e.target.value)}
-                className="w-full" style={fieldInput}
-              />
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>Status</label>
-              <ToggleBtn
-                options={STATUS_OPTS}
-                value={formData.order_status}
-                onChange={(v) => onChange('order_status', v)}
-              />
-            </div>
-            {contractType !== 'spot' && (
-              <div className="flex-1">
-                <label className="block" style={fieldLabel}>Expiry Date</label>
+              <div>
+                <label className="block" style={fieldLabel}>SL price</label>
                 <input
-                  type="date"
-                  value={formData.expiry_date}
-                  onChange={(e) => onChange('expiry_date', e.target.value)}
+                  type="number"
+                  step="any"
+                  value={formData.sl_price}
+                  onChange={(e) => onChange('sl_price', e.target.value)}
                   className="w-full" style={fieldInput}
                 />
               </div>
-            )}
-          </div>
-          <div>
-            <label className="block" style={fieldLabel}>Group</label>
-            <GroupCombobox groups={groups} value={formData.group_id} onChange={(v) => onChange('group_id', v)} />
-            {groupWarnings.length > 0 && (
-              <div className="mt-1 space-y-0.5">
-                {groupWarnings.map((w, i) => (
-                  <p key={i} style={{ fontSize: 11, color: 'var(--color-danger-text)', display: 'flex', alignItems: 'center', gap: 4, margin: 0 }}>
-                    <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-                    {w}
-                  </p>
-                ))}
+            </div>
+          </section>
+
+          <section>
+            <div style={bandLabel}>Placement</div>
+            <div style={fieldStack}>
+              {contractType !== 'spot' ? (
+                <div style={twoCol}>
+                  <div>
+                    <label className="block" style={fieldLabel}>Status</label>
+                    <ToggleBtn
+                      options={STATUS_OPTS}
+                      value={formData.order_status}
+                      onChange={(v) => onChange('order_status', v)}
+                      fullWidth
+                    />
+                  </div>
+                  <div>
+                    <label className="block" style={fieldLabel}>Expiry date</label>
+                    <input
+                      type="date"
+                      value={formData.expiry_date}
+                      onChange={(e) => onChange('expiry_date', e.target.value)}
+                      className="w-full" style={fieldInput}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block" style={fieldLabel}>Status</label>
+                  <ToggleBtn
+                    options={STATUS_OPTS}
+                    value={formData.order_status}
+                    onChange={(v) => onChange('order_status', v)}
+                    fullWidth
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block" style={fieldLabel}>Zone</label>
+                <GroupCombobox groups={groups} value={formData.group_id} onChange={(v) => onChange('group_id', v)} />
+                {groupWarnings.length > 0 && (
+                  <div className="mt-1 space-y-0.5">
+                    {groupWarnings.map((w, i) => (
+                      <p key={i} style={{ fontSize: 11, color: 'var(--color-danger-text)', display: 'flex', alignItems: 'center', gap: 4, margin: 0 }}>
+                        <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                        {w}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          </section>
         </div>
-        <div className="flex justify-end" style={{ gap: 8, marginTop: 24 }}>
+
+        {summary && (
+          <p style={{ fontSize: 11, color: 'var(--color-slate)', margin: '10px 0 0' }}>{summary}</p>
+        )}
+
+        <div className="flex justify-end" style={{ gap: 8, marginTop: 16 }}>
           <button type="button" onClick={onClose} style={secondaryButton}>Cancel</button>
-          <button type="button" onClick={onSave} style={primaryButton}>Create Order</button>
+          <button type="button" onClick={onSave} style={primaryButton}>Create order</button>
         </div>
       </div>
     </ModalShell>
