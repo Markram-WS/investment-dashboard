@@ -20,7 +20,7 @@ export default function ModalShell({
   title,
   closeOnBackdrop = true,
   backdropClassName = 'modal-scrim',
-  zIndex = 50,
+  zIndex = 120,
 }: ModalShellProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -85,8 +85,8 @@ export default function ModalShell({
 
   return (
     <div
-      className={`fixed inset-0 flex items-center justify-center animate-modal-backdrop ${backdropClassName}`}
-      style={{ zIndex }}
+      className={`fixed inset-0 flex justify-center overflow-y-auto animate-modal-backdrop ${backdropClassName}`}
+      style={{ zIndex, alignItems: 'flex-start', padding: '24px 16px' }}
       onClick={() => {
         if (closeOnBackdrop) onClose();
       }}
@@ -94,7 +94,11 @@ export default function ModalShell({
       aria-modal="true"
       aria-label={title}
     >
-      <div ref={contentRef} className="animate-modal-content" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={contentRef}
+        className="animate-modal-content my-auto max-w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
         {children}
       </div>
     </div>

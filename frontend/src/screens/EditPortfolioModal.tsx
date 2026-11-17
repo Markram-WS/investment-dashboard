@@ -200,7 +200,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
   const displayEquity = projectedAvailableCash + cumulativePl;
 
   return (
-    <ModalShell open={showModal} onClose={onClose} title="Edit portfolio" zIndex={50}>
+    <ModalShell open={showModal} onClose={onClose} title="Edit portfolio">
       <div className="w-full max-w-lg mx-4 relative" style={CARD}>
           <div className="flex justify-between items-center" style={{ marginBottom: 24 }}>
             <h3 style={TITLE}>Edit portfolio</h3>

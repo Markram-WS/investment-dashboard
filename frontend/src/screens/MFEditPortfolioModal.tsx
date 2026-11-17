@@ -224,7 +224,7 @@ export default function MFEditPortfolioModal({
   const availableDisplay = cash + (portfolio.margin_locked || 0) + (portfolio.cash_buffer_limit || 0);
 
   return (
-    <ModalShell open={showModal} onClose={onClose} title="Edit managed fund" zIndex={50}>
+    <ModalShell open={showModal} onClose={onClose} title="Edit managed fund">
       <div className="w-full max-w-xl mx-4 relative max-h-[90vh] overflow-y-auto" style={CARD}>
         <div className="flex justify-between items-center" style={{ marginBottom: 24 }}>
           <h3 style={TITLE}>Edit managed fund</h3>
