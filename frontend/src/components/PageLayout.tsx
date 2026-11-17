@@ -8,7 +8,7 @@ export default function PageLayout({ children }: { children: ReactNode }) {
   const nested = useContext(InPageLayout);
   if (nested) return <>{children}</>;
   return (
-    <div className="max-w-[1200px] mx-auto px-4 md:px-6 py-6 md:py-10">
+    <div className="max-w-[1200px] mx-auto px-4 md:px-6 py-4 md:py-5">
       <InPageLayout.Provider value>{children}</InPageLayout.Provider>
     </div>
   );
