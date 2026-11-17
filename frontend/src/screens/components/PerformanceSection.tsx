@@ -14,12 +14,14 @@ interface PerformanceSectionProps {
   payoffMinPrice?: number;
   payoffMaxPrice?: number;
   activeIVs?: Record<string, number>;
+  /** Renders borderless inside a parent card (payoff pane) instead of as a page section. */
+  embedded?: boolean;
 }
 
 const PerformanceSection: React.FC<PerformanceSectionProps> = ({
   performanceData, viewMode, onViewModeChange,
   activeOrders, strategyRows, ivMode,
-  payoffMinPrice, payoffMaxPrice, activeIVs,
+  payoffMinPrice, payoffMaxPrice, activeIVs, embedded = false,
 }) => {
   const safeActiveOrders = activeOrders || [];
   const safeStrategyRows = strategyRows || [];
@@ -30,9 +32,18 @@ const PerformanceSection: React.FC<PerformanceSectionProps> = ({
   const equityCurve = performanceData?.equity_curve;
   const hasEquityData = Array.isArray(equityCurve) && equityCurve.length > 0;
   return (
-  <section style={{ marginBottom: 48 }}>
-    <div className="flex flex-col" style={{ background: "var(--color-canvas)", borderRadius: 16, padding: 24 }}>
-      <div className="flex justify-between items-center" style={{ marginBottom: 16 }}>
+  <section
+    style={embedded
+      ? { flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }
+      : { marginBottom: 48 }}
+  >
+    <div
+      className="flex flex-col"
+      style={embedded
+        ? { flex: "1 1 auto", minHeight: 0, background: "transparent" }
+        : { background: "var(--color-canvas)", borderRadius: 16, padding: 24 }}
+    >
+      <div className="flex justify-between items-center" style={{ marginBottom: embedded ? 8 : 16 }}>
         <h3 style={{ fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: 0 }}>Performance</h3>
         <div className="flex items-center" style={{ gap: 16 }}>
           {performanceData && viewMode === "equity" && (

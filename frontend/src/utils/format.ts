@@ -17,6 +17,17 @@ export function formatCurrency(amount: number | null | undefined, currency: "USD
   return `฿${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/**
+ * Order quantities come back as Numeric strings ("100.00000000"). Print the
+ * number, trimmed of trailing zeros, never the raw database string.
+ */
+export function formatQty(value: number | string | null | undefined): string {
+  if (value == null || value === "") return "—";
+  const n = Number(value);
+  if (Number.isNaN(n)) return String(value);
+  return n.toLocaleString("en-US", { maximumFractionDigits: 8 });
+}
+
 export function formatDate(dateString: string | null): string {
   if (!dateString) return "";
   const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };

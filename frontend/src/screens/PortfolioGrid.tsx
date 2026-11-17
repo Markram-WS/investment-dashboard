@@ -11,16 +11,21 @@ import { useAddOrder } from "../hooks/useAddOrder";
 import { usePortfolioManager } from "../hooks/usePortfolioManager";
 import { useZoneEditor } from "../hooks/useZoneEditor";
 import { useMarkdownRenderer } from "../hooks/useMarkdownRenderer";
-import { SpreadOrder, AllocationItem, GroupOption, OrderLinkGroup } from "../types";
+import { SpreadOrder } from "../types";
 import { api } from "../lib/api";
-import { allocationColors } from "../constants/colors";
+import type { ZoneGroupRecord, TradeHistoryRecord } from "../lib/api";
 
 import PortfolioHeader from "./components/PortfolioHeader";
 import PageLayout from "../components/PageLayout";
-import SummaryCard from "./components/SummaryCard";
+import PoolRail from "./components/PoolRail";
+import OrderDetailLadder from "./components/OrderDetailLadder";
+import OrderHistoryCard from "./components/OrderHistoryCard";
+import RiskCard from "./components/RiskCard";
 import StrategyNotes from "./components/StrategyNotes";
 import PerformanceSection from "./components/PerformanceSection";
-import OrderManagement from "./components/OrderManagement";
+import OptionsStrategyTable from "./components/OptionsStrategyTable";
+import TradeHistoryTable from "./components/TradeHistoryTable";
+import ModalShell from "./components/ModalShell";
 import type { OptionRow } from "./components/OptionsStrategyTable";
 import { useNotification } from "../contexts/NotificationContext";
 
@@ -30,28 +35,27 @@ interface PortfolioGridProps {
 
 const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const {
-    portfolios,
     selectedPortfolio,
-    setSelectedPortfolio,
     loading,
     error,
     lastUpdated,
     fetchAnalyticsData,
   } = usePortfolioManager(portfolioId);
 
-  const [groupByZone, setGroupByZone] = useState(true);
   const [showZoneGroupModal, setShowZoneGroupModal] = useState(false);
-  const [groups, setGroups] = useState<GroupOption[]>([]);
-  const [tradeHistory, setTradeHistory] = useState<any[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
+  const [groups, setGroups] = useState<ZoneGroupRecord[]>([]);
+  const [tradeHistory, setTradeHistory] = useState<TradeHistoryRecord[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(true);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showStrategyModal, setShowStrategyModal] = useState(false);
+  const [showNotesModal, setShowNotesModal] = useState(false);
   const [closingOrder, setClosingOrder] = useState<SpreadOrder | null>(null);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showEditPortfolioModal, setShowEditPortfolioModal] = useState(false);
   const { notify } = useNotification();
   const navigate = useNavigate();
 
-  const [contractFilter, setContractFilter] = useState<'all' | 'spot' | 'future' | 'option'>('all');
-  const [viewMode, setViewMode] = useState<"equity" | "payoff">("equity");
+  const [viewMode, setViewMode] = useState<"equity" | "payoff">("payoff");
   const [performanceData, setPerformanceData] = useState<any>(null);
 
   // Payoff state with per-portfolio localStorage
@@ -193,9 +197,30 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const assetTypeOptions = useMemo(() => {
     const allOrders = selectedPortfolio?.active_orders || [];
     const types = new Set<string>();
-    allOrders.forEach((o: any) => { if (o.asset_type) types.add(o.asset_type); });
+    allOrders.forEach((o: SpreadOrder) => { if (o.asset_type) types.add(o.asset_type); });
     return Array.from(types).sort();
   }, [selectedPortfolio?.active_orders]);
+
+  /** Notional per product class — the risk card exposure bars. */
+  const exposure = useMemo(() => {
+    const byClass = new Map<string, number>();
+    for (const order of activeOrders) {
+      const notional = Math.abs((order.entry_price ?? 0) * Number(order.qty ?? 0));
+      const contract = order.contract_type ?? "spot";
+      const label = contract === "option"
+        ? "Options"
+        : contract === "future" || (order.leverage ?? 0) > 0
+          ? "Futures"
+          : order.asset_type || "Spot";
+      byClass.set(label, (byClass.get(label) ?? 0) + notional);
+    }
+    const total = [...byClass.values()].reduce((sum, v) => sum + v, 0);
+    if (total === 0) return [];
+    return [...byClass.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([label, value]) => ({ label, percent: Math.round((value / total) * 100) }));
+  }, [activeOrders]);
 
   const handleCloseOrder = useCallback((order: SpreadOrder) => {
     const status = (order.order_status || "").toUpperCase();
@@ -294,131 +319,23 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     [fetchAnalyticsData, selectedPortfolio, activeOrders],
   );
 
-  const zoneGroups = useMemo(() => {
-    const sorted = [...activeOrders];
-    const orderMap: Record<string, SpreadOrder> = {};
-    sorted.forEach(o => orderMap[o.order_id] = o);
-
-    function computeLinkGroup(mainList: SpreadOrder[]) {
-      const linked: Record<string, { primary: SpreadOrder; subs: SpreadOrder[]; spreadPartner?: SpreadOrder; partnerSubs?: SpreadOrder[] }> = {};
-      const used = new Set<string>();
-
-      for (const a of mainList) {
-        if (used.has(a.order_id)) continue;
-        if (a.link_type === 'pending_close') continue;
-
-        if (a.link_type === 'spread' && a.linked_order_id && orderMap[a.linked_order_id]) {
-          const b = orderMap[a.linked_order_id];
-          if (b.link_type === 'spread' && b.linked_order_id === a.order_id) {
-            used.add(a.order_id); used.add(b.order_id);
-            const aSubs = mainList.filter(o => o.link_type === 'pending_close' && o.linked_order_id === a.order_id && !used.has(o.order_id));
-            aSubs.forEach(s => used.add(s.order_id));
-            const bSubs = mainList.filter(o => o.link_type === 'pending_close' && o.linked_order_id === b.order_id && !used.has(o.order_id));
-            bSubs.forEach(s => used.add(s.order_id));
-            const key = [a.order_id, b.order_id].sort().join('|');
-            linked[key] = { primary: a, subs: aSubs, spreadPartner: b, partnerSubs: bSubs };
-            continue;
-          }
-        }
-
-        const aSubs = mainList.filter(o => o.link_type === 'pending_close' && o.linked_order_id === a.order_id && !used.has(o.order_id));
-        aSubs.forEach(s => used.add(s.order_id));
-        used.add(a.order_id);
-        linked[a.order_id] = { primary: a, subs: aSubs };
-      }
-
-      // Reorder: primaries + their subs interleaved
-      const reordered: SpreadOrder[] = [];
-      for (const entry of Object.values(linked)) {
-        reordered.push(entry.primary);
-        for (const s of entry.subs) reordered.push(s);
-        if (entry.spreadPartner) {
-          reordered.push(entry.spreadPartner);
-          for (const s of entry.partnerSubs || []) reordered.push(s);
-        }
-      }
-      // Append any remaining (should not happen, but safety)
-      for (const o of mainList) {
-        if (!used.has(o.order_id) && !reordered.find(r => r.order_id === o.order_id)) {
-          reordered.push(o);
-        }
-      }
-      return { reordered, linkGroups: Object.values(linked) as OrderLinkGroup[] };
-    }
-
-    const groupMap: Record<number, { group_id: number; group_name: string; mainOrders: SpreadOrder[]; pendingCloseOrders: SpreadOrder[]; linkGroups: OrderLinkGroup[] }> = {};
-    const ungrouped: SpreadOrder[] = [];
-    sorted.forEach((order) => {
-      if (order.group_id != null && order.group_name) {
-        if (!groupMap[order.group_id]) groupMap[order.group_id] = { group_id: order.group_id, group_name: order.group_name, mainOrders: [], pendingCloseOrders: [], linkGroups: [] };
-        groupMap[order.group_id].mainOrders.push(order);
-      } else {
-        ungrouped.push(order);
-      }
-    });
-
-    const sortedGroups = Object.values(groupMap).sort((a, b) => {
-      const ga = groups.find(g => g.id === a.group_id);
-      const gb = groups.find(g => g.id === b.group_id);
-      const aMin = ga?.min_price ?? Number.NEGATIVE_INFINITY;
-      const bMin = gb?.min_price ?? Number.NEGATIVE_INFINITY;
-      if (bMin !== aMin) return bMin - aMin;
-      const aMax = ga?.max_price ?? Number.NEGATIVE_INFINITY;
-      const bMax = gb?.max_price ?? Number.NEGATIVE_INFINITY;
-      if (bMax !== aMax) return bMax - aMax;
-      return (a.group_name || '').localeCompare(b.group_name || '');
-    });
-
-    // Compute link groups & reorder for each zone group
-    for (const g of sortedGroups) {
-      const result = computeLinkGroup(g.mainOrders);
-      g.mainOrders = result.reordered;
-      g.linkGroups = result.linkGroups;
-    }
-    const ungroupedResult = computeLinkGroup(ungrouped);
-    return [...sortedGroups, { group_id: null as any, group_name: 'Ungrouped Orders', mainOrders: ungroupedResult.reordered, pendingCloseOrders: [] as SpreadOrder[], linkGroups: ungroupedResult.linkGroups }];
-  }, [activeOrders, groups]);
-
-  const { renderMarkdown, isGridType } = useMarkdownRenderer();
-
-  const assetAllocation: AllocationItem[] = useMemo(() => {
-    const groups: Record<string, number> = {};
-    const orders = selectedPortfolio?.active_orders || [];
-    (orders.filter((o) => o.order_status !== "closed")).forEach((o: any) => {
-      const asset = o.asset_type || "Other";
-      const notional = (o.entry_price || 0) * Number(o.qty || 0);
-      groups[asset] = (groups[asset] || 0) + notional;
-    });
-    const total = Object.values(groups).reduce((s, v) => s + v, 0);
-    if (total === 0) return [];
-    return Object.entries(groups)
-      .sort((a, b) => b[1] - a[1])
-      .map(([label, value], i) => ({
-        label,
-        percentage: (value / total) * 100,
-        color: allocationColors[i % allocationColors.length],
-      }));
-  }, [selectedPortfolio?.active_orders]);
-
-  const totalNotional = useMemo(() =>
-    activeOrders.reduce((sum, o) => sum + (o.entry_price || 0) * Number(o.qty || 0), 0),
-  [activeOrders]);
-
-  const cumulativePl = performanceData?.total_pl || 0;
-  const marginLocked = selectedPortfolio?.margin_locked || 0;
-  const cashBufferLimit = selectedPortfolio?.cash_buffer_limit || 0;
-  const totalCash = selectedPortfolio?.available_cash || 0;
-  const allCash = totalCash + marginLocked + cashBufferLimit;
-  const totalValue = allCash + cumulativePl + totalNotional;
-  const plPercent = allCash > 0 ? (cumulativePl / allCash) * 100 : 0;
-  const availableCash = (selectedPortfolio?.available_cash || 0) + cumulativePl;
-
-  const riskScore = selectedPortfolio?.risk_score ?? null;
-  const riskStatusText = riskScore === null ? "" : riskScore >= 100 ? "Safe" : riskScore >= 50 ? "Warning" : "Danger";
+  const { renderMarkdown } = useMarkdownRenderer();
 
   if (loading) return <PageLayout><p className="text-slate">Loading portfolio analytics...</p></PageLayout>;
   if (error) return <PageLayout><p style={{ color: "var(--color-danger-text)" }}>Error: {error}</p></PageLayout>;
   if (!selectedPortfolio) return <PageLayout><p className="text-slate">No portfolio data available.</p></PageLayout>;
+
+  const cumulativePl = performanceData?.total_pl || 0;
+  const marginLocked = selectedPortfolio.margin_locked || 0;
+  const cashBufferLimit = selectedPortfolio.cash_buffer_limit || 0;
+  const cash = selectedPortfolio.available_cash || 0;
+  const cashAvailable = cash + cumulativePl;
+  const pool = marginLocked + cashBufferLimit + cash;
+  const totalNotional = activeOrders.reduce((sum, o) => sum + (o.entry_price || 0) * Number(o.qty || 0), 0);
+  const totalValue = pool + cumulativePl + totalNotional;
+  const plPercent = pool > 0 ? (cumulativePl / pool) * 100 : 0;
+  const bufferCoverage = cashBufferLimit > 0 ? (cashAvailable / cashBufferLimit) * 100 : (cash > 0 ? 100 : 0);
+  const marginUsed = pool > 0 ? (marginLocked / pool) * 100 : 0;
 
   const handleRefresh = () => {
     fetchAnalyticsData();
@@ -427,91 +344,89 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     }
   };
 
+  const refreshGroups = () => {
+    if (selectedPortfolio) {
+      api.getZoneGroups(selectedPortfolio.portfolio_id).then(setGroups).catch(() => {});
+    }
+    fetchAnalyticsData();
+  };
+
   return (
     <PageLayout>
-      <PortfolioHeader
-        portfolioName={selectedPortfolio.portfolio_name}
-        lastUpdated={lastUpdated}
-        onRefresh={handleRefresh}
-      />
-
-      <section className="grid grid-cols-12" style={{ gap: 24, marginBottom: 48 }}>
-        <SummaryCard
-          totalValue={totalValue}
-          totalCash={totalCash}
-          totalNotional={totalNotional}
-          cashAvailable={selectedPortfolio?.available_cash || 0}
-          cumulativePl={cumulativePl}
-          plPercent={plPercent}
-          availableCash={availableCash}
-          marginLocked={marginLocked}
-          cashBufferLimit={cashBufferLimit}
-          riskStatus={riskStatusText}
-          riskPercent={riskScore}
+      <div className="at-page">
+        <PortfolioHeader
+          portfolioName={selectedPortfolio.portfolio_name}
+          portType={selectedPortfolio.port_type}
           tags={selectedPortfolio.tags}
-          assetAllocation={assetAllocation}
+          lastUpdated={lastUpdated}
+          onRefresh={handleRefresh}
           onEditPortfolio={() => setShowEditPortfolioModal(true)}
         />
 
-        <StrategyNotes
-          tradePlanMd={selectedPortfolio.trade_plan_md}
-          portfolioId={selectedPortfolio.portfolio_id}
-          renderMarkdown={renderMarkdown}
-          internalNotes={selectedPortfolio.internal_notes}
-          onSaved={fetchAnalyticsData}
+        <PoolRail
+          totalValue={totalValue}
+          plPercent={plPercent}
+          totalPl={cumulativePl}
+          cash={cash}
+          marginLocked={marginLocked}
+          cashBufferLimit={cashBufferLimit}
+          availableCash={cashAvailable}
+          bufferCoverage={bufferCoverage}
+          marginUsed={marginUsed}
         />
-      </section>
 
-      <PerformanceSection
-        performanceData={performanceData}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        activeOrders={activeOrders}
-        strategyRows={strategyRows}
-        ivMode={ivMode}
-        payoffMinPrice={payoffMinPrice}
-        payoffMaxPrice={payoffMaxPrice}
-        activeIVs={activeIVs}
-      />
+        <div className="at-workspace">
+          <div className="at-col">
+            <OrderDetailLadder
+              activeOrders={activeOrders}
+              zones={groups}
+              onShowZoneGroupModal={() => setShowZoneGroupModal(true)}
+              onAddOrder={openModal}
+              onEditOrder={startEdit}
+              onCloseOrder={handleCloseOrder}
+              onAssignGroup={handleAssignGroup}
+              onLinkOrder={handleLinkOrder}
+              onEditZone={handleEditZone}
+            />
+            <OrderHistoryCard
+              tradeHistory={tradeHistory}
+              onViewAll={() => setShowHistoryModal(true)}
+              onDropOrder={handleDropOnTradeHistory}
+            />
+          </div>
 
-      <OrderManagement
-        activeOrders={activeOrders}
-        zoneGroups={zoneGroups}
-        groups={groups}
-        groupByZone={groupByZone}
-        onGroupByZoneToggle={() => setGroupByZone(!groupByZone)}
-        isGridType={isGridType(selectedPortfolio)}
-        tradeHistory={tradeHistory}
-        onEditOrder={startEdit}
-        onEditZone={handleEditZone}
-        onCloseOrder={handleCloseOrder}
-        onAddOrder={openModal}
-        onShowZoneGroupModal={() => setShowZoneGroupModal(true)}
-        showHistory={showHistory}
-        onToggleHistory={() => setShowHistory(!showHistory)}
-        onAssignGroup={handleAssignGroup}
-        onDropOnTradeHistory={handleDropOnTradeHistory}
-        onLinkOrder={handleLinkOrder}
-        contractFilter={contractFilter}
-        onContractFilterChange={setContractFilter}
-        strategyRows={strategyRows}
-        onStrategyRowsChange={setStrategyRows}
-        ivMode={ivMode}
-        onIvModeChange={setIvMode}
-        payoffMinPrice={payoffMinPrice}
-        payoffMaxPrice={payoffMaxPrice}
-        onPayoffMinMaxChange={(min, max) => { setPayoffMinPrice(min); setPayoffMaxPrice(max); }}
-        activeIVs={activeIVs}
-        onActiveIVChange={(orderId, iv) => setActiveIVs(prev => {
-          if (iv === 0) {
-            const next = { ...prev };
-            delete next[orderId];
-            return next;
-          }
-          return { ...prev, [orderId]: iv };
-        })}
+          <div className="at-col at-right">
+            <section className="at-card at-payoff" aria-label="Payoff">
+              <div className="flex items-center justify-between" style={{ marginBottom: 2 }}>
+                <h2 style={{ margin: 0, fontSize: "var(--fs-section)", fontWeight: 600 }}>Payoff</h2>
+                <button type="button" className="at-notes-edit" onClick={() => setShowStrategyModal(true)}>
+                  Option legs
+                </button>
+              </div>
+              <PerformanceSection
+                embedded
+                performanceData={performanceData}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                activeOrders={activeOrders}
+                strategyRows={strategyRows}
+                ivMode={ivMode}
+                payoffMinPrice={payoffMinPrice}
+                payoffMaxPrice={payoffMaxPrice}
+                activeIVs={activeIVs}
+              />
+            </section>
 
-      />
+            <RiskCard
+              bufferCoverage={bufferCoverage}
+              exposure={exposure}
+              strategySet={Boolean(selectedPortfolio.trade_plan_md?.trim())}
+              notesPresent={Boolean(selectedPortfolio.internal_notes?.trim())}
+              onEdit={() => setShowNotesModal(true)}
+            />
+          </div>
+        </div>
+      </div>
 
       <EditOrderModal
         order={editingOrder}
@@ -538,18 +453,10 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         showModal={showZoneGroupModal}
         onClose={() => {
           setShowZoneGroupModal(false);
-          if (selectedPortfolio) {
-            api.getZoneGroups(selectedPortfolio.portfolio_id).then(setGroups).catch(() => {});
-          }
-          fetchAnalyticsData();
+          refreshGroups();
         }}
         portfolioId={selectedPortfolio.portfolio_id}
-        onSaved={() => {
-          if (selectedPortfolio) {
-            api.getZoneGroups(selectedPortfolio.portfolio_id).then(setGroups).catch(() => {});
-          }
-          fetchAnalyticsData();
-        }}
+        onSaved={refreshGroups}
       />
       <CloseOrderModal
         order={closingOrder}
@@ -568,6 +475,40 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         groupOrderCounts={groupOrderCounts}
         assetTypeOptions={assetTypeOptions}
       />
+
+      <ModalShell open={showStrategyModal} onClose={() => setShowStrategyModal(false)} title="Option legs">
+        <div style={{ width: 620, maxWidth: "92vw" }}>
+          <OptionsStrategyTable
+            visible
+            onClose={() => setShowStrategyModal(false)}
+            onRowsChange={setStrategyRows}
+          />
+        </div>
+      </ModalShell>
+
+      <ModalShell open={showHistoryModal} onClose={() => setShowHistoryModal(false)} title="Order history">
+        <div className="bg-canvas rounded-xl p-3" style={{ width: 760, maxWidth: "94vw" }}>
+          <TradeHistoryTable
+            tradeHistory={tradeHistory}
+            showHistory={historyOpen}
+            onToggleHistory={() => setHistoryOpen((open) => !open)}
+            onDropOnTradeHistory={handleDropOnTradeHistory}
+          />
+        </div>
+      </ModalShell>
+
+      <ModalShell open={showNotesModal} onClose={() => setShowNotesModal(false)} title="Strategy & notes">
+        <div style={{ width: 520, maxWidth: "92vw" }}>
+          <StrategyNotes
+            tradePlanMd={selectedPortfolio.trade_plan_md}
+            portfolioId={selectedPortfolio.portfolio_id}
+            renderMarkdown={renderMarkdown}
+            internalNotes={selectedPortfolio.internal_notes}
+            onSaved={fetchAnalyticsData}
+          />
+        </div>
+      </ModalShell>
+
       <EditPortfolioModal
         portfolioId={selectedPortfolio.portfolio_id}
         portfolioName={selectedPortfolio.portfolio_name}

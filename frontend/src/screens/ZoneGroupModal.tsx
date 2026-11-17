@@ -10,10 +10,11 @@ const LABEL: React.CSSProperties = {
   display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--color-slate)', margin: '0 0 6px',
 };
 const HEAD: React.CSSProperties = {
-  fontSize: 12, fontWeight: 500, color: 'var(--color-slate)', paddingBottom: 8, textAlign: 'left',
+  fontSize: 11, fontWeight: 500, color: 'var(--color-slate)', paddingBottom: 6, textAlign: 'left',
+  position: 'sticky', top: 0, background: 'var(--color-canvas)', zIndex: 1,
 };
 const CELL: React.CSSProperties = {
-  fontSize: 15, fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', padding: '10px 0',
+  fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', padding: '6px 0',
 };
 const INPUT: React.CSSProperties = {
   width: '100%', padding: '6px 10px', fontSize: 15, fontWeight: 500,
@@ -156,7 +157,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Order groups">
-      <div className="w-full max-w-2xl mx-4" style={CARD}>
+      <div className="w-full max-w-3xl mx-4" style={CARD}>
         <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
           <h3 style={TITLE}>Order groups</h3>
           <button onClick={onClose} className="text-slate hover:text-ink leading-none" style={{ fontSize: 20 }}>&times;</button>
@@ -201,6 +202,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
         ) : sortedZones.length === 0 && !showForm ? (
           <p className="text-center" style={{ fontSize: 15, color: 'var(--color-slate)', padding: '16px 0', margin: 0 }}>No order groups defined yet.</p>
         ) : (
+          <div style={{ maxHeight: 'min(46vh, 340px)', overflowY: 'auto', overflowX: 'hidden' }}>
           <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
             <thead>
               <tr>
@@ -209,7 +211,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
                 <th style={{ ...HEAD, textAlign: 'right' }}>Min price</th>
                 <th style={{ ...HEAD, textAlign: 'right' }}>Max price</th>
                 <th style={{ ...HEAD, textAlign: 'right' }}>Range</th>
-                <th style={{ ...HEAD, width: 64 }}></th>
+                <th style={{ ...HEAD, width: 56 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -220,15 +222,15 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
                   <td style={{ ...CELL, textAlign: 'right' }}>{zone.min_price != null ? `$${zone.min_price.toLocaleString()}` : '-'}</td>
                   <td style={{ ...CELL, textAlign: 'right' }}>{zone.max_price != null ? `$${zone.max_price.toLocaleString()}` : '-'}</td>
                   <td style={{ ...CELL, textAlign: 'right' }}>{zone.range != null ? `$${zone.range.toLocaleString()}` : '-'}</td>
-                  <td style={{ padding: '10px 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button onClick={() => handleEdit(zone)} className="inline-flex items-center justify-center p-1.5 text-slate hover:text-ink transition-colors" title="Edit">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <td style={{ padding: '2px 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <button onClick={() => handleEdit(zone)} className="inline-flex items-center justify-center p-1 text-slate hover:text-ink transition-colors" title="Edit">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                       </svg>
                     </button>
-                    <button onClick={() => handleDelete(zone.id)} className="inline-flex items-center justify-center p-1.5 opacity-70 hover:opacity-100 transition-opacity" style={{ color: 'var(--color-danger-text)' }} title="Delete">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <button onClick={() => handleDelete(zone.id)} className="inline-flex items-center justify-center p-1 opacity-70 hover:opacity-100 transition-opacity" style={{ color: 'var(--color-danger-text)' }} title="Delete">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="3 6 5 6 21 6" />
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                       </svg>
@@ -238,6 +240,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         <div className="flex items-center justify-between" style={{ marginTop: 24 }}>
