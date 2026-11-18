@@ -182,6 +182,7 @@ class TradeHistory(Base):
     entry_date = Column(DateTime)
     exit_date = Column(DateTime)
     remark = Column(JSON)
+    order_remark = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     # Manual/Bot isolation

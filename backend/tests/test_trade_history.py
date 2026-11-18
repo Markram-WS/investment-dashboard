@@ -93,7 +93,8 @@ async def test_trade_history_response_fields(async_client):
         required_fields = [
             "history_id", "portfolio_id", "portfolio_name", "type",
             "asset", "amount", "exit_price", "realized_pl",
-            "executed_by", "decision_note", "entry_date", "exit_date", "flow", "remark"
+            "executed_by", "decision_note", "entry_date", "exit_date", "flow", "remark",
+            "order_remark"
         ]
         for field in required_fields:
             assert field in record, f"Missing required field: {field}"

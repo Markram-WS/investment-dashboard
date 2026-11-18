@@ -97,6 +97,15 @@ const HEADS: Record<string, string[]> = {
   narrow: ["Mark", "Leg", "Net P&L"],
 };
 
+type Band = { label: string; start: number; tone: "eq" | "opt" };
+
+/** Each band runs from its start track to the start of the next band (or the last track). */
+const BANDS: Record<string, Band[]> = {
+  all: [{ label: "EQ · Future", start: 1, tone: "eq" }, { label: "Options", start: 6, tone: "opt" }],
+  eq: [{ label: "EQ · Future", start: 0, tone: "eq" }],
+  option: [{ label: "Options", start: 0, tone: "opt" }],
+};
+
 /** Column heads whose content is a word, not a number. */
 const LEFT_HEADS = new Set(["Mark", "Symbol", "Side", "Status", "Date", "Remark"]);
 
@@ -559,23 +568,25 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
             {!narrow && (
               <div
                 className="at-groups"
-                style={{
-                  gridTemplateColumns:
-                    view === "eq" ? TEMPLATE.eqFull : view === "option" ? TEMPLATE.optFull : TEMPLATE.all,
-                }}
+                style={{ gridTemplateColumns: template }}
               >
-                {view === "eq" ? (
-                  <span className="at-grp at-band-eq" style={{ gridColumn: "span 9" }}>EQ · Future</span>
-                ) : view === "option" ? (
-                  <span className="at-grp at-band-opt" style={{ gridColumn: "span 11" }}>Options</span>
-                ) : (
-                  <>
-                    <span />
-                    <span />
-                    <span className="at-grp at-band-eq" style={{ gridColumn: "span 4" }}>EQ · Future</span>
-                    <span className="at-grp at-band-opt" style={{ gridColumn: "span 5" }}>Options</span>
-                  </>
-                )}
+                {(BANDS[view] ?? []).map((band, i) => {
+                  const span = ((BANDS[view] ?? [])[i + 1]?.start ?? heads.length) - band.start;
+                  const lead = i === 0 ? band.start : 0;
+                  return (
+                    <React.Fragment key={band.label}>
+                      {lead > 0
+                        ? Array.from({ length: lead }, (_, k) => <span key={`lead-${k}`} />)
+                        : null}
+                      <span
+                        className={`at-grp ${band.tone === "eq" ? "at-band-eq" : "at-band-opt"}`}
+                        style={{ gridColumn: `span ${span}` }}
+                      >
+                        {band.label}
+                      </span>
+                    </React.Fragment>
+                  );
+                })}
               </div>
             )}
             <div className="at-cols" style={{ gridTemplateColumns: template }}>

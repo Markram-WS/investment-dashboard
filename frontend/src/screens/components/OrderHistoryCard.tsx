@@ -136,6 +136,7 @@ const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onVie
               <span className="at-num">Held</span>
               <span className="at-hist-status">Status</span>
               <span className="at-hist-by">By</span>
+              <span className="at-hist-remark">Remark</span>
             </div>
             {rows.slice(0, VISIBLE_ROWS).map((h) => {
               const net = Number(h.realized_pl ?? 0);
@@ -156,6 +157,7 @@ const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onVie
                     {closeStatus(h)}
                   </span>
                   <span className="at-hist-by">{who(h.executed_by)}</span>
+                  <span className="at-hist-remark" title={h.order_remark ?? undefined}>{h.order_remark ?? "—"}</span>
                 </div>
               );
             })}

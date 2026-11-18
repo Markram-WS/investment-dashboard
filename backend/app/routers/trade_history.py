@@ -46,6 +46,7 @@ class TransactionResponse(BaseModel):
     close_order_id: Optional[str] = None
     flow: Optional[str] = None  # For transfers: "Source -> Destination", else null
     remark: Optional[dict] = None
+    order_remark: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -98,6 +99,7 @@ async def get_trade_history(
                     close_order_id=th.close_order_id,
                     flow=None,
                     remark=th.remark,
+                    order_remark=th.order_remark,
                 )
             )
 

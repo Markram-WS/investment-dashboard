@@ -139,6 +139,7 @@ export interface Transaction {
   exit_date: string | null;
   flow: string | null;
   remark: any | null;
+  order_remark?: string | null;
 }
 
 export interface TransactionsResponse {

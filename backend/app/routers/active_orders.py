@@ -215,6 +215,7 @@ async def update_order_status(
                 entry_date=order.created_at or now,
                 exit_date=now,
                 remark={"note": "Canceled"},
+                order_remark=order.remark,
             )
             db.add(history)
             await session.delete(order)
@@ -338,6 +339,7 @@ async def close_order(
                 entry_date=o.created_at or now,
                 exit_date=now,
                 remark={"cost": float(req.cost or 0)},
+                order_remark=o.remark,
             )
 
         sub_result = await session.execute(

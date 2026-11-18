@@ -57,6 +57,11 @@ async def lifespan(app: FastAPI):
             """))
         except Exception:
             pass
+        # 2026-11-18: closed/canceled orders keep their own free-text remark.
+        try:
+            await conn.execute(text("ALTER TABLE trade_history ADD COLUMN IF NOT EXISTS order_remark VARCHAR"))
+        except Exception:
+            pass
     async with ai_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield

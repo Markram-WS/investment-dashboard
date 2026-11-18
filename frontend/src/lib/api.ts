@@ -151,6 +151,7 @@ export interface TradeHistoryRecord {
   close_order_id?: string | null;
   flow: string | null;
   remark: unknown;
+  order_remark?: string | null;
 }
 
 export interface TransactionRecord {

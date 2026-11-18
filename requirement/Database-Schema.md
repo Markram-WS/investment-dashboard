@@ -83,6 +83,7 @@ tags:
     - **`executed_by`**: ใครเป็นคนสั่งรายการนี้ (Manual, Bot, AI).
     - **`decision_note`**: (Decision Journal) บันทึกความคิดเห็นย้อนหลัง (Mini Post-it style).
     - `entry_date`, `exit_date`, `remark` (JSONB เก็บข้อมูลเสริม เช่น ค่าธรรมเนียม/หมายเหตุ).
+    - **`order_remark`** (VARCHAR): ข้อความอิสระที่ติดมากับออเดอร์ (คัดลอกจาก `active_orders.remark` ตอนปิด/ยกเลิก) — ใช้แสดงบนการ์ดประวัติ.
 
 ---
 

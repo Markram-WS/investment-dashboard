@@ -1074,7 +1074,7 @@ a:focus-visible {
 .at-histhead,
 .at-histrow {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) 56px 44px 58px 58px 70px 44px 62px 44px;
+  grid-template-columns: 58px 90px 50px 40px 54px 54px 64px 40px 56px 40px minmax(48px, 1fr);
   column-gap: 8px;
   align-items: center;
 }
@@ -1090,8 +1090,10 @@ a:focus-visible {
 .at-histhead > span:first-child { text-align: left; }
 .at-histhead > span.at-hist-status,
 .at-histhead > span.at-hist-by,
+.at-histhead > span.at-hist-remark,
 .at-histrow > span.at-hist-status,
-.at-histrow > span.at-hist-by { text-align: left; }
+.at-histrow > span.at-hist-by,
+.at-histrow > span.at-hist-remark { text-align: left; }
 .at-histrow {
   height: 26px;
   font-size: var(--fs-label);

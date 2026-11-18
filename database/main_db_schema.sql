@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS trade_history (
     entry_date TIMESTAMP,
     exit_date TIMESTAMP,
     remark JSONB,
+    order_remark VARCHAR,
     data_source TEXT DEFAULT 'Manual' CHECK (data_source IN ('Manual', 'Bot')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
