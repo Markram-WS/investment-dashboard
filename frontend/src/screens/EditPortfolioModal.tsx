@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../lib/api";
+import type { BrokerRecord } from "../lib/api";
 import ModalShell from "./components/ModalShell";
 
 const CARD: React.CSSProperties = {
@@ -41,6 +42,10 @@ interface EditPortfolioModalProps {
   portfolioName: string;
   marginLocked: number;
   cashBufferLimit: number;
+  brokerId: number | null;
+  productTicker: string | null;
+  xAmount: number;
+  initialCapital: number;
   rawAvailableCash: number;
   cumulativePl: number;
   tags: Record<string, boolean> | null;
@@ -54,15 +59,21 @@ interface EditPortfolioModalProps {
 
 const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
   portfolioId, portfolioName, marginLocked, cashBufferLimit,
+  brokerId, productTicker, xAmount, initialCapital,
   rawAvailableCash, cumulativePl, tags, showModal, onClose, onSaved,
   onDepositWithdraw, activeOrderCount, onDeleted,
 }) => {
   const [form, setForm] = useState({
     portfolio_name: portfolioName,
-    margin_locked: marginLocked,
-    cash_buffer_limit: cashBufferLimit,
+    cash_buffer_limit: String(cashBufferLimit ?? 0),
+    broker_id: brokerId as number | null,
+    product_ticker: productTicker ?? "",
+    x_amount: String(xAmount ?? 0),
+    initial_capital: String(initialCapital ?? 0),
     tags: tags ? Object.keys(tags).join(", ") : "",
   });
+  const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
+  const [tickers, setTickers] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -74,6 +85,15 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
 
   useEffect(() => {
     if (showModal) {
+      setForm({
+        portfolio_name: portfolioName,
+        cash_buffer_limit: String(cashBufferLimit ?? 0),
+        broker_id: brokerId,
+        product_ticker: productTicker ?? "",
+        x_amount: String(xAmount ?? 0),
+        initial_capital: String(initialCapital ?? 0),
+        tags: tags ? Object.keys(tags).join(", ") : "",
+      });
       setShowConfirmDelete(false);
       setShowWarning(false);
       setDeleting(false);
@@ -83,16 +103,29 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
     }
   }, [showModal]);
 
-  const handleChange = (field: string, value: string) => {
+  useEffect(() => {
+    if (!showModal) return;
+    let cancelled = false;
+    api.getBrokers()
+      .then((rows) => { if (!cancelled) setBrokers(rows); })
+      .catch((err) => console.error("Failed to load brokers:", err));
+    api.getAssets()
+      .then((rows) => {
+        if (cancelled) return;
+        setTickers(Array.from(new Set(rows.map((a) => a.ticker).filter(Boolean))));
+      })
+      .catch((err) => console.error("Failed to load asset tickers:", err));
+    return () => { cancelled = true; };
+  }, [showModal]);
+
+  const handleChange = (field: string, value: string | number | null) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSave = async () => {
     setSaveErr("");
-    const newMargin = parseFloat(form.margin_locked as any) || 0;
-    const newBuffer = parseFloat(form.cash_buffer_limit as any) || 0;
+    const newBuffer = parseFloat(form.cash_buffer_limit) || 0;
 
-    if (newMargin > rawAvailableCash) { setSaveErr(`Margin Locked max is $${rawAvailableCash.toLocaleString()}`); return; }
     if (newBuffer > rawAvailableCash) { setSaveErr(`Cash Buffer Limit max is $${rawAvailableCash.toLocaleString()}`); return; }
 
     setSaving(true);
@@ -100,12 +133,15 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
       const tagsObj: Record<string, boolean> = {};
       form.tags.split(",").map((t) => t.trim()).filter(Boolean).forEach((t) => { tagsObj[t] = true; });
 
-      const totalDiff = (newMargin - marginLocked) + (newBuffer - cashBufferLimit);
+      const totalDiff = newBuffer - cashBufferLimit;
       const newAvailable = Math.max(0, rawAvailableCash - totalDiff);
 
       await api.updatePortfolio(portfolioId, {
         portfolio_name: form.portfolio_name || undefined,
-        margin_locked: newMargin,
+        broker_id: form.broker_id,
+        product_ticker: form.product_ticker.trim() || null,
+        x_amount: parseFloat(form.x_amount) || 0,
+        initial_capital: parseFloat(form.initial_capital) || 0,
         cash_buffer_limit: newBuffer,
         available_cash: newAvailable,
         tags: Object.keys(tagsObj).length > 0 ? tagsObj : undefined,
@@ -193,9 +229,8 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
 
   if (!showModal) return null;
 
-  const projectedMargin = parseFloat(form.margin_locked as any) || 0;
-  const projectedBuffer = parseFloat(form.cash_buffer_limit as any) || 0;
-  const projectedDiff = (projectedMargin - marginLocked) + (projectedBuffer - cashBufferLimit);
+  const projectedBuffer = parseFloat(form.cash_buffer_limit) || 0;
+  const projectedDiff = projectedBuffer - cashBufferLimit;
   const projectedAvailableCash = Math.max(0, rawAvailableCash - projectedDiff);
   const displayEquity = projectedAvailableCash + cumulativePl;
 
@@ -217,17 +252,61 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
               <input value={form.portfolio_name} onChange={(e) => handleChange("portfolio_name", e.target.value)}
                 className="border border-hairline focus:border-brand-teal" style={INPUT} />
             </div>
-            <div>
-              <label style={LABEL}>Available cash</label>
-              <div style={{ ...INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent" }}>
-                ${displayEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label style={LABEL}>Margin locked</label>
-                <input type="number" value={form.margin_locked} onChange={(e) => handleChange("margin_locked", e.target.value)}
-                  className="border border-hairline focus:border-brand-teal" style={INPUT} />
+                <label style={LABEL}>Available cash</label>
+                <div style={{ ...INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent" }}>
+                  ${displayEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div>
+                <label style={LABEL}>Initial capital</label>
+                <input type="number" step="any" value={form.initial_capital}
+                  onChange={(e) => handleChange("initial_capital", e.target.value)}
+                  className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="0.00" />
+                <p style={HELPER}>baseline for the profit share, not the cash balance</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label style={LABEL}>Broker</label>
+                <select value={form.broker_id ?? ""}
+                  onChange={(e) => handleChange("broker_id", e.target.value === "" ? null : Number(e.target.value))}
+                  className="border border-hairline focus:border-brand-teal" style={INPUT}>
+                  <option value="">—</option>
+                  {brokers.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={LABEL}>Product ticker</label>
+                <input list="edit-portfolio-tickers" value={form.product_ticker}
+                  onChange={(e) => handleChange("product_ticker", e.target.value)}
+                  className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="e.g. S50" />
+                <datalist id="edit-portfolio-tickers">
+                  {tickers.map((t) => <option key={t} value={t} />)}
+                </datalist>
+              </div>
+              <div>
+                <label style={LABEL}>X</label>
+                <div className="flex items-center gap-2">
+                  <input type="number" step="any" value={form.x_amount}
+                    onChange={(e) => handleChange("x_amount", e.target.value)}
+                    className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="0" />
+                  <span style={{ fontSize: 12, color: "var(--color-slate)" }}>points</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label style={LABEL}>Margin locked (computed)</label>
+                <div style={{ ...INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent" }}>
+                  ${marginLocked.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <p style={HELPER}>คิดจาก Σ mark × multiplier × qty × margin rate</p>
               </div>
               <div>
                 <label style={LABEL}>Cash buffer limit</label>

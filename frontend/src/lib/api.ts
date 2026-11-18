@@ -37,7 +37,12 @@ export interface PortfolioRecord {
   target_ratio: Record<string, number>;
   current_allocations: Record<string, number>;
   current_nav: number;
+  /** Computed by the backend from open orders; ignored on write. */
   margin_locked: number;
+  broker_id: number | null;
+  product_ticker: string | null;
+  x_amount: number;
+  initial_capital: number;
   available_cash: number;
   cash_buffer_limit: number;
   risk_status: string | null;
@@ -56,7 +61,10 @@ export interface PortfolioPayload {
   port_type: string;
   target_ratio?: Record<string, number> | null;
   current_nav?: number | null;
-  margin_locked?: number;
+  broker_id?: number | null;
+  product_ticker?: string | null;
+  x_amount?: number;
+  initial_capital?: number;
   cash_buffer_limit?: number;
   available_cash?: number;
   trade_plan_md?: string;
@@ -74,13 +82,24 @@ export interface PortfolioUpdatePayload {
   port_type?: string;
   target_ratio?: Record<string, unknown> | null;
   current_nav?: number;
-  margin_locked?: number;
+  broker_id?: number | null;
+  product_ticker?: string | null;
+  x_amount?: number;
+  initial_capital?: number;
   cash_buffer_limit?: number;
   available_cash?: number;
   trade_plan_md?: string;
   internal_notes?: string;
   risk_status?: string;
   tags?: Record<string, boolean>;
+}
+
+export interface BrokerRecord {
+  id: number;
+  code: string;
+  name: string;
+  default_margin_rate: number;
+  currency: string;
 }
 
 export interface ConnectionTestPayload {
@@ -402,6 +421,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  // Brokers
+  getBrokers: () => request<BrokerRecord[]>('/brokers'),
 
   // Analytics
   getPortfolioAnalytics: (portfolioId: number | string) =>

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, resolve_portfolio_db
 from app.models import Portfolio, ActiveOrder, TradePlan, AiActionLog, TradeHistory, AiAgent
 from app.custom_models import CustomActiveOrder, CustomTransaction, CustomOrdersGroup
+from app.risk_calc import compute_margin_locked
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -28,7 +29,10 @@ async def get_overview_data(db: AsyncSession = Depends(get_db)):
     portfolios = result.scalars().all()
 
     # Calculate global sums
-    total_margin = sum(p.margin_locked or 0 for p in portfolios)
+    margin_by_portfolio = {
+        p.portfolio_id: await compute_margin_locked(db, p) for p in portfolios
+    }
+    total_margin = sum(margin_by_portfolio.values())
     total_buffer = sum(p.cash_buffer_limit or 0 for p in portfolios)
     total_available_cash = sum(p.available_cash or 0 for p in portfolios)
 
@@ -77,7 +81,7 @@ async def get_overview_data(db: AsyncSession = Depends(get_db)):
             "portfolio_id": p.portfolio_id,
             "portfolio_name": p.portfolio_name,
             "port_type": p.port_type,
-            "margin_locked": p.margin_locked,
+            "margin_locked": margin_by_portfolio[p.portfolio_id],
             "cash_buffer_limit": p.cash_buffer_limit,
             "available_cash": p.available_cash,
             "risk_status": p.risk_status,
@@ -125,6 +129,10 @@ class PortfolioGridData(BaseModel):
     available_cash: Optional[float] = None
     margin_locked: Optional[float] = None
     cash_buffer_limit: Optional[float] = None
+    broker_id: Optional[int] = None
+    product_ticker: Optional[str] = None
+    x_amount: float = 0
+    initial_capital: float = 0
     tags: Optional[Dict[str, Any]] = None
     ai_reasoning: Optional[str] = None
     ai_risk_insight: Optional[str] = None
@@ -392,6 +400,8 @@ async def get_portfolio_grid_data(
                     "created_at": order.created_at.isoformat() if order.created_at else None
                 })
 
+            margin_locked = await compute_margin_locked(db, portfolio)
+
             grid_data.append(PortfolioGridData(
                 portfolio_id=portfolio.portfolio_id,
                 portfolio_name=portfolio.portfolio_name,
@@ -399,14 +409,18 @@ async def get_portfolio_grid_data(
                 risk_status=portfolio.risk_status,
                 risk_score=_compute_risk_score(
                     _to_float(portfolio.available_cash),
-                    _to_float(portfolio.margin_locked),
+                    margin_locked,
                     _to_float(portfolio.cash_buffer_limit)
                 ),
                 trade_plan_md=portfolio.trade_plan_md or (trade_plan.entry_reason if trade_plan else None),
                 internal_notes=portfolio.internal_notes,
                 available_cash=_to_float(portfolio.available_cash),
-                margin_locked=_to_float(portfolio.margin_locked),
+                margin_locked=margin_locked,
                 cash_buffer_limit=_to_float(portfolio.cash_buffer_limit),
+                broker_id=portfolio.broker_id,
+                product_ticker=portfolio.product_ticker,
+                x_amount=_to_float(portfolio.x_amount) or 0,
+                initial_capital=_to_float(portfolio.initial_capital) or 0,
                 tags=portfolio.tags,
                 ai_reasoning=ai_reasoning,
                 ai_risk_insight=ai_risk_insight,
@@ -649,6 +663,8 @@ async def get_portfolio_detail(
                 "created_at": order.created_at.isoformat() if order.created_at else None
             })
 
+        margin_locked = await compute_margin_locked(db, portfolio)
+
         return PortfolioGridData(
             portfolio_id=portfolio.portfolio_id,
             portfolio_name=portfolio.portfolio_name,
@@ -656,14 +672,18 @@ async def get_portfolio_detail(
             risk_status=portfolio.risk_status,
             risk_score=_compute_risk_score(
                 _to_float(portfolio.available_cash),
-                _to_float(portfolio.margin_locked),
+                margin_locked,
                 _to_float(portfolio.cash_buffer_limit)
             ),
             trade_plan_md=portfolio.trade_plan_md or (trade_plan.entry_reason if trade_plan else None),
             internal_notes=portfolio.internal_notes,
             available_cash=_to_float(portfolio.available_cash),
-            margin_locked=_to_float(portfolio.margin_locked),
+            margin_locked=margin_locked,
             cash_buffer_limit=_to_float(portfolio.cash_buffer_limit),
+            broker_id=portfolio.broker_id,
+            product_ticker=portfolio.product_ticker,
+            x_amount=_to_float(portfolio.x_amount) or 0,
+            initial_capital=_to_float(portfolio.initial_capital) or 0,
             tags=portfolio.tags,
             ai_reasoning=ai_reasoning,
             ai_risk_insight=ai_risk_insight,

@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, resolve_portfolio_db
 from app.models import Portfolio, TradeHistory
 from app.custom_models import CustomTransaction
+from app.risk_calc import compute_margin_locked
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import date
@@ -56,7 +57,7 @@ async def get_overview(
                     pool_health_index=0.0, money_reserve_status="Optimal", portfolios=[]
                 )
 
-            total_margin = float(portfolio.margin_locked) if portfolio.margin_locked else 0
+            total_margin = await compute_margin_locked(db, portfolio)
             total_buffer = float(portfolio.cash_buffer_limit) if portfolio.cash_buffer_limit else 0
             total_available_cash = float(portfolio.available_cash) if portfolio.available_cash else 0
 
@@ -102,7 +103,10 @@ async def get_overview(
                 pool_health_index=0.0, money_reserve_status="Optimal", portfolios=[]
             )
 
-        total_margin = sum(float(p.margin_locked) if p.margin_locked else 0 for p in portfolios)
+        margin_by_portfolio = {
+            p.portfolio_id: await compute_margin_locked(db, p) for p in portfolios
+        }
+        total_margin = sum(margin_by_portfolio.values())
         total_buffer = sum(float(p.cash_buffer_limit) if p.cash_buffer_limit else 0 for p in portfolios)
         total_available_cash = sum(float(p.available_cash) if p.available_cash else 0 for p in portfolios)
 
@@ -137,7 +141,7 @@ async def get_overview(
                 PortfolioOverviewItem(
                     portfolio_id=p.portfolio_id,
                     portfolio_name=p.portfolio_name,
-                    margin=float(p.margin_locked) if p.margin_locked else 0,
+                    margin=margin_by_portfolio[p.portfolio_id],
                     buffer=float(p.cash_buffer_limit) if p.cash_buffer_limit else 0,
                     available_cash=float(p.available_cash) if p.available_cash else 0,
                     total_pl=pl_map.get(p.portfolio_id, 0.0),

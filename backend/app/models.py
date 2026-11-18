@@ -1,6 +1,6 @@
 import os
 import uuid
-from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime, Boolean, ForeignKey, CheckConstraint, Numeric, text
+from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime, Boolean, ForeignKey, CheckConstraint, Numeric, UniqueConstraint, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, configure_mappers
 from datetime import datetime
@@ -20,6 +20,12 @@ class Portfolio(Base):
     portfolio_id = Column(Integer, primary_key=True)
     portfolio_name = Column(String, nullable=False)
     port_type = Column(String, nullable=False)
+    # Risk model (Phase 1): one product per portfolio - broker + product ticker.
+    # x_amount is the adverse move (in product price points) used by the risk card.
+    broker_id = Column(Integer, ForeignKey('brokers.id'), nullable=True)
+    product_ticker = Column(String, nullable=True)
+    x_amount = Column(Numeric(20, 8), nullable=False, default=Decimal('0'))
+    initial_capital = Column(Numeric(20, 8), nullable=False, default=Decimal('0'))
     target_ratio = Column(JSON)
     current_nav = Column(Numeric(20, 8), default=Decimal('0.00'))
     margin_locked = Column(Numeric(20, 8), default=Decimal('0.00'))
@@ -231,18 +237,40 @@ class DecisionJournal(Base):
     trade_history = relationship("TradeHistory")
 
 
+class Broker(Base):
+    __tablename__ = 'brokers'
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String, nullable=False, unique=True)      # 'DF', 'PI', 'CAF'
+    name = Column(String, nullable=False)
+    default_margin_rate = Column(Numeric(10, 6), default=0, server_default=text("0"))
+    currency = Column(String, default='USD', server_default=text("'USD'"))
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=text("CURRENT_TIMESTAMP"))
+
+
 class WhitelistAssets(Base):
     __tablename__ = 'whitelist_assets'
 
     asset_id = Column(Integer, primary_key=True)
-    ticker = Column(String, nullable=False, unique=True)
+    # Contract spec lives on the asset row. Phase-1 key is (broker_id, ticker):
+    # one row per instrument so the price feed (batchUpdatePrices) stays singular.
+    # Known limitation: spot and future on one underlying currently share one
+    # multiplier/margin_rate row (contract_type is not part of the key yet).
+    broker_id = Column(Integer, ForeignKey('brokers.id'), nullable=False, default=1)
+    ticker = Column(String, nullable=False)
     asset_type = Column(String, nullable=False)
+    multiplier = Column(Numeric(20, 8), nullable=False, default=1)
+    margin_rate = Column(Numeric(10, 6), nullable=False, default=0)
     name = Column(String, nullable=True)
     source = Column(String, default='manual')
     group_id = Column(Integer, ForeignKey('asset_groups.id'), nullable=True)
     price = Column(Numeric(20, 8), nullable=True)
     change_24h = Column(Numeric(10, 4), nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('broker_id', 'ticker', name='uq_asset_broker_ticker'),
+    )
 
 
 class AssetGroup(Base):

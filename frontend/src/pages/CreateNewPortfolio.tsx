@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import type { BrokerRecord, PortfolioPayload } from '../lib/api';
 import PageLayout from '../components/PageLayout';
 import PageHeader from '../components/PageHeader';
 
@@ -56,8 +57,11 @@ const CreateNewPortfolio: React.FC = () => {
     port_type: '',
     target_ratio: {} as any,
     current_nav: null,
-    margin_locked: 0,
     cash_buffer_limit: 0,
+    broker_id: null as number | null,
+    product_ticker: '',
+    x_amount: 0,
+    initial_capital: 0,
     available_cash: 0,
     trade_plan_md: '',
     tags: {} as any,
@@ -75,9 +79,25 @@ const CreateNewPortfolio: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<{ok: boolean; message: string} | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
   const [targetRatioStr, setTargetRatioStr] = useState<string>('');
+  const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
+  const [tickers, setTickers] = useState<string[]>([]);
   const navigate = useNavigate();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  useEffect(() => {
+    let cancelled = false;
+    api.getBrokers()
+      .then((rows) => { if (!cancelled) setBrokers(rows); })
+      .catch((err) => console.error('Failed to load brokers:', err));
+    api.getAssets()
+      .then((rows) => {
+        if (cancelled) return;
+        setTickers(Array.from(new Set(rows.map((a) => a.ticker).filter(Boolean))));
+      })
+      .catch((err) => console.error('Failed to load asset tickers:', err));
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
     setFormData(prev => ({
@@ -128,7 +148,25 @@ const CreateNewPortfolio: React.FC = () => {
     setSuccess(false);
 
     try {
-      const payload: any = { ...formData };
+      const payload: PortfolioPayload = {
+        portfolio_name: formData.portfolio_name,
+        port_type: formData.port_type,
+        target_ratio: formData.target_ratio,
+        current_nav: formData.current_nav,
+        cash_buffer_limit: Number(formData.cash_buffer_limit) || 0,
+        available_cash: Number(formData.available_cash) || 0,
+        broker_id: formData.broker_id ?? null,
+        product_ticker: formData.product_ticker.trim() || null,
+        x_amount: Number(formData.x_amount) || 0,
+        initial_capital: Number(formData.initial_capital) || 0,
+        trade_plan_md: formData.trade_plan_md,
+        tags: formData.tags,
+        db_host: formData.db_host,
+        db_port: formData.db_port,
+        db_name: formData.db_name,
+        db_user: formData.db_user,
+        db_password: formData.db_password,
+      };
       if (formData.port_type === 'Managed Fund' && targetRatioStr.trim()) {
         try {
           const parsed = JSON.parse(targetRatioStr);
@@ -415,53 +453,103 @@ const CreateNewPortfolio: React.FC = () => {
               </div>
             )}
 
-            {/* Initial Funding Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 24 }}>
-              <div>
-                <label style={labelStyle}>Initial Funding (Base Currency)</label>
-                <div className="grid grid-cols-2" style={{ gap: 16 }}>
-                  <div>
-                    <label style={subLabelStyle} htmlFor="available_cash">Available Cash</label>
+            {/* Product, Capital & Risk Funds */}
+            <div style={ruleStyle}>
+              <h3 style={groupHeadStyle}>Product</h3>
+              <p style={{ margin: "6px 0 16px", fontSize: 12, color: "var(--color-slate)" }}>
+                Margin locked is computed from open orders — there is no manual margin input.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 16 }}>
+                <div>
+                  <label style={subLabelStyle} htmlFor="broker_id">Broker</label>
+                  <select
+                    id="broker_id"
+                    name="broker_id"
+                    value={formData.broker_id ?? ''}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      broker_id: e.target.value === '' ? null : Number(e.target.value),
+                    }))}
+                    style={fieldStyle}
+                  >
+                    <option value="">—</option>
+                    {brokers.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={subLabelStyle} htmlFor="product_ticker">Product Ticker</label>
+                  <input
+                    id="product_ticker"
+                    type="text"
+                    name="product_ticker"
+                    list="create-portfolio-tickers"
+                    value={formData.product_ticker}
+                    onChange={handleChange}
+                    style={fieldStyle}
+                    placeholder="e.g. S50"
+                  />
+                  <datalist id="create-portfolio-tickers">
+                    {tickers.map(t => <option key={t} value={t} />)}
+                  </datalist>
+                </div>
+                <div>
+                  <label style={subLabelStyle} htmlFor="x_amount">X</label>
+                  <div className="flex items-center" style={{ gap: 8 }}>
                     <input
-                      id="available_cash"
+                      id="x_amount"
                       type="number"
-                      name="available_cash"
-                      value={formData.available_cash !== null && formData.available_cash !== undefined ? formData.available_cash : ''}
+                      step="any"
+                      name="x_amount"
+                      value={formData.x_amount ?? ''}
                       onChange={handleNumberChange}
                       style={{ ...fieldStyle, fontVariantNumeric: "tabular-nums" }}
-                      placeholder="0.00"
+                      placeholder="0"
                     />
+                    <span style={{ fontSize: 12, color: "var(--color-slate)" }}>points</span>
                   </div>
                 </div>
               </div>
 
-              <div>
-                <label style={labelStyle}>Risk Management Funds</label>
-                <div className="grid grid-cols-2" style={{ gap: 16 }}>
-                  <div>
-                    <label style={subLabelStyle} htmlFor="margin_locked">Margin Locked</label>
-                    <input
-                      id="margin_locked"
-                      type="number"
-                      name="margin_locked"
-                      value={formData.margin_locked !== null && formData.margin_locked !== undefined ? formData.margin_locked : ''}
-                      onChange={handleNumberChange}
-                      style={{ ...fieldStyle, fontVariantNumeric: "tabular-nums" }}
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div>
-                    <label style={subLabelStyle} htmlFor="cash_buffer_limit">Cash Buffer Limit</label>
-                    <input
-                      id="cash_buffer_limit"
-                      type="number"
-                      name="cash_buffer_limit"
-                      value={formData.cash_buffer_limit !== null && formData.cash_buffer_limit !== undefined ? formData.cash_buffer_limit : ''}
-                      onChange={handleNumberChange}
-                      style={{ ...fieldStyle, fontVariantNumeric: "tabular-nums" }}
-                      placeholder="0.00"
-                    />
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 16, marginTop: 16 }}>
+                <div>
+                  <label style={subLabelStyle} htmlFor="available_cash">Available Cash</label>
+                  <input
+                    id="available_cash"
+                    type="number"
+                    name="available_cash"
+                    value={formData.available_cash !== null && formData.available_cash !== undefined ? formData.available_cash : ''}
+                    onChange={handleNumberChange}
+                    style={{ ...fieldStyle, fontVariantNumeric: "tabular-nums" }}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label style={subLabelStyle} htmlFor="initial_capital">Initial Capital</label>
+                  <input
+                    id="initial_capital"
+                    type="number"
+                    step="any"
+                    name="initial_capital"
+                    value={formData.initial_capital !== null && formData.initial_capital !== undefined ? formData.initial_capital : ''}
+                    onChange={handleNumberChange}
+                    style={{ ...fieldStyle, fontVariantNumeric: "tabular-nums" }}
+                    placeholder="0.00"
+                  />
+                  <p style={helperStyle}>baseline for the profit share, not the cash balance</p>
+                </div>
+                <div>
+                  <label style={subLabelStyle} htmlFor="cash_buffer_limit">Cash Buffer Limit</label>
+                  <input
+                    id="cash_buffer_limit"
+                    type="number"
+                    name="cash_buffer_limit"
+                    value={formData.cash_buffer_limit !== null && formData.cash_buffer_limit !== undefined ? formData.cash_buffer_limit : ''}
+                    onChange={handleNumberChange}
+                    style={{ ...fieldStyle, fontVariantNumeric: "tabular-nums" }}
+                    placeholder="0.00"
+                  />
                 </div>
               </div>
             </div>

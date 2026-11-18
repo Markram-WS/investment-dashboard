@@ -6,7 +6,7 @@ from typing import Optional, List
 from datetime import datetime
 
 from app.database import get_db, resolve_portfolio_db
-from app.models import WhitelistAssets, AssetGroup, ActiveOrder
+from app.models import WhitelistAssets, AssetGroup, ActiveOrder, Broker
 from app.custom_models import CustomWhitelistAssets
 from app.managed_fund_models import ManagedFundHolding, ManagedFundOrderHistory
 from app.services.yfinance_service import fetch_price
@@ -21,6 +21,10 @@ class AssetResponse(BaseModel):
     price: Optional[float] = None
     change_24h: Optional[float] = None
     updated_at: Optional[datetime] = None
+    broker_id: Optional[int] = None
+    broker_code: Optional[str] = None
+    multiplier: Optional[float] = 1
+    margin_rate: Optional[float] = 0
 
     class Config:
         from_attributes = True
@@ -31,6 +35,9 @@ class AssetCreate(BaseModel):
     name: Optional[str] = None
     source: str = 'manual'
     group_id: Optional[int] = None
+    broker_id: Optional[int] = 1
+    multiplier: Optional[float] = 1
+    margin_rate: Optional[float] = 0
 
 class AssetUpdate(BaseModel):
     name: Optional[str] = None
@@ -39,8 +46,35 @@ class AssetUpdate(BaseModel):
     group_id: Optional[int] = None
     price: Optional[float] = None
     change_24h: Optional[float] = None
+    multiplier: Optional[float] = None
+    margin_rate: Optional[float] = None
 
 router = APIRouter()
+
+
+async def _broker_codes(db: AsyncSession) -> dict:
+    result = await db.execute(select(Broker.id, Broker.code))
+    return {row[0]: row[1] for row in result.all()}
+
+
+def _asset_payload(asset, broker_codes: dict) -> dict:
+    broker_id = getattr(asset, "broker_id", None)
+    return {
+        "asset_id": asset.asset_id,
+        "ticker": asset.ticker,
+        "asset_type": asset.asset_type,
+        "name": asset.name,
+        "source": asset.source,
+        "group_id": asset.group_id,
+        "price": asset.price,
+        "change_24h": asset.change_24h,
+        "updated_at": asset.updated_at,
+        "broker_id": broker_id,
+        "broker_code": broker_codes.get(broker_id) if broker_id is not None else None,
+        "multiplier": getattr(asset, "multiplier", None),
+        "margin_rate": getattr(asset, "margin_rate", None),
+    }
+
 
 async def _ensure_default_group(db: AsyncSession):
     result = await db.execute(select(AssetGroup).where(AssetGroup.name == "Ungrouped"))
@@ -72,7 +106,9 @@ async def list_assets(
             query = query.where(ModelClass.source == source)
         query = query.order_by(ModelClass.ticker)
         result = await session.execute(query)
-        return result.scalars().all()
+        assets = result.scalars().all()
+        codes = {} if is_custom else await _broker_codes(db)
+        return [_asset_payload(a, codes) for a in assets]
     finally:
         if is_custom:
             await session.close()
@@ -86,9 +122,22 @@ async def create_asset(
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomWhitelistAssets if is_custom else WhitelistAssets
-        existing = await session.execute(
-            select(ModelClass).where(ModelClass.ticker == data.ticker.upper())
-        )
+        if data.multiplier is not None and data.multiplier <= 0:
+            raise HTTPException(400, "multiplier must be greater than 0")
+        if data.margin_rate is not None and not (0 <= data.margin_rate <= 1):
+            raise HTTPException(400, "margin_rate must be between 0 and 1")
+        broker_id = data.broker_id or 1
+        if is_custom:
+            existing = await session.execute(
+                select(ModelClass).where(ModelClass.ticker == data.ticker.upper())
+            )
+        else:
+            existing = await session.execute(
+                select(ModelClass).where(
+                    ModelClass.ticker == data.ticker.upper(),
+                    ModelClass.broker_id == broker_id,
+                )
+            )
         if existing.scalars().first():
             raise HTTPException(400, "Asset with this ticker already exists")
         asset = ModelClass(
@@ -98,10 +147,15 @@ async def create_asset(
             source=data.source,
             group_id=data.group_id,
         )
+        if not is_custom:
+            asset.broker_id = broker_id
+            asset.multiplier = data.multiplier if data.multiplier is not None else 1
+            asset.margin_rate = data.margin_rate if data.margin_rate is not None else 0
         session.add(asset)
         await session.commit()
         await session.refresh(asset)
-        return asset
+        codes = {} if is_custom else await _broker_codes(db)
+        return _asset_payload(asset, codes)
     finally:
         if is_custom:
             await session.close()
@@ -120,14 +174,22 @@ async def update_asset(
         asset = result.scalars().first()
         if not asset:
             raise HTTPException(404, "Asset not found")
-        for field in ("name", "asset_type", "source", "group_id", "price", "change_24h"):
+        if data.multiplier is not None and data.multiplier <= 0:
+            raise HTTPException(400, "multiplier must be greater than 0")
+        if data.margin_rate is not None and not (0 <= data.margin_rate <= 1):
+            raise HTTPException(400, "margin_rate must be between 0 and 1")
+        for field in ("name", "asset_type", "source", "group_id", "price", "change_24h", "multiplier", "margin_rate"):
             val = getattr(data, field, None)
-            if val is not None:
-                setattr(asset, field, val)
+            if val is None:
+                continue
+            if field in ("multiplier", "margin_rate") and not hasattr(asset, field):
+                continue
+            setattr(asset, field, val)
         asset.updated_at = datetime.utcnow()
         await session.commit()
         await session.refresh(asset)
-        return asset
+        codes = {} if is_custom else await _broker_codes(db)
+        return _asset_payload(asset, codes)
     finally:
         if is_custom:
             await session.close()

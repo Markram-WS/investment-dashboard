@@ -6,12 +6,13 @@ from app.models import (
     Portfolio, CustomPortfolioConnection,
     ActiveOrder, TradeHistory, TradePlan, OptionDetails,
     PortfolioNavHistory, SimulationModels, DecisionJournal,
-    Transaction, OrdersGroup, WhitelistAssets
+    Transaction, OrdersGroup
 )
 from app.managed_fund_models import (
     ManagedFundHolding, ManagedFundOrder,
     ManagedFundOrderHistory, ManagedFundSetting
 )
+from app.risk_calc import compute_margin_locked
 from app.utils.crypto import encrypt_password
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
@@ -23,6 +24,10 @@ import asyncpg
 class PortfolioCreate(BaseModel):
     portfolio_name: str
     port_type: str
+    broker_id: Optional[int] = None
+    product_ticker: Optional[str] = None
+    x_amount: Optional[float] = 0.0
+    initial_capital: Optional[float] = 0.0
     target_ratio: Optional[Dict[str, Any]] = None
     current_nav: Optional[float] = None
     margin_locked: Optional[float] = 0.0
@@ -45,6 +50,10 @@ class PortfolioResponse(BaseModel):
     portfolio_name: str
     port_type: str
     is_custom: bool = False
+    broker_id: Optional[int] = None
+    product_ticker: Optional[str] = None
+    x_amount: Optional[float] = 0.0
+    initial_capital: Optional[float] = 0.0
     target_ratio: Optional[Dict[str, Any]]
     current_allocations: Optional[Dict[str, Any]]
     current_nav: Optional[float]
@@ -92,6 +101,10 @@ PORTFOLIO_TYPES = [
 class PortfolioUpdate(BaseModel):
     portfolio_name: Optional[str] = None
     port_type: Optional[str] = None
+    broker_id: Optional[int] = None
+    product_ticker: Optional[str] = None
+    x_amount: Optional[float] = None
+    initial_capital: Optional[float] = None
     target_ratio: Optional[Dict[str, Any]] = None
     current_nav: Optional[float] = None
     margin_locked: Optional[float] = None
@@ -155,9 +168,15 @@ async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depend
         portfolio_name=portfolio.portfolio_name,
         port_type=portfolio.port_type,
         is_custom=is_custom,
+        broker_id=portfolio.broker_id,
+        product_ticker=portfolio.product_ticker,
+        x_amount=portfolio.x_amount or 0,
+        initial_capital=portfolio.initial_capital or 0,
         target_ratio=portfolio.target_ratio,
         current_nav=portfolio.current_nav,
-        margin_locked=portfolio.margin_locked,
+        # margin_locked is computed from the market for Active Trading portfolios;
+        # any submitted value is accepted but not persisted.
+        margin_locked=0 if portfolio.port_type == "Active Trading" else portfolio.margin_locked,
         cash_buffer_limit=portfolio.cash_buffer_limit,
         available_cash=portfolio.available_cash,
         trade_plan_md=portfolio.trade_plan_md,
@@ -188,10 +207,14 @@ async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depend
         "portfolio_name": db_portfolio.portfolio_name,
         "port_type": db_portfolio.port_type,
         "is_custom": db_portfolio.is_custom,
+        "broker_id": db_portfolio.broker_id,
+        "product_ticker": db_portfolio.product_ticker,
+        "x_amount": db_portfolio.x_amount,
+        "initial_capital": db_portfolio.initial_capital,
         "target_ratio": db_portfolio.target_ratio,
         "current_allocations": db_portfolio.target_ratio or {},
         "current_nav": db_portfolio.current_nav,
-        "margin_locked": db_portfolio.margin_locked,
+        "margin_locked": await compute_margin_locked(db, db_portfolio),
         "cash_buffer_limit": db_portfolio.cash_buffer_limit,
         "available_cash": db_portfolio.available_cash,
         "risk_status": db_portfolio.risk_status,
@@ -224,10 +247,14 @@ async def get_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)):
         "portfolio_name": portfolio.portfolio_name,
         "port_type": portfolio.port_type,
         "is_custom": portfolio.is_custom,
+        "broker_id": portfolio.broker_id,
+        "product_ticker": portfolio.product_ticker,
+        "x_amount": portfolio.x_amount,
+        "initial_capital": portfolio.initial_capital,
         "target_ratio": portfolio.target_ratio,
         "current_allocations": portfolio.target_ratio or {},
         "current_nav": portfolio.current_nav,
-        "margin_locked": portfolio.margin_locked,
+        "margin_locked": await compute_margin_locked(db, portfolio),
         "cash_buffer_limit": portfolio.cash_buffer_limit,
         "available_cash": portfolio.available_cash,
         "risk_status": portfolio.risk_status,
@@ -265,11 +292,33 @@ async def update_portfolio(portfolio_id: int, update: PortfolioUpdate, db: Async
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
     update_data = update.dict(exclude_unset=True)
+    # margin_locked is a policy input only for Managed Fund; Active Trading
+    # computes it from live orders, so a submitted value is accepted and dropped.
+    if update_data.get("port_type", portfolio.port_type) == "Active Trading":
+        update_data.pop("margin_locked", None)
     for field, value in update_data.items():
         setattr(portfolio, field, value)
     await db.commit()
     await db.refresh(portfolio)
-    return portfolio
+    return {
+        "portfolio_id": portfolio.portfolio_id,
+        "portfolio_name": portfolio.portfolio_name,
+        "port_type": portfolio.port_type,
+        "is_custom": portfolio.is_custom,
+        "broker_id": portfolio.broker_id,
+        "product_ticker": portfolio.product_ticker,
+        "x_amount": portfolio.x_amount,
+        "initial_capital": portfolio.initial_capital,
+        "target_ratio": portfolio.target_ratio,
+        "current_allocations": portfolio.target_ratio or {},
+        "current_nav": portfolio.current_nav,
+        "margin_locked": await compute_margin_locked(db, portfolio),
+        "cash_buffer_limit": portfolio.cash_buffer_limit,
+        "available_cash": portfolio.available_cash,
+        "risk_status": portfolio.risk_status,
+        "tags": portfolio.tags,
+        "last_rebalance_date": portfolio.last_rebalance_date,
+    }
 
 
 class ConnectionUpdate(BaseModel):

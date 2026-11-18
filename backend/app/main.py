@@ -19,6 +19,7 @@ from app.routers import (
     trade_history,
     assets,
     asset_groups,
+    brokers,
     orders_groups,
     performance,
     managed_funds,
@@ -62,6 +63,79 @@ async def lifespan(app: FastAPI):
             await conn.execute(text("ALTER TABLE trade_history ADD COLUMN IF NOT EXISTS order_remark VARCHAR"))
         except Exception:
             pass
+        # 2026-11-18: risk model phase 1 - brokers, contract spec on the asset row,
+        # portfolio product/X/initial capital. Product spec key (broker_id, ticker).
+        try:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS brokers (
+                    id SERIAL PRIMARY KEY,
+                    code VARCHAR NOT NULL UNIQUE,
+                    name VARCHAR NOT NULL,
+                    default_margin_rate NUMERIC(10,6) DEFAULT 0,
+                    currency VARCHAR DEFAULT 'USD',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            await conn.execute(text(
+                "INSERT INTO brokers (code, name) VALUES ('DF', 'Unassigned') "
+                "ON CONFLICT (code) DO NOTHING"
+            ))
+            # Backfill brokers rows created before server defaults existed.
+            await conn.execute(text(
+                "UPDATE brokers SET default_margin_rate = 0 WHERE default_margin_rate IS NULL"
+            ))
+            await conn.execute(text(
+                "UPDATE brokers SET currency = 'USD' WHERE currency IS NULL"
+            ))
+            await conn.execute(text(
+                "UPDATE brokers SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE whitelist_assets ADD COLUMN IF NOT EXISTS broker_id INTEGER"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE whitelist_assets ADD COLUMN IF NOT EXISTS multiplier NUMERIC(20,8) NOT NULL DEFAULT 1"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE whitelist_assets ADD COLUMN IF NOT EXISTS margin_rate NUMERIC(10,6) NOT NULL DEFAULT 0"
+            ))
+            await conn.execute(text(
+                "UPDATE whitelist_assets SET broker_id = (SELECT id FROM brokers WHERE code = 'DF') "
+                "WHERE broker_id IS NULL"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE whitelist_assets DROP CONSTRAINT IF EXISTS whitelist_assets_ticker_key"
+            ))
+            await conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_asset_broker_ticker ON whitelist_assets (broker_id, ticker)"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS broker_id INTEGER"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS product_ticker VARCHAR"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS x_amount NUMERIC(20,8) NOT NULL DEFAULT 0"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS initial_capital NUMERIC(20,8) NOT NULL DEFAULT 0"
+            ))
+            await conn.execute(text(
+                "UPDATE portfolios p SET broker_id = (SELECT id FROM brokers WHERE code = 'DF') "
+                "WHERE p.broker_id IS NULL AND p.port_type = 'Active Trading'"
+            ))
+            await conn.execute(text(
+                "UPDATE portfolios p SET product_ticker = ("
+                "  SELECT a.asset_type FROM active_orders a WHERE a.portfolio_id = p.portfolio_id "
+                "  GROUP BY a.asset_type ORDER BY count(*) DESC LIMIT 1"
+                ") WHERE p.product_ticker IS NULL AND p.port_type = 'Active Trading'"
+            ))
+            await conn.execute(text(
+                "UPDATE portfolios SET initial_capital = available_cash WHERE initial_capital = 0"
+            ))
+        except Exception:
+            pass
     async with ai_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -90,6 +164,7 @@ app.add_middleware(
 # Include routers
 app.include_router(assets.router, prefix="/api/v1/assets", tags=["assets"])
 app.include_router(asset_groups.router, prefix="/api/v1/asset-groups", tags=["asset-groups"])
+app.include_router(brokers.router, prefix="/api/v1/brokers", tags=["brokers"])
 app.include_router(portfolios.router, prefix="/api/v1/portfolios", tags=["portfolios"])
 app.include_router(
     trade_plans.router, prefix="/api/v1/trade-plans", tags=["trade-plans"]

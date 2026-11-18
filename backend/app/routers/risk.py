@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import Portfolio
+from app.risk_calc import compute_margin_locked
 from pydantic import BaseModel
 from typing import Optional
 import random
@@ -50,7 +51,9 @@ def _to_float(v):
 async def _get_totals(db: AsyncSession):
     result = await db.execute(select(Portfolio))
     portfolios = result.scalars().all()
-    margin = sum(_to_float(p.margin_locked) for p in portfolios)
+    margin = 0.0
+    for p in portfolios:
+        margin += await compute_margin_locked(db, p)
     buffer = sum(_to_float(p.cash_buffer_limit) for p in portfolios)
     available = sum(_to_float(p.available_cash) for p in portfolios)
     return margin, buffer, available
@@ -93,7 +96,7 @@ async def get_portfolio_safety(portfolio_id: int, db: AsyncSession = Depends(get
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
 
-    port_margin = _to_float(portfolio.margin_locked)
+    port_margin = await compute_margin_locked(db, portfolio)
     port_buffer = _to_float(portfolio.cash_buffer_limit)
     port_cash = _to_float(portfolio.available_cash)
     mpb = port_margin + port_buffer

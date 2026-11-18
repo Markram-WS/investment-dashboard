@@ -526,6 +526,10 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         portfolioName={selectedPortfolio.portfolio_name}
         marginLocked={marginLocked}
         cashBufferLimit={cashBufferLimit}
+        brokerId={selectedPortfolio.broker_id ?? null}
+        productTicker={selectedPortfolio.product_ticker ?? null}
+        xAmount={selectedPortfolio.x_amount ?? 0}
+        initialCapital={selectedPortfolio.initial_capital ?? 0}
         rawAvailableCash={selectedPortfolio.available_cash || 0}
         cumulativePl={cumulativePl}
         tags={selectedPortfolio.tags}

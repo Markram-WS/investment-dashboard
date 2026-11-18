@@ -3,7 +3,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 from app.database import get_db, resolve_portfolio_db
-from app.models import ActiveOrder, TradePlan, TradeHistory
+from app.models import ActiveOrder, TradePlan, TradeHistory, Portfolio, WhitelistAssets, Broker
 from app.custom_models import CustomActiveOrder, CustomTradePlan
 from pydantic import BaseModel, field_validator
 from typing import Optional, Dict, Any, List
@@ -125,6 +125,42 @@ async def create_order(order: ActiveOrderCreate, db: AsyncSession = Depends(get_
     session, is_custom = await resolve_portfolio_db(db, order.portfolio_id)
     try:
         ModelClass = CustomActiveOrder if is_custom else ActiveOrder
+        # Risk model guard: a portfolio configured with a product only accepts
+        # orders for that product, and needs a live contract spec (broker +
+        # ticker) in whitelist_assets before any order can be created. Legacy
+        # portfolios without a product are not blocked.
+        pf = None
+        if not is_custom:
+            pf_result = await db.execute(
+                select(Portfolio).where(Portfolio.portfolio_id == order.portfolio_id)
+            )
+            pf = pf_result.scalar_one_or_none()
+        if not is_custom and pf and pf.product_ticker:
+            if order.asset_type.strip().upper() != pf.product_ticker.strip().upper():
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Order symbol {order.asset_type} does not match the "
+                        f"portfolio product {pf.product_ticker}"
+                    ),
+                )
+            spec = await db.execute(
+                select(WhitelistAssets.asset_id).where(
+                    WhitelistAssets.broker_id == pf.broker_id,
+                    WhitelistAssets.ticker == pf.product_ticker,
+                )
+            )
+            if spec.scalars().first() is None:
+                broker_code = (await db.execute(
+                    select(Broker.code).where(Broker.id == pf.broker_id)
+                )).scalars().first() or str(pf.broker_id)
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"No contract spec for {pf.product_ticker} on broker "
+                        f"{broker_code} — add it in All-assets first"
+                    ),
+                )
         data = order.dict(exclude_none=True)
         if data.get("plan_id") is None:
             if is_custom:

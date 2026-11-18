@@ -91,7 +91,12 @@ export interface PortfolioData {
   trade_plan_md: string | null;
   internal_notes: string | null;
   available_cash: number | null;
+  /** Computed by the backend; never written by the client. */
   margin_locked: number | null;
+  broker_id: number | null;
+  product_ticker: string | null;
+  x_amount: number;
+  initial_capital: number;
   cash_buffer_limit: number | null;
   tags: Record<string, boolean> | null;
   ai_reasoning: string | null;

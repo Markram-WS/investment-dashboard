@@ -69,7 +69,6 @@ export default function MFEditPortfolioModal({
 
   // Portfolio base fields
   const [name, setName] = useState(portfolio.portfolio_name);
-  const [marginLocked, setMarginLocked] = useState(String(portfolio.margin_locked || 0));
   const [cashBuffer, setCashBuffer] = useState(String(portfolio.cash_buffer_limit || 0));
   const [tagsStr, setTagsStr] = useState(
     portfolio.tags ? Object.keys(portfolio.tags).join(", ") : ""
@@ -109,7 +108,6 @@ export default function MFEditPortfolioModal({
   useEffect(() => {
     if (showModal) {
       setName(portfolio.portfolio_name);
-      setMarginLocked(String(portfolio.margin_locked || 0));
       setCashBuffer(String(portfolio.cash_buffer_limit || 0));
       setTagsStr(portfolio.tags ? Object.keys(portfolio.tags).join(", ") : "");
       setGlobalThreshold(String(settings?.global_profit_threshold ?? 0));
@@ -128,9 +126,7 @@ export default function MFEditPortfolioModal({
 
   const handleSave = async () => {
     setSaveErr("");
-    const m = parseFloat(marginLocked) || 0;
     const b = parseFloat(cashBuffer) || 0;
-    if (m > cash) { setSaveErr(`Margin Locked max $${cash.toLocaleString()}`); return; }
     if (b > cash) { setSaveErr(`Cash Buffer max $${cash.toLocaleString()}`); return; }
 
     setSaving(true);
@@ -138,13 +134,11 @@ export default function MFEditPortfolioModal({
       const tagsObj: Record<string, boolean> = {};
       tagsStr.split(",").map(t => t.trim()).filter(Boolean).forEach(t => { tagsObj[t] = true; });
 
-      const totalDiff = (m - (portfolio.margin_locked || 0))
-        + (b - (portfolio.cash_buffer_limit || 0));
+      const totalDiff = b - (portfolio.cash_buffer_limit || 0);
       const newAvailable = Math.max(0, cash - totalDiff);
 
       await api.updatePortfolio(portfolioId, {
         portfolio_name: name || undefined,
-        margin_locked: m,
         cash_buffer_limit: b,
         available_cash: newAvailable,
         tags: Object.keys(tagsObj).length > 0 ? tagsObj : undefined,
@@ -250,9 +244,13 @@ export default function MFEditPortfolioModal({
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label style={LABEL}>Margin locked</label>
-              <input type="number" value={marginLocked} onChange={e => setMarginLocked(e.target.value)}
-                className="border border-hairline focus:border-brand-teal" style={INPUT} />
+              <label style={LABEL}>Margin locked (computed)</label>
+              <div style={{ ...INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent" }}>
+                ${(portfolio.margin_locked || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <p style={{ fontSize: 12, fontWeight: 400, color: "var(--color-slate)", margin: "4px 0 0" }}>
+                คิดจาก Σ mark × multiplier × qty × margin rate
+              </p>
             </div>
             <div>
               <label style={LABEL}>Cash buffer limit</label>
