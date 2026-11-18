@@ -1,44 +1,131 @@
 import React from "react";
-
-export interface ExposureRow {
-  label: string;
-  percent: number;
-}
+import type { PortfolioRisk, PortfolioRiskBucket } from "../../types";
 
 interface RiskCardProps {
-  exposure: ExposureRow[];
+  risk?: PortfolioRisk | null;
+  productTicker?: string | null;
+  brokerCode?: string | null;
   strategySet: boolean;
   notesPresent: boolean;
   onEdit: () => void;
 }
 
-const BAR_COLORS = ["var(--color-brand-teal)", "var(--color-tier-1)", "var(--color-brand-yellow)"];
+const money = (v: number) =>
+  `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** Risk card: exposure bars plus the strategy/notes footer. Height follows content. */
+const signed = (v: number) =>
+  `${v < 0 ? "−" : "+"}$${Math.abs(v).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+const qty = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 4 });
+
+const BUCKETS: { key: keyof PortfolioRisk["options"]["buckets"]; label: string }[] = [
+  { key: "short_call", label: "Short call" },
+  { key: "short_put", label: "Short put" },
+  { key: "long_call", label: "Long call" },
+  { key: "long_put", label: "Long put" },
+];
+
+/** label left, optional mid, signed value right. */
+const Row: React.FC<{ label: string; mid?: string; value: React.ReactNode }> = ({
+  label, mid, value,
+}) => (
+  <div className={`at-risk-row${mid === undefined ? " at-risk-row--pair" : ""}`}>
+    <span className="at-k">{label}</span>
+    {mid !== undefined && <span className="at-risk-mid">{mid}</span>}
+    <span className="at-v at-num">{value}</span>
+  </div>
+);
+
+const Pl: React.FC<{ value: number; fallback: boolean }> = ({ value, fallback }) => {
+  if (fallback) return <>—</>;
+  return <span className={value < 0 ? "at-neg" : "at-pos"}>{signed(value)}</span>;
+};
+
+const DASH = "—";
+
+/** Risk card: the statement of the risk model, then the strategy/notes footer. */
 const RiskCard: React.FC<RiskCardProps> = ({
-  exposure, strategySet, notesPresent, onEdit,
+  risk, productTicker, brokerCode, strategySet, notesPresent, onEdit,
 }) => {
+  const eq = risk?.eq;
+  const options = risk?.options;
+  const bucketCells = (b: PortfolioRiskBucket | undefined) =>
+    b ? `${qty(b.orders)} · ${qty(b.lots)} · ${money(b.avg_premium)}` : DASH;
+
+  const bandParts = risk
+    ? [
+        { kind: "size", value: risk.eq.size_at_x_mark },
+        { kind: "available", value: risk.available_at_x },
+        { kind: "profit", value: Math.max(0, risk.pl_total) },
+      ]
+    : [];
+  const bandTotal = bandParts.reduce((sum, p) => sum + Math.max(0, p.value), 0);
+
   return (
     <section className="at-card at-risk" aria-label="Risk">
-      {exposure.length === 0 ? (
-        <div className="at-exprow">
-          <span>Exposure</span>
-          <div className="at-ebar" />
-          <span className="at-num">—</span>
+      <div className="at-risk-head">
+        <span className="at-risk-title">Risk</span>
+        <span className="at-risk-meta">
+          X {risk ? qty(risk.x_amount) : DASH} · {productTicker ?? DASH} · {brokerCode ?? DASH}
+        </span>
+      </div>
+
+      <div className="at-risk-group">
+        <p className="at-k at-risk-glabel">EQ · Future</p>
+        <Row label="Active orders" value={eq ? qty(eq.orders) : DASH} />
+        <Row label="Total size" value={eq ? qty(eq.lots) : DASH} />
+        <Row label="Average price" value={eq ? money(eq.avg_price) : DASH} />
+        <Row label="Size @ 0" value={eq ? money(eq.size0) : DASH} />
+        <Row label="Size @ X (mark)" value={eq ? money(eq.size_at_x_mark) : DASH} />
+        <Row label="Size @ X (entry)" value={eq ? money(eq.size_at_x_entry) : DASH} />
+        <Row label="Sum P/L" value={<Pl value={eq?.pl ?? 0} fallback={!eq} />} />
+      </div>
+
+      <div className="at-risk-group">
+        <p className="at-k at-risk-glabel">Options</p>
+        {BUCKETS.map(({ key, label }) => (
+          <Row
+            key={key}
+            label={label}
+            mid={bucketCells(options?.buckets[key])}
+            value={<Pl value={options?.buckets[key].pl ?? 0} fallback={!options} />}
+          />
+        ))}
+        <Row label="Net premium" value={<Pl value={options?.net_premium ?? 0} fallback={!options} />} />
+        {options !== undefined && options.unclassified > 0 && (
+          <Row label="Unclassified" value={qty(options.unclassified)} />
+        )}
+      </div>
+
+      <div className="at-risk-group">
+        <p className="at-k at-risk-glabel">Total</p>
+        <Row label="Sum P/L" value={<Pl value={risk?.pl_total ?? 0} fallback={!risk} />} />
+        <Row label="Margin locked" value={risk ? money(risk.margin_locked) : DASH} />
+      </div>
+
+      <div className="at-risk-band">
+        <div className="at-risk-bar" role="img" aria-label="Risk composition">
+          {bandTotal > 0 &&
+            bandParts
+              .filter((p) => p.value > 0)
+              .map((p) => (
+                <i
+                  key={p.kind}
+                  data-kind={p.kind}
+                  style={{ width: `${(p.value / bandTotal) * 100}%` }}
+                />
+              ))}
         </div>
-      ) : (
-        exposure.map((row, i) => (
-          <div className="at-exprow" key={row.label}>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {row.label}
-            </span>
-            <div className="at-ebar">
-              <i style={{ width: `${row.percent}%`, background: BAR_COLORS[i % BAR_COLORS.length] }} />
-            </div>
-            <span className="at-num">{row.percent}%</span>
-          </div>
-        ))
-      )}
+        <div className="at-risk-cap">
+          <span>risk = available + P/L</span>
+          <span className={`at-num${risk && risk.pl_total < 0 ? " at-neg" : ""}`}>
+            {risk ? (risk.pl_total < 0 ? signed(risk.risk) : money(risk.risk)) : DASH}
+          </span>
+        </div>
+      </div>
 
       <div className="at-notes">
         <span>

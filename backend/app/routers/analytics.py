@@ -3,7 +3,7 @@ from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, resolve_portfolio_db
-from app.models import Portfolio, ActiveOrder, TradePlan, AiActionLog, TradeHistory, AiAgent
+from app.models import Portfolio, Broker, ActiveOrder, TradePlan, AiActionLog, TradeHistory, AiAgent
 from app.custom_models import CustomActiveOrder, CustomTransaction, CustomOrdersGroup
 from app.risk_calc import compute_margin_locked, compute_risk
 from pydantic import BaseModel
@@ -130,6 +130,7 @@ class PortfolioGridData(BaseModel):
     margin_locked: Optional[float] = None
     cash_buffer_limit: Optional[float] = None
     broker_id: Optional[int] = None
+    broker_code: Optional[str] = None
     product_ticker: Optional[str] = None
     x_amount: float = 0
     initial_capital: float = 0
@@ -667,6 +668,13 @@ async def get_portfolio_detail(
         margin_locked = await compute_margin_locked(db, portfolio)
         risk = await compute_risk(db, portfolio, active_orders)
 
+        broker_code = None
+        if portfolio.broker_id is not None:
+            broker_code_result = await db.execute(
+                select(Broker.code).where(Broker.id == portfolio.broker_id)
+            )
+            broker_code = broker_code_result.scalar_one_or_none()
+
         return PortfolioGridData(
             portfolio_id=portfolio.portfolio_id,
             portfolio_name=portfolio.portfolio_name,
@@ -683,6 +691,7 @@ async def get_portfolio_detail(
             margin_locked=margin_locked,
             cash_buffer_limit=_to_float(portfolio.cash_buffer_limit),
             broker_id=portfolio.broker_id,
+            broker_code=broker_code,
             product_ticker=portfolio.product_ticker,
             x_amount=_to_float(portfolio.x_amount) or 0,
             initial_capital=_to_float(portfolio.initial_capital) or 0,

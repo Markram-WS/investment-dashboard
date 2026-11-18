@@ -10,6 +10,7 @@ import type {
   MFAlert,
   OverviewResponse,
   PortfolioData,
+  PortfolioRisk,
   SpreadOrder,
 } from '../types';
 
@@ -40,12 +41,14 @@ export interface PortfolioRecord {
   /** Computed by the backend from open orders; ignored on write. */
   margin_locked: number;
   broker_id: number | null;
+  broker_code?: string | null;
   product_ticker: string | null;
   x_amount: number;
   initial_capital: number;
   available_cash: number;
   cash_buffer_limit: number;
   risk_status: string | null;
+  risk?: PortfolioRisk | null;
   last_rebalance_date: string | null;
   tags?: Record<string, boolean> | null;
   trade_plan_md?: string | null;

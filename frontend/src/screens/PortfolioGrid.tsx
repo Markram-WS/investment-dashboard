@@ -191,27 +191,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     return Array.from(types).sort();
   }, [selectedPortfolio?.active_orders]);
 
-  /** Notional per product class — the risk card exposure bars. */
-  const exposure = useMemo(() => {
-    const byClass = new Map<string, number>();
-    for (const order of activeOrders) {
-      const notional = Math.abs((order.entry_price ?? 0) * Number(order.qty ?? 0));
-      const contract = order.contract_type ?? "spot";
-      const label = contract === "option"
-        ? "Options"
-        : contract === "future" || (order.leverage ?? 0) > 0
-          ? "Futures"
-          : order.asset_type || "Spot";
-      byClass.set(label, (byClass.get(label) ?? 0) + notional);
-    }
-    const total = [...byClass.values()].reduce((sum, v) => sum + v, 0);
-    if (total === 0) return [];
-    return [...byClass.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([label, value]) => ({ label, percent: Math.round((value / total) * 100) }));
-  }, [activeOrders]);
-
   const handleCloseOrder = useCallback((order: SpreadOrder) => {
     const status = (order.order_status || "").toUpperCase();
     if (status === "PENDING") {
@@ -342,7 +321,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const totalNotional = activeOrders.reduce((sum, o) => sum + (o.entry_price || 0) * Number(o.qty || 0), 0);
   const totalValue = pool + cumulativePl + totalNotional;
   const plPercent = pool > 0 ? (cumulativePl / pool) * 100 : 0;
-  const bufferCoverage = cashBufferLimit > 0 ? (cashAvailable / cashBufferLimit) * 100 : (cash > 0 ? 100 : 0);
   const marginUsed = pool > 0 ? (marginLocked / pool) * 100 : 0;
 
   const handleRefresh = () => {
@@ -379,8 +357,9 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           marginLocked={marginLocked}
           cashBufferLimit={cashBufferLimit}
           availableCash={cashAvailable}
-          bufferCoverage={bufferCoverage}
           marginUsed={marginUsed}
+          initialCapital={selectedPortfolio.initial_capital || 0}
+          risk={selectedPortfolio.risk}
         />
 
         <div className="at-workspace">
@@ -426,7 +405,9 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
             </section>
 
             <RiskCard
-              exposure={exposure}
+              risk={selectedPortfolio.risk}
+              productTicker={selectedPortfolio.product_ticker}
+              brokerCode={selectedPortfolio.broker_code}
               strategySet={Boolean(selectedPortfolio.trade_plan_md?.trim())}
               notesPresent={Boolean(selectedPortfolio.internal_notes?.trim())}
               onEdit={() => setShowNotesModal(true)}

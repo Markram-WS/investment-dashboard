@@ -1192,18 +1192,73 @@ a:focus-visible {
   padding: 10px 14px;
   overflow: hidden;
 }
-.at-exprow {
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) 38px;
-  align-items: center;
+.at-risk-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+}
+.at-risk-title {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--color-ink);
+  line-height: 1;
+}
+.at-risk-meta {
   font-size: var(--fs-micro);
   color: var(--color-slate);
-  margin-top: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
 }
-.at-exprow:first-of-type { margin-top: 0; }
-.at-ebar { height: 5px; border-radius: 999px; background: var(--color-hairline-soft); overflow: hidden; }
-.at-ebar > i { display: block; height: 100%; border-radius: 999px; }
+.at-risk-group { padding-block: 6px 2px; }
+.at-risk-group + .at-risk-group { border-top: 1px solid var(--color-hairline-soft); }
+.at-risk-glabel { margin: 0 0 2px; font-weight: 600; }
+.at-risk-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 76px;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+}
+.at-risk-row--pair { grid-template-columns: minmax(0, 1fr) auto; }
+.at-risk-row > .at-v { line-height: 1.2; }
+.at-risk-mid {
+  font-size: var(--fs-label);
+  color: var(--color-slate);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.at-risk-band {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-hairline-soft);
+}
+.at-risk-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-hairline-soft);
+  overflow: hidden;
+}
+.at-risk-bar > i { display: block; height: 100%; }
+.at-risk-bar > i[data-kind="size"] { background: var(--color-tier-1); }
+.at-risk-bar > i[data-kind="available"] { background: var(--color-brand-yellow); }
+.at-risk-bar > i[data-kind="profit"] { background: var(--color-brand-teal); }
+.at-risk-cap {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: var(--fs-label);
+  color: var(--color-slate);
+}
+.at-risk-cap > .at-num { color: var(--color-ink); font-weight: 600; }
+.at-risk-cap > .at-neg { color: var(--color-danger-text); }
 .at-notes {
   display: flex;
   align-items: center;

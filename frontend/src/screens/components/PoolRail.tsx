@@ -1,4 +1,5 @@
 import React from "react";
+import type { PortfolioRisk } from "../../types";
 
 interface PoolRailProps {
   totalValue: number;
@@ -8,8 +9,9 @@ interface PoolRailProps {
   marginLocked: number;
   cashBufferLimit: number;
   availableCash: number;
-  bufferCoverage: number;
   marginUsed: number;
+  initialCapital: number;
+  risk?: PortfolioRisk | null;
 }
 
 const money = (v: number) =>
@@ -27,14 +29,35 @@ const pct = (v: number) => `${Math.round(v)}%`;
 const PoolRail: React.FC<PoolRailProps> = ({
   totalValue, plPercent, totalPl, cash,
   marginLocked, cashBufferLimit, availableCash,
-  bufferCoverage, marginUsed,
+  marginUsed, initialCapital, risk,
 }) => {
   const pool = marginLocked + cashBufferLimit + availableCash;
   const share = (v: number) => (pool > 0 ? (v / pool) * 100 : 0);
   const marginShare = share(marginLocked);
   const bufferShare = share(cashBufferLimit);
   const availableShare = share(availableCash);
+
+  // Buffer coverage prefers the computed buffer at X; the legacy cash formula
+  // stays as the fallback while the risk block is absent.
+  const bufferCoverage = risk
+    ? (risk.available_at_x / Math.max(cashBufferLimit, 1)) * 100
+    : cashBufferLimit > 0
+      ? ((cash + totalPl) / cashBufferLimit) * 100
+      : cash > 0
+        ? 100
+        : 0;
   const coverageDanger = bufferCoverage < 120;
+
+  const profit = totalPl + (risk?.pl_total ?? 0);
+  const profitOfInitial = initialCapital > 0 ? (profit / initialCapital) * 100 : null;
+  // One decimal, because rounding to whole percent hides a real profit on a
+  // large base ($6 on $7,000 is 0.1%, not 0%); if even that rounds to 0.0 the
+  // ratio says nothing, so the parenthetical is dropped rather than shown.
+  const profitOfInitialPct = profitOfInitial === null ? null : Math.round(profitOfInitial * 10) / 10;
+  const availableLabel = `available ${pct(availableShare)} of pool · of which profit ${signed(profit)}`;
+  const allocationLabel = profitOfInitialPct === null || profitOfInitialPct === 0
+    ? availableLabel
+    : `${availableLabel} (${profitOfInitialPct.toFixed(1)}% of initial)`;
 
   return (
     <section className="at-card at-rail" aria-label="Pool summary">
@@ -64,7 +87,7 @@ const PoolRail: React.FC<PoolRailProps> = ({
       <div>
         <div className="at-cashlbl">
           <span className="at-k">Cash allocation</span>
-          <span className="at-k">available {pct(availableShare)} of pool</span>
+          <span className="at-k">{allocationLabel}</span>
         </div>
         <div className="at-bar" role="img" aria-label="Cash allocation">
           <div className="at-seg" data-kind="margin" style={{ width: `${marginShare}%` }}>

@@ -82,6 +82,42 @@ export interface RecentTrade {
   exit_date: string;
 }
 
+/** Option bucket keyed by side × option type. */
+export interface PortfolioRiskBucket {
+  orders: number;
+  lots: number;
+  avg_premium: number;
+  pl: number;
+}
+
+/** Computed risk model for one portfolio (no snapshot: reads the live asset row). */
+export interface PortfolioRisk {
+  x_amount: number;
+  multiplier: number;
+  margin_rate: number;
+  margin_locked: number;
+  available_cash: number;
+  available_at_x: number;
+  risk: number;
+  eq: {
+    orders: number;
+    lots: number;
+    avg_price: number;
+    size0: number;
+    size_at_x_mark: number;
+    size_at_x_entry: number;
+    pl: number;
+  };
+  options: {
+    buckets: Record<"short_call" | "short_put" | "long_call" | "long_put", PortfolioRiskBucket>;
+    unclassified: number;
+    net_premium: number;
+    pl: number;
+  };
+  pl_total: number;
+  net_premium: number;
+}
+
 export interface PortfolioData {
   portfolio_id: number;
   portfolio_name: string;
@@ -94,6 +130,8 @@ export interface PortfolioData {
   /** Computed by the backend; never written by the client. */
   margin_locked: number | null;
   broker_id: number | null;
+  /** Broker code for the risk card header; null when the portfolio has no broker. */
+  broker_code?: string | null;
   product_ticker: string | null;
   x_amount: number;
   initial_capital: number;
@@ -101,6 +139,7 @@ export interface PortfolioData {
   tags: Record<string, boolean> | null;
   ai_reasoning: string | null;
   ai_risk_insight: string | null;
+  risk?: PortfolioRisk | null;
   spread_pairs: SpreadPair[];
   active_orders: SpreadOrder[];
   recent_trades: RecentTrade[];

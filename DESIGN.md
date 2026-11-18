@@ -303,6 +303,22 @@ The card under the ladder (`screens/components/OrderHistoryCard.tsx`, `.at-hist`
 - **Below 900px** the grid drops to `56 / minmax(0, 1fr) / 64` and keeps only Date, Symbol and Net P&L, head and rows together.
 - **Empty.** With nothing closed the body is one sentence — never a head row over no data — and the count beside the title reads zero.
 
+### Risk Card
+
+The right column's second card (`screens/components/RiskCard.tsx`, `.at-risk`) is the statement of the risk model, not a summary of it: it prints every input behind the band so a leg can be traced to the number that moved. Measured 408 wide at 1280.
+
+- **Header.** A 26px line: `Risk` on the left, the model's context on the right — `X 0 · TDEX · DF`, i.e. the strike amount `x_amount`, the product ticker and the broker code, each falling back to `—` while the risk block is absent.
+- **EQ · Future group** (7 rows): active orders, total size, average price, size @ 0, size @ X (mark), size @ X (entry), sum P/L.
+- **Options group:** the four buckets — short call, short put, long call, long put — each carrying its own `orders · lots · avg premium` triplet in the middle track and a signed P/L on the right, then net premium. A bucket with no orders prints `—` rather than a zero triplet; unclassified option legs get their own row only when the count is non-zero.
+- **Total group:** sum P/L and margin locked.
+- **Size @ X twice.** The mark and the entry size are both shown because they answer different questions: the mark gives what the leg would cost to buy back at X (it is the price the band charges against available cash), the entry gives what was actually paid. Collapsing them into one line would hide whichever the reader was not expecting.
+- **Band.** Three segments sized by `size @ X` (mark), `available_at_x` and `max(0, pl_total)`, with the caption `risk = available + P/L`; a negative P/L drops the profit segment instead of rendering a negative width. Colours follow the segment kind, not the sign.
+- **Height is content-driven by design.** The card sits under the payoff in the right column and pushes the page down as it grows — it is never clipped or internally scrolled, and it is not sized to the ladder. 408×500 measured with the full model, rows at 24px and a 26px header.
+- **Footer.** Unchanged: Strategy / Notes state plus Edit.
+- **Data source.** Every figure comes from `risk_calc.compute_risk` on the portfolio detail response (`backend/app/risk_calc.py`, exposed as `risk` on `GET /analytics/portfolio/{id}`); the card performs no arithmetic of its own beyond `max(0, …)` for the segment.
+
+The pool rail above the workspace is fed by the same block. Buffer coverage is `available_at_x / max(cash_buffer_limit, 1)`, and the rail's `of which profit` figure is realised P/L (Σ `trade_history.realized_pl`, the performance endpoint's `total_pl`) plus open P/L (`risk.pl_total`), expressed over `initial_capital` to one decimal — e.g. `+$6.00 (0.1% of initial)`. The parenthetical is dropped once that ratio rounds to `0.0%`, since a few dollars on a large base says nothing.
+
 ### Overview Totals Strip
 
 The summary block a dashboard page starts with: a canvas card sitting on the surface page body.
