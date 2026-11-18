@@ -32,6 +32,24 @@ const shortDate = (d?: string | null) => {
   return `${pad(dt.getDate())}/${pad(dt.getMonth() + 1)}/${String(dt.getFullYear()).slice(2)}`;
 };
 
+/** Entry to exit, in whole days; "<1d" when the trade opened and closed the same day. */
+const heldFor = (entry?: string | null, exit?: string | null) => {
+  if (!entry || !exit) return "—";
+  const ms = new Date(exit).getTime() - new Date(entry).getTime();
+  if (!Number.isFinite(ms)) return "—";
+  const days = Math.floor(ms / 86400000);
+  return days <= 0 ? "<1d" : `${days}d`;
+};
+
+/** A closed order says Close unless the cancel path wrote its note. */
+const closeStatus = (h: TradeHistoryRecord) => {
+  const note = (h.remark as { note?: string } | null | undefined)?.note;
+  return note === "Canceled" ? "Canceled" : "Close";
+};
+
+const who = (v?: string | null) =>
+  v ? v.charAt(0).toUpperCase() + v.slice(1).toLowerCase() : "—";
+
 /** Closed-trade card: a 32px disclosure bar by default, expanding to 138px with the column heads and newest three rows. */
 const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onViewAll, onDropOrder }) => {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -114,12 +132,16 @@ const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onVie
               <span className="at-num">In</span>
               <span className="at-num">Out</span>
               <span className="at-num">Net P&amp;L</span>
+              <span className="at-num">Held</span>
+              <span className="at-hist-status">Status</span>
+              <span className="at-hist-by">By</span>
             </div>
             {rows.slice(0, VISIBLE_ROWS).map((h) => {
               const net = Number(h.realized_pl ?? 0);
+              const note = (h.remark as { note?: string } | null | undefined)?.note;
               return (
                 <div className="at-histrow" key={h.history_id ?? `${h.order_id}-${h.exit_date}`}>
-                  <span>{shortDate(h.exit_date)}</span>
+                  <span title={h.exit_date ?? undefined}>{shortDate(h.exit_date)}</span>
                   <span style={{ color: "var(--color-ink)" }}>
                     {`${h.asset ?? "—"} · ${String(h.type ?? "closed").toLowerCase()}`}
                   </span>
@@ -127,6 +149,13 @@ const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onVie
                   <span className="at-num">{money(h.entry_price)}</span>
                   <span className="at-num">{money(h.exit_price)}</span>
                   <span className={`at-num ${net < 0 ? "at-neg" : "at-pos"}`}>{signedMoney(net)}</span>
+                  <span className="at-num" title={`${h.entry_date ?? "—"} → ${h.exit_date ?? "—"}`}>
+                    {heldFor(h.entry_date, h.exit_date)}
+                  </span>
+                  <span className="at-hist-status" title={note ?? "Closed"}>
+                    {closeStatus(h)}
+                  </span>
+                  <span className="at-hist-by">{who(h.executed_by)}</span>
                 </div>
               );
             })}
