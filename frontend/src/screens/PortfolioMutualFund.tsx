@@ -7,6 +7,7 @@ import {
   MFRebalanceRecommendation, MFAlert, MFOrderCreate, MFOrderUpdate,
 } from "../types";
 import Button from "./components/Button";
+import IconButton from "../components/IconButton";
 import MFRebalanceRecommendModal from "./MFRebalanceRecommendModal";
 import MFCreateOrderModal from "./MFCreateOrderModal";
 import MFEditOrderModal from "./MFEditOrderModal";
@@ -444,28 +445,22 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-center"><StatusBadge status={o.status} /></td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      <button onClick={() => { setEditOrderTarget(o); setShowEditOrder(true); }}
-                        className="p-1.5 rounded hover:bg-surface text-slate hover:text-ink transition-colors"
-                        title="Edit">
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <IconButton label="Edit" onClick={() => { setEditOrderTarget(o); setShowEditOrder(true); }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                         </svg>
-                      </button>
-                      <button onClick={() => handleCancelOrder(o.order_id)}
-                        className="p-1.5 rounded hover:bg-surface text-slate hover:text-error transition-colors"
-                        title="Cancel">
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      </IconButton>
+                      <IconButton label="Cancel" danger onClick={() => handleCancelOrder(o.order_id)}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                         </svg>
-                      </button>
-                      <button onClick={() => handleConfirmOrder(o.order_id)}
-                        className="p-1.5 rounded hover:bg-surface text-slate hover:text-success transition-colors"
-                        title="Confirm Done">
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      </IconButton>
+                      <IconButton label="Confirm Done" success onClick={() => handleConfirmOrder(o.order_id)}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <polyline points="20 6 9 17 4 12"/>
                         </svg>
-                      </button>
+                      </IconButton>
                     </div>
                   </td>
                 </tr>

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { SpreadOrder } from "../../types";
 import type { ZoneGroupRecord } from "../../lib/api";
 import { formatQty, priceLabel } from "../../utils/format";
+import IconButton from "../../components/IconButton";
 
 export type LadderView = "all" | "eq" | "option";
 
@@ -9,7 +10,7 @@ interface OrderDetailLadderProps {
   activeOrders: SpreadOrder[];
   zones: ZoneGroupRecord[];
   onShowZoneGroupModal: () => void;
-  onAddOrder: () => void;
+  onAddOrder: (preset?: { groupId: number | null; entryPrice: number | null }) => void;
   onEditOrder: (order: SpreadOrder) => void;
   onCloseOrder: (order: SpreadOrder) => void;
   onAssignGroup?: (orderIds: string[], groupId: number | null) => void;
@@ -20,6 +21,7 @@ interface OrderDetailLadderProps {
 interface LadderLine {
   key: string;
   zoneId: number | null;
+  price: number | null;
   label: string;
   eq?: SpreadOrder;
   opt?: SpreadOrder;
@@ -81,9 +83,9 @@ const netOf = (o: SpreadOrder) => {
 
 /** Column tracks: fixed, with the flexing track carrying the leftover width. */
 const TEMPLATE: Record<string, string> = {
-  all: "80px 44px 44px 56px 56px 72px 46px 30px 52px 40px minmax(72px, 1fr)",
-  eqFull: "80px 56px 56px 44px 44px 60px 60px 72px minmax(0, 1fr)",
-  optFull: "80px 56px 56px 46px 30px 52px 40px 56px 56px 72px minmax(0, 1fr)",
+  all: "63px 56px 47px 62px 62px 69px 49px 48px 58px 47px minmax(48px, 1fr)",
+  eqFull: "73px 64px 77px 64px 55px 76px 76px 77px minmax(48px, 1fr)",
+  optFull: "63px 54px 67px 49px 46px 56px 45px 57px 57px 67px minmax(48px, 1fr)",
   narrow: "76px minmax(0, 1fr) 72px",
 };
 
@@ -129,6 +131,13 @@ const zoneLevels = (zone: ZoneGroupRecord) => {
   });
 };
 
+/** A level's price: the ladder value, else a numeric zone name, else nothing. */
+const levelPrice = (line: LadderLine) => {
+  if (line.price != null) return line.price;
+  const n = Number((line.label ?? "").trim());
+  return Number.isFinite(n) ? n : null;
+};
+
 const buildLines = (zones: ZoneGroupRecord[], orders: SpreadOrder[]): LadderLine[] => {
   const sorted = sortZones(zones);
   const buckets = sorted.map((zone) => ({ zone, levels: zoneLevels(zone) }));
@@ -162,6 +171,7 @@ const buildLines = (zones: ZoneGroupRecord[], orders: SpreadOrder[]): LadderLine
         lines.push({
           key: `${zoneId ?? "none"}-${li}-${i}`,
           zoneId,
+          price: level.price,
           label: i === 0 ? level.label : "",
           eq: eq[i],
           opt: opt[i],
@@ -181,6 +191,7 @@ const buildLines = (zones: ZoneGroupRecord[], orders: SpreadOrder[]): LadderLine
       lines.push({
         key: `none-${i}`,
         zoneId: null,
+        price: null,
         label: i === 0 ? "—" : "",
         eq: eq[i],
         opt: opt[i],
@@ -268,67 +279,74 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
     onDrop: (e: React.DragEvent) => handleDrop(e, line.zoneId),
   });
 
-  const actionsFor = (line: LadderLine) => {
-    const legs = narrow || view === "all"
-      ? ([line.eq, line.opt].filter(Boolean) as SpreadOrder[])
-      : view === "eq"
-        ? (line.eq ? [line.eq] : [])
-        : (line.opt ? [line.opt] : []);
-    if (legs.length === 0) return null;
+  /** Drag / link / edit / close for one leg, shown over that leg's Net cell. */
+  const legActions = (o: SpreadOrder) => (
+    <div className="at-actions">
+      <span
+        className="icon-btn"
+        draggable
+        role="button"
+        tabIndex={-1}
+        aria-label={`Drag ${legLabel(o)} onto a zone to move it`}
+        title={`Drag ${legLabel(o)} onto a zone to move it`}
+        onDragStart={(e) => {
+          e.dataTransfer.setData("text/plain", o.order_id);
+          e.dataTransfer.effectAllowed = "move";
+        }}
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" />
+          <circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" />
+          <circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" />
+        </svg>
+      </span>
+      <IconButton
+        label={`Link ${legLabel(o)}`}
+        pressed={linkSource === o.order_id}
+        onClick={() => handleLink(o.order_id)}
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        </svg>
+      </IconButton>
+      <IconButton label={`Edit ${legLabel(o)}`} onClick={() => onEditOrder(o)}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 11.5 8 16l4.5-7.5z" />
+        </svg>
+      </IconButton>
+      <IconButton label={`Close ${legLabel(o)}`} danger onClick={() => onCloseOrder(o)}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </IconButton>
+    </div>
+  );
+
+  /** A leg's Net cell carries its own actions, so each block owns its cluster. */
+  const netCell = (order?: SpreadOrder) => (
+    <span className="at-net">
+      {order ? <NetCell order={order} /> : <Dash />}
+      {order ? legActions(order) : null}
+    </span>
+  );
+
+  /** Rows with no leg offer the one thing left to do at that level. */
+  const emptyRowAction = (line: LadderLine) => {
+    if (line.eq || line.opt || line.zoneId == null) return null;
+    const price = levelPrice(line);
     return (
-      <div className="at-actions">
-        {legs.map((o) => (
-          <React.Fragment key={o.order_id}>
-            <span
-              className="at-act"
-              draggable
-              role="button"
-              tabIndex={-1}
-              title={`Drag ${legLabel(o)} onto a zone to move it`}
-              onDragStart={(e) => {
-                e.dataTransfer.setData("text/plain", o.order_id);
-                e.dataTransfer.effectAllowed = "move";
-              }}
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" />
-                <circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" />
-                <circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" />
-              </svg>
-            </span>
-            <button
-              type="button"
-              className="at-act"
-              aria-pressed={linkSource === o.order_id}
-              aria-label={`Link ${legLabel(o)}`}
-              title={`Link ${legLabel(o)}`}
-              onClick={() => handleLink(o.order_id)}
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-              </svg>
-            </button>
-            <button type="button" className="at-act" aria-label={`Edit ${legLabel(o)}`} title={`Edit ${legLabel(o)}`} onClick={() => onEditOrder(o)}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 11.5 8 16l4.5-7.5z" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="at-act"
-              data-danger="true"
-              aria-label={`Close ${legLabel(o)}`}
-              title={`Close ${legLabel(o)}`}
-              onClick={() => onCloseOrder(o)}
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </React.Fragment>
-        ))}
+      <div className="at-actions at-actions-row">
+        <IconButton
+          label={`Add order${price != null ? ` at ${money(price)}` : ""}`}
+          onClick={() => onAddOrder({ groupId: line.zoneId, entryPrice: price })}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </IconButton>
       </div>
     );
   };
@@ -345,7 +363,10 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
           {mark}
           <span className="at-left">{leg ? legLabel(leg) : <span className="at-muted">No order</span>}</span>
           {leg ? (
-            <span className={`at-num ${total < 0 ? "at-neg" : "at-pos"}`}>{signedMoney(total)}</span>
+            <span className="at-net">
+              <span className={`at-num ${total < 0 ? "at-neg" : "at-pos"}`}>{signedMoney(total)}</span>
+              {legActions(leg)}
+            </span>
           ) : (
             <Dash />
           )}
@@ -373,7 +394,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
           </span>
           <span className="at-num">{money(eq.entry_price)}</span>
           <span className="at-num">{money(eq.current_price)}</span>
-          <NetCell order={eq} />
+          {netCell(eq)}
           <span className="at-left at-muted at-comment">{eq.group_name ?? "—"}</span>
         </>
       );
@@ -400,7 +421,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
           <span className="at-num at-class-option">{formatQty(opt.qty)}</span>
           <span className="at-num">{money(opt.entry_price)}</span>
           <span className="at-num">{money(opt.current_price)}</span>
-          <NetCell order={opt} />
+          {netCell(opt)}
           <span className="at-left at-muted at-comment">{opt.group_name ?? "—"}</span>
         </>
       );
@@ -420,12 +441,12 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         )}
         {eq ? <span className="at-num">{money(eq.entry_price)}</span> : <Dash />}
         {eq ? <span className="at-num">{money(eq.current_price)}</span> : <Dash />}
-        {eq ? <NetCell order={eq} /> : <Dash />}
+        {netCell(eq)}
         {opt ? <TypeChip order={opt} /> : <Dash />}
         {opt ? <span className="at-num at-muted">{dte ?? "—"}</span> : <Dash />}
         {opt ? <span className="at-num">{money(opt.strike_price)}</span> : <Dash />}
         {opt ? <span className="at-num at-class-option">{formatQty(opt.qty)}</span> : <Dash />}
-        {opt ? <NetCell order={opt} /> : <Dash />}
+        {netCell(opt)}
       </>
     );
   };
@@ -449,6 +470,14 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
     <section className="at-card at-detail" aria-label="Order detail">
       <div className="at-dh">
         <h2>Order detail</h2>
+        <div className="at-dh-new">
+          <button type="button" className="at-znew" onClick={onShowZoneGroupModal}>
+            + New zone
+          </button>
+          <button type="button" className="at-znew" onClick={() => onAddOrder()}>
+            + New order
+          </button>
+        </div>
         <div className="at-dh-right">
           <div className="at-tabs" role="group" aria-label="Ladder view">
             <button type="button" className="at-tab" aria-pressed={view === "all"} onClick={() => setView("all")}>
@@ -461,12 +490,6 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
               Options
             </button>
           </div>
-          <button type="button" className="at-znew" onClick={onShowZoneGroupModal}>
-            + New zone
-          </button>
-          <button type="button" className="at-znew" onClick={onAddOrder}>
-            + New order
-          </button>
         </div>
       </div>
 
@@ -522,7 +545,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
               {...rowDropProps(line)}
             >
               {renderCells(line)}
-              {actionsFor(line)}
+              {emptyRowAction(line)}
             </div>
           ))}
 

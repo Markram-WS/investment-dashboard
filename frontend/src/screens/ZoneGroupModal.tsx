@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../lib/api';
 import ModalShell from './components/ModalShell';
+import IconButton from '../components/IconButton';
 import { priceLabel } from '../utils/format';
 
 const CARD: React.CSSProperties = { background: 'var(--color-canvas)', borderRadius: 16, padding: 24 };
@@ -25,10 +26,6 @@ const BTN: React.CSSProperties = {
 };
 const BTN_SECONDARY: React.CSSProperties = {
   ...BTN, background: 'transparent', color: 'var(--color-ink)', borderColor: 'var(--color-hairline)',
-};
-const ICON_BTN: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 2,
-  background: 'transparent', border: 'none', cursor: 'pointer', lineHeight: 1,
 };
 const ACTION_CELL: React.CSSProperties = {
   padding: '2px 0', textAlign: 'right', whiteSpace: 'nowrap', width: 68,
@@ -260,12 +257,8 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
                               />
                             </td>
                             <td style={ACTION_CELL}>
-                              <button onClick={handleSaveEdit} style={{ ...ICON_BTN, color: 'var(--color-ink)' }} className="hover:opacity-70 transition-opacity" title="Save" aria-label="Save">
-                                ✓
-                              </button>
-                              <button onClick={handleCancelEdit} style={{ ...ICON_BTN, color: 'var(--color-slate)' }} className="hover:text-ink transition-colors" title="Cancel" aria-label="Cancel">
-                                ✕
-                              </button>
+                              <IconButton label="Save" onClick={handleSaveEdit}>✓</IconButton>
+                              <IconButton label="Cancel" onClick={handleCancelEdit}>✕</IconButton>
                             </td>
                           </>
                         ) : (
@@ -276,18 +269,18 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
                             <td style={{ ...CELL, textAlign: 'right' }}>{zone.max_price != null ? `$${zone.max_price.toLocaleString()}` : '-'}</td>
                             <td style={{ ...CELL, textAlign: 'right' }}>{zone.range != null ? `$${zone.range.toLocaleString()}` : '-'}</td>
                             <td style={ACTION_CELL}>
-                              <button onClick={() => handleEdit(zone)} className="inline-flex items-center justify-center p-1 text-slate hover:text-ink transition-colors" title="Edit">
-                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <IconButton label="Edit" onClick={() => handleEdit(zone)}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                                 </svg>
-                              </button>
-                              <button onClick={() => handleDelete(zone.id)} className="inline-flex items-center justify-center p-1 opacity-70 hover:opacity-100 transition-opacity" style={{ color: 'var(--color-danger-text)' }} title="Delete">
-                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              </IconButton>
+                              <IconButton label="Delete" danger onClick={() => handleDelete(zone.id)}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                   <polyline points="3 6 5 6 21 6" />
                                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                                 </svg>
-                              </button>
+                              </IconButton>
                             </td>
                           </>
                         )}

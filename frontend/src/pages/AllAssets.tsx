@@ -6,6 +6,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import PageLayout from '../components/PageLayout';
 import PageHeader from '../components/PageHeader';
 import Button from '../screens/components/Button';
+import IconButton from '../components/IconButton';
 import AddAssetModal from '../screens/AddAssetModal';
 import EditAssetModal from '../screens/EditAssetModal';
 import AssetGroupModal from '../screens/AssetGroupModal';
@@ -107,22 +108,20 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice }: { asset: a
       <td className="px-4 py-3 text-center">
         <div className="flex items-center justify-center gap-1">
           {asset.source === 'yfinance' && (
-            <button onClick={handleRefresh} disabled={refreshing}
-              className="text-slate hover:text-brand-teal transition-colors p-1" title="Refresh price">
-              <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <IconButton label="Refresh price" onClick={handleRefresh} disabled={refreshing}>
+              <svg className={refreshing ? 'animate-spin' : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="23 4 23 10 17 10" />
                 <polyline points="1 20 1 14 7 14" />
                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
               </svg>
-            </button>
+            </IconButton>
           )}
-          <button onClick={() => onEdit(asset)}
-            className="text-slate hover:text-ink transition-colors p-1">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <IconButton label="Edit" onClick={() => onEdit(asset)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
-          </button>
+          </IconButton>
         </div>
       </td>
     </tr>

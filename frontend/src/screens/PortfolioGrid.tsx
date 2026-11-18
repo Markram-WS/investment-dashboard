@@ -273,6 +273,14 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     }
   }, [activeOrders, handleCloseOrder]);
 
+  /** Header pill opens a blank form; a ladder row presets its zone and mark. */
+  const handleAddOrder = useCallback((preset?: { groupId: number | null; entryPrice: number | null }) => {
+    openModal({
+      group_id: preset?.groupId ?? null,
+      entry_price: preset?.entryPrice ?? '',
+    });
+  }, [openModal]);
+
   const handleLinkOrder = useCallback(async (sourceOrderId: string, targetOrderId: string) => {
     try {
       await api.linkOrder(sourceOrderId, targetOrderId, selectedPortfolio?.portfolio_id);
@@ -371,7 +379,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
               activeOrders={activeOrders}
               zones={groups}
               onShowZoneGroupModal={() => setShowZoneGroupModal(true)}
-              onAddOrder={openModal}
+              onAddOrder={handleAddOrder}
               onEditOrder={startEdit}
               onCloseOrder={handleCloseOrder}
               onAssignGroup={handleAssignGroup}

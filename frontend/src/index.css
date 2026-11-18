@@ -723,8 +723,10 @@ a:focus-visible {
 .at-dh h2 { margin: 0; font-size: var(--fs-section); font-weight: 600; line-height: 1; }
 .at-count { font-size: var(--fs-label); color: var(--color-slate); white-space: nowrap; }
 .at-tabs { display: flex; gap: 4px; }
-/* Tabs and the zone/order pills form one 26px strip at the right of the header. */
+/* The view tabs own the right edge of the 26px header strip. */
 .at-dh-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+/* Card actions sit with the title; the view tabs own the right edge alone. */
+.at-dh-new { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .at-tab {
   border: 1px solid var(--color-hairline);
   border-radius: 999px;
@@ -771,6 +773,7 @@ a:focus-visible {
   align-items: end;
   height: 22px;
   margin-top: 4px;
+  padding: 0 8px;
   column-gap: 6px;
 }
 .at-grp {
@@ -817,10 +820,19 @@ a:focus-visible {
 .at-muted { color: var(--color-slate); }
 .at-pos { color: var(--color-positive-text); font-weight: 600; }
 .at-neg { color: var(--color-danger-text); font-weight: 600; }
+/* A leg's Net cell owns its own action cluster: two legs on one row read as two
+   clusters, each pinned to the block it acts on. */
+.at-net {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
 .at-actions {
   position: absolute;
   z-index: 3;
-  right: 4px;
+  right: 0;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -831,24 +843,38 @@ a:focus-visible {
   pointer-events: none;
   background: linear-gradient(90deg, transparent, var(--color-row-hover) 18px);
 }
+/* The empty-row + stays at the row's own right edge. */
+.at-actions-row { right: 4px; }
 .at-row:hover .at-actions,
 .at-row:focus-within .at-actions { opacity: 1; pointer-events: auto; }
-.at-act {
+/* --- row icon actions ---
+   One shape for every pencil, refresh, trash, tick or close that lives in a row
+   or table cell. Size and stroke are pinned here so a stray w-4 class or a
+   stroke-width attribute cannot drift the cluster. */
+.icon-btn {
   width: 20px;
   height: 20px;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   border: 1px solid var(--color-hairline);
   border-radius: 999px;
   background: var(--color-canvas);
   color: var(--color-slate);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
   cursor: pointer;
-  padding: 0;
+  transition: color 120ms ease, border-color 120ms ease, opacity 120ms ease;
 }
-.at-act:hover { color: var(--color-ink); }
-.at-act[data-danger="true"]:hover { color: var(--color-danger-text); border-color: var(--color-danger-text); }
-.at-act[aria-pressed="true"] { border-color: var(--color-brand-teal); color: var(--color-brand-teal); }
+.icon-btn > svg { width: 12px; height: 12px; stroke-width: 2; }
+.icon-btn:hover { color: var(--color-ink); border-color: var(--color-outline); }
+.icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.icon-btn[data-danger="true"]:hover { color: var(--color-danger-text); border-color: var(--color-danger-text); }
+.icon-btn[data-success="true"]:hover { color: var(--color-success); border-color: var(--color-success); }
+.icon-btn[aria-pressed="true"] { color: var(--color-brand-teal); border-color: var(--color-brand-teal); }
 
 /* --- instrument key: one hue per axis. Class = what the leg is (future /
    option), type = which way the option points. Text on a 10% tint of itself,

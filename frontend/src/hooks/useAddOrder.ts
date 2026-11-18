@@ -27,7 +27,7 @@ export interface CreateOrderResult {
 interface UseAddOrderReturn {
   showModal: boolean;
   formData: AddOrderForm;
-  openModal: () => void;
+  openModal: (preset?: Partial<AddOrderForm>) => void;
   closeModal: () => void;
   handleFormChange: (field: keyof AddOrderForm, value: any) => void;
   handleCreateOrder: (portfolioId: number) => Promise<CreateOrderResult>;
@@ -65,8 +65,8 @@ export const useAddOrder = (): UseAddOrderReturn => {
   const [formData, setFormData] = useState<AddOrderForm>({ ...defaultForm });
   const onCreatedRef = useRef<() => void>(() => {});
 
-  const openModal = useCallback(() => {
-    setFormData({ ...defaultForm, order_id: genId() });
+  const openModal = useCallback((preset?: Partial<AddOrderForm>) => {
+    setFormData({ ...defaultForm, order_id: genId(), ...preset });
     setShowModal(true);
   }, []);
 

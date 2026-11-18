@@ -267,6 +267,7 @@ Interaction states and overlays (modals, dropdowns, sticky nav) use the three-st
 - **Outline:** `border brand-teal text-brand-teal` — transparent fill. Hover gets `bg-teal-50`.
 - **Danger:** `bg-red-600 text-white` — destructive actions. Hover darkens.
 - **Ghost:** `bg-transparent text-slate border hairline` — lowest emphasis.
+- **Icon action (`IconButton`):** a 20px full circle with the 1px hairline, canvas fill and a 12px / stroke-width 2 icon at `--color-slate`. Hover takes ink text and an outline-coloured border; `danger` hovers `--color-danger-text`, `success` hovers `--color-success`, `aria-pressed` is brand-teal, disabled drops to 0.5. It is the only shape for a pencil, refresh, trash, tick or close inside a row or table cell — `AllAssets`, `AssetGroupModal`, `ZoneGroupModal`, `PortfolioMutualFund` and the ladder's hover overlay all use it.
 - **States:** Hover is per variant (`hover:bg-teal-600`, `hover:bg-surface`, `hover:bg-teal-50`, `hover:bg-red-700`, `hover:bg-surface`) at `frontend/src/screens/components/Button.tsx:14-18`. Press scales the button to 0.97 (`active:scale-[0.97]`, `Button.tsx:40`). Disabled renders at `opacity-50` with `cursor-not-allowed` and cancels the press scale (`disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100`, `Button.tsx:40`). The transition is `transition-all duration-150` (`Button.tsx:40`).
 - **Focus:** not set by the component. It inherits the global `:focus-visible` outline at 2px brand-teal with 2px offset (`index.css:585-596`).
 - **Sizes:** sm `px-3 py-1.5 text-[10px]` renders 11.25px horizontal, 5.625px vertical, 10px type; md `px-4 py-2 text-xs` renders 15px, 7.5px, 11.25px; lg `px-6 py-3 text-sm` renders 22.5px, 11.25px, 13.125px (`Button.tsx:21-25`). The rem-based utilities scale down because the root is 15px (`index.css:84`).
@@ -279,6 +280,18 @@ Interaction states and overlays (modals, dropdowns, sticky nav) use the three-st
 - **Internal Padding:** 24px is the default for a card holding one block; a summary strip with two columns uses `--strip-pad-y` / `--strip-pad-x` (14px/18px) so the block stays compact (see Overview Totals Strip).
 - **Tinted variants:** Background shifts to teal-light, coral-light, or yellow-light for status cards.
 - **Page body:** The page body is `surface`, so a container that must read as a block takes `canvas`; a container filled with `surface` is invisible on the body and must not be used as a section boundary.
+
+### Ladder Table
+
+The order-detail ladder (`screens/components/OrderDetailLadder.tsx`, CSS `.at-*`) is the one table whose tracks are set inline, per view. Geometry: card padding 9px / 14px / 8px, `.at-dh` 26px, `.at-lhead` 47px (band row 22px + column row 21px), `.at-row` 31px = `--row-h-ladder` 30px plus the 1px separator, row padding 0 8px, column gap 6px. At 1280 the card is 735 wide and the row content 689.
+
+- **Header strip.** The title, `+ New zone` and `+ New order` sit left in `.at-dh-new` (6px between pills); the view tabs (All · EQ · Future · Options, 22px tall) own the right edge in `.at-dh-right`. Actions and the view switch never share one cluster.
+- **Tracks.** All: 63 · 56 · 47 · 62 · 62 · 69 · 49 · 48 · 58 · 47 · `minmax(48px, 1fr)`. EQ · Future: 73 · 64 · 77 · 64 · 55 · 76 · 76 · 77 · `minmax(48px, 1fr)`. Options: 63 · 54 · 67 · 49 · 46 · 56 · 45 · 57 · 57 · 67 · `minmax(48px, 1fr)`. Every fixed track is its measured content (or column head) plus the same padding, so no column reads bloated beside another; the last track flexes so a narrower card cannot overflow.
+- **Alignment.** Words — Mark, Side, Status, Date, Comment — are left-aligned in head and cell (`LEFT_HEADS`); numbers are right-aligned (`at-num`); the option chip right-aligns inside its track (`justify-self: end`).
+- **Bands.** The `.at-groups` band row renders in every view — two bands in All (EQ · Future over tracks 3–6, Options over 7–11), one full-width band in a single-product view — so `.at-lhead` stays 47px and the card never jumps when the tab changes. Band colour follows the instrument key.
+- **Empty cells** print `—` at `--color-tier-2` (`.at-dash`), never slate, so only populated legs read.
+- **Row actions.** Each leg's four actions (drag · link · edit · close, all `IconButton`) live in that leg's own Net P&L cell — `.at-net` is the positioning context — so a row holding an EQ leg and an option leg shows two clusters, each anchored to its block, and a single-product view shows one. A legless zoned row shows a single `+` at the row's right edge that opens Add order with that level's zone and mark price preset. Clusters appear on row hover or `focus-within` only.
+- **Narrow** (below 900px) collapses to three tracks — Mark · Leg · Net P&L — with one cluster.
 
 ### Overview Totals Strip
 
@@ -343,7 +356,7 @@ page header              22px title left, status dots right, 11.25px below (mb-3
 
 **The Converge-On-Overview Rule.** Pages converge on Overview; a new page that needs a summary block uses the totals strip before inventing a new layout.
 
-**The One-Screen Detail Rule.** The Active Trading portfolio detail (`screens/PortfolioGrid.tsx`, route `/analytics/portfolio/:id`) is a workstation, not a scrolling page. `.at-page` pins `height: calc(100dvh - 60px)` and cancels the shell's vertical padding with `margin-block: -16px`, `-20px` at `md`, so the page never scrolls and only the order ladder (`.at-scroll`) scrolls inside its card. The composition is a 44px header band, an 84px pool rail, then a `minmax(0, 808px) 408px` workspace with a 12px gap: left, order detail (flex) over order history (116px); right, payoff (flex) over risk (176px). The ladder is one row per price level at `--row-h-ladder`, built from the `orders_groups` ranges (`max_price` down to `min_price` by `range`); orders whose `entry_price` falls between steps attach to the nearest step at or above it, and orders with no group fall into a trailing No zone row. Below 900px the right column is removed, the rail drops to two tracks, and the ladder reduces to Mark · Leg · Net P&L. The ladder's own scale is the standard for this surface: data cells (mark, status, size, in, out, net, type, DTE, strike) at `--fs-label` (11px, tabular-nums), column and group heads at `--fs-micro` (10px), and rows at `--row-h-ladder` (30px) with no vertical padding and the 1px `--color-hairline-soft` separator, so the visual pitch is 31px and more price levels fit inside the one screen. It is deliberately denser than the Dashboard Scale, whose 13px table cell and 38px `--row-h-dense` row are unchanged and continue to govern every other table.
+**The Detail-Grows-With-Its-Rows Rule.** The Active Trading portfolio detail (`screens/PortfolioGrid.tsx`, route `/analytics/portfolio/:id`) is a workstation, not a page of stacked cards: `.at-page` sets `min-height: calc(100dvh - 60px)` with `margin-block: -16px`, `-20px` at `md` and leaves the overflow visible, so it is exactly one screen while the ladder is short and grows downward as rows are added — 12 rows measure page 682 and document `scrollHeight` 741 against a 720 viewport, so the scroll is on the document, never inside the ladder. The composition is a 44px header band, an 84px pool rail, then a `minmax(0, 808px) 408px` workspace with a 12px gap: left, order detail (height 26 + 4 + 47 + N×31 + 17 of padding) above order history (32px collapsed disclosure, 116px open); right, payoff (`min-height` 396px) above risk, with `.at-col.at-right { align-self: start }` so the chart never stretches to the ladder's height. The ladder is one row per price level at `--row-h-ladder`, built from `orders_groups` ranges (`max_price` down to `min_price` by `range`); orders whose `entry_price` falls between levels take the nearest level at or above it, and a level holding several legs emits one row per leg with the mark printed once. At 1280×720 the detail card is 735×468 with a 705-wide ladder inside 9/14/8 padding.
 
 ## 7. Do's and Don'ts
 
@@ -460,6 +473,18 @@ States ship per component, not per token. A state that the code does not impleme
 | Selected | Not implemented | none |
 | Disabled | Not implemented | none |
 | Loading | Not implemented | none |
+
+### Ladder Row Actions
+
+| State | Visual change | Where |
+|---|---|---|
+| Resting | cluster hidden: `opacity: 0`, `pointer-events: none` | `index.css` `.at-actions` |
+| Row hover / focus-within | cluster fades in over a 18px gradient of `--color-row-hover` | `index.css` `.at-row:hover .at-actions` |
+| Link armed | `aria-pressed="true"` turns the icon and border brand-teal | `index.css` `.icon-btn[aria-pressed="true"]` |
+| Close hover | danger red icon and border | `index.css` `.icon-btn[data-danger="true"]:hover` |
+| Empty level hover | one `+` at the row's right edge (`at-actions-row`); opens Add order with the level's zone and mark preset | `OrderDetailLadder.tsx`, `PortfolioGrid.tsx` `handleAddOrder` |
+| Keyboard | buttons stay in the tab order; `:focus-within` reveals the cluster; the global 2px brand-teal outline is the only focus ring | `index.css` |
+| Drag | the handle carries `draggable`, `role="button"`, `tabIndex={-1}`; dropping on a row calls `onAssignGroup([id], zoneId)` | `OrderDetailLadder.tsx` |
 
 ### Nav Links
 
