@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, resolve_portfolio_db
 from app.models import Portfolio, ActiveOrder, TradePlan, AiActionLog, TradeHistory, AiAgent
 from app.custom_models import CustomActiveOrder, CustomTransaction, CustomOrdersGroup
-from app.risk_calc import compute_margin_locked
+from app.risk_calc import compute_margin_locked, compute_risk
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -139,6 +139,7 @@ class PortfolioGridData(BaseModel):
     spread_pairs: List[SpreadPair] = []
     active_orders: List[Dict[str, Any]] = []
     recent_trades: List[Dict[str, Any]] = []
+    risk: Optional[dict] = None
 
 def _to_float(val):
     """Convert Decimal/None to float for JSON serialization."""
@@ -664,6 +665,7 @@ async def get_portfolio_detail(
             })
 
         margin_locked = await compute_margin_locked(db, portfolio)
+        risk = await compute_risk(db, portfolio, active_orders)
 
         return PortfolioGridData(
             portfolio_id=portfolio.portfolio_id,
@@ -689,7 +691,8 @@ async def get_portfolio_detail(
             ai_risk_insight=ai_risk_insight,
             spread_pairs=spread_pairs,
             active_orders=active_orders_list,
-            recent_trades=recent_trades_list
+            recent_trades=recent_trades_list,
+            risk=risk
         )
     finally:
         if is_custom:
