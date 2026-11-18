@@ -33,6 +33,7 @@ class ActiveOrderCreate(BaseModel):
     expiry_date: Optional[datetime] = None
     strike_price: Optional[float] = None
     cost: Optional[float] = 0.0
+    remark: Optional[str] = None
 
     @field_validator('expiry_date', mode='after')
     @classmethod
@@ -61,6 +62,7 @@ class ActiveOrderUpdate(BaseModel):
     expiry_date: Optional[datetime] = None
     strike_price: Optional[float] = None
     cost: Optional[float] = None
+    remark: Optional[str] = None
 
     @field_validator('expiry_date', mode='after')
     @classmethod
@@ -92,6 +94,7 @@ class ActiveOrderResponse(BaseModel):
     expiry_date: Optional[datetime] = None
     strike_price: Optional[float] = None
     cost: Optional[float] = 0.0
+    remark: Optional[str] = None
     created_at: Optional[datetime] = None
 
     class Config:
@@ -211,7 +214,7 @@ async def update_order_status(
                 executed_by=order.executed_by or "Manual",
                 entry_date=order.created_at or now,
                 exit_date=now,
-                comments={"note": "Canceled"},
+                remark={"note": "Canceled"},
             )
             db.add(history)
             await session.delete(order)
@@ -334,7 +337,7 @@ async def close_order(
                 decision_note=decision_note,
                 entry_date=o.created_at or now,
                 exit_date=now,
-                comments={"cost": float(req.cost or 0)},
+                remark={"cost": float(req.cost or 0)},
             )
 
         sub_result = await session.execute(

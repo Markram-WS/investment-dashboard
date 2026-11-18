@@ -49,6 +49,7 @@ export interface SpreadOrder {
   exercise_price?: number | null;
   cost?: number;
   link_type?: 'spread' | 'pending_close' | 'primary' | 'none';
+  remark?: string | null;
 }
 
 export interface GroupOption {
@@ -137,7 +138,7 @@ export interface Transaction {
   entry_date: string | null;
   exit_date: string | null;
   flow: string | null;
-  comments: any | null;
+  remark: any | null;
 }
 
 export interface TransactionsResponse {

@@ -43,6 +43,20 @@ async def lifespan(app: FastAPI):
         )
         if not result.scalar():
             await conn.execute(text("ALTER TABLE portfolios ADD COLUMN is_custom BOOLEAN DEFAULT FALSE"))
+        # 2026-11-18: per-order remark; trade history keeps its JSON payload, renamed.
+        try:
+            await conn.execute(text("ALTER TABLE active_orders ADD COLUMN IF NOT EXISTS remark VARCHAR"))
+            await conn.execute(text("""
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'trade_history' AND column_name = 'comments')
+                       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'trade_history' AND column_name = 'remark') THEN
+                        ALTER TABLE trade_history RENAME COLUMN comments TO remark;
+                    END IF;
+                END $$;
+            """))
+        except Exception:
+            pass
     async with ai_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield

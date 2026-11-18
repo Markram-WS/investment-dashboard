@@ -933,8 +933,38 @@ a:focus-visible {
 }
 /* Empty cells: hairline-quiet, so only the populated legs read. */
 .at-dash { color: var(--color-tier-2); }
-/* The trailing word column reads as its own field, not the tail of a number. */
-.at-comment { padding-left: 10px; }
+/* Remark cell: one line, click to edit in place. */
+.at-remark-head { padding-left: 10px; }
+.at-remark {
+  justify-self: start;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0 0 0 10px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+.at-remark:hover { color: var(--color-brand-teal); }
+.at-remark.is-saving { opacity: 0.6; }
+.at-remark-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0 2px;
+  font: inherit;
+  color: var(--color-ink);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-hairline);
+  border-radius: 4px;
+  outline: none;
+}
+.at-remark-input:focus { border-color: var(--color-brand-teal); }
 
 /* Add-order pills: one tint per tone, so different products and different
    option types never look alike. Neutral tones fall back to ink. */

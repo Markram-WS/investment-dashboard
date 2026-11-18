@@ -342,6 +342,7 @@ async def get_portfolio_grid_data(
                     "realized_pl": _to_float(getattr(trade, 'realized_pl', None)),
                     "executed_by": trade.executed_by,
                     "decision_note": getattr(trade, 'decision_note', None),
+                    "remark": getattr(trade, 'remark', None),
                     "entry_date": trade.created_at.isoformat() if trade.created_at else None,
                     "exit_date": getattr(trade, 'exit_date', None) or (trade.updated_at.isoformat() if hasattr(trade, 'updated_at') and trade.updated_at else None)
                 })
@@ -386,6 +387,7 @@ async def get_portfolio_grid_data(
                     "strike_price": _to_float(order.strike_price),
                     "exercise_price": exercise_price_val,
                     "cost": _to_float(order.cost) if order.cost else 0,
+                    "remark": order.remark,
                     "link_type": _link_type(order),
                     "created_at": order.created_at.isoformat() if order.created_at else None
                 })
@@ -597,6 +599,7 @@ async def get_portfolio_detail(
                 "realized_pl": _to_float(getattr(trade, 'realized_pl', None)),
                 "executed_by": trade.executed_by,
                 "decision_note": getattr(trade, 'decision_note', None),
+                "remark": getattr(trade, 'remark', None),
                 "entry_date": trade.created_at.isoformat() if trade.created_at else None,
                 "exit_date": getattr(trade, 'exit_date', None) or (trade.updated_at.isoformat() if hasattr(trade, 'updated_at') and trade.updated_at else None)
             })
@@ -641,6 +644,7 @@ async def get_portfolio_detail(
                 "strike_price": _to_float(order.strike_price),
                 "exercise_price": exercise_price,
                 "cost": _to_float(order.cost) if order.cost else 0,
+                "remark": order.remark,
                 "link_type": _link_type(order),
                 "created_at": order.created_at.isoformat() if order.created_at else None
             })

@@ -112,6 +112,7 @@ class ActiveOrder(Base):
     expiry_date = Column(DateTime, nullable=True)
     strike_price = Column(Numeric(20, 8), nullable=True)
     cost = Column(Numeric(20, 8), default=0.0)
+    remark = Column(String, nullable=True)
     # ETL sync marker
     etl_synced = Column(Boolean, default=False)
     
@@ -180,7 +181,7 @@ class TradeHistory(Base):
     decision_note = Column(String)
     entry_date = Column(DateTime)
     exit_date = Column(DateTime)
-    comments = Column(JSON)
+    remark = Column(JSON)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     # Manual/Bot isolation

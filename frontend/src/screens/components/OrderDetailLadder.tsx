@@ -15,6 +15,7 @@ interface OrderDetailLadderProps {
   onCloseOrder: (order: SpreadOrder) => void;
   onAssignGroup?: (orderIds: string[], groupId: number | null) => void;
   onLinkOrder?: (sourceOrderId: string, targetOrderId: string) => void;
+  onUpdateRemark?: (order: SpreadOrder, remark: string | null) => void | Promise<void>;
 }
 
 /** One visual ladder line: a price level, or one leg when a level holds several. */
@@ -91,13 +92,13 @@ const TEMPLATE: Record<string, string> = {
 
 const HEADS: Record<string, string[]> = {
   all: ["Mark", "Side", "qty", "In", "Out", "Net P&L", "Type", "DTE", "Strike", "Size", "Net P&L"],
-  eqFull: ["Mark", "Status", "Date", "Side", "qty", "Price in", "Price out", "Net P&L", "Comment"],
-  optFull: ["Mark", "Status", "Date", "Type", "DTE", "Strike", "Size", "Pre in", "Pre out", "Net P&L", "Comment"],
+  eqFull: ["Mark", "Status", "Date", "Side", "qty", "Price in", "Price out", "Net P&L", "Remark"],
+  optFull: ["Mark", "Status", "Date", "Type", "DTE", "Strike", "Size", "Pre in", "Pre out", "Net P&L", "Remark"],
   narrow: ["Mark", "Leg", "Net P&L"],
 };
 
 /** Column heads whose content is a word, not a number. */
-const LEFT_HEADS = new Set(["Mark", "Side", "Status", "Date", "Comment"]);
+const LEFT_HEADS = new Set(["Mark", "Side", "Status", "Date", "Remark"]);
 
 const roundPrice = (v: number) => Math.round(v * 1e8) / 1e8;
 
@@ -237,9 +238,58 @@ const TypeChip = ({ order }: { order: SpreadOrder }) => (
   </span>
 );
 
+/** A remark edited where it is read: click, type, Enter or blur saves. */
+const RemarkCell = ({ order, onSave }: {
+  order: SpreadOrder;
+  onSave?: (order: SpreadOrder, remark: string | null) => void | Promise<void>;
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(order.remark ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { if (!editing) setDraft(order.remark ?? ""); }, [order.remark, editing]);
+
+  const commit = async () => {
+    if (!editing) return;
+    const next = draft.trim();
+    setEditing(false);
+    if (next === (order.remark ?? "")) return;
+    setSaving(true);
+    try { await onSave?.(order, next || null); } finally { setSaving(false); }
+  };
+
+  if (editing) {
+    return (
+      <input
+        className="at-remark-input"
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); commit(); }
+          if (e.key === "Escape") { e.preventDefault(); setDraft(order.remark ?? ""); setEditing(false); }
+        }}
+        aria-label={`Remark for ${legLabel(order)}`}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className={`at-remark${saving ? " is-saving" : ""}`}
+      onClick={() => setEditing(true)}
+      aria-label={`${order.remark ? "Edit" : "Add"} remark for ${legLabel(order)}`}
+    >
+      {order.remark ? order.remark : <span className="at-muted">Add remark</span>}
+    </button>
+  );
+};
+
 const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
   activeOrders, zones, onShowZoneGroupModal, onAddOrder,
-  onEditOrder, onCloseOrder, onAssignGroup, onLinkOrder,
+  onEditOrder, onCloseOrder, onAssignGroup, onLinkOrder, onUpdateRemark,
 }) => {
   const [view, setView] = useState<LadderView>("all");
   const [linkSource, setLinkSource] = useState<string | null>(null);
@@ -395,7 +445,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
           <span className="at-num">{money(eq.entry_price)}</span>
           <span className="at-num">{money(eq.current_price)}</span>
           {netCell(eq)}
-          <span className="at-left at-muted at-comment">{eq.group_name ?? "—"}</span>
+          <RemarkCell order={eq} onSave={onUpdateRemark} />
         </>
       );
     }
@@ -422,7 +472,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
           <span className="at-num">{money(opt.entry_price)}</span>
           <span className="at-num">{money(opt.current_price)}</span>
           {netCell(opt)}
-          <span className="at-left at-muted at-comment">{opt.group_name ?? "—"}</span>
+          <RemarkCell order={opt} onSave={onUpdateRemark} />
         </>
       );
     }
@@ -530,7 +580,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
               {heads.map((h, i) => (
                 <span
                   key={`${h}-${i}`}
-                  className={h === "Comment" ? "at-comment" : undefined}
+                  className={h === "Remark" ? "at-remark-head" : undefined}
                   style={{ textAlign: LEFT_HEADS.has(h) ? "left" : "right" }}
                 >{h}</span>
               ))}

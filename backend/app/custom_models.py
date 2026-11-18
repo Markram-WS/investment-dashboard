@@ -33,6 +33,7 @@ class CustomActiveOrder(CustomBase):
     expiry_date = Column(DateTime, nullable=True)
     strike_price = Column(Numeric(20, 8), nullable=True)
     cost = Column(Numeric(20, 8), default=0.0)
+    remark = Column(String, nullable=True)
     etl_synced = Column(Boolean, default=False)
 
 

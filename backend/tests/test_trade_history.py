@@ -38,7 +38,7 @@ async def test_get_trade_history_with_data(async_client):
             "decision_note": "Initial purchase",
             "entry_date": "2024-01-15T10:00:00",
             "exit_date": None,
-            "comments": None,
+            "remark": None,
         },
         {
             "portfolio_id": portfolio_id,
@@ -51,7 +51,7 @@ async def test_get_trade_history_with_data(async_client):
             "decision_note": "Take profit",
             "entry_date": "2024-02-20T14:30:00",
             "exit_date": "2024-02-21T09:00:00",
-            "comments": {"strategy": "momentum"},
+            "remark": {"strategy": "momentum"},
         },
     ]
 
@@ -93,7 +93,7 @@ async def test_trade_history_response_fields(async_client):
         required_fields = [
             "history_id", "portfolio_id", "portfolio_name", "type",
             "asset", "amount", "exit_price", "realized_pl",
-            "executed_by", "decision_note", "entry_date", "exit_date", "flow", "comments"
+            "executed_by", "decision_note", "entry_date", "exit_date", "flow", "remark"
         ]
         for field in required_fields:
             assert field in record, f"Missing required field: {field}"

@@ -45,7 +45,7 @@ class TransactionResponse(BaseModel):
     order_id: Optional[str] = None
     close_order_id: Optional[str] = None
     flow: Optional[str] = None  # For transfers: "Source -> Destination", else null
-    comments: Optional[dict] = None
+    remark: Optional[dict] = None
 
     class Config:
         orm_mode = True
@@ -97,7 +97,7 @@ async def get_trade_history(
                     order_id=th.order_id,
                     close_order_id=th.close_order_id,
                     flow=None,
-                    comments=th.comments,
+                    remark=th.remark,
                 )
             )
 
@@ -146,7 +146,7 @@ async def create_trade_history(
                 decision_note=history.decision_note,
                 entry_date=history.entry_date,
                 exit_date=history.exit_date,
-                comments={}
+                remark={}
             )
 
         session.add(db_history)

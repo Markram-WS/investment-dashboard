@@ -287,9 +287,10 @@ The order-detail ladder (`screens/components/OrderDetailLadder.tsx`, CSS `.at-*`
 
 - **Header strip.** The title, `+ New zone` and `+ New order` sit left in `.at-dh-new` (6px between pills); the view tabs (All · EQ · Future · Options, 22px tall) own the right edge in `.at-dh-right`. Actions and the view switch never share one cluster.
 - **Tracks.** All: 63 · 56 · 47 · 62 · 62 · 69 · 49 · 48 · 58 · 47 · `minmax(48px, 1fr)`. EQ · Future: 73 · 64 · 77 · 64 · 55 · 76 · 76 · 77 · `minmax(48px, 1fr)`. Options: 63 · 54 · 67 · 49 · 46 · 56 · 45 · 57 · 57 · 67 · `minmax(48px, 1fr)`. Every fixed track is its measured content (or column head) plus the same padding, so no column reads bloated beside another; the last track flexes so a narrower card cannot overflow.
-- **Alignment.** Words — Mark, Side, Status, Date, Comment — are left-aligned in head and cell (`LEFT_HEADS`); numbers are right-aligned (`at-num`); the option chip right-aligns inside its track (`justify-self: end`).
+- **Alignment.** Words — Mark, Side, Status, Date, Remark — are left-aligned in head and cell (`LEFT_HEADS`); numbers are right-aligned (`at-num`); the option chip right-aligns inside its track (`justify-self: end`).
 - **Bands.** The `.at-groups` band row renders in every view — two bands in All (EQ · Future over tracks 3–6, Options over 7–11), one full-width band in a single-product view — so `.at-lhead` stays 47px and the card never jumps when the tab changes. Band colour follows the instrument key.
 - **Empty cells** print `—` at `--color-tier-2` (`.at-dash`), never slate, so only populated legs read.
+- **Remark** is the table's only editable cell: it prints the order's own `remark` (a muted `Add remark` when empty) and clicking it swaps in a one-line input — Enter or blur saves through `PUT /orders/{id}`, Escape cancels, and saving empty text clears the value to `null`. Long text truncates with an ellipsis; the All view has no remark column, so a leg's remark is edited in its own view.
 - **Row actions.** Each leg's four actions (drag · link · edit · close, all `IconButton`) live in that leg's own Net P&L cell — `.at-net` is the positioning context — so a row holding an EQ leg and an option leg shows two clusters, each anchored to its block, and a single-product view shows one. A legless zoned row shows a single `+` at the row's right edge that opens Add order with that level's zone and mark price preset. Clusters appear on row hover or `focus-within` only.
 - **Narrow** (below 900px) collapses to three tracks — Mark · Leg · Net P&L — with one cluster.
 
@@ -481,6 +482,7 @@ States ship per component, not per token. A state that the code does not impleme
 | Resting | cluster hidden: `opacity: 0`, `pointer-events: none` | `index.css` `.at-actions` |
 | Row hover / focus-within | cluster fades in over a 18px gradient of `--color-row-hover` | `index.css` `.at-row:hover .at-actions` |
 | Link armed | `aria-pressed="true"` turns the icon and border brand-teal | `index.css` `.icon-btn[aria-pressed="true"]` |
+| Remark edit | click swaps the cell for `.at-remark-input` (surface-soft fill, teal focus border); Enter or blur saves, Escape restores the old text, empty clears to `null` | `OrderDetailLadder.tsx`, `PortfolioGrid.tsx` `handleUpdateRemark` |
 | Close hover | danger red icon and border | `index.css` `.icon-btn[data-danger="true"]:hover` |
 | Empty level hover | one `+` at the row's right edge (`at-actions-row`); opens Add order with the level's zone and mark preset | `OrderDetailLadder.tsx`, `PortfolioGrid.tsx` `handleAddOrder` |
 | Keyboard | buttons stay in the tab order; `:focus-within` reveals the cluster; the global 2px brand-teal outline is the only focus ring | `index.css` |

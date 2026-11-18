@@ -56,6 +56,7 @@ tags:
     - `grid_group_id`: ID สำหรับจัดกลุ่มออเดอร์ในโซนเดียวกัน (Zone Consolidation).
     - `linked_order_id`: ID เชื่อมโยงคู่ขา 1:1 สำหรับ Spread Strategy.
     - **`executed_by`**: บ่งบอกที่มา (Manual, Bot, AI).
+    - **`remark`**: ข้อความอิสระต่อออเดอร์ (free-text note).
     - `option_id` (FK, nullable): เชื่อมโยงรายละเอียด Option.
 
 ---
@@ -81,7 +82,7 @@ tags:
     - `exit_price`, `realized_pl`: ราคาปิดและกำไรขาดทุนที่เกิดขึ้นจริง.
     - **`executed_by`**: ใครเป็นคนสั่งรายการนี้ (Manual, Bot, AI).
     - **`decision_note`**: (Decision Journal) บันทึกความคิดเห็นย้อนหลัง (Mini Post-it style).
-    - `entry_date`, `exit_date`, `comments` (JSONB).
+    - `entry_date`, `exit_date`, `remark` (JSONB เก็บข้อมูลเสริม เช่น ค่าธรรมเนียม/หมายเหตุ).
 
 ---
 

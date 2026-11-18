@@ -266,6 +266,16 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     }
   }, [selectedPortfolio, activeOrders, groups, groupOrderCounts, fetchAnalyticsData]);
 
+  /** Inline remark edits save one field and refresh the ladder. */
+  const handleUpdateRemark = useCallback(async (order: SpreadOrder, remark: string | null) => {
+    try {
+      await api.updateOrder(order.order_id, { remark }, selectedPortfolio?.portfolio_id);
+      await fetchAnalyticsData();
+    } catch {
+      notify('Remark not saved', 'warning');
+    }
+  }, [selectedPortfolio?.portfolio_id, fetchAnalyticsData, notify]);
+
   const handleDropOnTradeHistory = useCallback((orderId: string) => {
     const order = activeOrders.find(o => o.order_id === orderId);
     if (order) {
@@ -384,6 +394,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
               onCloseOrder={handleCloseOrder}
               onAssignGroup={handleAssignGroup}
               onLinkOrder={handleLinkOrder}
+              onUpdateRemark={handleUpdateRemark}
             />
             <OrderHistoryCard
               tradeHistory={tradeHistory}

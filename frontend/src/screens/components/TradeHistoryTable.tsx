@@ -143,7 +143,7 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                           {h.realized_pl != null ? `$${Number(h.realized_pl).toLocaleString()}` : "-"}
                         </td>
                         <td className="px-3 py-1.5">
-                          <span style={badgeStyle}>{h.comments?.note === "Canceled" ? "Canceled" : "Close"}</span>
+                          <span style={badgeStyle}>{h.remark?.note === "Canceled" ? "Canceled" : "Close"}</span>
                         </td>
                         <td className="hidden lg:table-cell px-3 py-1.5 text-right text-slate" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{fmt(h.entry_date)}</td>
                         <td className="hidden lg:table-cell px-3 py-1.5 text-right text-slate" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{fmt(h.exit_date)}</td>
