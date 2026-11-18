@@ -32,7 +32,7 @@ const shortDate = (d?: string | null) => {
   return `${pad(dt.getDate())}/${pad(dt.getMonth() + 1)}/${String(dt.getFullYear()).slice(2)}`;
 };
 
-/** Closed-trade card: a 32px disclosure bar by default, expanding to 116px with the newest three rows. */
+/** Closed-trade card: a 32px disclosure bar by default, expanding to 138px with the column heads and newest three rows. */
 const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onViewAll, onDropOrder }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -106,21 +106,31 @@ const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onVie
         {rows.length === 0 ? (
           <div className="at-hist-empty">Nothing closed yet. Filled orders land here once they exit.</div>
         ) : (
-          rows.slice(0, VISIBLE_ROWS).map((h) => {
-            const net = Number(h.realized_pl ?? 0);
-            return (
-              <div className="at-histrow" key={h.history_id ?? `${h.order_id}-${h.exit_date}`}>
-                <span>{shortDate(h.exit_date)}</span>
-                <span style={{ color: "var(--color-ink)" }}>
-                  {`${h.asset ?? "—"} · ${String(h.type ?? "closed").toLowerCase()}`}
-                </span>
-                <span className="at-num">{formatQty(h.amount)}</span>
-                <span className="at-num">{money(h.entry_price)}</span>
-                <span className="at-num">{money(h.exit_price)}</span>
-                <span className={`at-num ${net < 0 ? "at-neg" : "at-pos"}`}>{signedMoney(net)}</span>
-              </div>
-            );
-          })
+          <>
+            <div className="at-histhead">
+              <span>Date</span>
+              <span>Order</span>
+              <span className="at-num">Qty</span>
+              <span className="at-num">In</span>
+              <span className="at-num">Out</span>
+              <span className="at-num">Net P&amp;L</span>
+            </div>
+            {rows.slice(0, VISIBLE_ROWS).map((h) => {
+              const net = Number(h.realized_pl ?? 0);
+              return (
+                <div className="at-histrow" key={h.history_id ?? `${h.order_id}-${h.exit_date}`}>
+                  <span>{shortDate(h.exit_date)}</span>
+                  <span style={{ color: "var(--color-ink)" }}>
+                    {`${h.asset ?? "—"} · ${String(h.type ?? "closed").toLowerCase()}`}
+                  </span>
+                  <span className="at-num">{formatQty(h.amount)}</span>
+                  <span className="at-num">{money(h.entry_price)}</span>
+                  <span className="at-num">{money(h.exit_price)}</span>
+                  <span className={`at-num ${net < 0 ? "at-neg" : "at-pos"}`}>{signedMoney(net)}</span>
+                </div>
+              );
+            })}
+          </>
         )}
       </div>
     </section>

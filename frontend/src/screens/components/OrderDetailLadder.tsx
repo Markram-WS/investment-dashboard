@@ -282,7 +282,7 @@ const RemarkCell = ({ order, onSave }: {
       onClick={() => setEditing(true)}
       aria-label={`${order.remark ? "Edit" : "Add"} remark for ${legLabel(order)}`}
     >
-      {order.remark ? order.remark : <span className="at-muted">Add remark</span>}
+      {order.remark ?? ""}
     </button>
   );
 };
