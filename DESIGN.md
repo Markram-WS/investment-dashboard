@@ -385,7 +385,7 @@ page header              22px title left, status dots right, 11.25px below (mb-3
 
 **The Converge-On-Overview Rule.** Pages converge on Overview; a new page that needs a summary block uses the totals strip before inventing a new layout.
 
-**The Detail-Grows-With-Its-Rows Rule.** The Active Trading portfolio detail (`screens/PortfolioGrid.tsx`, route `/analytics/portfolio/:id`) is a workstation, not a page of stacked cards: `.at-page` sets `min-height: calc(100dvh - 60px)` with `margin-block: -16px`, `-20px` at `md` and leaves the overflow visible, so it is exactly one screen while the ladder is short and grows downward as rows are added — 12 rows measure page 682 and document `scrollHeight` 741 against a 720 viewport, so the scroll is on the document, never inside the ladder. The composition is a 44px header band, an 84px pool rail, then a `minmax(0, 808px) 408px` workspace with a 12px gap: left, order detail (height 26 + 4 + 47 + N×31 + 17 of padding) above order history (32px collapsed disclosure, 138px open); right, payoff (`min-height` 396px) above risk, with `.at-col.at-right { align-self: start }` so the chart never stretches to the ladder's height. The ladder is one row per price level at `--row-h-ladder`, built from `orders_groups` ranges (`max_price` down to `min_price` by `range`); orders whose `entry_price` falls between levels take the nearest level at or above it, and a level holding several legs emits one row per leg with the mark printed once. At 1280×720 the detail card is 735×468 with a 705-wide ladder inside 9/14/8 padding.
+**The Detail-Grows-With-Its-Rows Rule.** The Active Trading portfolio detail (`screens/PortfolioGrid.tsx`, route `/analytics/portfolio/:id`) is a workstation, not a page of stacked cards: `.at-page` sets `min-height: calc(100dvh - 60px)` with `margin-block: -16px`, `-20px` at `md` and leaves the overflow visible, so it is exactly one screen while the ladder is short and grows downward as rows are added — 12 rows measure a page 1078 tall with document `scrollHeight` 1137 against a 720 viewport, so the scroll is on the document, never inside the ladder. The composition is a 44px header band, an 84px pool rail, then a `minmax(0, 808px) 408px` workspace with a 12px gap: left, order detail (height 26 + 4 + 47 + N×31 + 17 of padding) above order history (32px collapsed disclosure, 138px open); right, payoff (min-height 396px) above a content-driven risk card (408×500 at these numbers), with `.at-col.at-right { align-self: start }` so the chart never stretches to the ladder's height. The ladder is one row per price level at `--row-h-ladder`, built from `orders_groups` ranges (`max_price` down to `min_price` by `range`); orders whose `entry_price` falls between levels take the nearest level at or above it, and a level holding several legs emits one row per leg with the mark printed once. At 1280×720 the detail card is 735×468 with a 705-wide ladder inside 9/14/8 padding.
 
 ## 7. Do's and Don'ts
 
@@ -528,6 +528,18 @@ States ship per component, not per token. A state that the code does not impleme
 | Focus-visible | the chevron and View all are buttons, so they inherit the global 2px brand-teal outline | `index.css` |
 | Empty | one sentence in the body, no head row | `.at-hist-empty` |
 
+### All-assets Contract Spec Cells
+
+| State | Visual change | Where |
+|---|---|---|
+| Resting | `Mult` and `Margin` print 13px tabular numbers right-aligned in a hairline-free cell; `Broker` prints the code in 13px slate and cannot be edited | `AllAssets.tsx` `DraggableRow` |
+| Hover | the cell is a click target with no background change, matching the Price cell beside it | same |
+| Editing | the cell swaps to a `w-14` number input with a brand-teal border, autofocused, value selected | same |
+| Commit | Enter or blur saves through `PUT /assets/{id}`; `multiplier > 0` and `0 <= margin <= 1` are enforced, and an invalid or empty entry leaves the stored value untouched | `AllAssets.tsx` `commitSpec` |
+| Cancel | Escape closes the input without saving | same |
+| Failure | a warning toast names the ticker and the API message; the old value stays | `AllAssets.tsx` `handleSaveSpec` |
+| Heads | never wrap: explicit widths per column, the Name column alone takes the slack | `AllAssets.tsx` thead |
+
 ### Nav Links
 
 | State | Visual change | Where |
@@ -559,5 +571,5 @@ States ship per component, not per token. A state that the code does not impleme
 - **Motion has no duration scale.** Easing is tokenised (`index.css:488-492`), but durations are literals at the call sites: 120ms (`index.css:340`, `index.css:385`), 150ms (`index.css:160`), and 200ms, 250ms, 300ms for the animation classes (`index.css:607-620`). A new component has no duration token to reach for.
 - **Several states are not implemented.** No input has an error, disabled, or loading state; no button renders a spinner (`Button.tsx:6`, `Button.tsx:39`); no ledger row has a selected or disabled state; the nav pill itself has no hover, since its background and colour are inline styles with no hover variant, though the icon inside it scales to 1.12 (`index.css:561-566`, `Navigation.tsx:106`).
 - **Dead CSS outnumbers live CSS in places.** `.input` (`index.css:238-248`), `.nav-link` (`index.css:305-319`), `.badge` and its variants (`index.css:170-188`), `.select-trigger`, `.select-dropdown`, and `.select-option` (`index.css:191-235`), and `.portfolio-grid` (`index.css:477-485`) are bound by no component. There is no shared input component at all: 87 `<input>` elements are styled per screen.
-- **Components outside Overview are undocumented.** `PoolRail`, `OrderDetailLadder`, `OrderHistoryCard`, `RiskCard`, `PerformanceSection`, `TradeHistoryTable`, `ZoneGroupModal`, `OptionsStrategyTable`, and the chart components ship their own padding, type sizes, and states; section 5 covers the Overview set only, and section 6 records the detail page's geometry rules.
+- **Components outside Overview are undocumented.** `PerformanceSection`, `TradeHistoryTable`, `ZoneGroupModal`, `OptionsStrategyTable`, and the chart components ship their own padding, type sizes, and states; section 5 covers the Overview set and the detail-page components, and section 6 records the detail page's geometry rules.
 - **Three places hardcode 60px for the nav while the bar derives its height from a rem class.** `main` reserves 60px (`GlobalLayout.tsx:8`), `.ledger-head` sticks at `top: 60px` (`index.css:286`), and `h-16` renders 60px only because the root is 15px (`Navigation.tsx:76`, `index.css:102`). They agree today, but a change to the root font size or to the bar class silently desyncs the sticky offset and the shell reserve.
