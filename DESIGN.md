@@ -183,6 +183,16 @@ Each light color has a dark-mode counterpart defined as CSS custom properties on
 
 **The No-Gradient-Rule.** Gradients on text or backgrounds are forbidden. Color is solid or it's absent. Emphasis is conveyed through weight, size, or spacing, not through color blending.
 
+### Instrument key
+
+Four text-safe hues carry instrument identity — never decoration. Defined in `index.css` for both themes and used only as text or on a 10% tint of themselves (The One Voice Rule forbids a saturated fill).
+
+- **Future** (`#3346C9` light / `#9FA9FF` dark): a futures leg's quantity, and the EQ · Future group band.
+- **Option** (`#6A3BC0` / `#C4A9FF`): an option leg's Size, the Options group band, and the Option product pill.
+- **Call** (`#96600A` / `#F5BE55`) and **Put** (`#A62E63` / `#FF9CB8`): the two-letter option-type chip (`.at-type`). Long is a filled 10% tint, short is the same hue outlined.
+
+Spot stays neutral: it is the plain instrument, and the teal family is reserved for long/buy. Measured contrast at 11px: future 6.26:1, option 5.99:1, call 4.5:1, put 5.44:1 on their own light tints; 6.85/7.39/8.56/7.61:1 in dark.
+
 ## 3. Typography
 
 **Display + Body Font:** Sora (geometric sans-serif) with system-ui and -apple-system fallbacks.
@@ -300,6 +310,7 @@ The summary block a dashboard page starts with: a canvas card sitting on the sur
 - **Colors match accent roles:** teal, yellow, coral, blue, each with a 12-18% opacity tinted background.
 - **Neutral variant:** Surface background, slate text.
 - **Dark mode:** Background opacity increases to 25%.
+- **Option chip (\(.at-type\)):** 15px tall, 4px radius, 10px/600 tabular code; hue is the option direction, fill is the position side.
 
 **States.** Every chip that can be interacted with needs resting, hover, pressed, and focus-visible. Pressed and hover backgrounds are expressed with `color-mix` on the status token: 18% at rest, 30% on hover, 100% when pressed, 85% when pressed and hovered. Text on a tinted background is `--color-ink`; text on a solid `--color-status-warning` fill is `--color-on-brand-yellow` (#1c1c1e in both themes), because ink flips to a pale grey in dark mode and collapses to 1.20:1 there, while on-brand-yellow measures 11.60:1. Measured text contrast for the chips that ship: P/L sign chip 13.33:1 light and 11.33:1 dark; attention chip 13.22:1 light and 9.02:1 dark at rest, 4.86:1 and 11.60:1 pressed, 5.99:1 and 8.56:1 pressed and hovered.
 

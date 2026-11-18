@@ -3,8 +3,7 @@ import type { SpreadOrder } from "../../types";
 import type { ZoneGroupRecord } from "../../lib/api";
 import { formatQty, priceLabel } from "../../utils/format";
 
-export type LadderView = "same" | "eq" | "option";
-type Density = "key" | "full";
+export type LadderView = "all" | "eq" | "option";
 
 interface OrderDetailLadderProps {
   activeOrders: SpreadOrder[];
@@ -13,7 +12,6 @@ interface OrderDetailLadderProps {
   onAddOrder: () => void;
   onEditOrder: (order: SpreadOrder) => void;
   onCloseOrder: (order: SpreadOrder) => void;
-  onEditZone?: (orders: SpreadOrder[], zone: string) => void;
   onAssignGroup?: (orderIds: string[], groupId: number | null) => void;
   onLinkOrder?: (sourceOrderId: string, targetOrderId: string) => void;
 }
@@ -83,22 +81,21 @@ const netOf = (o: SpreadOrder) => {
 
 /** Column tracks: fixed, with the flexing track carrying the leftover width. */
 const TEMPLATE: Record<string, string> = {
-  same: "88px 70px 40px 54px 54px 70px 44px 26px 50px 34px minmax(66px, 1fr)",
-  eqKey: "120px 60px minmax(0, 1fr) 60px 96px",
-  eqFull: "92px 92px minmax(0, 1fr) 56px 66px 66px 76px",
-  optKey: "104px 60px minmax(0, 1fr) 52px 48px 92px",
-  optFull: "64px 70px minmax(0, 1fr) 48px 60px 32px 52px 36px 48px 48px 64px",
+  all: "80px 44px 44px 56px 56px 72px 46px 30px 52px 40px minmax(72px, 1fr)",
+  eqFull: "80px 56px 56px 44px 44px 60px 60px 72px minmax(0, 1fr)",
+  optFull: "80px 56px 56px 46px 30px 52px 40px 56px 56px 72px minmax(0, 1fr)",
   narrow: "76px minmax(0, 1fr) 72px",
 };
 
 const HEADS: Record<string, string[]> = {
-  same: ["Mark", "Status", "Size", "In", "Out", "Net P&L", "Type", "DTE", "Strike", "Size", "Net P&L"],
-  eqKey: ["Mark", "Side", "Leg", "Size", "Net P&L"],
-  eqFull: ["Mark", "Status", "Comment", "Size", "Price in", "Price out", "Net P&L"],
-  optKey: ["Mark", "Side", "Contract", "Size", "DTE", "Net P&L"],
-  optFull: ["Mark", "Status", "Comment", "Type", "Date", "DTE", "Strike", "Size", "Pre in", "Pre out", "Net P&L"],
+  all: ["Mark", "Side", "qty", "In", "Out", "Net P&L", "Type", "DTE", "Strike", "Size", "Net P&L"],
+  eqFull: ["Mark", "Status", "Date", "Side", "qty", "Price in", "Price out", "Net P&L", "Comment"],
+  optFull: ["Mark", "Status", "Date", "Type", "DTE", "Strike", "Size", "Pre in", "Pre out", "Net P&L", "Comment"],
   narrow: ["Mark", "Leg", "Net P&L"],
 };
+
+/** Column heads whose content is a word, not a number. */
+const LEFT_HEADS = new Set(["Mark", "Side", "Status", "Date", "Comment"]);
 
 const roundPrice = (v: number) => Math.round(v * 1e8) / 1e8;
 
@@ -121,7 +118,7 @@ const zoneLevels = (zone: ZoneGroupRecord) => {
   const hi = zone.max_price;
   const step = zone.range;
   const empty = (price: number | null, label: string) => ({ price, label, legs: [] as SpreadOrder[] });
-  if (lo == null && hi == null) return [empty(null, zone.name)];
+  if (lo == null && hi == null) return [empty(null, zone.name.trim() || "—")];
   const top = (hi ?? lo) as number;
   const bottom = (lo ?? hi) as number;
   if (step == null || step <= 0 || top <= bottom) return [empty(top, money(top))];
@@ -194,11 +191,11 @@ const buildLines = (zones: ZoneGroupRecord[], orders: SpreadOrder[]): LadderLine
   return lines;
 };
 
-const Dash = () => <span className="at-num at-muted">—</span>;
+const Dash = () => <span className="at-num at-dash">—</span>;
 
 /** n consecutive em-dash cells for a level without a leg. */
 const dasher = (count: number) =>
-  Array.from({ length: count }, (_, i) => <span className="at-num at-muted" key={i}>—</span>);
+  Array.from({ length: count }, (_, i) => <span className="at-num at-dash" key={i}>—</span>);
 
 const NetCell = ({ order }: { order: SpreadOrder }) => {
   const v = netOf(order);
@@ -210,42 +207,35 @@ const legLabel = (o: SpreadOrder) =>
     ? `${o.asset_type} ${o.option_type ?? ""} ${o.strike_price != null ? money(o.strike_price) : ""}`.trim()
     : `${o.asset_type} · ${o.contract_type ?? "spot"}`;
 
+/** LC / LP / SC / SP: option type as a two-letter code, side first. */
+const typeCode = (o: SpreadOrder) => {
+  const s = (o.side ?? "").trim().toUpperCase();
+  const t = (o.option_type ?? "").trim().toUpperCase();
+  if ((s === "LONG" || s === "SHORT") && (t === "CALL" || t === "PUT")) return `${s[0]}${t[0]}`;
+  return t || "—";
+};
+
+/** Two-letter option code as a chip: hue = call/put, fill = long/short. */
+const TypeChip = ({ order }: { order: SpreadOrder }) => (
+  <span
+    className="at-type"
+    data-kind={(order.option_type ?? "").toLowerCase() === "put" ? "put" : "call"}
+    data-side={(order.side ?? "").toUpperCase()}
+  >
+    {typeCode(order)}
+  </span>
+);
+
 const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
   activeOrders, zones, onShowZoneGroupModal, onAddOrder,
-  onEditOrder, onCloseOrder, onAssignGroup, onLinkOrder, onEditZone,
+  onEditOrder, onCloseOrder, onAssignGroup, onLinkOrder,
 }) => {
-  const [view, setView] = useState<LadderView>("same");
-  const [density, setDensity] = useState<Density>("key");
-  const [zoneFilter, setZoneFilter] = useState<number | null>(null);
+  const [view, setView] = useState<LadderView>("all");
   const [linkSource, setLinkSource] = useState<string | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
   const narrow = useIsNarrow();
 
   const lines = useMemo(() => buildLines(zones, activeOrders), [zones, activeOrders]);
-  const chipZones = useMemo(() => sortZones(zones), [zones]);
-  const zoneCounts = useMemo(() => {
-    const counts = new Map<number, number>();
-    activeOrders.forEach((o) => {
-      if (o.group_id != null) counts.set(o.group_id, (counts.get(o.group_id) ?? 0) + 1);
-    });
-    return counts;
-  }, [activeOrders]);
-  const visible = useMemo(
-    () => (zoneFilter == null ? lines : lines.filter((l) => l.zoneId === zoneFilter)),
-    [lines, zoneFilter],
-  );
-
-  const marks = useMemo(() => {
-    const seen = new Set<string>();
-    lines.forEach((l) => {
-      if (l.hasLevelLegs) seen.add(l.key.slice(0, l.key.lastIndexOf("-")));
-    });
-    return seen.size;
-  }, [lines]);
-
-  const countLabel = activeOrders.length === 0
-    ? "No legs · no marks"
-    : `${activeOrders.length} ${activeOrders.length === 1 ? "leg" : "legs"} · ${marks} ${marks === 1 ? "mark" : "marks"}`;
 
   // Nothing to place on a level: no zones to define the ladder and no orders
   // at all. Ungrouped orders still get their No zone row instead.
@@ -279,7 +269,11 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
   });
 
   const actionsFor = (line: LadderLine) => {
-    const legs = [line.eq, line.opt].filter(Boolean) as SpreadOrder[];
+    const legs = narrow || view === "all"
+      ? ([line.eq, line.opt].filter(Boolean) as SpreadOrder[])
+      : view === "eq"
+        ? (line.eq ? [line.eq] : [])
+        : (line.opt ? [line.opt] : []);
     if (legs.length === 0) return null;
     return (
       <div className="at-actions">
@@ -290,7 +284,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
               draggable
               role="button"
               tabIndex={-1}
-              title={`Drag ${o.asset_type} onto a zone to move it`}
+              title={`Drag ${legLabel(o)} onto a zone to move it`}
               onDragStart={(e) => {
                 e.dataTransfer.setData("text/plain", o.order_id);
                 e.dataTransfer.effectAllowed = "move";
@@ -306,8 +300,8 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
               type="button"
               className="at-act"
               aria-pressed={linkSource === o.order_id}
-              aria-label={`Link ${o.asset_type}`}
-              title={`Link ${o.asset_type}`}
+              aria-label={`Link ${legLabel(o)}`}
+              title={`Link ${legLabel(o)}`}
               onClick={() => handleLink(o.order_id)}
             >
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
@@ -315,7 +309,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
               </svg>
             </button>
-            <button type="button" className="at-act" aria-label={`Edit ${o.asset_type}`} title={`Edit ${o.asset_type}`} onClick={() => onEditOrder(o)}>
+            <button type="button" className="at-act" aria-label={`Edit ${legLabel(o)}`} title={`Edit ${legLabel(o)}`} onClick={() => onEditOrder(o)}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 11.5 8 16l4.5-7.5z" />
@@ -325,8 +319,8 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
               type="button"
               className="at-act"
               data-danger="true"
-              aria-label={`Close ${o.asset_type}`}
-              title={`Close ${o.asset_type}`}
+              aria-label={`Close ${legLabel(o)}`}
+              title={`Close ${legLabel(o)}`}
               onClick={() => onCloseOrder(o)}
             >
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
@@ -364,30 +358,23 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         return (
           <>
             {mark}
-            {dasher(density === "key" ? 4 : 6)}
-          </>
-        );
-      }
-      if (density === "key") {
-        return (
-          <>
-            {mark}
-            <span className="at-num at-muted">{statusText(eq.side)}</span>
-            <span className="at-left">{legLabel(eq)}</span>
-            <span className="at-num">{formatQty(eq.qty)}</span>
-            <NetCell order={eq} />
+            {dasher(8)}
           </>
         );
       }
       return (
         <>
           {mark}
-          <span className="at-num at-muted">{statusText(eq.order_status)}</span>
-          <span className="at-left">{eq.group_name ?? "—"}</span>
-          <span className="at-num">{formatQty(eq.qty)}</span>
+          <span className="at-left at-muted">{statusText(eq.order_status)}</span>
+          <span className="at-left at-muted">{shortDate(eq.created_at)}</span>
+          <span className="at-left">{statusText(eq.side)}</span>
+          <span className={`at-num${eq.contract_type === "future" ? " at-class-future" : ""}`}>
+            {formatQty(eq.qty)}
+          </span>
           <span className="at-num">{money(eq.entry_price)}</span>
           <span className="at-num">{money(eq.current_price)}</span>
           <NetCell order={eq} />
+          <span className="at-left at-muted at-comment">{eq.group_name ?? "—"}</span>
         </>
       );
     }
@@ -397,54 +384,47 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         return (
           <>
             {mark}
-            {dasher(density === "key" ? 5 : 10)}
+            {dasher(10)}
           </>
         );
       }
       const dte = daysTo(opt.expiry_date);
-      if (density === "key") {
-        return (
-          <>
-            {mark}
-            <span className="at-num at-muted">{statusText(opt.side)}</span>
-            <span className="at-left">{legLabel(opt)}</span>
-            <span className="at-num">{formatQty(opt.qty)}</span>
-            <span className="at-num at-muted">{dte ?? "—"}</span>
-            <NetCell order={opt} />
-          </>
-        );
-      }
       return (
         <>
           {mark}
-          <span className="at-num at-muted">{statusText(opt.order_status)}</span>
-          <span className="at-left">{opt.group_name ?? "—"}</span>
-          <span className="at-num at-muted">{opt.option_type ?? "—"}</span>
-          <span className="at-num at-muted">{shortDate(opt.expiry_date)}</span>
+          <span className="at-left at-muted">{statusText(opt.order_status)}</span>
+          <span className="at-left at-muted">{shortDate(opt.expiry_date)}</span>
+          <TypeChip order={opt} />
           <span className="at-num at-muted">{dte ?? "—"}</span>
           <span className="at-num">{money(opt.strike_price)}</span>
-          <span className="at-num">{formatQty(opt.qty)}</span>
+          <span className="at-num at-class-option">{formatQty(opt.qty)}</span>
           <span className="at-num">{money(opt.entry_price)}</span>
           <span className="at-num">{money(opt.current_price)}</span>
           <NetCell order={opt} />
+          <span className="at-left at-muted at-comment">{opt.group_name ?? "—"}</span>
         </>
       );
     }
 
-    const status = eq || opt ? [eq ? "EQ/FUT" : "", opt ? "OPT" : ""].filter(Boolean).join(" + ") : "No order";
     const dte = opt ? daysTo(opt.expiry_date) : null;
     return (
       <>
         {mark}
-        <span className={`at-num ${eq || opt ? "" : "at-muted"}`}>{status}</span>
-        {eq ? <span className="at-num">{formatQty(eq.qty)}</span> : <Dash />}
+        <span className={`at-left${eq ? "" : " at-muted"}`}>{eq ? statusText(eq.side) : "—"}</span>
+        {eq ? (
+          <span className={`at-num${eq.contract_type === "future" ? " at-class-future" : ""}`}>
+            {formatQty(eq.qty)}
+          </span>
+        ) : (
+          <Dash />
+        )}
         {eq ? <span className="at-num">{money(eq.entry_price)}</span> : <Dash />}
         {eq ? <span className="at-num">{money(eq.current_price)}</span> : <Dash />}
         {eq ? <NetCell order={eq} /> : <Dash />}
-        {opt ? <span className="at-num at-muted">{opt.option_type ?? "—"}</span> : <Dash />}
+        {opt ? <TypeChip order={opt} /> : <Dash />}
         {opt ? <span className="at-num at-muted">{dte ?? "—"}</span> : <Dash />}
         {opt ? <span className="at-num">{money(opt.strike_price)}</span> : <Dash />}
-        {opt ? <span className="at-num">{formatQty(opt.qty)}</span> : <Dash />}
+        {opt ? <span className="at-num at-class-option">{formatQty(opt.qty)}</span> : <Dash />}
         {opt ? <NetCell order={opt} /> : <Dash />}
       </>
     );
@@ -453,81 +433,34 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
   const template = narrow
     ? TEMPLATE.narrow
     : view === "eq"
-      ? TEMPLATE[density === "key" ? "eqKey" : "eqFull"]
+      ? TEMPLATE.eqFull
       : view === "option"
-        ? TEMPLATE[density === "key" ? "optKey" : "optFull"]
-        : TEMPLATE.same;
+        ? TEMPLATE.optFull
+        : TEMPLATE.all;
   const heads = narrow
     ? HEADS.narrow
     : view === "eq"
-      ? HEADS[density === "key" ? "eqKey" : "eqFull"]
+      ? HEADS.eqFull
       : view === "option"
-        ? HEADS[density === "key" ? "optKey" : "optFull"]
-        : HEADS.same;
+        ? HEADS.optFull
+        : HEADS.all;
 
   return (
     <section className="at-card at-detail" aria-label="Order detail">
       <div className="at-dh">
         <h2>Order detail</h2>
-        <span className="at-count">{countLabel}</span>
-        <div className="at-tabs at-tabs-right" role="group" aria-label="Ladder view">
-          <button type="button" className="at-tab" aria-pressed={view === "same"} onClick={() => setView("same")}>
-            Same view
-          </button>
-          <button type="button" className="at-tab" aria-pressed={view === "eq"} onClick={() => setView("eq")}>
-            EQ · Future
-          </button>
-          <button type="button" className="at-tab" aria-pressed={view === "option"} onClick={() => setView("option")}>
-            Options
-          </button>
-        </div>
-        {view !== "same" && !narrow && (
-          <div className="at-tabs" role="group" aria-label="Row density">
-            <button type="button" className="at-tab" aria-pressed={density === "key"} onClick={() => setDensity("key")}>
-              Key
+        <div className="at-dh-right">
+          <div className="at-tabs" role="group" aria-label="Ladder view">
+            <button type="button" className="at-tab" aria-pressed={view === "all"} onClick={() => setView("all")}>
+              All
             </button>
-            <button type="button" className="at-tab" aria-pressed={density === "full"} onClick={() => setDensity("full")}>
-              Full
+            <button type="button" className="at-tab" aria-pressed={view === "eq"} onClick={() => setView("eq")}>
+              EQ · Future
+            </button>
+            <button type="button" className="at-tab" aria-pressed={view === "option"} onClick={() => setView("option")}>
+              Options
             </button>
           </div>
-        )}
-      </div>
-
-      <div className="at-zones">
-        <div className="at-zchips">
-          {chipZones.map((z) => {
-            const count = zoneCounts.get(z.id) ?? 0;
-            return (
-              <button
-                type="button"
-                key={z.id}
-                className="at-zchip"
-                aria-pressed={zoneFilter === z.id}
-                onClick={() => setZoneFilter((prev) => (prev === z.id ? null : z.id))}
-              >
-                <span>
-                  Zone <b>{priceLabel(z.name)}</b>{count > 0 ? ` · ${count}` : ""}
-                </span>
-              </button>
-            );
-          })}
-          {zoneFilter != null && onEditZone && (
-            <button
-              type="button"
-              className="at-znew"
-              onClick={() => {
-                const zone = zones.find((z) => z.id === zoneFilter);
-                onEditZone(
-                  activeOrders.filter((o) => o.group_id === zoneFilter),
-                  zone?.name ?? "",
-                );
-              }}
-            >
-              Edit zone
-            </button>
-          )}
-        </div>
-        <div className="at-zactions">
           <button type="button" className="at-znew" onClick={onShowZoneGroupModal}>
             + New zone
           </button>
@@ -548,22 +481,40 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
       ) : (
         <div className="at-scroll">
           <div className="at-lhead">
-            {view === "same" && !narrow && (
-              <div className="at-groups" style={{ gridTemplateColumns: TEMPLATE.same }}>
-                <span />
-                <span />
-                <span className="at-grp" style={{ gridColumn: "span 4" }}>EQ · Future</span>
-                <span className="at-grp" style={{ gridColumn: "span 5" }}>Options</span>
+            {!narrow && (
+              <div
+                className="at-groups"
+                style={{
+                  gridTemplateColumns:
+                    view === "eq" ? TEMPLATE.eqFull : view === "option" ? TEMPLATE.optFull : TEMPLATE.all,
+                }}
+              >
+                {view === "eq" ? (
+                  <span className="at-grp at-band-eq" style={{ gridColumn: "span 9" }}>EQ · Future</span>
+                ) : view === "option" ? (
+                  <span className="at-grp at-band-opt" style={{ gridColumn: "span 11" }}>Options</span>
+                ) : (
+                  <>
+                    <span />
+                    <span />
+                    <span className="at-grp at-band-eq" style={{ gridColumn: "span 4" }}>EQ · Future</span>
+                    <span className="at-grp at-band-opt" style={{ gridColumn: "span 5" }}>Options</span>
+                  </>
+                )}
               </div>
             )}
             <div className="at-cols" style={{ gridTemplateColumns: template }}>
               {heads.map((h, i) => (
-                <span key={`${h}-${i}`}>{h}</span>
+                <span
+                  key={`${h}-${i}`}
+                  className={h === "Comment" ? "at-comment" : undefined}
+                  style={{ textAlign: LEFT_HEADS.has(h) ? "left" : "right" }}
+                >{h}</span>
               ))}
             </div>
           </div>
 
-          {visible.map((line) => (
+          {lines.map((line) => (
             <div
               key={line.key}
               className={`at-row${dropKey === line.key ? " is-drop" : ""}`}

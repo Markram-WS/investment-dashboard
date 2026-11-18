@@ -30,7 +30,7 @@ function bsPrice(S: number, K: number, T: number, r: number, sigma: number, isCa
     : K * Math.exp(-r * T) * normCdf(-d2) - S * normCdf(-d1);
 }
 
-function calcLegPL(S: number, leg: { side: string; type: string; strike: number; premium: number; qty: number }, optionValue: number): number {
+function calcLegPL(leg: { side: string; type: string; strike: number; premium: number; qty: number }, optionValue: number): number {
   const sideMult = leg.side === "LONG" ? 1 : -1;
   return leg.qty * (optionValue - leg.premium) * sideMult;
 }
@@ -82,16 +82,24 @@ function niceTicks(lo: number, hi: number, target: number = 5): number[] {
   return ticks;
 }
 
-function roundUp10(n: number): number { return Math.ceil(n / 10) * 10; }
-
 interface LegData {
   side: string; type: string; strike: number; premium: number;
   qty: number; expiry: string | null; iv: number; source: string;
 }
 
-const MARGIN = { top: 20, right: 160, bottom: 28, left: 60 };
-const WIDTH = 800;
-const HEIGHT = 200;
+/** A non-option leg (spot/future): linear P/L in the underlying price. */
+interface FutureLeg {
+  sideSign: 1 | -1;
+  entry: number;
+  qty: number;
+  label: string;
+}
+
+interface Range { lo: number; hi: number }
+
+const MARGIN = { top: 18, right: 16, bottom: 34, left: 56 };
+const WIDTH = 480;
+const HEIGHT = 356;
 const CHART_W = WIDTH - MARGIN.left - MARGIN.right;
 const CHART_H = HEIGHT - MARGIN.top - MARGIN.bottom;
 const NUM_POINTS = 200;
@@ -103,6 +111,8 @@ interface TooltipData {
   price: number;
   pl: number;
   plIv?: number;
+  plFutures: number;
+  plOptions: number;
 }
 
 const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, ivMode, minPrice, maxPrice, activeIVs }) => {
@@ -130,36 +140,82 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
     return result;
   }, [activeOrders, strategyRows, activeIVs]);
 
-  const { prices, plValues, ivPlValues, bePoints, ivBePoints, maxPl, minPl, step } = useMemo(() => {
-    if (legs.length === 0) return { prices: [], plValues: [], ivPlValues: [], bePoints: [], ivBePoints: [], maxPl: 100, minPl: -100, step: 1 };
+  const futureLegs = useMemo(() => {
+    const result: FutureLeg[] = [];
+    for (const o of activeOrders) {
+      if (o.contract_type === 'option') continue;
+      if (o.entry_price == null) continue;
+      const qty = Number(o.qty) || 0;
+      if (!qty) continue;
+      const side = (o.side || "").toUpperCase();
+      result.push({
+        sideSign: side === "BUY" || side === "LONG" ? 1 : -1,
+        entry: Number(o.entry_price),
+        qty,
+        label: o.asset_type,
+      });
+    }
+    return result;
+  }, [activeOrders]);
 
-    const strikes = legs.map(l => l.strike).filter(s => s > 0);
-    const maxStrike = Math.max(...strikes);
+  const hasAnyLegs = legs.length > 0 || futureLegs.length > 0;
 
-    let lo = minPrice;
-    let hi = maxPrice;
-    if (lo >= hi) { lo = 0; hi = roundUp10(maxStrike * 3); }
+  /** One x-range for the curve, the tooltip index math and the ticks. */
+  const range = useMemo<Range>(() => {
+    if (minPrice < maxPrice) return { lo: minPrice, hi: maxPrice };
+    const anchors = [
+      ...futureLegs.map(f => f.entry),
+      ...legs.map(l => l.strike),
+    ].filter(v => v > 0);
+    if (anchors.length === 0) return { lo: 0, hi: 100 };
+    const aMin = Math.min(...anchors);
+    const aMax = Math.max(...anchors);
+    const pad = Math.max((aMax - aMin) * 0.5, aMax * 0.1, 1);
+    return { lo: Math.max(0, aMin - pad), hi: aMax + pad };
+  }, [minPrice, maxPrice, futureLegs, legs]);
 
+  const {
+    prices, plValues, ivPlValues, futuresPlValues, optionsPlValues,
+    bePoints, ivBePoints, maxPl, minPl, step,
+  } = useMemo(() => {
+    const empty = {
+      prices: [] as number[], plValues: [] as number[], ivPlValues: [] as number[],
+      futuresPlValues: [] as number[], optionsPlValues: [] as number[],
+      bePoints: [] as number[], ivBePoints: [] as number[],
+      maxPl: 100, minPl: -100, step: 1,
+    };
+    if (!hasAnyLegs) return empty;
+
+    const lo = range.lo;
+    const hi = range.hi;
     const s = (hi - lo) / NUM_POINTS;
-    if (s <= 0) return { prices: [], plValues: [], ivPlValues: [], bePoints: [], ivBePoints: [], maxPl: 100, minPl: -100, step: 1 };
+    if (s <= 0) return empty;
 
     const pricesArr: number[] = [];
     const plArr: number[] = [];
     const ivPlArr: number[] = [];
+    const futuresPlArr: number[] = [];
+    const optionsPlArr: number[] = [];
     for (let p = lo; p <= hi; p += s) {
       pricesArr.push(Math.round(p * 100) / 100);
-      let t1 = 0, t2 = 0;
+      let futuresPl = 0;
+      for (const leg of futureLegs) {
+        futuresPl += (p - leg.entry) * leg.qty * leg.sideSign;
+      }
+      let intrinsic = futuresPl, bsm = futuresPl;
       for (const leg of legs) {
         const K = leg.strike;
         if (!K || K <= 0) continue;
         const isCall = leg.type === "Call";
         const T = leg.expiry ? Math.max((new Date(leg.expiry).getTime() - Date.now()) / (365 * 24 * 60 * 60 * 1000), 0) : 0;
         const sigma = (leg.iv || 0) / 100;
-        t1 += calcLegPL(p, leg, calcIntrinsic(p, K, isCall));
-        t2 += calcLegPL(p, leg, calcBS(p, K, T, sigma, isCall));
+        intrinsic += calcLegPL(leg, calcIntrinsic(p, K, isCall));
+        bsm += calcLegPL(leg, calcBS(p, K, T, sigma, isCall));
       }
-      plArr.push(t1);
-      ivPlArr.push(t2);
+      plArr.push(intrinsic);
+      ivPlArr.push(bsm);
+      futuresPlArr.push(futuresPl);
+      optionsPlArr.push(intrinsic - futuresPl);
     }
 
     const be = findBreakEvens(pricesArr, plArr);
@@ -168,14 +224,16 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
     const mx = Math.max(Math.abs(Math.max(...allPls, 1)), Math.abs(Math.min(...allPls, -1))) * 1.1;
     const mn = -mx;
 
-    return { prices: pricesArr, plValues: plArr, ivPlValues: ivPlArr, bePoints: be, ivBePoints: ivBe, maxPl: mx, minPl: mn, step: s };
-  }, [legs, ivMode, minPrice, maxPrice, activeOrders]);
+    return {
+      prices: pricesArr, plValues: plArr, ivPlValues: ivPlArr,
+      futuresPlValues: futuresPlArr, optionsPlValues: optionsPlArr,
+      bePoints: be, ivBePoints: ivBe, maxPl: mx, minPl: mn, step: s,
+    };
+  }, [hasAnyLegs, range, futureLegs, legs]);
 
   const toX = useCallback((price: number) => {
-    const lo = minPrice < maxPrice ? minPrice : 0;
-    const hi = minPrice < maxPrice ? maxPrice : roundUp10(Math.max(...legs.map(l => l.strike).filter(s => s > 0), 1) * 3);
-    return MARGIN.left + ((price - lo) / (hi - lo)) * CHART_W;
-  }, [minPrice, maxPrice, legs]);
+    return MARGIN.left + ((price - range.lo) / (range.hi - range.lo)) * CHART_W;
+  }, [range]);
 
   const toY = useCallback((pl: number) => {
     const range = maxPl - minPl || 1;
@@ -210,8 +268,6 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
     return `${line} L${lastX.toFixed(1)},${baselineY.toFixed(1)} L${firstX.toFixed(1)},${baselineY.toFixed(1)} Z`;
   }, [prices, plValues, toX, toY, baselineY]);
 
-  const baselineRatio = Math.max(0, Math.min(1, (baselineY - MARGIN.top) / CHART_H));
-
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (!svgRef.current || prices.length === 0) return;
     const rect = svgRef.current.getBoundingClientRect();
@@ -219,29 +275,26 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
     const vbx = (e.clientX - rect.left) * scaleX;
     const vbxChart = vbx - MARGIN.left;
     if (vbxChart < 0 || vbxChart > CHART_W) { setTooltip(null); return; }
-    const lo = minPrice < maxPrice ? minPrice : 0;
-    const hi = minPrice < maxPrice ? maxPrice : roundUp10(Math.max(...legs.map(l => l.strike).filter(s => s > 0), 1) * 3);
-    const price = lo + (vbxChart / CHART_W) * (hi - lo);
-    const idx = Math.round((price - lo) / step);
+    const price = range.lo + (vbxChart / CHART_W) * (range.hi - range.lo);
+    const idx = Math.round((price - range.lo) / step);
     const clampedIdx = Math.max(0, Math.min(idx, plValues.length - 1));
     const snappedX = MARGIN.left + (clampedIdx / (prices.length - 1)) * CHART_W;
     setTooltip({
       snappedX, cssY: e.clientY - rect.top, containerW: rect.width,
       price: prices[clampedIdx], pl: plValues[clampedIdx],
       plIv: ivMode ? ivPlValues[clampedIdx] : undefined,
+      plFutures: futuresPlValues[clampedIdx] ?? 0,
+      plOptions: optionsPlValues[clampedIdx] ?? 0,
     });
-  }, [prices, plValues, ivPlValues, minPrice, maxPrice, step, legs, ivMode]);
+  }, [prices, plValues, ivPlValues, futuresPlValues, optionsPlValues, range, step, ivMode]);
 
   const handleMouseLeave = useCallback(() => setTooltip(null), []);
 
-  const lo = minPrice < maxPrice ? minPrice : 0;
-  const hi = minPrice < maxPrice ? maxPrice : roundUp10(Math.max(...legs.map(l => l.strike).filter(s => s > 0), 1) * 3);
-
   const yTicks = useMemo(() => niceTicks(minPl, maxPl, 5), [minPl, maxPl]);
-  const xTicks = useMemo(() => niceTicks(lo, hi, 6), [lo, hi]);
+  const xTicks = useMemo(() => niceTicks(range.lo, range.hi, 5), [range]);
 
-  if (legs.length === 0) {
-    return <div className="flex items-center justify-center h-40 text-xs text-slate">No option legs to display. Add option orders or use Options Strategy table.</div>;
+  if (!hasAnyLegs) {
+    return <div className="flex items-center justify-center h-40 text-xs text-slate">No legs to display. Add orders or use Options Strategy table.</div>;
   }
 
   if (prices.length === 0) {
@@ -249,8 +302,9 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
   }
 
   return (
-    <div className="aspect-[4/1] relative">
-      <svg ref={svgRef} className="absolute inset-0 w-full h-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="xMidYMid meet" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+    <div className="flex flex-col" style={{ flex: "1 1 auto", minHeight: 0 }}>
+      <div className="relative" style={{ flex: "1 1 auto", minHeight: 0 }}>
+        <svg ref={svgRef} className="absolute inset-0 w-full h-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
           <defs>
             <linearGradient id="gradAbove" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#22C55E" stopOpacity="0.8" />
@@ -274,7 +328,7 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
             return (
               <g key={`yt-${tick}`}>
                 <line x1={MARGIN.left} y1={y} x2={MARGIN.left + CHART_W} y2={y} stroke="var(--color-hairline)" strokeWidth="1" />
-                <text x={MARGIN.left - 6} y={y + 3} textAnchor="end" className="text-[9px]" fill="var(--color-slate)">{tick}</text>
+                <text x={MARGIN.left - 6} y={y + 3.5} textAnchor="end" fontSize={10} fill="var(--color-slate)">{tick}</text>
               </g>
             );
           })}
@@ -285,7 +339,7 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
             return (
               <g key={`xt-${tick}`}>
                 <line x1={x} y1={MARGIN.top} x2={x} y2={MARGIN.top + CHART_H} stroke="var(--color-hairline-soft)" strokeWidth="1" />
-                <text x={x} y={MARGIN.top + CHART_H + 12} textAnchor="middle" className="text-[8px]" fill="var(--color-slate)">{tick}</text>
+                <text x={x} y={MARGIN.top + CHART_H + 15} textAnchor="middle" fontSize={10} fill="var(--color-slate)">{tick}</text>
               </g>
             );
           })}
@@ -329,8 +383,8 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
           <line x1={MARGIN.left} y1={MARGIN.top + CHART_H} x2={MARGIN.left + CHART_W} y2={MARGIN.top + CHART_H} stroke="var(--color-hairline)" strokeWidth="1" />
           <line x1={MARGIN.left} y1={MARGIN.top} x2={MARGIN.left} y2={MARGIN.top + CHART_H} stroke="var(--color-hairline)" strokeWidth="1" />
 
-          <text x={MARGIN.left + CHART_W / 2} y={HEIGHT - 2} textAnchor="middle" className="text-[10px]" fill="var(--color-slate)" fontWeight="500">Underlying Price</text>
-          <text x={14} y={MARGIN.top + CHART_H / 2} textAnchor="middle" transform={`rotate(-90, 14, ${MARGIN.top + CHART_H / 2})`} className="text-[10px]" fill="var(--color-slate)" fontWeight="500">P/L</text>
+          <text x={MARGIN.left + CHART_W / 2} y={HEIGHT - 4} textAnchor="middle" fontSize={11} fill="var(--color-slate)" fontWeight="500">Futures price</text>
+          <text x={15} y={MARGIN.top + CHART_H / 2} textAnchor="middle" transform={`rotate(-90, 15, ${MARGIN.top + CHART_H / 2})`} fontSize={11} fill="var(--color-slate)" fontWeight="500">P/L</text>
         </svg>
 
         {tooltip && (
@@ -342,49 +396,63 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
           }}>
             <div>Price: <span className="font-medium">{tooltip.price.toFixed(2)}</span></div>
             <div>
-              <span className="text-brand-blue">●</span> Intrinsic:{" "}
+              <span className="text-brand-blue">●</span> Futures:{" "}
+              <span className="font-bold" style={{ color: tooltip.plFutures >= 0 ? "var(--color-success)" : "var(--color-error)" }}>{tooltip.plFutures >= 0 ? "+" : ""}{tooltip.plFutures.toFixed(2)}</span>
+            </div>
+            <div>
+              <span className="text-brand-blue">●</span> Options:{" "}
+              <span className="font-bold" style={{ color: tooltip.plOptions >= 0 ? "var(--color-success)" : "var(--color-error)" }}>{tooltip.plOptions >= 0 ? "+" : ""}{tooltip.plOptions.toFixed(2)}</span>
+            </div>
+            <div>
+              <span className="text-brand-blue">●</span> Intrinsic total:{" "}
               <span className="font-bold" style={{ color: tooltip.pl >= 0 ? "var(--color-success)" : "var(--color-error)" }}>{tooltip.pl >= 0 ? "+" : ""}{tooltip.pl.toFixed(2)}</span>
             </div>
             {tooltip.plIv !== undefined && (
               <div>
-                <span className="text-brand-teal">╌</span> BSM IV:{" "}
+                <span className="text-brand-teal">╌</span> BSM IV total:{" "}
                 <span className="font-bold" style={{ color: tooltip.plIv >= 0 ? "var(--color-success)" : "var(--color-error)" }}>{tooltip.plIv >= 0 ? "+" : ""}{tooltip.plIv.toFixed(2)}</span>
               </div>
             )}
           </div>
         )}
-
-        <div className="hidden lg:flex absolute right-0 top-0 bottom-0 w-44 flex-col justify-center gap-2 text-[10px] text-slate bg-surface/80 pl-4 border-l border-hairline">
-          <div>
-            Legs: <span className="font-semibold text-ink">{legs.length}</span>
-            <span className="ml-1">({legs.filter(l => l.source === "active").length}A, {legs.filter(l => l.source === "strategy").length}S)</span>
-          </div>
-          <div>
-            <span className="text-brand-blue">●</span>
-            <span className="ml-1">Intrinsic</span>
-            <div className="ml-3 leading-snug">
-              Max: <span className="font-semibold text-success">+{Math.max(...plValues, 0).toFixed(1)}</span>
-              <span className="ml-1">Min:</span> <span className="font-semibold text-error">{Math.min(...plValues, 0).toFixed(1)}</span>
-            </div>
-          </div>
-          {ivMode && (
-            <div>
-              <span className="text-brand-teal">╌</span>
-              <span className="ml-1">BSM</span>
-              <div className="ml-3 leading-snug">
-                Max: <span className="font-semibold text-success">+{Math.max(...ivPlValues, 0).toFixed(1)}</span>
-                <span className="ml-1">Min:</span> <span className="font-semibold text-error">{Math.min(...ivPlValues, 0).toFixed(1)}</span>
-              </div>
-            </div>
-          )}
-          {(ivMode ? ivBePoints : bePoints).length > 0 && (
-            <div>
-              BE: <span className="font-semibold text-ink">{(ivMode ? ivBePoints : bePoints).map(b => b.toFixed(1)).join(", ")}</span>
-            </div>
-          )}
-        </div>
       </div>
-    );
+
+      <div
+        className="flex flex-wrap items-baseline text-[11px] text-slate"
+        style={{ marginTop: 6, columnGap: 12, rowGap: 2, lineHeight: 1.45 }}
+      >
+        <span>
+          Legs: <span className="font-semibold text-ink">{legs.length + futureLegs.length}</span>
+          <span className="ml-1">
+            ({futureLegs.length}F, {legs.filter(l => l.source === "active").length}A, {legs.filter(l => l.source === "strategy").length}S)
+          </span>
+        </span>
+        <span>Curve = futures + options P/L</span>
+        <span>
+          <span className="text-brand-blue">●</span> Intrinsic Max:{" "}
+          <span className="font-semibold text-success">+{Math.max(...plValues, 0).toFixed(1)}</span>
+          <span className="ml-1">Min:</span>{" "}
+          <span className="font-semibold text-error">{Math.min(...plValues, 0).toFixed(1)}</span>
+        </span>
+        {ivMode && (
+          <span>
+            <span className="text-brand-teal">╌</span> BSM Max:{" "}
+            <span className="font-semibold text-success">+{Math.max(...ivPlValues, 0).toFixed(1)}</span>
+            <span className="ml-1">Min:</span>{" "}
+            <span className="font-semibold text-error">{Math.min(...ivPlValues, 0).toFixed(1)}</span>
+          </span>
+        )}
+        {(ivMode ? ivBePoints : bePoints).length > 0 && (
+          <span>
+            BE:{" "}
+            <span className="font-semibold text-ink">
+              {(ivMode ? ivBePoints : bePoints).map(b => b.toFixed(1)).join(", ")}
+            </span>
+          </span>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default React.memo(PayoffChart);

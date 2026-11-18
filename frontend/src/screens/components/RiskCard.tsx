@@ -6,7 +6,6 @@ export interface ExposureRow {
 }
 
 interface RiskCardProps {
-  bufferCoverage: number;
   exposure: ExposureRow[];
   strategySet: boolean;
   notesPresent: boolean;
@@ -15,28 +14,12 @@ interface RiskCardProps {
 
 const BAR_COLORS = ["var(--color-brand-teal)", "var(--color-tier-1)", "var(--color-brand-yellow)"];
 
-/** 176px risk card: buffer-coverage band, exposure bars, strategy/notes footer. */
+/** Risk card: exposure bars plus the strategy/notes footer. Height follows content. */
 const RiskCard: React.FC<RiskCardProps> = ({
-  bufferCoverage, exposure, strategySet, notesPresent, onEdit,
+  exposure, strategySet, notesPresent, onEdit,
 }) => {
-  const danger = bufferCoverage < 120;
-  const needle = Math.min(100, Math.max(0, (bufferCoverage / 250) * 100));
-
   return (
     <section className="at-card at-risk" aria-label="Risk">
-      <div className="at-rrow">
-        <span>Buffer coverage 120–200%</span>
-        <span
-          className="at-num"
-          style={{ fontWeight: 600, color: danger ? "var(--color-danger-text)" : "var(--color-ink)" }}
-        >
-          {Math.round(bufferCoverage)}%
-        </span>
-      </div>
-      <div className="at-band">
-        <span className="at-needle" style={{ left: `${needle}%` }} />
-      </div>
-
       {exposure.length === 0 ? (
         <div className="at-exprow">
           <span>Exposure</span>

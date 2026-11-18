@@ -29,7 +29,8 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
   return (
     <div ref={ref} className="relative">
       <div
-        className="w-full border rounded px-3 py-2 text-sm flex items-center justify-between cursor-pointer"
+        className="w-full border rounded flex items-center justify-between cursor-pointer"
+        style={{ fontSize: 11, padding: '4px 8px' }}
         onClick={() => setOpen(!open)}
       >
         <span className={value ? '' : 'text-slate'}>
@@ -49,10 +50,12 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Type to filter..."
-            className="w-full px-3 py-2 text-sm border-b outline-none"
+            className="w-full border-b outline-none"
+            style={{ fontSize: 11, padding: '6px 8px' }}
           />
           <div
-            className="px-3 py-2 text-sm text-slate hover:bg-surface cursor-pointer"
+            className="text-slate hover:bg-surface cursor-pointer"
+            style={{ fontSize: 11, padding: '6px 8px' }}
             onClick={() => { onChange(null); setOpen(false); setQuery(''); }}
           >
             No zone
@@ -60,7 +63,8 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
           {filtered.map(g => (
             <div
               key={g.id}
-              className={`px-3 py-2 text-sm cursor-pointer hover:bg-surface ${g.id === value ? 'font-bold bg-surface-soft' : ''}`}
+              className={`cursor-pointer hover:bg-surface ${g.id === value ? 'font-bold bg-surface-soft' : ''}`}
+              style={{ fontSize: 11, padding: '6px 8px' }}
               onClick={() => { onChange(g.id); setOpen(false); setQuery(''); }}
             >
               <span>{g.name}</span>
@@ -70,7 +74,7 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
             </div>
           ))}
           {filtered.length === 0 && (
-            <div className="px-3 py-2 text-sm text-slate">No zones found</div>
+            <div className="text-slate" style={{ fontSize: 11, padding: '6px 8px' }}>No zones found</div>
           )}
         </div>
       )}

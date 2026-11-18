@@ -531,19 +531,19 @@ a:focus-visible {
 }
 /* ============================================
    Active Trading portfolio detail (PortfolioGrid)
-   One-screen workspace: the page itself never scrolls; the order ladder
-   scrolls inside its card. Height is the viewport minus the 60px app nav; the
-   negative block margins cancel PageLayout's py-4/md:py-5 so the shell adds
-   exactly 100dvh and document.scrollHeight === clientHeight.
+   Height is at least the viewport minus the 60px app nav; the negative block
+   margins cancel PageLayout's py-4/md:py-5. The page grows with the ladder
+   (every price level renders) and the document scrolls when it outgrows the
+   viewport — nothing scrolls inside the detail card.
    ============================================ */
 .at-page {
-  height: calc(100dvh - 60px);
+  min-height: calc(100dvh - 60px);
   margin-block: -16px;
   padding-block: 10px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  overflow: hidden;
+  overflow: visible;
 }
 @media (min-width: 768px) {
   .at-page { margin-block: -20px; }
@@ -707,21 +707,24 @@ a:focus-visible {
   gap: 12px;
 }
 .at-col { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+/* The right column keeps its own height: a tall ladder must not stretch the
+   payoff chart down the whole page. */
+.at-col.at-right { align-self: start; width: 100%; }
 
 /* --- order detail / ladder --- */
 .at-detail {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 9px 14px 8px;
-  overflow: hidden;
 }
 .at-dh { flex: 0 0 26px; height: 26px; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .at-dh h2 { margin: 0; font-size: var(--fs-section); font-weight: 600; line-height: 1; }
 .at-count { font-size: var(--fs-label); color: var(--color-slate); white-space: nowrap; }
 .at-tabs { display: flex; gap: 4px; }
-.at-tabs-right { margin-left: auto; }
+/* Tabs and the zone/order pills form one 26px strip at the right of the header. */
+.at-dh-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .at-tab {
   border: 1px solid var(--color-hairline);
   border-radius: 999px;
@@ -740,56 +743,6 @@ a:focus-visible {
   border-color: var(--color-ink);
   color: var(--color-canvas);
 }
-.at-zones {
-  flex: 0 0 28px;
-  height: 28px;
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow: hidden;
-}
-.at-zchips {
-  flex: 1 1 auto;
-  min-width: 0;
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  white-space: nowrap;
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-tier-3) transparent;
-}
-.at-zchips::-webkit-scrollbar { height: 3px; background: transparent; }
-.at-zchips::-webkit-scrollbar-track { background: transparent; }
-.at-zchips::-webkit-scrollbar-thumb { background: var(--color-tier-3); border-radius: 999px; }
-.at-zactions {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.at-zchip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  /* 17px tall: leaves room for the 10px thin scrollbar inside the 28px row. */
-  padding: 1px 9px;
-  line-height: 13px;
-  border: 1px solid var(--color-hairline);
-  border-radius: 999px;
-  background: var(--color-canvas);
-  color: var(--color-slate);
-  font-size: var(--fs-label);
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-}
-.at-zchip b { font-weight: 600; color: var(--color-ink); }
-.at-zchip[aria-pressed="true"] { background: var(--color-ink); border-color: var(--color-ink); color: var(--color-canvas); }
-.at-zchip[aria-pressed="true"] b { color: var(--color-canvas); }
 .at-znew {
   display: inline-flex;
   align-items: center;
@@ -808,13 +761,11 @@ a:focus-visible {
 .at-znew:hover { background: var(--color-surface-soft); color: var(--color-ink); }
 
 .at-scroll {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-tier-2) transparent;
+  overflow: visible;
 }
-.at-lhead { position: sticky; top: 0; z-index: 2; background: var(--color-canvas); }
+.at-lhead { position: relative; z-index: 2; background: var(--color-canvas); }
 .at-groups {
   display: grid;
   align-items: end;
@@ -898,6 +849,105 @@ a:focus-visible {
 .at-act:hover { color: var(--color-ink); }
 .at-act[data-danger="true"]:hover { color: var(--color-danger-text); border-color: var(--color-danger-text); }
 .at-act[aria-pressed="true"] { border-color: var(--color-brand-teal); color: var(--color-brand-teal); }
+
+/* --- instrument key: one hue per axis. Class = what the leg is (future /
+   option), type = which way the option points. Text on a 10% tint of itself,
+   never a solid fill (DESIGN.md One Voice Rule). --- */
+:root {
+  --color-inst-future: #3346C9;
+  --color-inst-option: #6A3BC0;
+  --color-type-call: #96600A;
+  --color-type-put: #A62E63;
+}
+.dark {
+  --color-inst-future: #9FA9FF;
+  --color-inst-option: #C4A9FF;
+  --color-type-call: #F5BE55;
+  --color-type-put: #FF9CB8;
+}
+/* A leg's own quantity carries its class; a spot leg stays ink on purpose. */
+.at-class-future { color: var(--color-inst-future); }
+.at-class-option { color: var(--color-inst-option); }
+/* Group bands: the block's class hue instead of a grey band. */
+.at-band-eq {
+  background: color-mix(in srgb, var(--color-inst-future) 10%, var(--color-canvas));
+  border-color: color-mix(in srgb, var(--color-inst-future) 30%, var(--color-canvas));
+  color: var(--color-inst-future);
+}
+.at-band-opt {
+  background: color-mix(in srgb, var(--color-inst-option) 10%, var(--color-canvas));
+  border-color: color-mix(in srgb, var(--color-inst-option) 30%, var(--color-canvas));
+  color: var(--color-inst-option);
+}
+/* Option code chip: hue says call or put, fill says long or short. */
+.at-type {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.at-type[data-kind="call"] {
+  color: var(--color-type-call);
+  background: color-mix(in srgb, var(--color-type-call) 10%, var(--color-canvas));
+}
+.at-type[data-kind="put"] {
+  color: var(--color-type-put);
+  background: color-mix(in srgb, var(--color-type-put) 10%, var(--color-canvas));
+}
+.at-type[data-side="SHORT"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 40%, transparent);
+}
+/* Empty cells: hairline-quiet, so only the populated legs read. */
+.at-dash { color: var(--color-tier-2); }
+/* The trailing word column reads as its own field, not the tail of a number. */
+.at-comment { padding-left: 10px; }
+
+/* Add-order pills: one tint per tone, so different products and different
+   option types never look alike. Neutral tones fall back to ink. */
+.tg-pill {
+  padding: 3px 10px;
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 500;
+  border-radius: 999px;
+  border: 1px solid var(--color-hairline);
+  background: var(--color-canvas);
+  color: var(--color-slate);
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+.tg-pill[data-tone="future"] { --tg: var(--color-inst-future); }
+.tg-pill[data-tone="option"] { --tg: var(--color-inst-option); }
+.tg-pill[data-tone="call"] { --tg: var(--color-type-call); }
+.tg-pill[data-tone="put"] { --tg: var(--color-type-put); }
+.tg-pill[data-tone="long"] { --tg: var(--color-positive-text); }
+.tg-pill[data-tone="short"] { --tg: var(--color-danger-text); }
+.tg-pill[data-tone] { color: var(--tg); }
+.tg-pill[data-tone]:hover,
+.tg-pill:hover {
+  border-color: color-mix(in srgb, var(--tg, var(--color-ink)) 40%, var(--color-hairline));
+  color: var(--tg, var(--color-ink));
+}
+.tg-pill[data-active="true"],
+.tg-pill[data-active="true"]:hover {
+  background: color-mix(in srgb, var(--tg, var(--color-ink)) 10%, var(--color-canvas));
+  border-color: color-mix(in srgb, var(--tg, var(--color-ink)) 45%, var(--color-canvas));
+  color: var(--tg, var(--color-ink));
+  font-weight: 600;
+}
+.tg-pill:focus-visible {
+  outline: 2px solid var(--tg, var(--color-brand-teal));
+  outline-offset: 1px;
+}
 
 /* --- order history: collapsed 32px disclosure bar, 116px when open --- */
 .at-hist {
@@ -1023,43 +1073,18 @@ a:focus-visible {
 /* --- right column: payoff + risk --- */
 .at-payoff {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 396px;
   display: flex;
   flex-direction: column;
   padding: 10px 14px;
   overflow: hidden;
 }
 .at-risk {
-  flex: 0 0 176px;
-  height: 176px;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   padding: 10px 14px;
   overflow: hidden;
-}
-.at-rrow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: var(--fs-label);
-  color: var(--color-slate);
-  margin-bottom: 4px;
-}
-.at-band {
-  height: 6px;
-  border-radius: 999px;
-  position: relative;
-  margin: 2px 0 9px;
-  background: linear-gradient(90deg, #ffe3e3 0 48%, #d9f6ee 48% 80%, #fff4d1 80% 100%);
-}
-.at-needle {
-  position: absolute;
-  top: -3px;
-  width: 2px;
-  height: 12px;
-  border-radius: 1px;
-  background: var(--color-danger-text);
 }
 .at-exprow {
   display: grid;

@@ -2,14 +2,12 @@ import React, { useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { EditOrderModal } from "./EditOrderModal";
 import { AddOrderModal } from "./AddOrderModal";
-import { ZoneEditModal } from "./ZoneEditModal";
 import { ZoneGroupModal } from "./ZoneGroupModal";
 import { CloseOrderModal } from "./CloseOrderModal";
 import EditPortfolioModal from "./EditPortfolioModal";
 import { useOrderEdit } from "../hooks/useOrderEdit";
 import { useAddOrder } from "../hooks/useAddOrder";
 import { usePortfolioManager } from "../hooks/usePortfolioManager";
-import { useZoneEditor } from "../hooks/useZoneEditor";
 import { useMarkdownRenderer } from "../hooks/useMarkdownRenderer";
 import { SpreadOrder } from "../types";
 import { api } from "../lib/api";
@@ -162,14 +160,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   React.useEffect(() => {
     setOnRefresh(() => fetchAnalyticsData);
   }, [setOnRefresh, fetchAnalyticsData]);
-
-  const {
-    editingZoneOrders,
-    editingZone,
-    handleEditZone,
-    handleCloseZoneModal,
-    handleSaveZone,
-  } = useZoneEditor(fetchAnalyticsData, selectedPortfolio?.portfolio_id);
 
   React.useEffect(() => {
     if (selectedPortfolio) {
@@ -386,7 +376,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
               onCloseOrder={handleCloseOrder}
               onAssignGroup={handleAssignGroup}
               onLinkOrder={handleLinkOrder}
-              onEditZone={handleEditZone}
             />
             <OrderHistoryCard
               tradeHistory={tradeHistory}
@@ -418,7 +407,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
             </section>
 
             <RiskCard
-              bufferCoverage={bufferCoverage}
               exposure={exposure}
               strategySet={Boolean(selectedPortfolio.trade_plan_md?.trim())}
               notesPresent={Boolean(selectedPortfolio.internal_notes?.trim())}
@@ -442,13 +430,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onRefresh={fetchAnalyticsData}
         portfolioId={selectedPortfolio?.portfolio_id}
       />
-      <ZoneEditModal
-        orders={editingZoneOrders}
-        currentZone={editingZone}
-        showModal={editingZoneOrders.length > 0}
-        onClose={handleCloseZoneModal}
-        onSave={handleSaveZone}
-      />
       <ZoneGroupModal
         showModal={showZoneGroupModal}
         onClose={() => {
@@ -469,7 +450,19 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         formData={addFormData}
         showModal={showAddModal}
         onClose={closeAddModal}
-        onSave={async () => { await handleCreateOrder(selectedPortfolio.portfolio_id); fetchAnalyticsData(); }}
+        onSave={async () => {
+          const id = String(addFormData.order_id ?? '').trim();
+          if (id && activeOrders.some((o) => o.order_id === id)) {
+            notify('Order ID already exists', 'warning');
+            return;
+          }
+          const result = await handleCreateOrder(selectedPortfolio.portfolio_id);
+          if (result.ok) {
+            fetchAnalyticsData();
+          } else {
+            notify(result.message ?? 'Create order failed', 'warning');
+          }
+        }}
         onChange={handleAddFormChange}
         groups={groups}
         groupOrderCounts={groupOrderCounts}

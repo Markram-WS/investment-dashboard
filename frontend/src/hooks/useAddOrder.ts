@@ -19,17 +19,28 @@ export interface AddOrderForm {
   cost: number | string;
 }
 
+export interface CreateOrderResult {
+  ok: boolean;
+  message?: string;
+}
+
 interface UseAddOrderReturn {
   showModal: boolean;
   formData: AddOrderForm;
   openModal: () => void;
   closeModal: () => void;
   handleFormChange: (field: keyof AddOrderForm, value: any) => void;
-  handleCreateOrder: (portfolioId: number) => Promise<void>;
+  handleCreateOrder: (portfolioId: number) => Promise<CreateOrderResult>;
   setOnCreated: (callback: () => void) => void;
 }
 
 const genId = () => Math.random().toString(36).slice(2, 10).toUpperCase();
+
+const createErrorMessage = (error: unknown): string => {
+  const status = (error as { status?: number } | null)?.status;
+  if (typeof status === 'number') return `Create order failed (HTTP ${status})`;
+  return 'Create order failed';
+};
 
 const defaultForm: AddOrderForm = {
   order_id: genId(),
@@ -68,10 +79,11 @@ export const useAddOrder = (): UseAddOrderReturn => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  const handleCreateOrder = useCallback(async (portfolioId: number) => {
+  const handleCreateOrder = useCallback(async (portfolioId: number): Promise<CreateOrderResult> => {
+    const orderId = String(formData.order_id ?? '').trim() || genId();
     try {
       await api.createOrder({
-        order_id: formData.order_id || undefined,
+        order_id: orderId,
         portfolio_id: portfolioId,
         asset_type: formData.asset_type,
         side: formData.side,
@@ -92,8 +104,10 @@ export const useAddOrder = (): UseAddOrderReturn => {
         await onCreatedRef.current();
       }
       setShowModal(false);
+      return { ok: true };
     } catch (error) {
       console.error('Error creating order:', error);
+      return { ok: false, message: createErrorMessage(error) };
     }
   }, [formData]);
 

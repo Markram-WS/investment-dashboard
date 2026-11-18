@@ -15,12 +15,12 @@ const CELL: React.CSSProperties = {
   fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', padding: '6px 0',
 };
 const INPUT: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', padding: '5px 10px', fontSize: 13, fontWeight: 500,
+  width: '100%', boxSizing: 'border-box', padding: '4px 8px', fontSize: 11, fontWeight: 500,
   fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', background: 'transparent',
   border: '1px solid var(--color-hairline)', borderRadius: 8,
 };
 const BTN: React.CSSProperties = {
-  fontSize: 12, fontWeight: 500, borderRadius: 999, padding: '6px 12px',
+  fontSize: 11, fontWeight: 500, borderRadius: 999, padding: '3px 10px', lineHeight: 1.3,
   border: '1px solid transparent', cursor: 'pointer',
 };
 const BTN_SECONDARY: React.CSSProperties = {
@@ -80,15 +80,16 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
   const [editForm, setEditForm] = useState({ ...emptyForm });
   const [newForm, setNewForm] = useState({ ...emptyForm });
 
-  const fetchZones = useCallback(async () => {
-    setLoading(true);
+  const fetchZones = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
+    if (!silent) setLoading(true);
     try {
       const data = await api.getZoneGroups(portfolioId);
       setZones(data);
     } catch (err) {
       console.error('Failed to load order groups:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [portfolioId]);
 
@@ -127,7 +128,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
   const handleDelete = async (id: number) => {
     try {
       await api.deleteZoneGroup(id, portfolioId);
-      fetchZones();
+      fetchZones({ silent: true });
       onSaved?.();
     } catch (err) {
       console.error('Failed to delete order group:', err);
@@ -139,7 +140,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
     try {
       await api.updateZoneGroup(editingId, toPayload(editForm), portfolioId);
       handleCancelEdit();
-      fetchZones();
+      fetchZones({ silent: true });
       onSaved?.();
     } catch (err) {
       console.error('Failed to save order group:', err);
@@ -150,7 +151,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
     try {
       await api.createZoneGroup(portfolioId, toPayload(newForm));
       setNewForm({ ...emptyForm });
-      fetchZones();
+      fetchZones({ silent: true });
       onSaved?.();
     } catch (err) {
       console.error('Failed to save order group:', err);
@@ -167,7 +168,7 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
           <button onClick={onClose} className="text-slate hover:text-ink leading-none" style={{ fontSize: 20 }}>&times;</button>
         </div>
 
-        {loading ? (
+        {loading && sortedZones.length === 0 ? (
           <p className="text-center" style={{ fontSize: 15, color: 'var(--color-slate)', padding: '16px 0', margin: 0 }}>Loading...</p>
         ) : (
           <>

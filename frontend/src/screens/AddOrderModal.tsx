@@ -5,10 +5,10 @@ import type { AddOrderForm } from '../hooks/useAddOrder';
 import ModalShell from './components/ModalShell';
 import { priceLabel } from '../utils/format';
 
-/** Field label: 11px/500 slate, sentence case. */
+/** Field label: 10px/500 slate, sentence case. */
 const fieldLabel = {
   display: 'block',
-  fontSize: 11,
+  fontSize: 10,
   fontWeight: 500,
   color: 'var(--color-slate)',
   margin: '0 0 3px',
@@ -23,20 +23,21 @@ const bandLabel = {
   margin: '0 0 6px',
 } as const;
 
-/** Text field: 13px ink on canvas, 1px hairline, radius 8. */
+/** Text field: 11px ink on canvas, 1px hairline, radius 8. */
 const fieldInput = {
   width: '100%',
-  fontSize: 13,
+  fontSize: 11,
   color: 'var(--color-ink)',
   background: 'var(--color-canvas)',
   border: '1px solid var(--color-hairline)',
   borderRadius: 8,
-  padding: '6px 10px',
+  padding: '4px 8px',
 } as const;
 
 const primaryButton = {
-  padding: '6px 12px',
-  fontSize: 12,
+  padding: '3px 10px',
+  fontSize: 11,
+  lineHeight: 1.3,
   fontWeight: 500,
   background: 'var(--color-ink)',
   color: 'var(--color-canvas)',
@@ -46,8 +47,9 @@ const primaryButton = {
 } as const;
 
 const secondaryButton = {
-  padding: '6px 12px',
-  fontSize: 12,
+  padding: '3px 10px',
+  fontSize: 11,
+  lineHeight: 1.3,
   fontWeight: 500,
   background: 'var(--color-canvas)',
   color: 'var(--color-ink)',
@@ -79,13 +81,13 @@ interface AddOrderModalProps {
 
 const CONTRACT_TYPE_OPTS = [
   { value: 'spot', label: 'Spot' },
-  { value: 'future', label: 'Future' },
-  { value: 'option', label: 'Option' },
+  { value: 'future', label: 'Future', tone: 'future' },
+  { value: 'option', label: 'Option', tone: 'option' },
 ] as const;
 
 const OPTION_TYPE_OPTS = [
-  { value: 'Call', label: 'Call' },
-  { value: 'Put', label: 'Put' },
+  { value: 'Call', label: 'Call', tone: 'call' },
+  { value: 'Put', label: 'Put', tone: 'put' },
 ] as const;
 
 const STATUS_OPTS = [
@@ -94,7 +96,7 @@ const STATUS_OPTS = [
 ] as const;
 
 const ToggleBtn = React.memo(function ToggleBtn({ options, value, onChange, fullWidth = false }: {
-  options: readonly { value: string; label: string }[];
+  options: readonly { value: string; label: string; tone?: string }[];
   value: string;
   onChange: (v: string) => void;
   fullWidth?: boolean;
@@ -108,18 +110,10 @@ const ToggleBtn = React.memo(function ToggleBtn({ options, value, onChange, full
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
-            className="transition-colors"
-            style={{
-              padding: '5px 12px',
-              fontSize: 12,
-              fontWeight: 500,
-              borderRadius: 999,
-              border: `1px solid ${isActive ? 'var(--color-ink)' : 'var(--color-hairline)'}`,
-              background: isActive ? 'var(--color-ink)' : 'var(--color-canvas)',
-              color: isActive ? 'var(--color-canvas)' : 'var(--color-slate)',
-              cursor: 'pointer',
-              flex: fullWidth ? 1 : undefined,
-            }}
+            className="tg-pill"
+            data-tone={opt.tone}
+            data-active={isActive}
+            style={{ flex: fullWidth ? 1 : undefined }}
           >
             {opt.label}
           </button>
@@ -165,12 +159,12 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   const sideOptions = useMemo(() =>
     contractType === 'spot'
       ? [
-          { value: 'BUY', label: 'Buy' },
-          { value: 'SELL', label: 'Sell' },
+          { value: 'BUY', label: 'Buy', tone: 'long' },
+          { value: 'SELL', label: 'Sell', tone: 'short' },
         ]
       : [
-          { value: 'LONG', label: 'Long' },
-          { value: 'SHORT', label: 'Short' },
+          { value: 'LONG', label: 'Long', tone: 'long' },
+          { value: 'SHORT', label: 'Short', tone: 'short' },
         ],
     [contractType]
   );
@@ -199,9 +193,20 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
       <div className={modalPanel}>
         <div className="flex items-baseline justify-between" style={{ gap: 12, margin: '0 0 12px' }}>
           <h3 style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0 }}>Add order</h3>
-          <span style={{ fontSize: 11, color: 'var(--color-slate)', whiteSpace: 'nowrap' }}>
-            ID {formData.order_id}
-          </span>
+          <div className="flex items-center" style={{ gap: 6 }}>
+            <label htmlFor="add-order-id" style={{ fontSize: 10, fontWeight: 500, color: 'var(--color-slate)', whiteSpace: 'nowrap' }}>
+              Order ID
+            </label>
+            <input
+              id="add-order-id"
+              type="text"
+              value={formData.order_id}
+              onChange={(e) => onChange('order_id', e.target.value)}
+              autoComplete="off"
+              aria-label="Order ID"
+              style={{ ...fieldInput, width: 132 }}
+            />
+          </div>
         </div>
 
         <div style={bandStack}>
