@@ -3,6 +3,7 @@ import type { SpreadOrder } from "../../types";
 import type { ZoneGroupRecord } from "../../lib/api";
 import { formatQty, priceLabel } from "../../utils/format";
 import IconButton from "../../components/IconButton";
+import SideChip from "../../components/SideChip";
 
 export type LadderView = "all" | "eq" | "option";
 
@@ -448,7 +449,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
           <span className="at-left">{eq.asset_type || "—"}</span>
           <span className="at-left at-muted">{statusText(eq.order_status)}</span>
           <span className="at-left at-muted">{shortDate(eq.created_at)}</span>
-          <span className="at-left">{statusText(eq.side)}</span>
+          <SideChip side={eq.side} />
           <span className={`at-num${eq.contract_type === "future" ? " at-class-future" : ""}`}>
             {formatQty(eq.qty)}
           </span>
@@ -492,7 +493,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
     return (
       <>
         {mark}
-        <span className={`at-left${eq ? "" : " at-muted"}`}>{eq ? statusText(eq.side) : "—"}</span>
+        {eq ? <SideChip side={eq.side} /> : <Dash />}
         {eq ? (
           <span className={`at-num${eq.contract_type === "future" ? " at-class-future" : ""}`}>
             {formatQty(eq.qty)}

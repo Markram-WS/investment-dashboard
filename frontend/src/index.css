@@ -931,6 +931,34 @@ a:focus-visible {
   background: transparent;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 40%, transparent);
 }
+/* Side chip: one letter, direction by colour. Text sits on the canvas, never on a
+   tint of its own hue — a 10% tint drops these two hues to 4.15/3.92:1. */
+.at-side {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 15px;
+  padding: 0 3px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1;
+}
+.at-side[data-dir="long"] {
+  color: var(--color-positive-text);
+  border-color: color-mix(in srgb, var(--color-positive-text) 35%, transparent);
+}
+.at-side[data-dir="short"] {
+  color: var(--color-danger-text);
+  border-color: color-mix(in srgb, var(--color-danger-text) 35%, transparent);
+}
+.at-side[data-dir="flat"] {
+  color: var(--color-slate);
+  border-color: var(--color-hairline);
+}
 /* Empty cells: hairline-quiet, so only the populated legs read. */
 .at-dash { color: var(--color-tier-2); }
 /* Remark cell: one line, click to edit in place. */

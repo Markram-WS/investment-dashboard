@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import type { TradeHistoryRecord } from "../../lib/api";
 import { formatQty } from "../../utils/format";
+import SideChip from "../../components/SideChip";
 
 interface OrderHistoryCardProps {
   tradeHistory: TradeHistoryRecord[];
@@ -145,7 +146,7 @@ const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onVie
                 <div className="at-histrow" key={h.history_id ?? `${h.order_id}-${h.exit_date}`}>
                   <span title={h.exit_date ?? undefined}>{shortDate(h.exit_date)}</span>
                   <span title={h.asset ?? undefined}>{h.asset ?? "—"}</span>
-                  <span style={{ color: "var(--color-ink)" }}>{who(h.type)}</span>
+                  <SideChip side={h.type} />
                   <span className="at-num">{formatQty(h.amount)}</span>
                   <span className="at-num">{money(h.entry_price)}</span>
                   <span className="at-num">{money(h.exit_price)}</span>
