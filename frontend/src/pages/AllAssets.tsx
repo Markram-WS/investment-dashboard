@@ -22,7 +22,7 @@ const TYPE_TABS = [
 const ITEM_TYPE = 'ASSET_ROW';
 
 /** Ledger column head: 12px/500 slate, sentence case. */
-const headCell = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)" } as const;
+const headCell = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)", whiteSpace: "nowrap" } as const;
 
 /** Badge: 12px/500 slate on surface-soft, pill radius. */
 const badgeStyle = {
@@ -35,7 +35,15 @@ const badgeStyle = {
   whiteSpace: "nowrap",
 } as const;
 
-function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice }: { asset: any; onEdit: (a: any) => void; onRefreshPrice?: (asset: any) => void; onSavePrice?: (asset: any, price: number) => void }) {
+type SpecPatch = { multiplier?: number; margin_rate?: number };
+
+function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }: {
+  asset: any;
+  onEdit: (a: any) => void;
+  onRefreshPrice?: (asset: any) => void;
+  onSavePrice?: (asset: any, price: number) => void;
+  onSaveSpec?: (asset: any, patch: SpecPatch) => Promise<void>;
+}) {
   const cachedPrice = localStorage.getItem(`cached_price_${asset.ticker}`);
   const displayPrice = (asset.price && asset.price > 0)
     ? asset.price
@@ -44,6 +52,8 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice }: { asset: a
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editVal, setEditVal] = useState('');
+  const [specField, setSpecField] = useState<'multiplier' | 'margin_rate' | null>(null);
+  const [specVal, setSpecVal] = useState('');
 
   const [{ isDragging }, dragRef] = useDrag(() => ({
     type: ITEM_TYPE,
@@ -77,6 +87,35 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice }: { asset: a
     if (e.key === 'Escape') setEditing(false);
   };
 
+  const startSpecEdit = (field: 'multiplier' | 'margin_rate') => {
+    const current = field === 'multiplier' ? asset.multiplier : asset.margin_rate;
+    setSpecVal(current != null ? String(current) : '');
+    setSpecField(field);
+  };
+
+  const commitSpec = async (field: 'multiplier' | 'margin_rate') => {
+    setSpecField(null);
+    const num = parseFloat(specVal);
+    if (isNaN(num) || !onSaveSpec) return;
+    const valid = field === 'multiplier' ? num > 0 : num >= 0 && num <= 1;
+    if (!valid) return;
+    await onSaveSpec(asset, { [field]: num });
+  };
+
+  const handleSpecKeyDown = (e: React.KeyboardEvent, field: 'multiplier' | 'margin_rate') => {
+    if (e.key === 'Enter') commitSpec(field);
+    if (e.key === 'Escape') setSpecField(null);
+  };
+
+  const specInput = (field: 'multiplier' | 'margin_rate') => (
+    <input type="number" step="any" value={specVal} autoFocus
+      onChange={e => setSpecVal(e.target.value)}
+      onBlur={() => commitSpec(field)}
+      onKeyDown={e => handleSpecKeyDown(e, field)}
+      className="w-14 text-right text-[13px] border border-brand-teal rounded px-1.5 py-0.5 bg-canvas text-ink outline-none"
+      onClick={e => e.stopPropagation()} />
+  );
+
   return (
     <tr ref={dragRef} className={`border-t border-hairline hover:bg-surface transition-colors ${isDragging ? 'opacity-40' : ''}`}>
       <td className="px-4 py-3 text-[15px] font-semibold text-ink">{asset.ticker}</td>
@@ -101,6 +140,23 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice }: { asset: a
             : 'var(--color-slate)',
         }}>
         {change != null ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—'}
+      </td>
+      <td className="px-3 py-3 text-[13px] text-slate" title={asset.broker_name || asset.broker_code || undefined}>
+        {asset.broker_code ?? '—'}
+      </td>
+      <td className="px-3 py-3 text-[13px] text-right text-ink cursor-pointer"
+        style={{ fontVariantNumeric: 'tabular-nums' }}
+        title={asset.updated_at ? `updated ${asset.updated_at}` : undefined}
+        onClick={() => startSpecEdit('multiplier')}>
+        {specField === 'multiplier' ? specInput('multiplier')
+          : asset.multiplier != null ? String(asset.multiplier) : '—'}
+      </td>
+      <td className="px-3 py-3 text-[13px] text-right text-ink cursor-pointer"
+        style={{ fontVariantNumeric: 'tabular-nums' }}
+        title={`rate of notional, 0.10 = 10%${asset.updated_at ? ` · updated ${asset.updated_at}` : ''}`}
+        onClick={() => startSpecEdit('margin_rate')}>
+        {specField === 'margin_rate' ? specInput('margin_rate')
+          : asset.margin_rate != null ? Number(asset.margin_rate).toFixed(2) : '—'}
       </td>
       <td className="px-4 py-3">
         <span style={badgeStyle}>{asset.source}</span>
@@ -128,7 +184,7 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice }: { asset: a
   );
 }
 
-function GroupSection({ groupId, groupName, assets, onEdit, onDrop, onRefreshPrice, onSavePrice }: {
+function GroupSection({ groupId, groupName, assets, onEdit, onDrop, onRefreshPrice, onSavePrice, onSaveSpec }: {
   groupId: number | null;
   groupName: string;
   assets: any[];
@@ -136,6 +192,7 @@ function GroupSection({ groupId, groupName, assets, onEdit, onDrop, onRefreshPri
   onDrop: (assetId: number) => void;
   onRefreshPrice?: (asset: any) => void;
   onSavePrice?: (asset: any, price: number) => void;
+  onSaveSpec?: (asset: any, patch: SpecPatch) => Promise<void>;
 }) {
   const [{ isOver }, dropRef] = useDrop(() => ({
     accept: ITEM_TYPE,
@@ -173,22 +230,25 @@ function GroupSection({ groupId, groupName, assets, onEdit, onDrop, onRefreshPri
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-hairline">
-                <th className="px-4 py-2.5" style={headCell}>Symbol</th>
-                <th className="px-4 py-2.5" style={headCell}>Name</th>
-                <th className="px-4 py-2.5 text-right" style={{ ...headCell, textAlign: 'right' }}>Price</th>
-                <th className="px-4 py-2.5 text-right" style={{ ...headCell, textAlign: 'right' }}>Change 24h</th>
-                <th className="px-4 py-2.5" style={headCell}>Source</th>
+                <th className="px-4 py-2.5 w-[96px]" style={headCell}>Symbol</th>
+                <th className="px-4 py-2.5 min-w-[180px]" style={headCell}>Name</th>
+                <th className="px-4 py-2.5 w-[112px] text-right" style={{ ...headCell, textAlign: 'right' }}>Price</th>
+                <th className="px-4 py-2.5 w-[108px] text-right" style={{ ...headCell, textAlign: 'right' }}>Change 24h</th>
+                <th className="px-4 py-2.5 w-[80px]" style={headCell}>Broker</th>
+                <th className="px-4 py-2.5 w-[68px] text-right" style={{ ...headCell, textAlign: 'right' }} title="multiplier">Mult</th>
+                <th className="px-4 py-2.5 w-[76px] text-right" style={{ ...headCell, textAlign: 'right' }} title="rate of notional, 0.10 = 10%">Margin</th>
+                <th className="px-4 py-2.5 w-[88px]" style={headCell}>Source</th>
                 <th className="px-4 py-2.5 w-10" />
               </tr>
             </thead>
             <tbody>
               {assets.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-slate" style={{ fontSize: 12 }}>No assets in this group</td>
+                  <td colSpan={9} className="px-4 py-6 text-center text-slate" style={{ fontSize: 12 }}>No assets in this group</td>
                 </tr>
               ) : (
                 assets.map((asset: any) => (
-                  <DraggableRow key={asset.asset_id} asset={asset} onEdit={onEdit} onRefreshPrice={onRefreshPrice} onSavePrice={onSavePrice} />
+                  <DraggableRow key={asset.asset_id} asset={asset} onEdit={onEdit} onRefreshPrice={onRefreshPrice} onSavePrice={onSavePrice} onSaveSpec={onSaveSpec} />
                 ))
               )}
             </tbody>
@@ -260,6 +320,15 @@ export default function AllAssets() {
         await api.updateAsset(asset.asset_id, { price });
       }
       localStorage.setItem(`cached_price_${asset.ticker}`, String(price));
+      await refetchAssets();
+    } catch (e: any) {
+      notify(`${asset.ticker}: ${e.message || 'save failed'}`, 'warning');
+    }
+  };
+
+  const handleSaveSpec = async (asset: any, patch: SpecPatch) => {
+    try {
+      await api.updateAsset(asset.asset_id, patch);
       await refetchAssets();
     } catch (e: any) {
       notify(`${asset.ticker}: ${e.message || 'save failed'}`, 'warning');
@@ -430,6 +499,7 @@ export default function AllAssets() {
               onDrop={(assetId) => handleDrop(assetId, s.groupId)}
               onRefreshPrice={handleRefreshPrice}
               onSavePrice={handleSavePrice}
+              onSaveSpec={handleSaveSpec}
             />
           ))}
         </div>

@@ -319,6 +319,8 @@ The right column's second card (`screens/components/RiskCard.tsx`, `.at-risk`) i
 
 The pool rail above the workspace is fed by the same block. `Total value` = `available_cash + margin_locked + Σ unrealised P/L` — realised P/L is already inside the cash balance, and notional is exposure rather than equity, so neither is added. Buffer coverage is `available_at_x / max(cash_buffer_limit, 1)`, and the rail's `of which profit` figure is realised P/L (Σ `trade_history.realized_pl`, the performance endpoint's `total_pl`) plus open P/L (`risk.pl_total`), expressed over `initial_capital` to one decimal — e.g. `+$6.00 (0.1% of initial)`. The parenthetical is dropped once that ratio rounds to `0.0%`, since a few dollars on a large base says nothing.
 
+The All-assets table is the place the contract spec is maintained: Broker (fixed after creation), Multiplier and Margin rate are columns, and the last two edit in place like Price.
+
 ### Overview Totals Strip
 
 The summary block a dashboard page starts with: a canvas card sitting on the surface page body.
