@@ -294,6 +294,15 @@ The order-detail ladder (`screens/components/OrderDetailLadder.tsx`, CSS `.at-*`
 - **Row actions.** Each leg's four actions (drag · link · edit · close, all `IconButton`) live in that leg's own Net P&L cell — `.at-net` is the positioning context — so a row holding an EQ leg and an option leg shows two clusters, each anchored to its block, and a single-product view shows one. A legless zoned row shows a single `+` at the row's right edge that opens Add order with that level's zone and mark price preset. Clusters appear on row hover or `focus-within` only.
 - **Narrow** (below 900px) collapses to three tracks — Mark · Leg · Net P&L — with one cluster.
 
+### Order History Card
+
+The card under the ladder (`screens/components/OrderHistoryCard.tsx`, `.at-hist`) is a disclosure that becomes a table. Collapsed it is a 32px bar carrying the whole surface; open it is 138px with 9px / 14px padding, leaving 98px for a 20px heading, a 4px gap and a 95px body — a 17px column-head row plus the three most recent rows at 26px each. Rows sit on one grid with an 8px gap over 705px of content: `58 / 90 / 50 / 40 / 54 / 54 / 64 / 40 / 56 / 40 / minmax(48px, 1fr)`.
+
+- **Columns.** Date (exit, `dd/mm/yy`), Symbol (the traded asset), Order (the shared `SideChip` letter), Qty, In, Out, Net P&L, Held, Status, By, Remark. Date, Symbol, Order, Status, By and Remark are left-aligned; the four numbers are right-aligned.
+- **Row facts.** Held counts whole days from `entry_date` to `exit_date` and prints `<1d` for a same-day trade; Status reads `Close` or `Canceled` from the trade-history `remark` JSON note; By title-cases `executed_by`; Remark prints the order's own remark, copied into `trade_history.order_remark` when the order closed.
+- **Below 900px** the grid drops to `56 / minmax(0, 1fr) / 64` and keeps only Date, Symbol and Net P&L, head and rows together.
+- **Empty.** With nothing closed the body is one sentence — never a head row over no data — and the count beside the title reads zero.
+
 ### Overview Totals Strip
 
 The summary block a dashboard page starts with: a canvas card sitting on the surface page body.
@@ -488,6 +497,18 @@ States ship per component, not per token. A state that the code does not impleme
 | Empty level hover | one `+` at the row's right edge (`at-actions-row`); opens Add order with the level's zone and mark preset | `OrderDetailLadder.tsx`, `PortfolioGrid.tsx` `handleAddOrder` |
 | Keyboard | buttons stay in the tab order; `:focus-within` reveals the cluster; the global 2px brand-teal outline is the only focus ring | `index.css` |
 | Drag | the handle carries `draggable`, `role="button"`, `tabIndex={-1}`; dropping on a row calls `onAssignGroup([id], zoneId)` | `OrderDetailLadder.tsx` |
+
+### Order History Rows
+
+| State | Visual change | Where |
+|---|---|---|
+| Collapsed | a 32px bar with the title, the closed-trade count, a chevron and View all; the body is `hidden` | `index.css` `.at-hist` |
+| Expanded | 138px with a 17px head row and the three newest rows, 26px each, hairline-soft between | `.at-hist.is-open` |
+| Row hover | not implemented: rows are records, not controls | none |
+| Drag-over | an 8% `--color-brand-teal` wash while a dragged ladder leg is over the card; dropping closes that order | `index.css` `.at-hist.is-drop` |
+| Chevron | rotates 180° while `aria-expanded` is true | `index.css` `.at-chev svg` |
+| Focus-visible | the chevron and View all are buttons, so they inherit the global 2px brand-teal outline | `index.css` |
+| Empty | one sentence in the body, no head row | `.at-hist-empty` |
 
 ### Nav Links
 
