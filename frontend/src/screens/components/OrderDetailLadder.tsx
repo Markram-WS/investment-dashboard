@@ -85,20 +85,20 @@ const netOf = (o: SpreadOrder) => {
 /** Column tracks: fixed, with the flexing track carrying the leftover width. */
 const TEMPLATE: Record<string, string> = {
   all: "63px 56px 47px 62px 62px 69px 49px 48px 58px 47px minmax(48px, 1fr)",
-  eqFull: "73px 64px 77px 64px 55px 76px 76px 77px minmax(48px, 1fr)",
-  optFull: "63px 54px 67px 49px 46px 56px 45px 57px 57px 67px minmax(48px, 1fr)",
+  eqFull: "63px 56px 56px 70px 56px 50px 66px 66px 68px minmax(48px, 1fr)",
+  optFull: "63px 60px 50px 62px 44px 40px 48px 36px 50px 50px 58px minmax(48px, 1fr)",
   narrow: "76px minmax(0, 1fr) 72px",
 };
 
 const HEADS: Record<string, string[]> = {
   all: ["Mark", "Side", "qty", "In", "Out", "Net P&L", "Type", "DTE", "Strike", "Size", "Net P&L"],
-  eqFull: ["Mark", "Status", "Date", "Side", "qty", "Price in", "Price out", "Net P&L", "Remark"],
-  optFull: ["Mark", "Status", "Date", "Type", "DTE", "Strike", "Size", "Pre in", "Pre out", "Net P&L", "Remark"],
+  eqFull: ["Mark", "Symbol", "Status", "Date", "Side", "qty", "Price in", "Price out", "Net P&L", "Remark"],
+  optFull: ["Mark", "Symbol", "Status", "Date", "Type", "DTE", "Strike", "Size", "Pre in", "Pre out", "Net P&L", "Remark"],
   narrow: ["Mark", "Leg", "Net P&L"],
 };
 
 /** Column heads whose content is a word, not a number. */
-const LEFT_HEADS = new Set(["Mark", "Side", "Status", "Date", "Remark"]);
+const LEFT_HEADS = new Set(["Mark", "Symbol", "Side", "Status", "Date", "Remark"]);
 
 const roundPrice = (v: number) => Math.round(v * 1e8) / 1e8;
 
@@ -429,13 +429,14 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         return (
           <>
             {mark}
-            {dasher(8)}
+            {dasher(9)}
           </>
         );
       }
       return (
         <>
           {mark}
+          <span className="at-left">{eq.asset_type || "—"}</span>
           <span className="at-left at-muted">{statusText(eq.order_status)}</span>
           <span className="at-left at-muted">{shortDate(eq.created_at)}</span>
           <span className="at-left">{statusText(eq.side)}</span>
@@ -455,7 +456,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         return (
           <>
             {mark}
-            {dasher(10)}
+            {dasher(11)}
           </>
         );
       }
@@ -463,6 +464,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
       return (
         <>
           {mark}
+          <span className="at-left">{opt.asset_type || "—"}</span>
           <span className="at-left at-muted">{statusText(opt.order_status)}</span>
           <span className="at-left at-muted">{shortDate(opt.expiry_date)}</span>
           <TypeChip order={opt} />

@@ -127,6 +127,7 @@ const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onVie
           <>
             <div className="at-histhead">
               <span>Date</span>
+              <span>Symbol</span>
               <span>Order</span>
               <span className="at-num">Qty</span>
               <span className="at-num">In</span>
@@ -142,9 +143,8 @@ const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onVie
               return (
                 <div className="at-histrow" key={h.history_id ?? `${h.order_id}-${h.exit_date}`}>
                   <span title={h.exit_date ?? undefined}>{shortDate(h.exit_date)}</span>
-                  <span style={{ color: "var(--color-ink)" }}>
-                    {`${h.asset ?? "—"} · ${String(h.type ?? "closed").toLowerCase()}`}
-                  </span>
+                  <span title={h.asset ?? undefined}>{h.asset ?? "—"}</span>
+                  <span style={{ color: "var(--color-ink)" }}>{who(h.type)}</span>
                   <span className="at-num">{formatQty(h.amount)}</span>
                   <span className="at-num">{money(h.entry_price)}</span>
                   <span className="at-num">{money(h.exit_price)}</span>
