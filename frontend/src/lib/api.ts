@@ -246,6 +246,10 @@ export interface AssetRecord {
   price: number | null;
   change_24h: number | null;
   updated_at: string | null;
+  broker_id?: number | null;
+  broker_code?: string | null;
+  multiplier?: number;
+  margin_rate?: number;
 }
 
 export interface AssetQuery {
@@ -260,6 +264,9 @@ export interface AssetPayload {
   name?: string;
   source?: string;
   group_id?: number;
+  broker_id?: number;
+  multiplier?: number;
+  margin_rate?: number;
 }
 
 export interface AssetUpdatePayload {
@@ -269,6 +276,8 @@ export interface AssetUpdatePayload {
   group_id?: number | null;
   price?: number;
   change_24h?: number;
+  multiplier?: number;
+  margin_rate?: number;
 }
 
 export interface BatchUpdatePricesResult {

@@ -318,8 +318,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const cash = selectedPortfolio.available_cash || 0;
   const cashAvailable = cash + cumulativePl;
   const pool = marginLocked + cashBufferLimit + cash;
-  const totalNotional = activeOrders.reduce((sum, o) => sum + (o.entry_price || 0) * Number(o.qty || 0), 0);
-  const totalValue = pool + cumulativePl + totalNotional;
+  const totalValue = cash + marginLocked + (selectedPortfolio.risk?.pl_total ?? 0);
   const plPercent = pool > 0 ? (cumulativePl / pool) * 100 : 0;
   const marginUsed = pool > 0 ? (marginLocked / pool) * 100 : 0;
 
