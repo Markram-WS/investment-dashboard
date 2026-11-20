@@ -382,13 +382,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           </div>
 
           <div className="at-col at-right">
-            <section className="at-card at-payoff" aria-label="Payoff">
-              <div className="flex items-center justify-between" style={{ marginBottom: 2 }}>
-                <h2 style={{ margin: 0, fontSize: "var(--fs-section)", fontWeight: 600 }}>Payoff</h2>
-                <button type="button" className="at-notes-edit" onClick={() => setShowStrategyModal(true)}>
-                  Option legs
-                </button>
-              </div>
+            <section className="at-card at-payoff" aria-label="Performance">
               <PerformanceSection
                 embedded
                 performanceData={performanceData}
@@ -400,6 +394,16 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
                 payoffMinPrice={payoffMinPrice}
                 payoffMaxPrice={payoffMaxPrice}
                 activeIVs={activeIVs}
+                actions={
+                  <button
+                    type="button"
+                    className="at-notes-edit"
+                    style={{ lineHeight: "28px" }}
+                    onClick={() => setShowStrategyModal(true)}
+                  >
+                    Option legs
+                  </button>
+                }
               />
             </section>
 

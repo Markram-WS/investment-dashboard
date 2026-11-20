@@ -1,25 +1,23 @@
-import React, { useRef, useEffect, useState } from "react";
+import { LineChart } from "ztd-charts";
+import { useMemo, type FC } from "react";
+import type { PerformanceResult } from "../../lib/api";
+import useChartTheme from "../../hooks/useChartTheme";
 
 interface PerformanceChartProps {
-  data: any;
+  data?: PerformanceResult | null;
   viewMode: "equity" | "payoff";
 }
 
-const PerformanceChart: React.FC<PerformanceChartProps> = ({ data, viewMode }) => {
-  const W = 800, H = 200, PAD = 40;
-  const points = viewMode === "equity" ? data.equity_curve : data.payoff_data;
-  const pathRef = useRef<SVGPathElement>(null);
-  const [pathLen, setPathLen] = useState(0);
+const PerformanceChart: FC<PerformanceChartProps> = ({ data, viewMode }) => {
+  const theme = useChartTheme();
+  // Signed meaning, not a brand hue: green above break-even, red below.
+  const equityTheme = useMemo(
+    () => ({ ...theme, accent: "#00b473", accentText: "#00817A" }),
+    [theme]
+  );
+  const points = data?.equity_curve;
 
-  useEffect(() => {
-    if (pathRef.current) {
-      setPathLen(pathRef.current.getTotalLength());
-    } else {
-      setPathLen(0);
-    }
-  }, [data, viewMode]);
-
-  if (!points || points.length === 0) {
+  if (!Array.isArray(points) || points.length === 0) {
     return (
       <div className="flex items-center justify-center" style={{ paddingTop: 32, paddingBottom: 32 }}>
         <span style={{ fontSize: 12, color: "var(--color-slate)" }}>No trade data yet</span>
@@ -27,93 +25,27 @@ const PerformanceChart: React.FC<PerformanceChartProps> = ({ data, viewMode }) =
     );
   }
 
-  if (viewMode === "equity") {
-    const vals = points.map((p: any) => p.cumulative_pl);
-    const min = Math.min(...vals, 0);
-    const max = Math.max(...vals, 0);
-    const range = max - min || 1;
-    const toY = (v: number) => PAD + (H - 2 * PAD) * (1 - (v - min) / range);
-    const toX = (i: number) => PAD + (W - 2 * PAD) * (i / (points.length - 1 || 1));
-
-    const pathD = points
-      .map((p: any, i: number) => `${i === 0 ? "M" : "L"}${toX(i)},${toY(p.cumulative_pl)}`)
-      .join(" ");
-    const areaD = `${pathD} L${toX(points.length - 1)},${H - PAD} L${toX(0)},${H - PAD} Z`;
-
-    const yTicks = [min, (min + max) / 2, max];
-    const xLabels = points
-      .filter((_: any, i: number) => i % Math.max(1, Math.floor(points.length / 5)) === 0)
-      .map((p: any) => ({ label: p.date?.slice(0, 7) || "", x: toX(points.indexOf(p)) }));
-
-    return (
-      <div>
-        <div className="aspect-[4/1] relative">
-          <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
-            <defs>
-              <linearGradient id="perfGrad" x1="0%" x2="0%" y1="0%" y2="100%">
-                <stop offset="0%" stopColor="#4262ff" stopOpacity="0.15" />
-                <stop offset="100%" stopColor="#4262ff" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            {yTicks.map((v) => (
-              <line key={v} x1={PAD} x2={W - PAD} y1={toY(v)} y2={toY(v)} stroke="#e0e2e8" strokeWidth="1" />
-            ))}
-            <path d={areaD} fill="url(#perfGrad)" style={{ animation: 'fadeUp 0.8s ease-out 0.3s both' }} />
-            <path ref={pathRef} d={pathD} fill="none" stroke="#4262ff" strokeWidth="2"
-              strokeLinecap="round" strokeLinejoin="round"
-              style={{
-                strokeDasharray: pathLen || 2000,
-                strokeDashoffset: pathLen || 2000,
-                animation: pathLen ? `lineDraw 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards` : 'none',
-                ['--path-len' as string]: pathLen || 2000,
-              }} />
-            {points.map((p: any, i: number) => (
-              <circle key={i} cx={toX(i)} cy={toY(p.cumulative_pl)} fill="#4262ff" r="2.5" stroke="#fff" strokeWidth="1.5"
-                style={{ animation: `fadeUp 0.4s ease-out ${0.3 + i * 0.03}s both` }} />
-            ))}
-          </svg>
-          <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-slate" style={{ fontSize: 11, fontWeight: 500, paddingTop: 2, paddingBottom: 2 }}>
-            <span style={{ animation: 'fadeUp 0.4s ease-out 0.5s both' }}>${max.toLocaleString()}</span>
-            <span style={{ animation: 'fadeUp 0.4s ease-out 0.6s both' }}>${min.toLocaleString()}</span>
-          </div>
-        </div>
-        <div className="flex justify-between text-slate px-1" style={{ marginTop: 4, fontSize: 11, fontWeight: 500 }}>
-          {xLabels.map((xl: any, i: number) => <span key={i} style={{ animation: `fadeUp 0.4s ease-out ${0.5 + i * 0.1}s both` }}>{xl.label}</span>)}
-        </div>
-      </div>
-    );
-  }
-
-  const pls = points.map((p: any) => p.realized_pl);
-  const maxAbs = Math.max(...pls.map(Math.abs), 1);
-  const barW = Math.max(4, Math.min(20, (W - 2 * PAD) / points.length - 2));
+  // The payoff view is owned by PayoffChart; a stray payoff request renders nothing.
+  if (viewMode !== "equity") return null;
 
   return (
-    <div>
-      <div className="aspect-[4/1] relative">
-        <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
-          <line x1={PAD} x2={W - PAD} y1={H / 2} y2={H / 2} stroke="#e0e2e8" strokeWidth="1" />
-          <line x1={PAD} x2={PAD} y1={PAD} y2={H - PAD} stroke="#e0e2e8" strokeWidth="1" />
-          {points.map((p: any, i: number) => {
-            const barH = (Math.abs(p.realized_pl) / maxAbs) * (H / 2 - PAD);
-            const x = PAD + (W - 2 * PAD) * (i / (points.length - 1 || 1));
-            const y = p.realized_pl >= 0 ? H / 2 - barH : H / 2;
-            return (
-              <rect key={i} x={x - barW / 2} y={y} width={barW} height={barH || 1}
-                fill={p.realized_pl >= 0 ? "#00b473" : "#e74c3c"} rx="1"
-                style={{
-                  transformOrigin: p.realized_pl >= 0 ? `50% ${barH}px` : '50% 0',
-                  animation: `barGrow 0.5s cubic-bezier(0.4, 0, 0.2, 1) ${i * 0.04}s forwards`,
-                } as any} />
-            );
-          })}
-        </svg>
-      </div>
-      <div className="flex justify-between text-slate px-1" style={{ marginTop: 4, fontSize: 11, fontWeight: 500 }}>
-          {points.filter((_: any, i: number) => i % Math.max(1, Math.floor(points.length / 5)) === 0)
-          .map((p: any, i: number) => <span key={i} style={{ animation: `fadeUp 0.4s ease-out ${0.3 + i * 0.1}s both` }}>{(p.date || "").slice(0, 7)}</span>)}
-      </div>
-    </div>
+    <LineChart
+      data={points}
+      x="date"
+      xType="date"
+      y="cumulative_pl"
+      height={220}
+      area
+      signColors
+      baseline={0}
+      downColor="#e74c3c"
+      curve="linear"
+      referenceLines={[{ y: 0, label: "Break-even" }]}
+      brush="zoom"
+      format={{ style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 }}
+      theme={equityTheme}
+      ariaLabel="Equity curve — cumulative P/L by date"
+    />
   );
 };
 
