@@ -536,116 +536,6 @@ const CreateNewPortfolio: React.FC = () => {
               </div>
             </div>
 
-            {/* Custom Portfolio Connection Details */}
-            {formData.port_type === 'Custom Portfolio' && (
-              <div style={ruleStyle}>
-                <h3 style={groupHeadStyle}>External Database Connection</h3>
-                <p style={{ ...CONTROL_HELPER, margin: "4px 0 12px" }}>
-                  All transactional data (orders, transactions, assets) is stored in this external PostgreSQL database.
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 12 }}>
-                  <div>
-                    <label style={CONTROL_LABEL} htmlFor="db_host">Host *</label>
-                    <input
-                      id="db_host"
-                      type="text"
-                      name="db_host"
-                      value={formData.db_host || ''}
-                      onChange={handleChange}
-                      required
-                      style={CONTROL_INPUT}
-                      placeholder="e.g. 192.168.1.100 or db.example.com"
-                    />
-                  </div>
-                  <div>
-                    <label style={CONTROL_LABEL} htmlFor="db_port">Port</label>
-                    <input
-                      id="db_port"
-                      type="number"
-                      name="db_port"
-                      value={formData.db_port ?? 5432}
-                      onChange={handleNumberChange}
-                      style={CONTROL_INPUT}
-                      placeholder="5432"
-                    />
-                  </div>
-                  <div>
-                    <label style={CONTROL_LABEL} htmlFor="db_name">Database Name *</label>
-                    <input
-                      id="db_name"
-                      type="text"
-                      name="db_name"
-                      value={formData.db_name || ''}
-                      onChange={handleChange}
-                      required
-                      style={CONTROL_INPUT}
-                      placeholder="e.g. investment_custom_1"
-                    />
-                  </div>
-                  <div>
-                    <label style={CONTROL_LABEL} htmlFor="db_user">Username *</label>
-                    <input
-                      id="db_user"
-                      type="text"
-                      name="db_user"
-                      value={formData.db_user || ''}
-                      onChange={handleChange}
-                      required
-                      style={CONTROL_INPUT}
-                      placeholder="e.g. dashboard"
-                    />
-                  </div>
-                  <div>
-                    <label style={CONTROL_LABEL} htmlFor="db_password">Password *</label>
-                    <input
-                      id="db_password"
-                      type="password"
-                      name="db_password"
-                      value={formData.db_password || ''}
-                      onChange={handleChange}
-                      required
-                      style={CONTROL_INPUT}
-                      placeholder="Database password"
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <button
-                      type="button"
-                      onClick={handleTestConnection}
-                      disabled={testDisabled}
-                      className={`transition-opacity ${testDisabled ? 'opacity-50' : 'hover:opacity-90'}`}
-                      style={{
-                        ...CONTROL_BUTTON_SECONDARY,
-                        height: "var(--control-h)",
-                        cursor: testDisabled ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {testingConnection ? 'Testing...' : 'Test Connection'}
-                    </button>
-                  </div>
-                </div>
-                {connectionStatus && (
-                  <div
-                    style={{
-                      marginTop: 10,
-                      padding: "var(--space-xs) var(--space-sm)",
-                      borderRadius: "var(--rounded-md)",
-                      fontSize: "var(--fs-label)",
-                      background: connectionStatus.ok
-                        ? "var(--color-teal-light)"
-                        : "var(--color-coral-light)",
-                      color: connectionStatus.ok
-                        ? "var(--color-positive-text)"
-                        : "var(--color-danger-text)",
-                    }}
-                  >
-                    {connectionStatus.ok ? '✓ ' : '✗ '}
-                    {connectionStatus.message}
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Product, Capital & Risk Funds */}
             <div style={ruleStyle}>
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)", marginBottom: 12 }}>
@@ -883,6 +773,116 @@ const CreateNewPortfolio: React.FC = () => {
               </div>
 
             </div>
+
+            {/* Custom Portfolio Connection Details */}
+            {formData.port_type === 'Custom Portfolio' && (
+              <div style={ruleStyle}>
+                <h3 style={groupHeadStyle}>External Database Connection</h3>
+                <p style={{ ...CONTROL_HELPER, margin: "4px 0 12px" }}>
+                  All transactional data (orders, transactions, assets) is stored in this external PostgreSQL database.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 12 }}>
+                  <div>
+                    <label style={CONTROL_LABEL} htmlFor="db_host">Host *</label>
+                    <input
+                      id="db_host"
+                      type="text"
+                      name="db_host"
+                      value={formData.db_host || ''}
+                      onChange={handleChange}
+                      required
+                      style={CONTROL_INPUT}
+                      placeholder="e.g. 192.168.1.100 or db.example.com"
+                    />
+                  </div>
+                  <div>
+                    <label style={CONTROL_LABEL} htmlFor="db_port">Port</label>
+                    <input
+                      id="db_port"
+                      type="number"
+                      name="db_port"
+                      value={formData.db_port ?? 5432}
+                      onChange={handleNumberChange}
+                      style={CONTROL_INPUT}
+                      placeholder="5432"
+                    />
+                  </div>
+                  <div>
+                    <label style={CONTROL_LABEL} htmlFor="db_name">Database Name *</label>
+                    <input
+                      id="db_name"
+                      type="text"
+                      name="db_name"
+                      value={formData.db_name || ''}
+                      onChange={handleChange}
+                      required
+                      style={CONTROL_INPUT}
+                      placeholder="e.g. investment_custom_1"
+                    />
+                  </div>
+                  <div>
+                    <label style={CONTROL_LABEL} htmlFor="db_user">Username *</label>
+                    <input
+                      id="db_user"
+                      type="text"
+                      name="db_user"
+                      value={formData.db_user || ''}
+                      onChange={handleChange}
+                      required
+                      style={CONTROL_INPUT}
+                      placeholder="e.g. dashboard"
+                    />
+                  </div>
+                  <div>
+                    <label style={CONTROL_LABEL} htmlFor="db_password">Password *</label>
+                    <input
+                      id="db_password"
+                      type="password"
+                      name="db_password"
+                      value={formData.db_password || ''}
+                      onChange={handleChange}
+                      required
+                      style={CONTROL_INPUT}
+                      placeholder="Database password"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={handleTestConnection}
+                      disabled={testDisabled}
+                      className={`transition-opacity ${testDisabled ? 'opacity-50' : 'hover:opacity-90'}`}
+                      style={{
+                        ...CONTROL_BUTTON_SECONDARY,
+                        height: "var(--control-h)",
+                        cursor: testDisabled ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {testingConnection ? 'Testing...' : 'Test Connection'}
+                    </button>
+                  </div>
+                </div>
+                {connectionStatus && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: "var(--space-xs) var(--space-sm)",
+                      borderRadius: "var(--rounded-md)",
+                      fontSize: "var(--fs-label)",
+                      background: connectionStatus.ok
+                        ? "var(--color-teal-light)"
+                        : "var(--color-coral-light)",
+                      color: connectionStatus.ok
+                        ? "var(--color-positive-text)"
+                        : "var(--color-danger-text)",
+                    }}
+                  >
+                    {connectionStatus.ok ? '✓ ' : '✗ '}
+                    {connectionStatus.message}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Target Ratio (for Managed Funds) */}
             {formData.port_type === 'Managed Fund' && (
