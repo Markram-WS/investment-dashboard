@@ -728,7 +728,7 @@ const CreateNewPortfolio: React.FC = () => {
                   <label style={CONTROL_LABEL} htmlFor="tag_input">
                     Metadata Tags (Market/Broker)
                   </label>
-                  <div className="flex" style={{ gap: "var(--space-xs)", alignItems: "center", flexWrap: "wrap" }}>
+                  <div className="flex" style={{ gap: "var(--space-xs)", alignItems: "flex-start", flexWrap: "wrap" }}>
                     <input
                       id="tag_input"
                       type="text"
