@@ -11,7 +11,7 @@ import { usePortfolioManager } from "../hooks/usePortfolioManager";
 import { useMarkdownRenderer } from "../hooks/useMarkdownRenderer";
 import { SpreadOrder } from "../types";
 import { api } from "../lib/api";
-import type { ZoneGroupRecord, TradeHistoryRecord } from "../lib/api";
+import type { ZoneGroupRecord, TradeHistoryRecord, PerformanceResult } from "../lib/api";
 
 import PortfolioHeader from "./components/PortfolioHeader";
 import PageLayout from "../components/PageLayout";
@@ -56,14 +56,14 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const navigate = useNavigate();
 
   const [viewMode, setViewMode] = useState<"equity" | "payoff">("payoff");
-  const [performanceData, setPerformanceData] = useState<any>(null);
+  const [performanceData, setPerformanceData] = useState<PerformanceResult | null>(null);
 
   // Payoff state with per-portfolio localStorage
   const pid = selectedPortfolio?.portfolio_id ?? null;
   const pidRef = useRef<typeof pid>(pid);
   pidRef.current = pid;
 
-  const payoffKey = (key: string) => pid ? `payoff_${key}_${pid}` : '';
+  const payoffKey = useCallback((key: string) => pid ? `payoff_${key}_${pid}` : '', [pid]);
 
   const [strategyRows, setStrategyRows] = useState<OptionRow[]>([]);
   const [ivMode, setIvMode] = useState<boolean>(false);
@@ -103,7 +103,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         localStorage.removeItem(oldKey);
       }
     }
-  }, [pid]);
+  }, [pid, payoffKey]);
 
   // Save to per-portfolio localStorage on change
   React.useEffect(() => {
@@ -133,11 +133,11 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   }, [activeIVs]);
 
   React.useEffect(() => {
-    if (selectedPortfolio) {
-      api.getPerformance(selectedPortfolio.portfolio_id).then(setPerformanceData).catch(() => {});
-      api.getZoneGroups(selectedPortfolio.portfolio_id).then(setGroups).catch(() => {});
+    if (pid != null) {
+      api.getPerformance(pid).then(setPerformanceData).catch(() => {});
+      api.getZoneGroups(pid).then(setGroups).catch(() => {});
     }
-  }, [selectedPortfolio?.portfolio_id]);
+  }, [pid]);
 
   const {
     editingOrder,
@@ -164,10 +164,10 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   }, [setOnRefresh, fetchAnalyticsData]);
 
   React.useEffect(() => {
-    if (selectedPortfolio) {
-      api.getTradeHistory(selectedPortfolio.portfolio_id).then(setTradeHistory).catch(() => {});
+    if (pid != null) {
+      api.getTradeHistory(pid).then(setTradeHistory).catch(() => {});
     }
-  }, [selectedPortfolio?.portfolio_id]);
+  }, [pid]);
 
   const activeOrders = useMemo(
     () => (selectedPortfolio?.active_orders || []).filter((o) => o.order_status !== "closed").sort((a, b) => {
@@ -245,7 +245,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     } catch (err) {
       console.error("Failed to assign group:", err);
     }
-  }, [selectedPortfolio, activeOrders, groups, groupOrderCounts, fetchAnalyticsData]);
+  }, [selectedPortfolio, activeOrders, groups, groupOrderCounts, fetchAnalyticsData, notify]);
 
   /** Inline remark edits save one field and refresh the ladder. */
   const handleUpdateRemark = useCallback(async (order: SpreadOrder, remark: string | null) => {

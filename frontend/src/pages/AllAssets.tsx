@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query';
 import { useDrag, useDrop } from 'react-dnd';
 import { api } from '../lib/api';
+import type { AssetRecord } from '../lib/api';
 import { useNotification } from '../contexts/NotificationContext';
 import PageLayout from '../components/PageLayout';
 import PageHeader from '../components/PageHeader';
@@ -39,12 +40,17 @@ const badgeStyle = {
 
 type SpecPatch = { multiplier?: number; margin_rate?: number };
 
+interface AssetDragItem {
+  assetId: number;
+  groupId: number | null;
+}
+
 function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }: {
-  asset: any;
-  onEdit: (a: any) => void;
-  onRefreshPrice?: (asset: any) => void;
-  onSavePrice?: (asset: any, price: number) => void;
-  onSaveSpec?: (asset: any, patch: SpecPatch) => Promise<void>;
+  asset: AssetRecord;
+  onEdit: (a: AssetRecord) => void;
+  onRefreshPrice?: (asset: AssetRecord) => void;
+  onSavePrice?: (asset: AssetRecord, price: number) => void;
+  onSaveSpec?: (asset: AssetRecord, patch: SpecPatch) => Promise<void>;
 }) {
   const cachedPrice = localStorage.getItem(`cached_price_${asset.ticker}`);
   const displayPrice = (asset.price && asset.price > 0)
@@ -191,16 +197,16 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
 function GroupSection({ groupId, groupName, assets, onEdit, onDrop, onRefreshPrice, onSavePrice, onSaveSpec }: {
   groupId: number | null;
   groupName: string;
-  assets: any[];
-  onEdit: (a: any) => void;
+  assets: AssetRecord[];
+  onEdit: (a: AssetRecord) => void;
   onDrop: (assetId: number) => void;
-  onRefreshPrice?: (asset: any) => void;
-  onSavePrice?: (asset: any, price: number) => void;
-  onSaveSpec?: (asset: any, patch: SpecPatch) => Promise<void>;
+  onRefreshPrice?: (asset: AssetRecord) => void;
+  onSavePrice?: (asset: AssetRecord, price: number) => void;
+  onSaveSpec?: (asset: AssetRecord, patch: SpecPatch) => Promise<void>;
 }) {
-  const [{ isOver }, dropRef] = useDrop(() => ({
+  const [{ isOver }, dropRef] = useDrop<AssetDragItem, void, { isOver: boolean }>(() => ({
     accept: ITEM_TYPE,
-    drop: (item: any) => {
+    drop: (item: AssetDragItem) => {
       if (item.groupId === groupId) return;
       onDrop(item.assetId);
     },
@@ -251,7 +257,7 @@ function GroupSection({ groupId, groupName, assets, onEdit, onDrop, onRefreshPri
                   <td colSpan={9} className="px-4 py-6 text-center text-slate" style={{ fontSize: "var(--fs-body)" }}>No assets in this group</td>
                 </tr>
               ) : (
-                assets.map((asset: any) => (
+                assets.map((asset) => (
                   <DraggableRow key={asset.asset_id} asset={asset} onEdit={onEdit} onRefreshPrice={onRefreshPrice} onSavePrice={onSavePrice} onSaveSpec={onSaveSpec} />
                 ))
               )}
@@ -270,7 +276,7 @@ export default function AllAssets() {
   });
   const [showAddModal, setShowAddModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
-  const [editAsset, setEditAsset] = useState<any>(null);
+  const [editAsset, setEditAsset] = useState<AssetRecord | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const { notify } = useNotification();
   const autoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -304,9 +310,9 @@ export default function AllAssets() {
       console.error('Failed to refresh prices', e);
       notify("Couldn't refresh prices", 'warning');
     }
-  }, [refetchAssets, typeFilter]);
+  }, [refetchAssets, typeFilter, notify]);
 
-  const handleRefreshPrice = async (asset: any) => {
+  const handleRefreshPrice = async (asset: AssetRecord) => {
     try {
       const updated = await api.updateAssetPrice(asset.asset_id);
       if (updated.price && updated.price > 0) {
@@ -320,7 +326,7 @@ export default function AllAssets() {
     }
   };
 
-  const handleSavePrice = async (asset: any, price: number) => {
+  const handleSavePrice = async (asset: AssetRecord, price: number) => {
     try {
       if (asset.source === 'yfinance') {
         await api.updateAsset(asset.asset_id, { price });
@@ -333,7 +339,7 @@ export default function AllAssets() {
     }
   };
 
-  const handleSaveSpec = async (asset: any, patch: SpecPatch) => {
+  const handleSaveSpec = async (asset: AssetRecord, patch: SpecPatch) => {
     try {
       await api.updateAsset(asset.asset_id, patch);
       await refetchAssets();
@@ -363,7 +369,7 @@ export default function AllAssets() {
         // silent — non-critical
       }
     })();
-  }, []);
+  }, [refetchAssets]);
 
   const handleSync = async () => {
     setSyncLoading(true);
@@ -392,7 +398,7 @@ export default function AllAssets() {
     const ungroupedGroup = groups.find(g => g.name === 'Ungrouped');
     const ungroupedId = ungroupedGroup ? ungroupedGroup.id : null;
 
-    const map: Record<string, any[]> = {};
+    const map: Record<string, AssetRecord[]> = {};
     for (const g of groups) {
       map[`group_${g.id}`] = [];
     }
@@ -410,7 +416,7 @@ export default function AllAssets() {
       }
     }
 
-    const result: { groupId: number | null; groupName: string; assets: any[] }[] = [];
+    const result: { groupId: number | null; groupName: string; assets: AssetRecord[] }[] = [];
 
     for (const g of groups) {
       const key = `group_${g.id}`;

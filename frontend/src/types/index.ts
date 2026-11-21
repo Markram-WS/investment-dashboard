@@ -182,7 +182,7 @@ export interface Transaction {
   entry_date: string | null;
   exit_date: string | null;
   flow: string | null;
-  remark: any | null;
+  remark: unknown;
   order_remark?: string | null;
 }
 
@@ -227,8 +227,8 @@ export interface RecommendResponse {
   portfolio_id: number;
   portfolio_name: string;
   current_nav: number;
-  target_allocations: Record<string, any>;
-  current_allocations: Record<string, any>;
+  target_allocations: Record<string, number>;
+  current_allocations: Record<string, number>;
   recommendations: TradeRecommendation[];
   total_drift: number;
 }
@@ -361,8 +361,8 @@ export interface PortfolioGridData {
   ai_reasoning: string | null;
   ai_risk_insight: string | null;
   spread_pairs: SpreadPair[];
-  active_orders: any[];
-  recent_trades: any[];
+  active_orders: SpreadOrder[];
+  recent_trades: RecentTrade[];
 }
 
 // === Link Order Grouping ===

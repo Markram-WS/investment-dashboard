@@ -1,12 +1,13 @@
 import React, { type ReactNode } from "react";
 import { SpreadOrder } from "../../types";
+import type { PerformanceResult } from "../../lib/api";
 import type { OptionRow } from "./OptionsStrategyTable";
 import { formatMoney } from "../../utils/format";
 import PerformanceChart from "./PerformanceChart";
 import PayoffChart from "./PayoffChart";
 
 interface PerformanceSectionProps {
-  performanceData: any;
+  performanceData: PerformanceResult | null;
   viewMode: "equity" | "payoff";
   onViewModeChange: (mode: "equity" | "payoff") => void;
   activeOrders?: SpreadOrder[];

@@ -65,15 +65,18 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
   const isSubOrder = order?.link_type === 'pending_close';
   const linkedInfo = isSpreadLeg && linkedOrder ? linkedOrder : isSubOrder && linkedOrder ? linkedOrder : null;
 
+  const orderCost = order?.cost;
+  const orderId = order?.order_id ?? null;
+
   useEffect(() => {
-    if (showModal && order) {
+    if (showModal && orderId != null) {
       setCloseId(`CLS-${Math.random().toString(36).slice(2, 8).toUpperCase()}`);
       setExitPrice("");
       setRealizedPl("");
-      setCost(String(order.cost || 0));
+      setCost(String(orderCost || 0));
       lastEdited.current = null;
     }
-  }, [showModal, order?.order_id]);
+  }, [showModal, orderId, orderCost]);
 
   if (!showModal || !order) return null;
 

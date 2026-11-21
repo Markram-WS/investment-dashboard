@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { NotificationProvider } from './contexts/NotificationContext';
+import { NotificationProvider } from './contexts/NotificationProvider';
 import { lazy, Suspense } from 'react';
 import GlobalLayout from './components/GlobalLayout';
 import './index.css';

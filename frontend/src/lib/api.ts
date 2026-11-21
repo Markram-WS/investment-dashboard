@@ -248,6 +248,7 @@ export interface AssetRecord {
   updated_at: string | null;
   broker_id?: number | null;
   broker_code?: string | null;
+  broker_name?: string | null;
   multiplier?: number;
   margin_rate?: number;
 }

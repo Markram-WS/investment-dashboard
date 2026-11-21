@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { IconBell, IconX, IconCheck, IconAlertTriangle, IconCircle } from "./icons";
+import { IconBell, IconX, IconCheck, IconAlertTriangle } from "./icons";
 import { useNotification, type Notification } from "../contexts/NotificationContext";
 
 function timeAgo(ts: number): string {

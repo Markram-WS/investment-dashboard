@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { formatMoney } from "../../utils/format";
+import type { TradeHistoryRecord } from "../../lib/api";
 
 interface TradeHistoryTableProps {
-  tradeHistory: any[];
+  tradeHistory: TradeHistoryRecord[];
   showHistory: boolean;
   onToggleHistory: () => void;
   onDropOnTradeHistory?: (orderId: string) => void;
@@ -60,7 +61,7 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
       const db = b.exit_date || '';
       return da.localeCompare(db);
     });
-    const groups: Record<string, any[]> = {};
+    const groups: Record<string, TradeHistoryRecord[]> = {};
     for (const h of sorted) {
       const asset = h.asset || 'Unknown';
       if (!groups[asset]) groups[asset] = [];
@@ -123,7 +124,7 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((h: any) => (
+                    {rows.map((h) => (
                       <tr key={h.history_id} className="border-b border-hairline-soft">
                         <td className="px-3 py-1.5 text-slate text-[length:var(--fs-content)]">{h.order_id ?? "-"}</td>
                         <td className="hidden md:table-cell px-3 py-1.5 text-slate text-[length:var(--fs-content)]">{h.close_order_id ?? "-"}</td>
@@ -142,7 +143,7 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                           {h.realized_pl != null ? formatMoney(Number(h.realized_pl)) : "-"}
                         </td>
                         <td className="px-3 py-1.5">
-                          <span className="text-[length:var(--fs-label)]" style={badgeStyle}>{h.remark?.note === "Canceled" ? "Canceled" : "Close"}</span>
+                          <span className="text-[length:var(--fs-label)]" style={badgeStyle}>{typeof h.remark === "object" && h.remark !== null && "note" in h.remark && h.remark.note === "Canceled" ? "Canceled" : "Close"}</span>
                         </td>
                         <td className="hidden lg:table-cell px-3 py-1.5 text-right text-slate text-[length:var(--fs-content)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(h.entry_date)}</td>
                         <td className="hidden lg:table-cell px-3 py-1.5 text-right text-slate text-[length:var(--fs-content)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(h.exit_date)}</td>

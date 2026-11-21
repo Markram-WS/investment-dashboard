@@ -9,7 +9,6 @@ import {
   IconShield,
   IconFolder,
   IconChevronDown,
-  IconMoreHorizontal,
   IconMenu,
   IconX,
   IconPlus,
@@ -28,7 +27,6 @@ const NAV_ITEMS = [
 export default function Navigation() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [portfolioOpen, setPortfolioOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [portfoliosDropdownOpen, setPortfoliosDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -52,7 +50,7 @@ export default function Navigation() {
     }
   }
 
-  const portfolios = portfolioList.map((p: any) => ({ id: p.portfolio_id, name: p.portfolio_name }));
+  const portfolios = portfolioList.map((p) => ({ id: p.portfolio_id, name: p.portfolio_name }));
 
   const handleOutsideClick = useCallback((e: MouseEvent) => {
     if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -143,7 +141,7 @@ export default function Navigation() {
                     return (
                       <button
                         key={p.id}
-                        onClick={() => { setSelectedId(p.id); setPortfoliosDropdownOpen(false); navigate(`/analytics/portfolio/${p.id}`); }}
+                        onClick={() => { setPortfoliosDropdownOpen(false); navigate(`/analytics/portfolio/${p.id}`); }}
                         className="w-full px-4 py-3 text-sm font-medium text-slate bg-transparent border-none flex items-center gap-2.5 cursor-pointer hover:bg-surface"
                       >
                         <span className={`w-2 h-2 rounded-full inline-block ${dotColor}`} />
@@ -210,7 +208,7 @@ export default function Navigation() {
             {portfolios.map((p) => (
               <button
                 key={p.id}
-                onClick={() => { setSelectedId(p.id); setMobileOpen(false); navigate(`/analytics/portfolio/${p.id}`); }}
+                onClick={() => { setMobileOpen(false); navigate(`/analytics/portfolio/${p.id}`); }}
                 className="bg-none border-none px-4 py-3 text-sm text-ink flex items-center gap-2.5 w-full text-left rounded cursor-pointer hover:bg-surface"
               >
                 <IconFolder className="w-5 h-5 nav-icon-hover" />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../lib/api";
 import type { PortfolioSummary, TransactionRecord } from "../lib/api";
 import { Transaction } from "../types";
@@ -24,6 +24,12 @@ function parseFlow(flow: string | null): { from: string; to: string } {
   return { from: a, to: b };
 }
 
+const mapTx = (tx: TransactionRecord): Transaction => ({
+  ...(tx as unknown as Transaction),
+  type: tx.transaction_type,
+  entry_date: tx.created_at ?? null,
+});
+
 export default function TransactionsPage() {
   const [transactionsData, setTransactionsData] = useState<Transaction[]>([]);
   const [portfolios, setPortfolios] = useState<PortfolioSummary[]>([]);
@@ -44,6 +50,11 @@ export default function TransactionsPage() {
   const newTransactionRef = useRef<HTMLDivElement>(null);
   const amountInputRef = useRef<HTMLInputElement>(null);
 
+  const refreshTransactions = useCallback(async () => {
+    const txns = await api.getTransactions();
+    setTransactionsData(txns.map(mapTx));
+  }, []);
+
   useEffect(() => {
     Promise.all([
       refreshTransactions().catch(() => {}),
@@ -52,18 +63,7 @@ export default function TransactionsPage() {
       setPortfolios(ports);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
-
-  const mapTx = (tx: TransactionRecord): Transaction => ({
-    ...(tx as unknown as Transaction),
-    type: tx.transaction_type,
-    entry_date: tx.created_at ?? null,
-  });
-
-  const refreshTransactions = async () => {
-    const txns = await api.getTransactions();
-    setTransactionsData(txns.map(mapTx));
-  };
+  }, [refreshTransactions]);
 
   const fmtCurrency = (amount: number): string => formatCurrency(amount, currency);
 

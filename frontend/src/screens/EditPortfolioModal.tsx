@@ -95,6 +95,9 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
       setDwError("");
       setSaveErr("");
     }
+    // Hydrates the draft only when the modal opens. Adding the portfolio props
+    // would wipe in-progress edits whenever the parent refetches them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showModal]);
 
   useEffect(() => {

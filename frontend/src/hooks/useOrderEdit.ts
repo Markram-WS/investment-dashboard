@@ -8,7 +8,8 @@ interface UseOrderEditReturn {
   showModal: boolean;
   startEdit: (order: SpreadOrder) => void;
   closeModal: () => void;
-  handleFormChange: (field: keyof Partial<SpreadOrder>, value: any) => void;
+  /** `unknown`: the form modals carry loosely typed input values. */
+  handleFormChange: (field: keyof Partial<SpreadOrder>, value: unknown) => void;
   handleSaveOrder: () => Promise<void>;
   setOnRefresh: (callback: () => void) => void;
 }
@@ -47,7 +48,7 @@ export const useOrderEdit = (portfolioId?: number): UseOrderEditReturn => {
     setFormData({});
   }, []);
 
-  const handleFormChange = useCallback((field: keyof Partial<SpreadOrder>, value: any) => {
+  const handleFormChange = useCallback((field: keyof Partial<SpreadOrder>, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
 

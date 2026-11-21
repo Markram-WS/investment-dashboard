@@ -5,7 +5,7 @@ import { DndProvider } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import React from 'react'
 import PortfolioOverview from './PortfolioOverview'
-import { NotificationProvider } from '../contexts/NotificationContext'
+import { NotificationProvider } from '../contexts/NotificationProvider'
 
 // Mock fetch globally. `api.request` reads `response.text()`, not `json()`.
 const mockFetch = vi.fn()

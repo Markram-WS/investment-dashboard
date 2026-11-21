@@ -29,7 +29,8 @@ interface UseAddOrderReturn {
   formData: AddOrderForm;
   openModal: (preset?: Partial<AddOrderForm>) => void;
   closeModal: () => void;
-  handleFormChange: (field: keyof AddOrderForm, value: any) => void;
+  /** `unknown`: the form modals carry loosely typed input values. */
+  handleFormChange: (field: keyof AddOrderForm, value: unknown) => void;
   handleCreateOrder: (portfolioId: number) => Promise<CreateOrderResult>;
   setOnCreated: (callback: () => void) => void;
 }
@@ -75,7 +76,7 @@ export const useAddOrder = (): UseAddOrderReturn => {
     setFormData({ ...defaultForm });
   }, []);
 
-  const handleFormChange = useCallback((field: keyof AddOrderForm, value: any) => {
+  const handleFormChange = useCallback((field: keyof AddOrderForm, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
 
