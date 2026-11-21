@@ -3,59 +3,29 @@ import { SpreadOrder } from "../types";
 import ModalShell from "./components/ModalShell";
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
 import { formatMoney } from "../utils/format";
+import { Field, NumberInput, TextInput } from "./components/Field";
+import {
+  CONTROL_BUTTON_PRIMARY,
+  CONTROL_BUTTON_SECONDARY,
+  CONTROL_TITLE,
+  CONTROL_VALUE,
+} from "./components/controlStyles";
 
-/** Field label: 12px/500 slate, sentence case. */
-const fieldLabel = {
-  display: "block",
-  fontSize: 12,
-  fontWeight: 500,
-  color: "var(--color-slate)",
-  margin: "0 0 5px",
-} as const;
+const primaryButton = CONTROL_BUTTON_PRIMARY;
+const secondaryButton = CONTROL_BUTTON_SECONDARY;
 
-/** Text field: 15px ink on canvas, 1px hairline, radius 8. */
-const fieldInput = {
-  width: "100%",
-  fontSize: 15,
-  color: "var(--color-ink)",
-  background: "var(--color-canvas)",
-  border: "1px solid var(--color-hairline)",
-  borderRadius: 8,
-  padding: "8px 12px",
-} as const;
-
-const primaryButton = {
-  padding: "8px 16px",
-  fontSize: 13,
-  fontWeight: 500,
-  background: "var(--color-ink)",
-  color: "var(--color-canvas)",
-  border: "1px solid var(--color-ink)",
-  borderRadius: 999,
-  cursor: "pointer",
-} as const;
-
-const secondaryButton = {
-  padding: "8px 16px",
-  fontSize: 13,
-  fontWeight: 500,
-  background: "var(--color-canvas)",
-  color: "var(--color-ink)",
-  border: "1px solid var(--color-hairline)",
-  borderRadius: 999,
-  cursor: "pointer",
-} as const;
-
-const summaryLabel = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)" } as const;
+const summaryLabel = { fontWeight: 500, color: "var(--color-slate)" } as const;
 const summaryValue = {
-  fontSize: 13,
-  fontWeight: 600,
-  color: "var(--color-ink)",
+  ...CONTROL_VALUE,
   fontVariantNumeric: "tabular-nums",
 } as const;
 
 const actionButtonClass = "transition-opacity disabled:opacity-50 disabled:cursor-not-allowed";
-const modalPanel = "bg-canvas border border-hairline rounded-xl p-6 w-full max-w-sm mx-4";
+const modalPanel = "bg-canvas border border-hairline w-full max-w-sm mx-4";
+const modalPanelStyle = {
+  padding: "var(--space-md)",
+  borderRadius: "var(--rounded-xl)",
+} as const;
 
 interface CloseOrderModalProps {
   order: SpreadOrder | null;
@@ -160,44 +130,44 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title={"Close Order " + (order?.order_id || '')} closeOnBackdrop={false}>
-      <div className={`${MODAL_CARD} ${modalPanel}`}>
-        <h3 className={`${MODAL_HEADER} block`} style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 12px' }}>
+      <div className={`${MODAL_CARD} ${modalPanel}`} style={modalPanelStyle}>
+        <h3 className={`${MODAL_HEADER} block`} style={{ ...CONTROL_TITLE, margin: '0 0 12px' }}>
           Close order {linkedInfo ? `(linked to #${linkedInfo.order_id?.slice(0, 8)})` : ''}
         </h3>
 
         <div className={`${MODAL_BODY} space-y-3`}>
-          <div>
-            <label className="block" style={fieldLabel}>Close ID</label>
-            <input
+          <Field label="Close ID" htmlFor="close-order-id">
+            <TextInput
+              id="close-order-id"
               type="text"
               value={closeId}
               onChange={(e) => setCloseId(e.target.value)}
               placeholder="CLS-XXXXXXXX"
-              className="w-full" style={fieldInput}
+              className="w-full"
             />
-          </div>
+          </Field>
 
           <div className="space-y-1.5">
             <div className="flex justify-between">
-              <span style={summaryLabel}>Order</span>
+              <span className="text-[length:var(--fs-label)]" style={summaryLabel}>Order</span>
               <span style={summaryValue}>#{order.order_id} &middot; {order.asset_type} &middot; {order.side}</span>
             </div>
             <div className="flex justify-between">
-              <span style={summaryLabel}>Qty</span>
+              <span className="text-[length:var(--fs-label)]" style={summaryLabel}>Qty</span>
               <span style={summaryValue}>{qty}</span>
             </div>
             <div className="flex justify-between">
-              <span style={summaryLabel}>Entry price</span>
+              <span className="text-[length:var(--fs-label)]" style={summaryLabel}>Entry price</span>
               <span style={summaryValue}>{formatMoney(entryPrice)}</span>
             </div>
             {linkedInfo && (
               <>
                 <div className="flex justify-between">
-                  <span style={summaryLabel}>Linked order</span>
+                  <span className="text-[length:var(--fs-label)]" style={summaryLabel}>Linked order</span>
                   <span style={summaryValue}>#{linkedInfo.order_id?.slice(0, 8)} &middot; {linkedInfo.asset_type} &middot; {linkedInfo.side}</span>
                 </div>
                 <div className="flex justify-between" style={{ borderTop: '1px solid var(--color-hairline)', paddingTop: 6 }}>
-                  <span style={summaryLabel}>Linked entry</span>
+                  <span className="text-[length:var(--fs-label)]" style={summaryLabel}>Linked entry</span>
                   <span style={summaryValue}>{linkedInfo.entry_price ? formatMoney(linkedInfo.entry_price) : '-'}</span>
                 </div>
               </>
@@ -205,38 +175,35 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
           </div>
 
           <div className="pt-3 space-y-3" style={{ borderTop: '1px solid var(--color-hairline)' }}>
-            <div>
-              <label className="block" style={fieldLabel}>Cost (spread/commission)</label>
-              <input
-                type="number"
+            <Field label="Cost (spread/commission)" htmlFor="close-order-cost">
+              <NumberInput
+                id="close-order-cost"
                 step="any"
                 value={cost}
                 onChange={(e) => handleCostChange(e.target.value)}
-                className="w-full" style={fieldInput}
+                className="w-full"
               />
-            </div>
-            <div>
-              <label className="block" style={fieldLabel}>Exit price</label>
-              <input
-                type="number"
+            </Field>
+            <Field label="Exit price" htmlFor="close-order-exit-price">
+              <NumberInput
+                id="close-order-exit-price"
                 step="any"
                 value={exitPrice}
                 onChange={(e) => handleExitPriceChange(e.target.value)}
                 placeholder={order.current_price ? String(order.current_price) : "0"}
-                className="w-full" style={fieldInput}
+                className="w-full"
               />
-            </div>
-            <div>
-              <label className="block" style={fieldLabel}>P/L</label>
-              <input
-                type="number"
+            </Field>
+            <Field label="P/L" htmlFor="close-order-pl">
+              <NumberInput
+                id="close-order-pl"
                 step="any"
                 value={realizedPl}
                 onChange={(e) => handlePlChange(e.target.value)}
                 placeholder="0"
-                className="w-full" style={fieldInput}
+                className="w-full"
               />
-            </div>
+            </Field>
           </div>
         </div>
 

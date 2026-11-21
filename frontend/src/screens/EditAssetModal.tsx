@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import ModalShell from './components/ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
+import { Field, NumberInput, SelectInput, TextInput } from './components/Field';
+import {
+  CONTROL_BUTTON_PRIMARY,
+  CONTROL_BUTTON_SECONDARY,
+  CONTROL_HELPER,
+  CONTROL_TITLE,
+} from './components/controlStyles';
 
 /** Editable asset shape read by this modal (callers may pass the raw row). */
 interface EditableAsset {
@@ -29,76 +36,20 @@ interface EditAssetModalProps {
 const SOURCES = ['manual', 'yfinance'];
 const TYPES = ['stock', 'future', 'option', 'crypto'];
 
-/** Field label: 11px/500 slate, sentence case. */
-const fieldLabel = {
-  display: 'block',
-  fontSize: 11,
-  fontWeight: 500,
-  color: 'var(--color-slate)',
-  margin: '0 0 4px',
-} as const;
-
-/** Field control: 13px ink on canvas, 1px hairline, radius 8. */
-const fieldControl = {
-  width: '100%',
-  boxSizing: 'border-box',
-  fontSize: 13,
-  fontWeight: 500,
-  fontVariantNumeric: 'tabular-nums',
-  color: 'var(--color-ink)',
-  background: 'var(--color-canvas)',
-  border: '1px solid var(--color-hairline)',
-  borderRadius: 8,
-  padding: '5px 9px',
-} as const;
-
-const helperText = {
-  fontSize: 11,
-  color: 'var(--color-slate)',
-  margin: '4px 0 0',
-} as const;
-
 const contextLine = {
-  fontSize: 11,
-  color: 'var(--color-slate)',
+  ...CONTROL_HELPER,
   margin: '0 0 10px',
 } as const;
 
-const primaryButton = {
-  padding: '5px 12px',
-  fontSize: 12,
-  fontWeight: 500,
-  background: 'var(--color-ink)',
-  color: 'var(--color-canvas)',
-  border: '1px solid var(--color-ink)',
-  borderRadius: 999,
-  cursor: 'pointer',
-} as const;
-
-const secondaryButton = {
-  padding: '5px 12px',
-  fontSize: 12,
-  fontWeight: 500,
-  background: 'var(--color-canvas)',
-  color: 'var(--color-ink)',
-  border: '1px solid var(--color-hairline)',
-  borderRadius: 999,
-  cursor: 'pointer',
-} as const;
-
+const primaryButton = CONTROL_BUTTON_PRIMARY;
+const secondaryButton = CONTROL_BUTTON_SECONDARY;
 const dangerButton = {
-  padding: '5px 12px',
-  fontSize: 12,
-  fontWeight: 500,
-  background: 'var(--color-canvas)',
+  ...CONTROL_BUTTON_SECONDARY,
   color: 'var(--color-danger-text)',
-  border: '1px solid var(--color-danger-text)',
-  borderRadius: 999,
-  cursor: 'pointer',
+  borderColor: 'var(--color-danger-text)',
 } as const;
 
 const errorText = {
-  fontSize: 11,
   color: 'var(--color-danger-text)',
   background: 'color-mix(in srgb, var(--color-danger-text) 10%, transparent)',
   borderRadius: 8,
@@ -107,7 +58,11 @@ const errorText = {
 } as const;
 
 const actionButtonClass = 'transition-opacity disabled:opacity-50 disabled:cursor-not-allowed';
-const modalPanel = 'bg-canvas border border-hairline rounded-xl p-4 w-[400px] max-w-[90vw]';
+const modalPanel = 'bg-canvas border border-hairline w-[400px] max-w-[90vw]';
+const modalPanelStyle = {
+  padding: 'var(--space-md)',
+  borderRadius: 'var(--rounded-xl)',
+} as const;
 
 const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, onSaved, groups }) => {
   const [form, setForm] = useState({ name: '', asset_type: 'stock', source: 'manual', group_id: '', multiplier: '1', margin_rate: '0' });
@@ -190,70 +145,59 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
 
   return (
     <ModalShell open={open} onClose={onClose} title={"Edit Asset " + (asset?.ticker || '')} zIndex={9999}>
-      <div className={`${MODAL_CARD} ${modalPanel}`}>
-        <h3 className={`${MODAL_HEADER} block`} style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 12px' }}>Edit asset — {asset.ticker}</h3>
+      <div className={`${MODAL_CARD} ${modalPanel}`} style={modalPanelStyle}>
+        <h3 className={`${MODAL_HEADER} block`} style={{ ...CONTROL_TITLE, margin: '0 0 12px' }}>Edit asset — {asset.ticker}</h3>
 
         <div className={MODAL_BODY}>
-        {error && <div style={errorText}>{error}</div>}
+        {error && <div style={errorText} className="text-[length:var(--fs-label)]">{error}</div>}
 
         <p style={contextLine}>
           Symbol {asset.ticker} · Broker {asset.broker_code ?? '—'} — symbol and broker are fixed after creation.
         </p>
 
         <div className="space-y-2.5">
-          <div>
-            <label className="block" style={fieldLabel}>Name</label>
-            <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-              style={fieldControl} />
-          </div>
+          <Field label="Name" htmlFor="edit-asset-name">
+            <TextInput id="edit-asset-name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+          </Field>
           <div className="flex gap-2.5">
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>Type</label>
-              <select value={form.asset_type} onChange={e => setForm(p => ({ ...p, asset_type: e.target.value }))}
-                style={fieldControl}>
+            <Field className="flex-1" label="Type" htmlFor="edit-asset-type">
+              <SelectInput id="edit-asset-type" value={form.asset_type} onChange={e => setForm(p => ({ ...p, asset_type: e.target.value }))}>
                 {TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>Source</label>
-              <select value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))}
-                style={fieldControl}>
+              </SelectInput>
+            </Field>
+            <Field className="flex-1" label="Source" htmlFor="edit-asset-source">
+              <SelectInput id="edit-asset-source" value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))}>
                 {SOURCES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-              </select>
-            </div>
+              </SelectInput>
+            </Field>
           </div>
-          <div>
-            <label className="block" style={fieldLabel}>Group</label>
-            <select value={form.group_id} onChange={e => setForm(p => ({ ...p, group_id: e.target.value }))}
-              style={fieldControl}>
+          <Field label="Group" htmlFor="edit-asset-group">
+            <SelectInput id="edit-asset-group" value={form.group_id} onChange={e => setForm(p => ({ ...p, group_id: e.target.value }))}>
               <option value="">None</option>
               {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-          </div>
+            </SelectInput>
+          </Field>
           <div>
             <div className="flex gap-2.5">
-              <div className="flex-1">
-                <label className="block" style={fieldLabel}>Multiplier</label>
-                <input type="number" step="any" value={form.multiplier}
+              <Field className="flex-1" label="Multiplier" htmlFor="edit-asset-multiplier">
+                <NumberInput id="edit-asset-multiplier" step="any" value={form.multiplier}
                   onChange={e => setForm(p => ({ ...p, multiplier: e.target.value }))}
-                  style={fieldControl} placeholder="1" />
-              </div>
-              <div className="flex-1">
-                <label className="block" style={fieldLabel}>Margin rate</label>
-                <input type="number" step="any" value={form.margin_rate}
+                  placeholder="1" />
+              </Field>
+              <Field className="flex-1" label="Margin rate" htmlFor="edit-asset-margin-rate">
+                <NumberInput id="edit-asset-margin-rate" step="any" value={form.margin_rate}
                   onChange={e => setForm(p => ({ ...p, margin_rate: e.target.value }))}
-                  style={fieldControl} placeholder="0" />
-              </div>
+                  placeholder="0" />
+              </Field>
             </div>
-            <p style={helperText}>Margin 0.10 = 10% of notional</p>
+            <p style={CONTROL_HELPER}>Margin 0.10 = 10% of notional</p>
           </div>
           {form.source === 'manual' && (
-            <div>
-              <label className="block" style={fieldLabel}>Price (manual)</label>
-              <input type="number" step="any" value={priceStr}
+            <Field label="Price (manual)" htmlFor="edit-asset-price">
+              <NumberInput id="edit-asset-price" step="any" value={priceStr}
                 onChange={e => setPriceStr(e.target.value)}
-                style={fieldControl} placeholder="0.00" />
-            </div>
+                placeholder="0.00" />
+            </Field>
           )}
         </div>
         </div>

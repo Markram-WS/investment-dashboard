@@ -29,6 +29,9 @@ export default [
       'src/screens/ZoneGroupModal.tsx',
       'src/screens/AssetGroupModal.tsx',
       'src/screens/AddAssetModal.tsx',
+      'src/screens/EditAssetModal.tsx',
+      'src/screens/EditOrderModal.tsx',
+      'src/screens/CloseOrderModal.tsx',
       'src/screens/components/Field.tsx',
     ],
     rules: {

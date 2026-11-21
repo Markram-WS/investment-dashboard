@@ -5,50 +5,23 @@ import { api } from '../lib/api';
 import { formatMoney } from '../utils/format';
 import ModalShell from './components/ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
+import { Field, NumberInput, TextInput } from './components/Field';
+import {
+  CONTROL_BUTTON_PRIMARY,
+  CONTROL_BUTTON_SECONDARY,
+  CONTROL_LABEL,
+  CONTROL_TITLE,
+  CONTROL_VALUE,
+} from './components/controlStyles';
 
-/** Field label: 12px/500 slate, sentence case. */
-const fieldLabel = {
-  display: 'block',
-  fontSize: 12,
-  fontWeight: 500,
-  color: 'var(--color-slate)',
-  margin: '0 0 5px',
+const primaryButton = CONTROL_BUTTON_PRIMARY;
+const secondaryButton = CONTROL_BUTTON_SECONDARY;
+
+const modalPanel = 'bg-canvas border border-hairline w-full max-w-md mx-4';
+const modalPanelStyle = {
+  padding: 'var(--space-md)',
+  borderRadius: 'var(--rounded-xl)',
 } as const;
-
-/** Text field: 15px ink on canvas, 1px hairline, radius 8. */
-const fieldInput = {
-  width: '100%',
-  fontSize: 15,
-  color: 'var(--color-ink)',
-  background: 'var(--color-canvas)',
-  border: '1px solid var(--color-hairline)',
-  borderRadius: 8,
-  padding: '8px 12px',
-} as const;
-
-const primaryButton = {
-  padding: '8px 16px',
-  fontSize: 13,
-  fontWeight: 500,
-  background: 'var(--color-ink)',
-  color: 'var(--color-canvas)',
-  border: '1px solid var(--color-ink)',
-  borderRadius: 999,
-  cursor: 'pointer',
-} as const;
-
-const secondaryButton = {
-  padding: '8px 16px',
-  fontSize: 13,
-  fontWeight: 500,
-  background: 'var(--color-canvas)',
-  color: 'var(--color-ink)',
-  border: '1px solid var(--color-hairline)',
-  borderRadius: 999,
-  cursor: 'pointer',
-} as const;
-
-const modalPanel = 'bg-canvas border border-hairline rounded-xl p-6 w-full max-w-md mx-4';
 
 interface EditOrderModalProps {
   order: SpreadOrder | null;
@@ -56,11 +29,10 @@ interface EditOrderModalProps {
   showModal: boolean;
   onClose: () => void;
   onSave: () => Promise<void>;
-  onChange: (field: keyof typeof formData, value: any) => void;
+  onChange: (field: keyof typeof formData, value: unknown) => void;
   groups: GroupOption[];
   groupOrderCounts: Record<number, number>;
   assetTypeOptions: string[];
-  activeOrders?: SpreadOrder[];
   onRefresh?: () => void;
   portfolioId?: number;
 }
@@ -95,10 +67,9 @@ const ToggleBtn = React.memo(function ToggleBtn({ options, value, onChange }: {
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
-            className="transition-colors"
+            className="transition-colors text-[length:var(--fs-label)]"
             style={{
               padding: '5px 12px',
-              fontSize: 12,
               fontWeight: 500,
               borderRadius: 999,
               border: `1px solid ${isActive ? 'var(--color-ink)' : 'var(--color-hairline)'}`,
@@ -125,7 +96,6 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   groups,
   groupOrderCounts,
   assetTypeOptions,
-  activeOrders,
   portfolioId,
 }) => {
   const entryPrice = parseFloat(formData.entry_price as string) || 0;
@@ -135,9 +105,6 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   const [pendingUnlink, setPendingUnlink] = useState(false);
   const linkType = order?.link_type;
   const showLinkDetail = linkType === 'spread' || linkType === 'pending_close';
-  const linkedPartner = order?.linked_order_id
-    ? (activeOrders || []).find(o => o.order_id === order.linked_order_id)
-    : null;
 
   const groupWarnings = useMemo(() => {
     if (!selectedGroup || groupId == null) return [];
@@ -178,11 +145,11 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title={"Edit Order #" + (order?.order_id || '')} closeOnBackdrop={false} zIndex={110}>
-      <div className={`${MODAL_CARD} ${modalPanel}`}>
-        <h3 className={`${MODAL_HEADER} block`} style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 12px' }}>Edit order #{order.order_id}</h3>
+      <div className={`${MODAL_CARD} ${modalPanel}`} style={modalPanelStyle}>
+        <h3 className={`${MODAL_HEADER} block`} style={{ ...CONTROL_TITLE, margin: '0 0 12px' }}>Edit order #{order.order_id}</h3>
         <div className={`${MODAL_BODY} space-y-3`}>
           <div>
-            <label className="block" style={fieldLabel}>Contract Type</label>
+            <label style={CONTROL_LABEL}>Contract Type</label>
             <ToggleBtn
               options={EDIT_CONTRACT_OPTS}
               value={contractType}
@@ -190,21 +157,23 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             />
           </div>
           <div>
-            <label className="block" style={fieldLabel}>Asset Type</label>
-            <input
-              type="text"
-              value={formData.asset_type || ''}
-              onChange={(e) => onChange('asset_type', e.target.value)}
-              list="asset-types-edit"
-              className="w-full" style={fieldInput}
-            />
+            <Field label="Asset Type" htmlFor="edit-order-asset-type">
+              <TextInput
+                id="edit-order-asset-type"
+                type="text"
+                value={formData.asset_type || ''}
+                onChange={(e) => onChange('asset_type', e.target.value)}
+                list="asset-types-edit"
+                className="w-full"
+              />
+            </Field>
             <datalist id="asset-types-edit">
               {assetTypeOptions.map((t) => <option key={t} value={t} />)}
             </datalist>
           </div>
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block" style={fieldLabel}>Side</label>
+              <label style={CONTROL_LABEL}>Side</label>
               <ToggleBtn
                 options={editSideOptions}
                 value={formData.side || (contractType === 'spot' ? 'BUY' : 'LONG')}
@@ -213,7 +182,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             </div>
             {contractType === 'option' && (
               <div className="flex-1">
-                <label className="block" style={fieldLabel}>Option Type</label>
+                <label style={CONTROL_LABEL}>Option Type</label>
                 <ToggleBtn
                   options={EDIT_OPTION_TYPE_OPTS}
                   value={formData.option_type || ''}
@@ -223,87 +192,82 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             )}
           </div>
           <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>Entry Price</label>
-              <input
-                type="number"
+            <Field className="flex-1" label="Entry Price" htmlFor="edit-order-entry-price">
+              <NumberInput
+                id="edit-order-entry-price"
                 step="any"
                 value={formData.entry_price || ''}
                 onChange={(e) => onChange('entry_price', parseFloat(e.target.value))}
-                className="w-full" style={fieldInput}
+                className="w-full"
               />
-            </div>
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>Qty</label>
-              <input
-                type="number"
+            </Field>
+            <Field className="flex-1" label="Qty" htmlFor="edit-order-qty">
+              <NumberInput
+                id="edit-order-qty"
                 step="any"
                 value={formData.qty || ''}
                 onChange={(e) => onChange('qty', parseFloat(e.target.value))}
-                className="w-full" style={fieldInput}
+                className="w-full"
               />
-            </div>
+            </Field>
           </div>
           <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>TP Price</label>
-              <input
-                type="number"
+            <Field className="flex-1" label="TP Price" htmlFor="edit-order-tp-price">
+              <NumberInput
+                id="edit-order-tp-price"
                 step="any"
                 value={formData.tp_price || ''}
                 onChange={(e) => onChange('tp_price', parseFloat(e.target.value))}
-                className="w-full" style={fieldInput}
+                className="w-full"
               />
-            </div>
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>SL Price</label>
-              <input
-                type="number"
+            </Field>
+            <Field className="flex-1" label="SL Price" htmlFor="edit-order-sl-price">
+              <NumberInput
+                id="edit-order-sl-price"
                 step="any"
                 value={formData.sl_price || ''}
                 onChange={(e) => onChange('sl_price', parseFloat(e.target.value))}
-                className="w-full" style={fieldInput}
+                className="w-full"
               />
-            </div>
+            </Field>
           </div>
           {contractType === 'option' && (
-            <div>
-              <label className="block" style={fieldLabel}>Strike Price</label>
-              <input
-                type="number"
+            <Field label="Strike Price" htmlFor="edit-order-strike-price">
+              <NumberInput
+                id="edit-order-strike-price"
                 step="any"
                 value={formData.strike_price ?? ''}
                 onChange={(e) => onChange('strike_price', parseFloat(e.target.value))}
-                className="w-full" style={fieldInput}
+                className="w-full"
               />
-            </div>
+            </Field>
           )}
           <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>Cost (spread/commission)</label>
-              <input
-                type="number"
+            <Field className="flex-1" label="Cost (spread/commission)" htmlFor="edit-order-cost">
+              <NumberInput
+                id="edit-order-cost"
                 step="any"
                 value={formData.cost ?? ''}
                 onChange={(e) => onChange('cost', parseFloat(e.target.value))}
-                className="w-full" style={fieldInput}
+                className="w-full"
               />
-            </div>
+            </Field>
             {contractType !== 'spot' && (
-              <div className="flex-1">
-                <label className="block" style={fieldLabel}>Expiry Date</label>
-                <input
+              <Field className="flex-1" label="Expiry Date" htmlFor="edit-order-expiry-date">
+                <TextInput
+                  id="edit-order-expiry-date"
                   type="date"
                   value={formData.expiry_date ? (formData.expiry_date as string).slice(0, 10) : ''}
                   onChange={(e) => onChange('expiry_date', e.target.value)}
-                  className="w-full" style={fieldInput}
+                  className="w-full"
+                  style={{ height: 'var(--control-h)' }}
                 />
-              </div>
+              </Field>
             )}
           </div>
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block" style={fieldLabel}>Status</label>
+              <label style={CONTROL_LABEL}>Status</label>
               <ToggleBtn
                 options={EDIT_STATUS_OPTS}
                 value={formData.order_status || 'FILLED'}
@@ -347,23 +311,23 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
                       )}
                     </svg>
                   </span>
-                  <span className="font-mono text-ink" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
+                  <span className="font-mono text-ink" style={CONTROL_VALUE}>
                     #{order?.linked_order_id || 'unknown'}
                   </span>
                   {pendingUnlink && (
-                    <span className="ml-auto" style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-danger-text)' }}>Will unlink</span>
+                    <span className="ml-auto text-[length:var(--fs-label)]" style={{ fontWeight: 500, color: 'var(--color-danger-text)' }}>Will unlink</span>
                   )}
                 </div>
               </div>
             )}
           </div>
           <div>
-            <label className="block" style={fieldLabel}>Group</label>
+            <label style={CONTROL_LABEL}>Group</label>
             <GroupCombobox groups={groups} value={formData.group_id ?? null} onChange={(v) => onChange('group_id', v)} />
             {groupWarnings.length > 0 && (
               <div className="mt-1 space-y-0.5">
                 {groupWarnings.map((w, i) => (
-                  <p key={i} style={{ fontSize: 12, color: 'var(--color-danger-text)', display: 'flex', alignItems: 'center', gap: 4, margin: 0 }}>
+                  <p key={i} className="text-[length:var(--fs-label)]" style={{ color: 'var(--color-danger-text)', display: 'flex', alignItems: 'center', gap: 4, margin: 0 }}>
                     <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
                     {w}
                   </p>

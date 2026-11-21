@@ -517,7 +517,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         groups={groups}
         groupOrderCounts={groupOrderCounts}
         assetTypeOptions={assetTypeOptions}
-        activeOrders={activeOrders}
         onRefresh={fetchAnalyticsData}
         portfolioId={selectedPortfolio?.portfolio_id}
       />
