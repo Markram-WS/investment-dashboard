@@ -5,6 +5,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { MFSetting, MFHolding } from "../types";
 import ModalShell from "./components/ModalShell";
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
+import { formatMoney } from "../utils/format";
 
 const CARD: CSSProperties = {
   background: "var(--color-canvas)", borderRadius: 16, padding: 24,
@@ -127,7 +129,7 @@ export default function MFEditPortfolioModal({
   const handleSave = async () => {
     setSaveErr("");
     const b = parseFloat(cashBuffer) || 0;
-    if (b > cash) { setSaveErr(`Cash Buffer max $${cash.toLocaleString()}`); return; }
+    if (b > cash) { setSaveErr(`Cash buffer limit cannot exceed ${formatMoney(cash)}`); return; }
 
     setSaving(true);
     try {
@@ -161,8 +163,9 @@ export default function MFEditPortfolioModal({
 
       onSaved();
       onClose();
-    } catch (err: any) {
-      setSaveErr(err.message || "Save failed");
+    } catch (err: unknown) {
+      console.error("Failed to save portfolio:", err);
+      setSaveErr("Couldn't save the portfolio.");
     } finally {
       setSaving(false);
     }
@@ -179,14 +182,17 @@ export default function MFEditPortfolioModal({
       });
       await api.updatePortfolio(portfolioId, { available_cash: cash + num });
       setDwAmount(""); onSaved();
-    } catch (e: any) { setDwError(e.message || "Deposit failed"); }
+    } catch (e: unknown) {
+      console.error("Failed to deposit cash:", e);
+      setDwError("Couldn't deposit cash.");
+    }
     finally { setDwProcessing(false); }
   };
 
   const handleWithdraw = async () => {
     const num = parseFloat(dwAmount);
     if (isNaN(num) || num <= 0) { setDwError("Enter a valid amount"); return; }
-    if (num > cash) { setDwError(`Max withdraw $${cash.toLocaleString()}`); return; }
+    if (num > cash) { setDwError(`Maximum withdraw is ${formatMoney(cash)}`); return; }
     setDwProcessing(true); setDwError("");
     try {
       await api.createTransaction({
@@ -195,7 +201,10 @@ export default function MFEditPortfolioModal({
       });
       await api.updatePortfolio(portfolioId, { available_cash: cash - num });
       setDwAmount(""); onSaved();
-    } catch (e: any) { setDwError(e.message || "Withdraw failed"); }
+    } catch (e: unknown) {
+      console.error("Failed to withdraw cash:", e);
+      setDwError("Couldn't withdraw cash.");
+    }
     finally { setDwProcessing(false); }
   };
 
@@ -208,8 +217,9 @@ export default function MFEditPortfolioModal({
       queryClient.invalidateQueries({ queryKey: ["nav-overview"] });
       onClose();
       navigate("/");
-    } catch (err: any) {
-      setDeleteErr(err.message || "Delete failed");
+    } catch (err: unknown) {
+      console.error("Failed to delete portfolio:", err);
+      setDeleteErr("Couldn't delete the portfolio.");
       setDeleting(false);
       setShowConfirmDelete(false);
     }
@@ -219,8 +229,8 @@ export default function MFEditPortfolioModal({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Edit managed fund">
-      <div className="w-full max-w-xl mx-4 relative max-h-[90vh] overflow-y-auto" style={CARD}>
-        <div className="flex justify-between items-center" style={{ marginBottom: 24 }}>
+      <div className={`${MODAL_CARD} w-full max-w-xl mx-4 relative`} style={CARD}>
+        <div className={`${MODAL_HEADER} flex justify-between items-center`} style={{ marginBottom: 16 }}>
           <h3 style={TITLE}>Edit managed fund</h3>
           <button onClick={onClose} className="p-1 hover:bg-surface-soft rounded-full transition-colors">
             <svg className="w-5 h-5 text-slate" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -229,6 +239,7 @@ export default function MFEditPortfolioModal({
           </button>
         </div>
 
+        <div className={MODAL_BODY}>
         {/* Basic Info */}
         <div className="flex flex-col" style={{ gap: 16 }}>
           <div>
@@ -239,17 +250,17 @@ export default function MFEditPortfolioModal({
           <div>
             <label style={LABEL}>Available cash</label>
             <div style={{ ...INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent" }}>
-              ${availableDisplay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatMoney(availableDisplay)}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 items-start">
             <div>
               <label style={LABEL}>Margin locked (computed)</label>
               <div style={{ ...INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent" }}>
-                ${(portfolio.margin_locked || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatMoney(portfolio.margin_locked || 0)}
               </div>
               <p style={{ fontSize: 12, fontWeight: 400, color: "var(--color-slate)", margin: "4px 0 0" }}>
-                คิดจาก Σ mark × multiplier × qty × margin rate
+                Computed as Σ mark × multiplier × qty × margin rate
               </p>
             </div>
             <div>
@@ -305,7 +316,7 @@ export default function MFEditPortfolioModal({
           {holdings.length > 0 && (
             <div>
               <label style={{ ...LABEL, marginBottom: 8 }}>Per-asset (%)</label>
-              <div className="flex flex-col max-h-32 overflow-y-auto" style={{ gap: 6 }}>
+              <div className="flex flex-col" style={{ gap: 6 }}>
                 {holdings.map(h => (
                   <div key={h.holding_id} className="flex items-center gap-2">
                     <span className="w-16" style={{ fontSize: 15, fontWeight: 500, color: "var(--color-ink)" }}>{h.asset}</span>
@@ -365,9 +376,10 @@ export default function MFEditPortfolioModal({
             Delete
           </button>
         </div>
+        </div>
 
         {/* Action buttons */}
-        <div className="flex justify-end gap-3" style={{ marginTop: 24 }}>
+        <div className={`${MODAL_FOOTER} flex justify-end gap-3`} style={{ marginTop: 12 }}>
           <button onClick={onClose} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
           <button onClick={handleSave} disabled={saving}
             className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"

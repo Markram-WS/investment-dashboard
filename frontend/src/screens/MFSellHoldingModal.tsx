@@ -1,7 +1,9 @@
 import { useState } from "react";
 import type { CSSProperties } from "react";
 import { MFHolding } from "../types";
+import { formatMoney } from "../utils/format";
 import ModalShell from "./components/ModalShell";
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
 
 interface MFSellHoldingModalProps {
   show: boolean;
@@ -53,8 +55,9 @@ export default function MFSellHoldingModal({ show, holding, onClose, onConfirm }
 
   return (
     <ModalShell open={show} onClose={onClose} title={"Sell " + (holding?.asset || '')} closeOnBackdrop={false}>
-      <div className="w-full max-w-sm mx-4" style={CARD}>
-        <h3 style={{ ...TITLE, marginBottom: 16 }}>Sell {holding.asset}</h3>
+      <div className={`${MODAL_CARD} w-full max-w-sm mx-4`} style={CARD}>
+        <h3 className={MODAL_HEADER} style={{ ...TITLE, marginBottom: 12 }}>Sell {holding.asset}</h3>
+        <div className={MODAL_BODY}>
         <div style={{ marginBottom: 20 }}>
           <div style={ROW}>
             <span style={ROW_KEY}>Quantity</span>
@@ -62,11 +65,11 @@ export default function MFSellHoldingModal({ show, holding, onClose, onConfirm }
           </div>
           <div style={ROW}>
             <span style={ROW_KEY}>Avg entry</span>
-            <span style={ROW_VALUE}>${holding.avg_entry_price.toLocaleString()}</span>
+            <span style={ROW_VALUE}>{formatMoney(holding.avg_entry_price)}</span>
           </div>
           <div style={{ ...ROW, borderBottom: "1px solid var(--color-hairline-soft)" }}>
             <span style={ROW_KEY}>Current value</span>
-            <span style={ROW_VALUE}>${holding.market_value.toLocaleString()}</span>
+            <span style={ROW_VALUE}>{formatMoney(holding.market_value)}</span>
           </div>
         </div>
         <div>
@@ -81,7 +84,8 @@ export default function MFSellHoldingModal({ show, holding, onClose, onConfirm }
             style={INPUT}
           />
         </div>
-        <div className="flex justify-end gap-2" style={{ marginTop: 24 }}>
+        </div>
+        <div className={`${MODAL_FOOTER} flex justify-end gap-2`} style={{ marginTop: 12 }}>
           <button onClick={onClose} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
           <button onClick={handleConfirm} style={BTN_PRIMARY} className="transition-opacity hover:opacity-90">Create sell order</button>
         </div>

@@ -1,14 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 const STORAGE_KEY = "theme";
 const DARK_CLASS = "dark";
-
-function getInitialTheme(): boolean {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === "dark") return true;
-  if (stored === "light") return false;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
-}
 
 function applyTheme(isDark: boolean) {
   document.documentElement.classList.toggle(DARK_CLASS, isDark);
@@ -16,19 +9,22 @@ function applyTheme(isDark: boolean) {
 }
 
 export default function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false);
+  // The inline script in index.html resolves the theme before React mounts.
+  // Trust the class it set so the first render never contradicts (or overwrites)
+  // that decision.
+  const [isDark, setIsDark] = useState(() =>
+    document.documentElement.classList.contains(DARK_CLASS),
+  );
 
-  useEffect(() => {
-    setIsDark(getInitialTheme());
-  }, []);
-
-  useEffect(() => {
-    applyTheme(isDark);
-  }, [isDark]);
+  function handleToggle() {
+    const next = !isDark;
+    setIsDark(next);
+    applyTheme(next);
+  }
 
   return (
     <button
-      onClick={() => setIsDark((prev) => !prev)}
+      onClick={handleToggle}
       className="w-10 h-10 flex items-center justify-center bg-transparent border border-hairline rounded-full cursor-pointer"
       aria-label="Toggle dark mode"
     >

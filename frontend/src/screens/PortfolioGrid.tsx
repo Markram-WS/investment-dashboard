@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { EditOrderModal } from "./EditOrderModal";
 import { AddOrderModal } from "./AddOrderModal";
 import { ZoneGroupModal } from "./ZoneGroupModal";
@@ -26,6 +26,8 @@ import TradeHistoryTable from "./components/TradeHistoryTable";
 import ModalShell from "./components/ModalShell";
 import type { OptionRow } from "./components/OptionsStrategyTable";
 import { useNotification } from "../contexts/NotificationContext";
+import Button from "./components/Button";
+import { formatMoney } from "../utils/format";
 
 interface PortfolioGridProps {
   portfolioId?: number | string;
@@ -222,10 +224,10 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           }
         }
         if (groupDef.min_price != null && currentOrder.entry_price != null && currentOrder.entry_price < groupDef.min_price) {
-          warnings.push(`Entry price ($${currentOrder.entry_price.toLocaleString()}) is below the group minimum price ($${groupDef.min_price.toLocaleString()}).`);
+          warnings.push(`Entry price (${formatMoney(currentOrder.entry_price)}) is below the group minimum price (${formatMoney(groupDef.min_price)}).`);
         }
         if (groupDef.max_price != null && currentOrder.entry_price != null && currentOrder.entry_price > groupDef.max_price) {
-          warnings.push(`Entry price ($${currentOrder.entry_price.toLocaleString()}) exceeds the group maximum price ($${groupDef.max_price.toLocaleString()}).`);
+          warnings.push(`Entry price (${formatMoney(currentOrder.entry_price)}) exceeds the group maximum price (${formatMoney(groupDef.max_price)}).`);
         }
       }
     }
@@ -309,7 +311,32 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const { renderMarkdown } = useMarkdownRenderer();
 
   if (loading) return <PageLayout><p className="text-slate">Loading portfolio analytics...</p></PageLayout>;
-  if (error) return <PageLayout><p style={{ color: "var(--color-danger-text)" }}>Error: {error}</p></PageLayout>;
+  if (error) return (
+    <PageLayout>
+      <div
+        className="card"
+        style={{ maxWidth: 440, margin: "12vh auto 0", textAlign: "center" }}
+        role="alert"
+      >
+        <h1 style={{ margin: 0, fontSize: "var(--fs-section)", fontWeight: 600, color: "var(--color-ink)" }}>
+          Order grid didn't load
+        </h1>
+        <p style={{ margin: "8px 0 20px", fontSize: "var(--fs-body)", color: "var(--color-slate)" }}>
+          The server could not return this portfolio's orders.
+        </p>
+        <div className="flex items-center justify-center gap-3">
+          <Button variant="primary" onClick={() => { fetchAnalyticsData(); }}>Retry</Button>
+          <Link
+            to="/"
+            style={{ fontSize: "var(--fs-body)", fontWeight: 600, color: "var(--color-brand-teal)" }}
+            className="no-underline hover:underline"
+          >
+            Back to Overview
+          </Link>
+        </div>
+      </div>
+    </PageLayout>
+  );
   if (!selectedPortfolio) return <PageLayout><p className="text-slate">No portfolio data available.</p></PageLayout>;
 
   const cumulativePl = performanceData?.total_pl || 0;

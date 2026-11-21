@@ -77,8 +77,14 @@ export default function Navigation() {
       <div className="flex items-center w-full max-w-[1200px] mx-auto">
         <div className="flex items-center gap-3">
           <NavLink to="/" className="flex items-center gap-2.5 no-underline">
-            <div className="w-8 h-8 rounded flex items-center justify-center bg-brand-yellow">
-              <span className="text-ink font-bold text-lg">M</span>
+            <div
+              className="w-8 h-8 rounded flex items-center justify-center"
+              style={{
+                background: "var(--color-brand-accent)",
+                color: "var(--color-on-brand-accent)",
+              }}
+            >
+              <span className="font-bold text-lg">M</span>
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-bold text-ink uppercase tracking-normal">
@@ -111,7 +117,7 @@ export default function Navigation() {
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setPortfoliosDropdownOpen(!portfoliosDropdownOpen)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-slate bg-transparent border-none cursor-pointer transition-colors hover:bg-surface"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-slate bg-transparent border-none cursor-pointer transition-colors hover:bg-[var(--color-accent-wash)]"
             >
               <IconFolder className="w-5 h-5 nav-icon-hover" />
               <span>Portfolios</span>
@@ -154,6 +160,7 @@ export default function Navigation() {
                   <button
                     onClick={() => { setPortfoliosDropdownOpen(false); navigate('/create-portfolio'); }}
                     className="w-full text-sm font-semibold text-brand-teal bg-transparent border-none cursor-pointer hover:underline inline-flex items-center gap-1.5"
+                    style={{ textDecorationColor: "var(--color-brand-accent)" }}
                   >
                     <IconPlus className="w-4 h-4" /> Portfolio
                   </button>

@@ -4,7 +4,7 @@ import { useDrag, useDrop } from "react-dnd";
 import { api } from "../lib/api";
 import { PortfolioOverviewItem, OverviewResponse } from "../types";
 import { getPortfolioTags, getProfitPct } from "../utils/tags";
-import { fmtAmount } from "../utils/format";
+import { formatMoney, formatPct } from "../utils/format";
 import TransferModal from "../screens/components/TransferModal";
 import LiquidityStack from "../screens/components/LiquidityStack";
 import Button from "../screens/components/Button";
@@ -34,7 +34,7 @@ type SortKey = "value" | "pnl" | "name";
 
 /** Splits the formatted amount so cents render smaller, keeping tabular alignment. */
 function Amount({ value, currency }: { value: number; currency: "USD" | "THB" }) {
-  const text = fmtAmount(value, currency);
+  const text = formatMoney(value, currency);
   const dot = text.lastIndexOf(".");
   if (dot === -1) return <span>{text}</span>;
   return (
@@ -92,7 +92,7 @@ function PortfolioRow({
   const profitPct = getProfitPct(p);
   const profitSign = profitPct > 0 ? 1 : profitPct < 0 ? -1 : 0;
   const secondary = compact ? null : secondaryLine(p);
-  const availableLabel = `${fmtAmount(p.available_cash, currency)} available — drag to transfer`;
+  const availableLabel = `${formatMoney(p.available_cash, currency)} available — drag to transfer`;
 
   return (
     <Link
@@ -156,7 +156,7 @@ function PortfolioRow({
         >
           <span style={{ color: "var(--color-slate)" }}>Available</span>
           <span style={{ color: "var(--color-ink)", fontWeight: 600 }}>
-            {fmtAmount(p.available_cash, currency)}
+            {formatMoney(p.available_cash, currency)}
           </span>
         </div>
       </div>
@@ -165,7 +165,7 @@ function PortfolioRow({
         className="ledger-cell-value ledger-num"
         style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)", ...tabular }}
       >
-        {fmtAmount(total, currency)}
+        {formatMoney(total, currency)}
       </div>
 
       <div
@@ -182,7 +182,7 @@ function PortfolioRow({
           ...tabular,
         }}
       >
-        {profitSign > 0 ? "+" : ""}{profitPct.toFixed(1)}%
+        {formatPct(profitPct)}
       </div>
 
       <div className="ledger-cell-status" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--fs-label)", color: "var(--color-slate)" }}>
@@ -219,9 +219,59 @@ export default function PortfolioOverview() {
   }, []);
 
   if (loading) return (
-    <div className="flex items-center justify-center h-[60vh]">
-      <div className="text-slate">Loading…</div>
-    </div>
+    <PageLayout>
+      <PageHeader title="Overview" />
+
+      <div className="animate-pulse">
+        <section
+          style={{
+            background: "var(--color-canvas)",
+            borderRadius: 12,
+            padding: "var(--strip-pad-y) var(--strip-pad-x)",
+            marginBottom: "var(--strip-mb)",
+          }}
+        >
+          <div
+            className="flex flex-col min-[1024px]:grid min-[1024px]:items-center"
+            style={{
+              gap: "var(--ledger-gap)",
+              gridTemplateColumns: "minmax(0, 300px) 1px minmax(0, 1fr)",
+            }}
+          >
+            <div>
+              <div className="h-3 bg-surface rounded w-20" />
+              <div className="h-9 bg-surface rounded w-48" style={{ marginTop: 6 }} />
+              <div className="flex" style={{ gap: 24, marginTop: 12 }}>
+                <div className="h-4 bg-surface rounded w-20" />
+                <div className="h-4 bg-surface rounded w-16" />
+              </div>
+            </div>
+            <div
+              className="hidden min-[1024px]:block"
+              style={{ width: 1, alignSelf: "stretch", background: "var(--color-hairline)" }}
+            />
+            <div>
+              <div className="h-3 bg-surface rounded w-24" />
+              <div className="h-7 bg-surface rounded w-full" style={{ marginTop: 6 }} />
+            </div>
+          </div>
+        </section>
+
+        <div className="h-4 bg-surface rounded w-24" style={{ marginBottom: 12 }} />
+
+        {[0, 1, 2, 3, 4].map((row) => (
+          <div key={row} className="flex items-center gap-6 py-4 border-b border-hairline">
+            <div className="flex-1 min-w-0">
+              <div className="h-4 bg-surface rounded w-40" />
+            </div>
+            <div className="h-4 bg-surface rounded w-32" />
+            <div className="h-4 bg-surface rounded w-24" />
+            <div className="h-4 bg-surface rounded w-16" />
+            <div className="h-4 bg-surface rounded w-16" />
+          </div>
+        ))}
+      </div>
+    </PageLayout>
   );
 
   if (!data) return null;
@@ -258,7 +308,7 @@ export default function PortfolioOverview() {
 
   const reserveDangerLimit = (margin + buffer) * 1.2;
   const reserveOptimalLimit = (margin + buffer) * 2.0;
-  const reserveRangeLabel = `Reserve ${money_reserve_status.toLowerCase()} — Danger under ${fmtAmount(reserveDangerLimit, currency)}, Optimal ${fmtAmount(reserveDangerLimit, currency)} to ${fmtAmount(reserveOptimalLimit, currency)}, Neutral over ${fmtAmount(reserveOptimalLimit, currency)}`;
+  const reserveRangeLabel = `Reserve ${money_reserve_status.toLowerCase()} — Danger under ${formatMoney(reserveDangerLimit, currency)}, Optimal ${formatMoney(reserveDangerLimit, currency)} to ${formatMoney(reserveOptimalLimit, currency)}, Neutral over ${formatMoney(reserveOptimalLimit, currency)}`;
 
   const dense = portfolios.length > DENSE_THRESHOLD;
   const normalizedQuery = portfolioQuery.trim().toLowerCase();
@@ -363,14 +413,14 @@ export default function PortfolioOverview() {
                     {overallPLSign > 0 ? "▲ " : "▼ "}
                   </span>
                 )}
-                {overallPLSign > 0 ? "+" : ""}{overallPLPct.toFixed(1)}%
+                {formatPct(overallPLPct)}
               </span>
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 24, marginTop: 12 }}>
               <div>
                 <p style={{ margin: 0, fontSize: "var(--fs-micro)", fontWeight: 500, color: "var(--color-slate)" }}>P/L</p>
                 <p style={{ margin: 0, marginTop: 4, fontSize: "var(--fs-body)", fontWeight: 600, color: plColor, ...tabular }}>
-                  {plPrefix}{fmtAmount(Math.abs(total_pl || 0), currency)}
+                  {plPrefix}{formatMoney(Math.abs(total_pl || 0), currency)}
                 </p>
               </div>
               <div>
@@ -395,8 +445,8 @@ export default function PortfolioOverview() {
               available={available_cash}
               height={28}
               showLabels
-              formatValue={(v) => fmtAmount(v, currency)}
-              label={`Cash allocation — margin ${fmtAmount(margin, currency)}, buffer ${fmtAmount(buffer, currency)}, available ${fmtAmount(available_cash, currency)}`}
+              formatValue={(v) => formatMoney(v, currency)}
+              label={`Cash allocation — margin ${formatMoney(margin, currency)}, buffer ${formatMoney(buffer, currency)}, available ${formatMoney(available_cash, currency)}`}
             />
           </div>
         </div>

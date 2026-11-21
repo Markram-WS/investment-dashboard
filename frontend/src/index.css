@@ -12,10 +12,33 @@
   --color-primary: #1c1c1e;
   --color-on-primary: #ffffff;
   --color-brand-accent: #FFD02F;
-  --color-brand-yellow: var(--color-brand-accent);
+  /* Semantic fill — never repainted by the user's chrome accent. */
+  --color-brand-yellow: #FFD02F;
   --color-brand-blue: #4262ff;
   --color-brand-coral: #ff9999;
-  --color-brand-teal: #0fbcb0;
+  /* Teal is used for both fills and text in light mode, so it must read as text:
+     #0a7a73 measures 5.19:1 on white and 5.25:1 on the teal chip fill. */
+  --color-brand-teal: #0a7a73;
+  /* Solid primary-action fill: white label measures 5.19:1. */
+  --color-brand-teal-strong: #0a7a73;
+  --color-brand-teal-strong-hover: #087068;
+  --color-brand-teal-strong-active: #075f5a;
+  /* Text on the pastel teal/coral chip fills: 5.25:1 and 5.08:1.
+     (Teal itself already clears 4.53:1 on the teal chip fill; the chip token
+     adds headroom at chip sizes.) */
+  --color-teal-chip-text: #0a6f69;
+  --color-coral-chip-text: #a32020;
+  /* Warning reads as text on canvas/surface, so it needs its own darker value
+     than the solid warning fill used by the attention chip. */
+  --color-warning-text: #8a6200;
+  /* Liquidity segment labels, chosen per segment luminance. */
+  --color-on-tier-1: #1c1c1e;
+  --color-on-tier-2: #1c1c1e;
+  /* Text/icon ink for anything sitting on the user-selected accent. Recomputed
+     by AccentMenu whenever the accent changes. */
+  --color-on-brand-accent: #1c1c1e;
+  /* Chrome accent affordances (hover wash) — never a semantic fill. */
+  --color-accent-wash: color-mix(in srgb, var(--color-brand-accent) 18%, transparent);
 
   /* Light Variants (for hero card, available indicator) */
   --color-teal-light: #c3faf5;
@@ -89,8 +112,8 @@
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04);
 
   /* Ledger text accents + row surfaces (Overview) */
-  --color-danger-text: #D93B3B;
-  --color-positive-text: #00817A;
+  --color-danger-text: #C22F2F;
+  --color-positive-text: #00746D;
   --color-status-warning: #B57F00;
   --color-row-hover: #F2F4F7;
   --color-tier-1: #9BA1AE;
@@ -111,9 +134,19 @@
   --color-primary: #e8e8e8;
   --color-on-primary: #1c1c1e;
   --color-brand-accent: #FFD02F;
+  --color-brand-yellow: #FFD02F;
   --color-brand-blue: #5a7aff;
   --color-brand-coral: #ff9999;
+  /* On the dark canvas the saturated teal is the readable text/line colour
+     (7.75:1); the solid primary fill stays the darkened strong token so white
+     labels keep their 5.19:1. */
   --color-brand-teal: #0fbcb0;
+  --color-teal-chip-text: #7fe3d8;
+  --color-coral-chip-text: #ffb3b3;
+  --color-warning-text: #FFD02F;
+  --color-on-tier-1: #e8e8e8;
+  --color-on-tier-2: #e8e8e8;
+  --color-on-brand-accent: #1c1c1e;
 
   --color-teal-light: #1a3636;
   --color-coral-light: #361a1a;
@@ -268,7 +301,7 @@ body {
   background: color-mix(in srgb, var(--color-status-warning) 85%, var(--color-canvas));
 }
 .attention-chip:focus-visible {
-  outline: 2px solid var(--color-brand-teal);
+  outline: 2px solid var(--color-brand-accent);
   outline-offset: 2px;
 }
 
@@ -306,7 +339,7 @@ body {
   background: var(--color-surface);
 }
 .ledger-row:focus-visible {
-  outline: 2px solid var(--color-brand-teal);
+  outline: 2px solid var(--color-brand-accent);
   outline-offset: 2px;
 }
 .ledger-drop-active {
@@ -487,14 +520,14 @@ body {
 
 /* Focus-visible for accessibility */
 :focus-visible {
-  outline: 2px solid var(--color-brand-teal);
+  outline: 2px solid var(--color-brand-accent);
   outline-offset: 2px;
 }
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--color-brand-teal);
+  outline: 2px solid var(--color-brand-accent);
   outline-offset: 2px;
 }
 
@@ -690,9 +723,9 @@ a:focus-visible {
   overflow: hidden;
   font-variant-numeric: tabular-nums;
 }
-.at-seg[data-kind="margin"] { background: var(--color-tier-1); color: #fff; }
-.at-seg[data-kind="buffer"] { background: var(--color-tier-2); color: var(--color-ink); }
-.at-seg[data-kind="available"] { background: var(--color-brand-yellow); color: var(--color-ink); }
+.at-seg[data-kind="margin"] { background: var(--color-tier-1); color: var(--color-on-tier-1); }
+.at-seg[data-kind="buffer"] { background: var(--color-tier-2); color: var(--color-on-tier-2); }
+.at-seg[data-kind="available"] { background: var(--color-brand-yellow); color: var(--color-on-brand-yellow); }
 .at-track { height: 5px; border-radius: 999px; background: var(--color-hairline-soft); overflow: hidden; }
 .at-track > i { display: block; height: 100%; border-radius: 999px; background: var(--color-brand-teal); }
 .at-hrow { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 3px; }

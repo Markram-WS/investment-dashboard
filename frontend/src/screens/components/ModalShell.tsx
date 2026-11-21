@@ -96,7 +96,7 @@ export default function ModalShell({
     >
       <div
         ref={contentRef}
-        className="animate-modal-content my-auto max-w-full"
+        className="animate-modal-content flex h-full max-h-[calc(100dvh-48px)] w-full max-w-full flex-col items-center [justify-content:safe_center]"
         onClick={(e) => e.stopPropagation()}
       >
         {children}

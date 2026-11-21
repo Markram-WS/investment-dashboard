@@ -2,7 +2,9 @@ import React, { useMemo, useState } from 'react';
 import { SpreadOrder, GroupOption } from '../types';
 import { GroupCombobox } from './components/GroupCombobox';
 import { api } from '../lib/api';
+import { formatMoney } from '../utils/format';
 import ModalShell from './components/ModalShell';
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
 
 /** Field label: 12px/500 slate, sentence case. */
 const fieldLabel = {
@@ -141,10 +143,10 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
     if (!selectedGroup || groupId == null) return [];
     const warnings: string[] = [];
     if (selectedGroup.min_price != null && entryPrice < selectedGroup.min_price) {
-      warnings.push(`Min price for this group is $${selectedGroup.min_price.toLocaleString()}`);
+      warnings.push(`Min price for this group is ${formatMoney(selectedGroup.min_price)}`);
     }
     if (selectedGroup.max_price != null && entryPrice > selectedGroup.max_price) {
-      warnings.push(`Max price for this group is $${selectedGroup.max_price.toLocaleString()}`);
+      warnings.push(`Max price for this group is ${formatMoney(selectedGroup.max_price)}`);
     }
     if (selectedGroup.max_orders != null) {
       const currentCount = groupOrderCounts[groupId] || 0;
@@ -176,9 +178,9 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title={"Edit Order #" + (order?.order_id || '')} closeOnBackdrop={false} zIndex={110}>
-      <div className={modalPanel}>
-        <h3 style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 16px' }}>Edit order #{order.order_id}</h3>
-        <div className="space-y-4">
+      <div className={`${MODAL_CARD} ${modalPanel}`}>
+        <h3 className={`${MODAL_HEADER} block`} style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 12px' }}>Edit order #{order.order_id}</h3>
+        <div className={`${MODAL_BODY} space-y-3`}>
           <div>
             <label className="block" style={fieldLabel}>Contract Type</label>
             <ToggleBtn
@@ -370,7 +372,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             )}
           </div>
         </div>
-        <div className="flex justify-end" style={{ gap: 8, marginTop: 24 }}>
+        <div className={`${MODAL_FOOTER} flex justify-end`} style={{ gap: 8, marginTop: 12 }}>
           <button type="button" onClick={onClose} style={secondaryButton}>Cancel</button>
           <button type="button" onClick={async () => {
             if (pendingUnlink && order?.order_id) {

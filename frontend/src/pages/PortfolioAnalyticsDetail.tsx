@@ -82,7 +82,8 @@ export default function PortfolioAnalyticsDetail() {
           setLayoutType("grid");
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
+        console.error("Failed to load portfolio analytics:", err);
+        setError("Couldn't load this portfolio.");
         setLayoutType("grid");
       } finally {
         setLoading(false);

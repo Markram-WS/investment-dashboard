@@ -10,6 +10,7 @@ import IconButton from '../components/IconButton';
 import AddAssetModal from '../screens/AddAssetModal';
 import EditAssetModal from '../screens/EditAssetModal';
 import AssetGroupModal from '../screens/AssetGroupModal';
+import { formatMoney, formatPct } from '../utils/format';
 
 const TYPE_TABS = [
   { value: '', label: 'All' },
@@ -129,7 +130,7 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
             className="w-28 text-right text-[15px] border border-brand-teal rounded px-2 py-0.5 bg-canvas text-ink outline-none"
             onClick={e => e.stopPropagation()} />
         ) : (
-          displayPrice != null ? `$${Number(displayPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
+          displayPrice != null ? formatMoney(Number(displayPrice), 'USD') : '—'
         )}
       </td>
       <td className="px-4 py-3 text-[15px] text-right font-medium"
@@ -139,7 +140,7 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
             ? (change >= 0 ? 'var(--color-positive-text)' : 'var(--color-danger-text)')
             : 'var(--color-slate)',
         }}>
-        {change != null ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—'}
+        {change != null ? formatPct(change) : '—'}
       </td>
       <td className="px-3 py-3 text-[13px] text-slate" title={asset.broker_name || asset.broker_code || undefined}>
         {asset.broker_code ?? '—'}
@@ -296,8 +297,9 @@ export default function AllAssets() {
       } else {
         notify('No prices updated — all assets may be rate limited', 'warning');
       }
-    } catch (e: any) {
-      notify(e.message || 'Failed to refresh prices', 'warning');
+    } catch (e) {
+      console.error('Failed to refresh prices', e);
+      notify("Couldn't refresh prices", 'warning');
     }
   }, [refetchAssets, typeFilter]);
 
@@ -309,8 +311,9 @@ export default function AllAssets() {
       }
       notify(`${asset.ticker} price updated`, 'success');
       await refetchAssets();
-    } catch (e: any) {
-      notify(`${asset.ticker}: ${e.message || 'refresh failed'}`, 'warning');
+    } catch (e) {
+      console.error(`Failed to refresh ${asset.ticker}`, e);
+      notify(`Couldn't refresh ${asset.ticker}`, 'warning');
     }
   };
 
@@ -321,8 +324,9 @@ export default function AllAssets() {
       }
       localStorage.setItem(`cached_price_${asset.ticker}`, String(price));
       await refetchAssets();
-    } catch (e: any) {
-      notify(`${asset.ticker}: ${e.message || 'save failed'}`, 'warning');
+    } catch (e) {
+      console.error(`Failed to save the price for ${asset.ticker}`, e);
+      notify(`Couldn't save ${asset.ticker}`, 'warning');
     }
   };
 
@@ -330,8 +334,9 @@ export default function AllAssets() {
     try {
       await api.updateAsset(asset.asset_id, patch);
       await refetchAssets();
-    } catch (e: any) {
-      notify(`${asset.ticker}: ${e.message || 'save failed'}`, 'warning');
+    } catch (e) {
+      console.error(`Failed to save the details for ${asset.ticker}`, e);
+      notify(`Couldn't save ${asset.ticker}`, 'warning');
     }
   };
 
@@ -363,8 +368,9 @@ export default function AllAssets() {
       const created = await api.syncAllAssets();
       notify(`Synced ${created.length} new assets from orders`, 'success');
       await refetchAssets();
-    } catch (e: any) {
-      notify(e.message || 'Sync failed', 'warning');
+    } catch (e) {
+      console.error('Failed to sync assets from orders', e);
+      notify("Couldn't sync from orders", 'warning');
     }
     setSyncLoading(false);
   };
@@ -373,8 +379,9 @@ export default function AllAssets() {
     try {
       await api.updateAsset(assetId, { group_id: targetGroupId });
       await refetchAssets();
-    } catch (e: any) {
-      notify(e.message || 'Failed to move asset', 'warning');
+    } catch (e) {
+      console.error('Failed to move the asset', e);
+      notify("Couldn't move the asset", 'warning');
     }
   };
 
@@ -504,29 +511,7 @@ export default function AllAssets() {
           ))}
         </div>
 
-        {/* Summary */}
-        <div className="mt-4" style={{ fontSize: 12, color: 'var(--color-slate)' }}>
-          {assets.length} asset{assets.length !== 1 ? 's' : ''} in {groups.length} group{groups.length !== 1 ? 's' : ''}, {refreshMode === 'auto' ? 'auto-refresh on' : 'manual refresh'}
-        </div>
 
-        {/* Symbol tips */}
-        <details className="mt-2 group">
-          <summary className="text-slate hover:text-ink cursor-pointer transition-colors select-none list-none" style={{ fontSize: 12 }}>
-            <span className="inline-flex items-center gap-1">
-              <svg className={`w-3 h-3 transition-transform group-open:rotate-90`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
-              yfinance symbol patterns
-            </span>
-          </summary>
-          <div className="mt-2 p-3 rounded-xl text-slate leading-relaxed space-y-1" style={{ background: 'var(--color-surface-soft)', fontSize: 12 }}>
-            <div className="font-semibold text-ink mb-1.5">Yahoo Finance symbol format</div>
-            <div><span className="font-mono text-brand-teal">PTT.BK</span> — Thai stocks (add <span className="font-mono">.BK</span> suffix)</div>
-            <div><span className="font-mono text-brand-teal">BTC-USD</span> — Crypto (ticker <span className="font-mono">-USD</span>)</div>
-            <div><span className="font-mono text-brand-teal">AAPL</span> — US stocks (plain ticker)</div>
-            <div><span className="font-mono text-brand-teal">6758.T</span> — Japanese stocks (add <span className="font-mono">.T</span>)</div>
-            <div><span className="font-mono text-brand-teal">TSLA.US</span> — Some non-US exchanges via <span className="font-mono">.US</span></div>
-            <div className="mt-1.5 pt-1.5 border-t border-hairline">Enter the symbol exactly as Yahoo Finance expects it when creating an asset with source=yfinance.</div>
-          </div>
-        </details>
       </PageLayout>
   );
 }

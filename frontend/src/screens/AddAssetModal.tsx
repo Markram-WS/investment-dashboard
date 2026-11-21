@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import type { BrokerRecord } from '../lib/api';
 import ModalShell from './components/ModalShell';
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
 
 interface AddAssetModalProps {
   open: boolean;
@@ -143,7 +144,8 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({ open, onClose, onSaved, g
       onClose();
       setForm({ ...emptyForm, broker_id: brokers.length > 0 ? String(brokers[0].id) : '' });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create asset');
+      console.error('Failed to create the asset', e);
+      setError("Couldn't create the asset. Try again.");
     } finally {
       setLoading(false);
     }
@@ -151,9 +153,10 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({ open, onClose, onSaved, g
 
   return (
     <ModalShell open={open} onClose={onClose} title="Add Asset" zIndex={9999}>
-      <div className={modalPanel}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 12px' }}>Add asset</h3>
+      <div className={`${MODAL_CARD} ${modalPanel}`}>
+        <h3 className={`${MODAL_HEADER} block`} style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 12px' }}>Add asset</h3>
 
+        <div className={MODAL_BODY}>
         {error && <div style={errorText}>{error}</div>}
 
         <div className="space-y-2.5">
@@ -216,8 +219,9 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({ open, onClose, onSaved, g
             <p style={helperText}>Margin 0.10 = 10% of notional</p>
           </div>
         </div>
+        </div>
 
-        <div className="flex justify-end" style={{ gap: 8, marginTop: 16 }}>
+        <div className={`${MODAL_FOOTER} flex justify-end`} style={{ gap: 8, marginTop: 12 }}>
           <button type="button" onClick={onClose} style={secondaryButton}>Cancel</button>
           <button type="button" onClick={handleSave} disabled={loading} style={primaryButton} className="transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">{loading ? 'Saving...' : 'Add asset'}</button>
         </div>

@@ -1,6 +1,7 @@
 import { MFRebalanceRecommendation } from "../types";
 import Button from "./components/Button";
 import ModalShell from "./components/ModalShell";
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
 
 interface MFRebalanceRecommendModalProps {
   show: boolean;
@@ -17,9 +18,10 @@ export default function MFRebalanceRecommendModal({
 
   return (
     <ModalShell open={show} onClose={onClose} title="Rebalance Recommendations" closeOnBackdrop={false}>
-      <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
-        <h3 className="text-lg font-bold mb-4">Rebalance Recommendations</h3>
+      <div className={`${MODAL_CARD} bg-canvas border border-hairline rounded-xl p-3.5 w-full max-w-2xl mx-4`}>
+        <h3 className={`${MODAL_HEADER} text-lg font-bold mb-3`}>Rebalance Recommendations</h3>
 
+        <div className={MODAL_BODY}>
         {loading ? (
           <div className="text-center py-8 text-slate">Calculating rebalance...</div>
         ) : recommendations.length === 0 ? (
@@ -74,8 +76,9 @@ export default function MFRebalanceRecommendModal({
             </div>
           </>
         )}
+        </div>
 
-        <div className="flex justify-end gap-2 mt-6">
+        <div className={`${MODAL_FOOTER} flex justify-end gap-2 mt-3`}>
           <Button variant="secondary" onClick={onClose}>Close</Button>
           {recommendations.length > 0 && (
             <Button variant="primary" onClick={() => onCreateOrders(recommendations)}>

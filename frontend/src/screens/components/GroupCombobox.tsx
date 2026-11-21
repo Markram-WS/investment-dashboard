@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GroupOption } from '../../types';
+import { formatMoney } from '../../utils/format';
 
 interface GroupComboboxProps {
   groups: GroupOption[];
@@ -35,7 +36,7 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
       >
         <span className={value ? '' : 'text-slate'}>
           {selected
-            ? `${selected.name}${selected.min_price != null && selected.max_price != null ? ` ($${selected.min_price.toLocaleString()}-$${selected.max_price.toLocaleString()})` : ''}`
+            ? `${selected.name}${selected.min_price != null && selected.max_price != null ? ` (${formatMoney(selected.min_price)}-${formatMoney(selected.max_price)})` : ''}`
             : 'No zone'}
         </span>
         <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -69,7 +70,7 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
             >
               <span>{g.name}</span>
               {g.min_price != null && g.max_price != null && (
-                <span className="text-slate ml-2">(${g.min_price.toLocaleString()}-${g.max_price.toLocaleString()})</span>
+                <span className="text-slate ml-2">({formatMoney(g.min_price)}-{formatMoney(g.max_price)})</span>
               )}
             </div>
           ))}

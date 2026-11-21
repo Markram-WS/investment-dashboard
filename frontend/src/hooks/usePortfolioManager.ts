@@ -10,6 +10,8 @@ export const usePortfolioManager = (portfolioId?: number | string) => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const fetchAnalyticsData = useCallback(async () => {
+    setError(null);
+    setLoading(true);
     try {
       if (portfolioId) {
         const data = await api.getPortfolioAnalytics(portfolioId);
@@ -31,7 +33,9 @@ export const usePortfolioManager = (portfolioId?: number | string) => {
       }
       setLastUpdated(new Date());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      // The page owns the copy; the raw status belongs in the console only.
+      console.error('Portfolio grid request failed:', err);
+      setError('Order grid did not load');
       setLastUpdated(new Date());
     } finally {
       setLoading(false);

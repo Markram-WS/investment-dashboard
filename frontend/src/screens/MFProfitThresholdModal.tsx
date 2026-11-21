@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { CSSProperties } from "react";
 import { MFHolding, MFSetting } from "../types";
 import ModalShell from "./components/ModalShell";
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
 
 interface MFProfitThresholdModalProps {
   show: boolean;
@@ -61,8 +62,9 @@ export default function MFProfitThresholdModal({ show, settings, holdings, onClo
 
   return (
     <ModalShell open={show} onClose={onClose} title="Profit threshold settings" closeOnBackdrop={false}>
-      <div className="w-full max-w-md mx-4" style={CARD}>
-        <h3 style={{ ...TITLE, marginBottom: 20 }}>Profit threshold settings</h3>
+      <div className={`${MODAL_CARD} w-full max-w-md mx-4`} style={CARD}>
+        <h3 className={MODAL_HEADER} style={{ ...TITLE, marginBottom: 16 }}>Profit threshold settings</h3>
+        <div className={MODAL_BODY}>
 
         <div style={{ marginBottom: 20 }}>
           <label style={LABEL}>Global threshold (%)</label>
@@ -81,7 +83,7 @@ export default function MFProfitThresholdModal({ show, settings, holdings, onClo
         {holdings.length > 0 && (
           <div>
             <label style={{ ...LABEL, marginBottom: 8 }}>Per-asset threshold (%)</label>
-            <div className="flex flex-col max-h-48 overflow-y-auto" style={{ gap: 8 }}>
+            <div className="flex flex-col" style={{ gap: 8 }}>
               {holdings.map((h) => (
                 <div key={h.holding_id} className="flex items-center gap-2">
                   <span className="w-16" style={{ fontSize: 15, fontWeight: 500, color: "var(--color-ink)" }}>{h.asset}</span>
@@ -102,7 +104,8 @@ export default function MFProfitThresholdModal({ show, settings, holdings, onClo
           </div>
         )}
 
-        <div className="flex justify-end gap-2" style={{ marginTop: 24 }}>
+        </div>
+        <div className={`${MODAL_FOOTER} flex justify-end gap-2`} style={{ marginTop: 16 }}>
           <button onClick={onClose} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
           <button onClick={handleSave} style={BTN_PRIMARY} className="transition-opacity hover:opacity-90">Save thresholds</button>
         </div>

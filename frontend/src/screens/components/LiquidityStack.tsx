@@ -27,10 +27,12 @@ export default function LiquidityStack({
   showLabels = false,
   formatValue,
 }: LiquidityStackProps) {
+  // Label ink is paired with each segment's own fill so no segment ever gets a
+  // white label on a pale grey bar (the old default measured 2.54:1).
   const segments = [
-    { name: "Margin", value: margin, color: "var(--color-tier-1)" },
-    { name: "Buffer", value: buffer, color: "var(--color-tier-2)" },
-    { name: "Available", value: available, color: "var(--color-brand-yellow)" },
+    { name: "Margin", value: margin, color: "var(--color-tier-1)", text: "var(--color-on-tier-1)" },
+    { name: "Buffer", value: buffer, color: "var(--color-tier-2)", text: "var(--color-on-tier-2)" },
+    { name: "Available", value: available, color: "var(--color-brand-yellow)", text: "var(--color-on-brand-yellow)" },
   ];
 
   return (
@@ -57,10 +59,7 @@ export default function LiquidityStack({
               flexBasis: 0,
               minWidth: value > 0 ? 2 : 0,
               background: segment.color,
-              color:
-                segment.name === "Available"
-                  ? "var(--color-on-brand-yellow)"
-                  : "var(--color-ink)",
+              color: segment.text,
             }}
           >
             {showLabels && (

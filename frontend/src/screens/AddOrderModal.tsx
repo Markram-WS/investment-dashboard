@@ -3,7 +3,8 @@ import { GroupOption } from '../types';
 import { GroupCombobox } from './components/GroupCombobox';
 import type { AddOrderForm } from '../hooks/useAddOrder';
 import ModalShell from './components/ModalShell';
-import { priceLabel } from '../utils/format';
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
+import { priceLabel, formatMoney } from '../utils/format';
 
 /** Field label: 10px/500 slate, sentence case. */
 const fieldLabel = {
@@ -60,11 +61,9 @@ const secondaryButton = {
 
 const modalPanel = 'bg-canvas border border-hairline rounded-xl p-3.5 w-full max-w-md mx-4';
 
-const BAND_GAP = 14;
 const ROW_GAP = 12;
 const FIELD_GAP = 6;
 
-const bandStack: React.CSSProperties = { display: 'grid', gap: BAND_GAP };
 const fieldStack: React.CSSProperties = { display: 'grid', gap: FIELD_GAP };
 const twoCol: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: ROW_GAP };
 
@@ -140,10 +139,10 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     if (!selectedGroup || !formData.group_id) return [];
     const warnings: string[] = [];
     if (selectedGroup.min_price != null && entryPrice < selectedGroup.min_price) {
-      warnings.push(`Min price for this group is $${selectedGroup.min_price.toLocaleString()}`);
+      warnings.push(`Min price for this group is ${formatMoney(selectedGroup.min_price)}`);
     }
     if (selectedGroup.max_price != null && entryPrice > selectedGroup.max_price) {
-      warnings.push(`Max price for this group is $${selectedGroup.max_price.toLocaleString()}`);
+      warnings.push(`Max price for this group is ${formatMoney(selectedGroup.max_price)}`);
     }
     if (selectedGroup.max_orders != null) {
       const currentCount = groupOrderCounts[formData.group_id] || 0;
@@ -190,8 +189,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Add order" closeOnBackdrop={false} zIndex={110}>
-      <div className={modalPanel}>
-        <div className="flex items-baseline justify-between" style={{ gap: 12, margin: '0 0 12px' }}>
+      <div className={`${MODAL_CARD} ${modalPanel}`}>
+        <div className={`${MODAL_HEADER} flex items-baseline justify-between`} style={{ gap: 12, margin: '0 0 12px' }}>
           <h3 style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0 }}>Add order</h3>
           <div className="flex items-center" style={{ gap: 6 }}>
             <label htmlFor="add-order-id" style={{ fontSize: 10, fontWeight: 500, color: 'var(--color-slate)', whiteSpace: 'nowrap' }}>
@@ -209,8 +208,9 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           </div>
         </div>
 
-        <div style={bandStack}>
-          <section>
+        <div className={`${MODAL_BODY} -mr-1 pr-1`}>
+          <div className="grid grid-cols-2 items-start gap-x-4 gap-y-3.5">
+          <section className="min-w-0">
             <div style={bandLabel}>Instrument</div>
             <div style={fieldStack}>
               <ToggleBtn
@@ -267,7 +267,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             </div>
           </section>
 
-          <section>
+          <section className="min-w-0">
             <div style={bandLabel}>Size &amp; price</div>
             <div style={fieldStack}>
               <div style={twoCol}>
@@ -330,7 +330,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             </div>
           </section>
 
-          <section>
+          <section className="min-w-0">
             <div style={bandLabel}>Exits</div>
             <div style={twoCol}>
               <div>
@@ -356,7 +356,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             </div>
           </section>
 
-          <section>
+          <section className="min-w-0">
             <div style={bandLabel}>Placement</div>
             <div style={fieldStack}>
               {contractType !== 'spot' ? (
@@ -407,13 +407,14 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               </div>
             </div>
           </section>
+          </div>
+
+          {summary && (
+            <p style={{ fontSize: 11, color: 'var(--color-slate)', margin: '10px 0 0' }}>{summary}</p>
+          )}
         </div>
 
-        {summary && (
-          <p style={{ fontSize: 11, color: 'var(--color-slate)', margin: '10px 0 0' }}>{summary}</p>
-        )}
-
-        <div className="flex justify-end" style={{ gap: 8, marginTop: 16 }}>
+        <div className={`${MODAL_FOOTER} flex justify-end`} style={{ gap: 8, marginTop: 12 }}>
           <button type="button" onClick={onClose} style={secondaryButton}>Cancel</button>
           <button type="button" onClick={onSave} style={primaryButton}>Create order</button>
         </div>

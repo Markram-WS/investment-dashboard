@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import type { CSSProperties } from "react";
 import { MFOrder, MFOrderUpdate } from "../types";
 import ModalShell from "./components/ModalShell";
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
 
 interface MFEditOrderModalProps {
   show: boolean;
@@ -61,9 +62,9 @@ export default function MFEditOrderModal({ show, order, onClose, onSave }: MFEdi
 
   return (
     <ModalShell open={show} onClose={onClose} title="Edit order" closeOnBackdrop={false}>
-      <div className="w-full max-w-sm mx-4" style={CARD}>
-        <h3 style={{ ...TITLE, marginBottom: 16 }}>Edit order</h3>
-        <div className="flex flex-col" style={{ gap: 12 }}>
+      <div className={`${MODAL_CARD} w-full max-w-sm mx-4`} style={CARD}>
+        <h3 className={MODAL_HEADER} style={{ ...TITLE, marginBottom: 12 }}>Edit order</h3>
+        <div className={`${MODAL_BODY} flex flex-col`} style={{ gap: 12 }}>
           <div>
             <label style={LABEL}>Asset</label>
             <input
@@ -117,7 +118,7 @@ export default function MFEditOrderModal({ show, order, onClose, onSave }: MFEdi
             </div>
           </div>
         </div>
-        <div className="flex justify-end gap-2" style={{ marginTop: 24 }}>
+        <div className={`${MODAL_FOOTER} flex justify-end gap-2`} style={{ marginTop: 12 }}>
           <button onClick={onClose} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
           <button onClick={handleSave} style={BTN_PRIMARY} className="transition-opacity hover:opacity-90">Save changes</button>
         </div>

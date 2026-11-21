@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { SpreadOrder } from "../../types";
 import type { ZoneGroupRecord } from "../../lib/api";
-import { formatQty, priceLabel } from "../../utils/format";
+import { formatMoney, formatQty, priceLabel } from "../../utils/format";
 import IconButton from "../../components/IconButton";
 import SideChip from "../../components/SideChip";
 
@@ -31,9 +31,7 @@ interface LadderLine {
 }
 
 const money = (v: number | null | undefined) =>
-  v == null
-    ? "—"
-    : `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  v == null ? "—" : formatMoney(v);
 
 /** A zone's price: its declared band, else a numeric name; non-numeric names sort last. */
 const zonePrice = (zone: ZoneGroupRecord) => {
@@ -54,10 +52,7 @@ const sortZones = (zones: ZoneGroupRecord[]) =>
   });
 
 const signedMoney = (v: number) =>
-  `${v < 0 ? "−" : "+"}$${Math.abs(v).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  `${v > 0 ? "+" : ""}${formatMoney(v)}`;
 
 const statusText = (s?: string | null) =>
   s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : "—";

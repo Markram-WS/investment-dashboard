@@ -1,6 +1,7 @@
 import React, { type ReactNode } from "react";
 import { SpreadOrder } from "../../types";
 import type { OptionRow } from "./OptionsStrategyTable";
+import { formatMoney } from "../../utils/format";
 import PerformanceChart from "./PerformanceChart";
 import PayoffChart from "./PayoffChart";
 
@@ -41,6 +42,15 @@ const PerformanceSection: React.FC<PerformanceSectionProps> = ({
   const uid = React.useId().replace(/:/g, "");
   const panelId = `${uid}-panel`;
 
+  const totalPlValue = Number(performanceData?.total_pl ?? 0);
+  const totalPlSign = totalPlValue > 0 ? "+" : totalPlValue < 0 ? "-" : "";
+  const totalPlColor =
+    totalPlValue > 0
+      ? "var(--color-positive-text)"
+      : totalPlValue < 0
+        ? "var(--color-danger-text)"
+        : "var(--color-slate)";
+
   const totalPl = performanceData && viewMode === "equity" ? (
     <span
       style={{
@@ -50,7 +60,10 @@ const PerformanceSection: React.FC<PerformanceSectionProps> = ({
         whiteSpace: "nowrap",
       }}
     >
-      Total P/L: ${performanceData.total_pl?.toLocaleString()}
+      Total P/L:{" "}
+      <span style={{ color: totalPlColor, fontWeight: 600 }}>
+        {totalPlSign}{formatMoney(Math.abs(totalPlValue))}
+      </span>
     </span>
   ) : null;
 

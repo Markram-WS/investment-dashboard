@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { CSSProperties } from "react";
 import { MFOrderCreate } from "../types";
 import ModalShell from "./components/ModalShell";
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
 
 interface MFCreateOrderModalProps {
   show: boolean;
@@ -56,9 +57,9 @@ export default function MFCreateOrderModal({ show, onClose, onSave }: MFCreateOr
 
   return (
     <ModalShell open={show} onClose={onClose} title="Create order" closeOnBackdrop={false}>
-      <div className="w-full max-w-sm mx-4" style={CARD}>
-        <h3 style={{ ...TITLE, marginBottom: 16 }}>Create order</h3>
-        <div className="flex flex-col" style={{ gap: 12 }}>
+      <div className={`${MODAL_CARD} w-full max-w-sm mx-4`} style={CARD}>
+        <h3 className={MODAL_HEADER} style={{ ...TITLE, marginBottom: 12 }}>Create order</h3>
+        <div className={`${MODAL_BODY} flex flex-col`} style={{ gap: 12 }}>
           <div>
             <label style={LABEL}>Asset</label>
             <input
@@ -115,7 +116,7 @@ export default function MFCreateOrderModal({ show, onClose, onSave }: MFCreateOr
             </div>
           </div>
         </div>
-        <div className="flex justify-end gap-2" style={{ marginTop: 24 }}>
+        <div className={`${MODAL_FOOTER} flex justify-end gap-2`} style={{ marginTop: 12 }}>
           <button onClick={onClose} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
           <button onClick={handleSave} style={BTN_PRIMARY} className="transition-opacity hover:opacity-90">Create order</button>
         </div>

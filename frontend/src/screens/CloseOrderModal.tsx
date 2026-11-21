@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { SpreadOrder } from "../types";
 import ModalShell from "./components/ModalShell";
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
+import { formatMoney } from "../utils/format";
 
 /** Field label: 12px/500 slate, sentence case. */
 const fieldLabel = {
@@ -158,12 +160,12 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title={"Close Order " + (order?.order_id || '')} closeOnBackdrop={false}>
-      <div className={modalPanel}>
-        <h3 style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 16px' }}>
+      <div className={`${MODAL_CARD} ${modalPanel}`}>
+        <h3 className={`${MODAL_HEADER} block`} style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 12px' }}>
           Close order {linkedInfo ? `(linked to #${linkedInfo.order_id?.slice(0, 8)})` : ''}
         </h3>
 
-        <div className="space-y-3">
+        <div className={`${MODAL_BODY} space-y-3`}>
           <div>
             <label className="block" style={fieldLabel}>Close ID</label>
             <input
@@ -186,7 +188,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
             </div>
             <div className="flex justify-between">
               <span style={summaryLabel}>Entry price</span>
-              <span style={summaryValue}>${entryPrice.toLocaleString()}</span>
+              <span style={summaryValue}>{formatMoney(entryPrice)}</span>
             </div>
             {linkedInfo && (
               <>
@@ -196,7 +198,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
                 </div>
                 <div className="flex justify-between" style={{ borderTop: '1px solid var(--color-hairline)', paddingTop: 6 }}>
                   <span style={summaryLabel}>Linked entry</span>
-                  <span style={summaryValue}>${linkedInfo.entry_price?.toLocaleString() || '-'}</span>
+                  <span style={summaryValue}>{linkedInfo.entry_price ? formatMoney(linkedInfo.entry_price) : '-'}</span>
                 </div>
               </>
             )}
@@ -238,7 +240,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
           </div>
         </div>
 
-        <div className="flex justify-end" style={{ gap: 8, marginTop: 24 }}>
+        <div className={`${MODAL_FOOTER} flex justify-end`} style={{ gap: 8, marginTop: 12 }}>
           <button type="button" onClick={onClose} disabled={saving} className={actionButtonClass} style={secondaryButton}>Cancel</button>
           <button type="button" onClick={handleConfirm} disabled={saving} className={actionButtonClass} style={primaryButton}>Close Order</button>
         </div>

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import type { TradeHistoryRecord } from "../../lib/api";
-import { formatQty } from "../../utils/format";
+import { formatMoney, formatQty } from "../../utils/format";
 import SideChip from "../../components/SideChip";
 
 interface OrderHistoryCardProps {
@@ -13,16 +13,11 @@ const VISIBLE_ROWS = 3;
 const MAX_ROWS = 12;
 
 const money = (v: unknown) =>
-  v == null || v === ""
-    ? "—"
-    : `$${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  v == null || v === "" ? "—" : formatMoney(Number(v));
 
 const signedMoney = (v: unknown) => {
   const n = Number(v ?? 0);
-  return `${n < 0 ? "−" : "+"}$${Math.abs(n).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  return `${n > 0 ? "+" : ""}${formatMoney(n)}`;
 };
 
 const shortDate = (d?: string | null) => {

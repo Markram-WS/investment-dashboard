@@ -206,12 +206,21 @@ async def get_portfolio_grid_data(
             OrderModel = CustomActiveOrder if use_custom else ActiveOrder
             HistoryModel = CustomTransaction if use_custom else TradeHistory
 
-            # Get active orders for this portfolio
-            active_orders_result = await query_session.execute(
+            # Get active orders for this portfolio.
+            # Response assembly reads .group and .option, so eager-load them for
+            # the main-db model; a lazy load there would fire IO outside the
+            # greenlet (MissingGreenlet). CustomActiveOrder has no relationships.
+            active_orders_stmt = (
                 select(OrderModel)
                 .where(OrderModel.portfolio_id == portfolio.portfolio_id)
                 .order_by(OrderModel.created_at.desc())
             )
+            if not use_custom:
+                active_orders_stmt = active_orders_stmt.options(
+                    selectinload(ActiveOrder.group),
+                    selectinload(ActiveOrder.option),
+                )
+            active_orders_result = await query_session.execute(active_orders_stmt)
             active_orders = active_orders_result.scalars().all()
 
             # Get trade plan (always from main db)

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import { Transaction } from "../types";
-import { formatCurrency, formatDateTime } from "../utils/format";
+import { formatCurrency, formatDateTime, formatMoney } from "../utils/format";
 import Button from "../screens/components/Button";
 import { useNotification } from "../contexts/NotificationContext";
 import PageLayout from "../components/PageLayout";
@@ -99,11 +99,11 @@ export default function TransactionsPage() {
           destination_portfolio_id: toPid, executed_by: "Manual",
         });
         await api.updatePortfolio(toPid, { available_cash: (target?.available_cash || 0) + amt });
-        notify(`Deposited $${amt.toLocaleString()} to ${target?.portfolio_name || toPid}`, 'success');
+        notify(`Deposited ${formatMoney(amt, currency)} to ${target?.portfolio_name || toPid}`, 'success');
       } else if (fromPid && isWithdraw) {
         const target = portfolios.find((p) => p.portfolio_id === fromPid);
         if (amt > (target?.available_cash || 0)) {
-          setFormErr(`Maximum withdraw is $${(target?.available_cash || 0).toLocaleString()}`);
+          setFormErr(`Maximum withdraw is ${formatMoney(target?.available_cash || 0, currency)}`);
           setFormLoading(false); return;
         }
         await api.createTransaction({
@@ -111,19 +111,20 @@ export default function TransactionsPage() {
           source_portfolio_id: fromPid, executed_by: "Manual",
         });
         await api.updatePortfolio(fromPid, { available_cash: (target?.available_cash || 0) - amt });
-        notify(`Withdrew $${amt.toLocaleString()} from ${target?.portfolio_name || fromPid}`, 'success');
+        notify(`Withdrew ${formatMoney(amt, currency)} from ${target?.portfolio_name || fromPid}`, 'success');
       } else if (fromPid && toPid) {
         const transfer = await api.createTransfer({
           source_portfolio_id: fromPid, destination_portfolio_id: toPid,
           amount: amt, confirmed_by: "Manual",
         });
         await api.confirmTransfer(transfer.transaction_id, "auto-confirm", "Manual");
-        notify(`Transferred $${amt.toLocaleString()}`, 'success');
+        notify(`Transferred ${formatMoney(amt, currency)}`, 'success');
       }
       await refreshTransactions();
       resetForm();
-    } catch (e: any) {
-      setFormErr(e.message || "Transaction failed");
+    } catch (e) {
+      console.error("Failed to submit transaction:", e);
+      setFormErr("Couldn't submit the transaction. Try again.");
     } finally {
       setFormLoading(false);
     }
@@ -131,9 +132,60 @@ export default function TransactionsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-slate">Loading…</div>
-      </div>
+      <PageLayout>
+        <PageHeader title="Transactions" />
+
+        <section
+          className="animate-pulse"
+          style={{ background: "var(--color-canvas)", borderRadius: 16, padding: 20, marginBottom: "var(--space-xxl)" }}
+        >
+          <div className="flex flex-col md:flex-row" style={{ gap: 24 }}>
+            <div className="w-full md:w-1/2">
+              <div className="h-3 bg-surface rounded w-16" />
+              <div className="flex flex-wrap" style={{ gap: 8, marginTop: 12 }}>
+                <div className="h-8 bg-surface rounded-lg w-32" />
+                <div className="h-8 bg-surface rounded-lg w-32" />
+                <div className="h-8 bg-surface rounded-lg w-24" />
+              </div>
+            </div>
+            <div className="w-full md:w-1/2">
+              <div className="h-3 bg-surface rounded w-24" />
+              <div className="flex flex-wrap" style={{ gap: 8, marginTop: 12 }}>
+                <div className="h-8 bg-surface rounded-lg w-32" />
+                <div className="h-8 bg-surface rounded-lg w-24" />
+                <div className="h-8 bg-surface rounded-lg w-32" />
+                <div className="h-8 bg-surface rounded-lg w-20" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          className="animate-pulse"
+          style={{ background: "var(--color-canvas)", borderRadius: 16, padding: "0 20px" }}
+        >
+          <div className="flex items-center gap-6 py-3">
+            <div className="h-3 bg-surface rounded w-24" />
+            <div className="h-3 bg-surface rounded w-12" />
+            <div className="hidden md:block h-3 bg-surface rounded w-16" />
+            <div className="hidden md:block h-3 bg-surface rounded w-16" />
+            <div className="ml-auto h-3 bg-surface rounded w-16" />
+            <div className="hidden lg:block h-3 bg-surface rounded w-20" />
+            <div className="h-3 bg-surface rounded w-12" />
+          </div>
+          {[0, 1, 2, 3, 4, 5].map((row) => (
+            <div key={row} className="flex items-center gap-6 py-3.5 border-t border-hairline">
+              <div className="h-4 bg-surface rounded w-40" />
+              <div className="h-4 bg-surface rounded w-16" />
+              <div className="hidden md:block h-4 bg-surface rounded w-24" />
+              <div className="hidden md:block h-4 bg-surface rounded w-24" />
+              <div className="ml-auto h-4 bg-surface rounded w-24" />
+              <div className="hidden lg:block h-4 bg-surface rounded w-20" />
+              <div className="h-4 bg-surface rounded w-16" />
+            </div>
+          ))}
+        </section>
+      </PageLayout>
     );
   }
 

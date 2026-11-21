@@ -1,19 +1,24 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../lib/api';
 import ModalShell from './components/ModalShell';
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
 import IconButton from '../components/IconButton';
-import { priceLabel } from '../utils/format';
+import { priceLabel, formatMoney } from '../utils/format';
 
 const CARD: React.CSSProperties = { background: 'var(--color-canvas)', borderRadius: 16, padding: 24 };
 const TITLE: React.CSSProperties = {
   fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0,
 };
-const HEAD: React.CSSProperties = {
-  fontSize: 11, fontWeight: 500, color: 'var(--color-slate)', paddingBottom: 6, textAlign: 'left',
-  position: 'sticky', top: 0, background: 'var(--color-canvas)', zIndex: 1,
+const GRID_COLS = 'minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 64px';
+const GRID_ROW: React.CSSProperties = {
+  display: 'grid', gridTemplateColumns: GRID_COLS, columnGap: 12, alignItems: 'center',
+};
+const HEAD_CELL: React.CSSProperties = {
+  fontSize: 11, fontWeight: 500, color: 'var(--color-slate)', paddingBottom: 6,
+  whiteSpace: 'nowrap', minWidth: 0,
 };
 const CELL: React.CSSProperties = {
-  fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', padding: '6px 0',
+  fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', minWidth: 0,
 };
 const INPUT: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', padding: '4px 8px', fontSize: 11, fontWeight: 500,
@@ -22,13 +27,10 @@ const INPUT: React.CSSProperties = {
 };
 const BTN: React.CSSProperties = {
   fontSize: 11, fontWeight: 500, borderRadius: 999, padding: '3px 10px', lineHeight: 1.3,
-  border: '1px solid transparent', cursor: 'pointer',
+  border: '1px solid transparent', cursor: 'pointer', whiteSpace: 'nowrap',
 };
 const BTN_SECONDARY: React.CSSProperties = {
   ...BTN, background: 'transparent', color: 'var(--color-ink)', borderColor: 'var(--color-hairline)',
-};
-const ACTION_CELL: React.CSSProperties = {
-  padding: '2px 0', textAlign: 'right', whiteSpace: 'nowrap', width: 68,
 };
 
 interface ZoneGroupRecord {
@@ -159,14 +161,41 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Zones">
-      <div className="w-full max-w-3xl mx-4" style={CARD}>
-        <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+      <div className={`${MODAL_CARD} w-full max-w-3xl mx-4`} style={CARD}>
+        <div className={`${MODAL_HEADER} flex items-center justify-between`} style={{ marginBottom: 12 }}>
           <h3 style={TITLE}>Zones</h3>
           <button onClick={onClose} className="text-slate hover:text-ink leading-none" style={{ fontSize: 20 }}>&times;</button>
         </div>
 
+        <div className={MODAL_BODY}>
         {loading && sortedZones.length === 0 ? (
-          <p className="text-center" style={{ fontSize: 15, color: 'var(--color-slate)', padding: '16px 0', margin: 0 }}>Loading...</p>
+          <div className="animate-pulse" aria-hidden="true">
+            <div style={{ ...GRID_ROW, paddingBottom: 6 }}>
+              {[0, 1, 2, 3, 4].map((col) => (
+                <div
+                  key={col}
+                  className="h-3 bg-surface rounded"
+                  style={{ width: col === 0 ? 72 : 48, justifySelf: col === 0 ? "start" : "end" }}
+                />
+              ))}
+              <div />
+            </div>
+            {[0, 1, 2].map((row) => (
+              <div
+                key={row}
+                style={{ ...GRID_ROW, padding: "6px 0", borderTop: "1px solid var(--color-hairline-soft)" }}
+              >
+                {[0, 1, 2, 3, 4].map((col) => (
+                  <div
+                    key={col}
+                    className="h-4 bg-surface rounded"
+                    style={{ width: col === 0 ? 120 : 56, justifySelf: col === 0 ? "start" : "end" }}
+                  />
+                ))}
+                <div className="h-4 bg-surface rounded" style={{ width: 48 }} />
+              </div>
+            ))}
+          </div>
         ) : (
           <>
             {sortedZones.length === 0 && (
@@ -175,209 +204,182 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
                 <p style={{ fontSize: 11, color: 'var(--color-slate)', margin: '2px 0 0' }}>Add a price level to group orders under it.</p>
               </div>
             )}
-            <div style={{ maxHeight: 'min(46vh, 340px)', overflowY: 'auto', overflowX: 'hidden' }}>
-              <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    <th style={HEAD}>Zone</th>
-                    <th style={{ ...HEAD, textAlign: 'right' }}>Max orders</th>
-                    <th style={{ ...HEAD, textAlign: 'right' }}>Min price</th>
-                    <th style={{ ...HEAD, textAlign: 'right' }}>Max price</th>
-                    <th style={{ ...HEAD, textAlign: 'right' }}>Step</th>
-                    <th style={{ ...HEAD, ...ACTION_CELL }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedZones.map((zone) => {
-                    const isEditing = editingId === zone.id;
-                    return (
-                      <tr
-                        key={zone.id}
-                        style={{ borderTop: '1px solid var(--color-hairline-soft)' }}
-                        onKeyDown={(e) => {
-                          if (isEditing && e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
-                            e.preventDefault();
-                            handleSaveEdit();
-                          }
-                        }}
-                      >
-                        {isEditing ? (
-                          <>
-                            <td style={{ padding: '3px 0' }}>
-                              <input
-                                type="text"
-                                value={editForm.name}
-                                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                                style={INPUT}
-                                aria-label="Zone name"
-                              />
-                            </td>
-                            <td style={{ padding: '3px 0' }}>
-                              <input
-                                type="number"
-                                step="1"
-                                value={editForm.max_orders}
-                                onChange={(e) => setEditForm({ ...editForm, max_orders: e.target.value })}
-                                placeholder="unlimited"
-                                style={{ ...INPUT, textAlign: 'right' }}
-                                aria-label="Max orders"
-                              />
-                            </td>
-                            <td style={{ padding: '3px 0' }}>
-                              <input
-                                type="number"
-                                step="any"
-                                value={editForm.min_price}
-                                onChange={(e) => setEditForm({ ...editForm, min_price: e.target.value })}
-                                placeholder="—"
-                                style={{ ...INPUT, textAlign: 'right' }}
-                                aria-label="Min price"
-                              />
-                            </td>
-                            <td style={{ padding: '3px 0' }}>
-                              <input
-                                type="number"
-                                step="any"
-                                value={editForm.max_price}
-                                onChange={(e) => setEditForm({ ...editForm, max_price: e.target.value })}
-                                placeholder="—"
-                                style={{ ...INPUT, textAlign: 'right' }}
-                                aria-label="Max price"
-                              />
-                            </td>
-                            <td style={{ padding: '3px 0' }}>
-                              <input
-                                type="number"
-                                step="any"
-                                value={editForm.range}
-                                onChange={(e) => setEditForm({ ...editForm, range: e.target.value })}
-                                placeholder="e.g. 2.00"
-                                style={{ ...INPUT, textAlign: 'right' }}
-                                aria-label="Step"
-                              />
-                            </td>
-                            <td style={ACTION_CELL}>
-                              <IconButton label="Save" onClick={handleSaveEdit}>✓</IconButton>
-                              <IconButton label="Cancel" onClick={handleCancelEdit}>✕</IconButton>
-                            </td>
-                          </>
-                        ) : (
-                          <>
-                            <td style={{ ...CELL, fontWeight: 600 }}>{priceLabel(zone.name)}</td>
-                            <td style={{ ...CELL, textAlign: 'right' }}>{zone.max_orders != null ? zone.max_orders : '∞'}</td>
-                            <td style={{ ...CELL, textAlign: 'right' }}>{zone.min_price != null ? `$${zone.min_price.toLocaleString()}` : '-'}</td>
-                            <td style={{ ...CELL, textAlign: 'right' }}>{zone.max_price != null ? `$${zone.max_price.toLocaleString()}` : '-'}</td>
-                            <td style={{ ...CELL, textAlign: 'right' }}>{zone.range != null ? `$${zone.range.toLocaleString()}` : '-'}</td>
-                            <td style={ACTION_CELL}>
-                              <IconButton label="Edit" onClick={() => handleEdit(zone)}>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                </svg>
-                              </IconButton>
-                              <IconButton label="Delete" danger onClick={() => handleDelete(zone.id)}>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="3 6 5 6 21 6" />
-                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                </svg>
-                              </IconButton>
-                            </td>
-                          </>
-                        )}
-                      </tr>
-                    );
-                  })}
-
-                  <tr
-                    style={{ borderTop: '1px solid var(--color-hairline-soft)' }}
+            <div className="overflow-x-hidden">
+              <div style={{ ...GRID_ROW, position: 'sticky', top: 0, background: 'var(--color-canvas)', zIndex: 1 }}>
+                <div style={HEAD_CELL}>Price</div>
+                <div style={{ ...HEAD_CELL, textAlign: 'right' }}>Max orders</div>
+                <div style={{ ...HEAD_CELL, textAlign: 'right' }}>Min price</div>
+                <div style={{ ...HEAD_CELL, textAlign: 'right' }}>Max price</div>
+                <div style={{ ...HEAD_CELL, textAlign: 'right' }}>Step</div>
+                <div style={HEAD_CELL} aria-hidden="true" />
+              </div>
+              {sortedZones.map((zone) => {
+                const isEditing = editingId === zone.id;
+                return (
+                  <div
+                    key={zone.id}
+                    style={{ ...GRID_ROW, padding: '3px 0', borderTop: '1px solid var(--color-hairline-soft)' }}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
+                      if (isEditing && e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
                         e.preventDefault();
-                        handleCreate();
+                        handleSaveEdit();
                       }
                     }}
                   >
-                    <td style={{ padding: '3px 0' }}>
-                      <input
-                        type="text"
-                        value={newForm.name}
-                        onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
-                        placeholder="Zone name"
-                        style={INPUT}
-                        aria-label="New zone name"
-                      />
-                    </td>
-                    <td style={{ padding: '3px 0' }}>
-                      <input
-                        type="number"
-                        step="1"
-                        value={newForm.max_orders}
-                        onChange={(e) => setNewForm({ ...newForm, max_orders: e.target.value })}
-                        placeholder="unlimited"
-                        style={{ ...INPUT, textAlign: 'right' }}
-                        aria-label="New zone max orders"
-                      />
-                    </td>
-                    <td style={{ padding: '3px 0' }}>
-                      <input
-                        type="number"
-                        step="any"
-                        value={newForm.min_price}
-                        onChange={(e) => setNewForm({ ...newForm, min_price: e.target.value })}
-                        placeholder="—"
-                        style={{ ...INPUT, textAlign: 'right' }}
-                        aria-label="New zone min price"
-                      />
-                    </td>
-                    <td style={{ padding: '3px 0' }}>
-                      <input
-                        type="number"
-                        step="any"
-                        value={newForm.max_price}
-                        onChange={(e) => setNewForm({ ...newForm, max_price: e.target.value })}
-                        placeholder="—"
-                        style={{ ...INPUT, textAlign: 'right' }}
-                        aria-label="New zone max price"
-                      />
-                    </td>
-                    <td style={{ padding: '3px 0' }}>
-                      <input
-                        type="number"
-                        step="any"
-                        value={newForm.range}
-                        onChange={(e) => setNewForm({ ...newForm, range: e.target.value })}
-                        placeholder="e.g. 2.00"
-                        style={{ ...INPUT, textAlign: 'right' }}
-                        aria-label="New zone step"
-                      />
-                    </td>
-                    <td style={{ ...ACTION_CELL, padding: '3px 0' }}>
-                      <button
-                        onClick={handleCreate}
-                        className="transition-colors hover:bg-surface-soft"
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: 24, height: 24, padding: 0, fontSize: 15, fontWeight: 500,
-                          color: 'var(--color-ink)', background: 'transparent',
-                          border: '1px solid var(--color-hairline)', borderRadius: 999, cursor: 'pointer',
-                        }}
-                        title="Add zone"
-                        aria-label="Add zone"
-                      >
-                        +
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                    {isEditing ? (
+                      <>
+                        <input
+                          type="text"
+                          value={editForm.name}
+                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                          style={INPUT}
+                          aria-label="Zone name"
+                        />
+                        <input
+                          type="number"
+                          step="1"
+                          value={editForm.max_orders}
+                          onChange={(e) => setEditForm({ ...editForm, max_orders: e.target.value })}
+                          placeholder="unlimited"
+                          style={{ ...INPUT, textAlign: 'right' }}
+                          aria-label="Max orders"
+                        />
+                        <input
+                          type="number"
+                          step="any"
+                          value={editForm.min_price}
+                          onChange={(e) => setEditForm({ ...editForm, min_price: e.target.value })}
+                          placeholder="—"
+                          style={{ ...INPUT, textAlign: 'right' }}
+                          aria-label="Min price"
+                        />
+                        <input
+                          type="number"
+                          step="any"
+                          value={editForm.max_price}
+                          onChange={(e) => setEditForm({ ...editForm, max_price: e.target.value })}
+                          placeholder="—"
+                          style={{ ...INPUT, textAlign: 'right' }}
+                          aria-label="Max price"
+                        />
+                        <input
+                          type="number"
+                          step="any"
+                          value={editForm.range}
+                          onChange={(e) => setEditForm({ ...editForm, range: e.target.value })}
+                          placeholder="e.g. 2.00"
+                          style={{ ...INPUT, textAlign: 'right' }}
+                          aria-label="Step"
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                          <IconButton label="Save" onClick={handleSaveEdit}>✓</IconButton>
+                          <IconButton label="Cancel" onClick={handleCancelEdit}>✕</IconButton>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ ...CELL, fontWeight: 600 }}>{priceLabel(zone.name)}</div>
+                        <div style={{ ...CELL, textAlign: 'right' }}>{zone.max_orders != null ? zone.max_orders : '∞'}</div>
+                        <div style={{ ...CELL, textAlign: 'right' }}>{zone.min_price != null ? formatMoney(zone.min_price) : '-'}</div>
+                        <div style={{ ...CELL, textAlign: 'right' }}>{zone.max_price != null ? formatMoney(zone.max_price) : '-'}</div>
+                        <div style={{ ...CELL, textAlign: 'right' }}>{zone.range != null ? formatMoney(zone.range) : '-'}</div>
+                        <div style={{ ...CELL, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                          <IconButton label="Edit" onClick={() => handleEdit(zone)}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </IconButton>
+                          <IconButton label="Delete" danger onClick={() => handleDelete(zone.id)}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </IconButton>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+
             </div>
           </>
         )}
+        </div>
 
-        <div className="flex justify-end" style={{ marginTop: 24 }}>
-          <button onClick={onClose} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">
-            Close
-          </button>
+        <div
+          className={`${MODAL_FOOTER} flex flex-wrap items-center`}
+          style={{ gap: 8, marginTop: 12, borderTop: '1px solid var(--color-hairline)', paddingTop: 12 }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
+              e.preventDefault();
+              handleCreate();
+            }
+          }}
+        >
+          <div
+            className="grid flex-1 min-w-0 gap-2 grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,1fr))] max-[1023px]:basis-full"
+          >
+            <input
+              type="text"
+              value={newForm.name}
+              onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
+              placeholder="Zone name"
+              style={INPUT}
+              aria-label="New zone name"
+            />
+            <input
+              type="number"
+              step="1"
+              value={newForm.max_orders}
+              onChange={(e) => setNewForm({ ...newForm, max_orders: e.target.value })}
+              placeholder="unlimited"
+              style={{ ...INPUT, textAlign: 'right' }}
+              aria-label="New zone max orders"
+            />
+            <input
+              type="number"
+              step="any"
+              value={newForm.min_price}
+              onChange={(e) => setNewForm({ ...newForm, min_price: e.target.value })}
+              placeholder="min"
+              style={{ ...INPUT, textAlign: 'right' }}
+              aria-label="New zone min price"
+            />
+            <input
+              type="number"
+              step="any"
+              value={newForm.max_price}
+              onChange={(e) => setNewForm({ ...newForm, max_price: e.target.value })}
+              placeholder="max"
+              style={{ ...INPUT, textAlign: 'right' }}
+              aria-label="New zone max price"
+            />
+            <input
+              type="number"
+              step="any"
+              value={newForm.range}
+              onChange={(e) => setNewForm({ ...newForm, range: e.target.value })}
+              placeholder="step"
+              style={{ ...INPUT, textAlign: 'right' }}
+              aria-label="New zone step"
+            />
+          </div>
+          <div className="ml-auto flex shrink-0 items-center max-[1023px]:w-full max-[1023px]:justify-end" style={{ gap: 8 }}>
+            <button
+              onClick={handleCreate}
+              className="shrink-0 transition-opacity hover:opacity-90"
+              style={{ ...BTN, background: 'var(--color-ink)', color: 'var(--color-canvas)' }}
+              title="Add zone"
+              aria-label="Add zone"
+            >
+              Add zone
+            </button>
+            <button onClick={onClose} style={BTN_SECONDARY} className="shrink-0 transition-colors hover:bg-surface-soft">
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </ModalShell>

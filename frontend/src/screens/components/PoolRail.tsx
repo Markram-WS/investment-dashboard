@@ -1,5 +1,6 @@
 import React from "react";
 import type { PortfolioRisk } from "../../types";
+import { formatMoney, formatPct } from "../../utils/format";
 
 interface PoolRailProps {
   totalValue: number;
@@ -14,14 +15,7 @@ interface PoolRailProps {
   risk?: PortfolioRisk | null;
 }
 
-const money = (v: number) =>
-  `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-const signed = (v: number) =>
-  `${v < 0 ? "−" : "+"}$${Math.abs(v).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+const signed = (v: number) => `${v > 0 ? "+" : ""}${formatMoney(v)}`;
 
 const pct = (v: number) => `${Math.round(v)}%`;
 
@@ -57,17 +51,16 @@ const PoolRail: React.FC<PoolRailProps> = ({
   const availableLabel = `available ${pct(availableShare)} of pool · of which profit ${signed(profit)}`;
   const allocationLabel = profitOfInitialPct === null || profitOfInitialPct === 0
     ? availableLabel
-    : `${availableLabel} (${profitOfInitialPct.toFixed(1)}% of initial)`;
+    : `${availableLabel} (${formatPct(profitOfInitialPct)} of initial)`;
 
   return (
     <section className="at-card at-rail" aria-label="Pool summary">
       <div>
         <p className="at-k">Total value</p>
         <div className="at-equity">
-          <b>{money(totalValue)}</b>
+          <b>{formatMoney(totalValue)}</b>
           <span className="at-pct" data-neg={plPercent < 0 ? "true" : undefined}>
-            {plPercent >= 0 ? "" : "−"}
-            {Math.abs(plPercent).toFixed(1)}%
+            {formatPct(plPercent)}
           </span>
         </div>
         <div className="at-mezz">
@@ -77,7 +70,7 @@ const PoolRail: React.FC<PoolRailProps> = ({
           </div>
           <div>
             <p className="at-k">Cash</p>
-            <p className="at-v">{money(cash)}</p>
+            <p className="at-v">{formatMoney(cash)}</p>
           </div>
         </div>
       </div>
@@ -91,13 +84,13 @@ const PoolRail: React.FC<PoolRailProps> = ({
         </div>
         <div className="at-bar" role="img" aria-label="Cash allocation">
           <div className="at-seg" data-kind="margin" style={{ width: `${marginShare}%` }}>
-            Margin {money(marginLocked)}
+            Margin {formatMoney(marginLocked)}
           </div>
           <div className="at-seg" data-kind="buffer" style={{ width: `${bufferShare}%` }}>
-            Buffer {money(cashBufferLimit)}
+            Buffer {formatMoney(cashBufferLimit)}
           </div>
           <div className="at-seg" data-kind="available" style={{ width: `${availableShare}%` }}>
-            Available {money(availableCash)}
+            Available {formatMoney(availableCash)}
           </div>
         </div>
       </div>

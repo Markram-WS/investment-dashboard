@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Button from "./components/Button";
 import ModalShell from "./components/ModalShell";
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
 
 interface MFEditRatioModalProps {
   show: boolean;
@@ -36,9 +37,9 @@ export default function MFEditRatioModal({ show, targetRatio, onClose, onSave }:
 
   return (
     <ModalShell open={show} onClose={onClose} title="Edit Target Ratios" closeOnBackdrop={false}>
-      <div className="bg-canvas rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
-        <h3 className="text-lg font-bold mb-4">Edit Target Ratios</h3>
-        <div className="space-y-2 max-h-64 overflow-y-auto">
+      <div className={`${MODAL_CARD} bg-canvas border border-hairline rounded-xl p-3.5 w-full max-w-md mx-4`}>
+        <h3 className={`${MODAL_HEADER} text-lg font-bold mb-3`}>Edit Target Ratios</h3>
+        <div className={`${MODAL_BODY} space-y-2`}>
           {entries.map((e, i) => (
             <div key={i} className="flex items-center gap-2">
               <input
@@ -63,10 +64,12 @@ export default function MFEditRatioModal({ show, targetRatio, onClose, onSave }:
             </div>
           ))}
         </div>
-        <button onClick={addEntry} className="text-xs text-brand-teal hover:underline mt-2">+ Add asset</button>
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={handleSave}>Save Ratios</Button>
+        <div className={`${MODAL_FOOTER} flex items-center gap-2 mt-3`}>
+          <button onClick={addEntry} className="text-xs text-brand-teal hover:underline">+ Add asset</button>
+          <div className="ml-auto flex gap-2">
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button variant="primary" onClick={handleSave}>Save Ratios</Button>
+          </div>
         </div>
       </div>
     </ModalShell>

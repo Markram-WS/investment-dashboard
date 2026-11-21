@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import type { BrokerRecord } from "../lib/api";
 import ModalShell from "./components/ModalShell";
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
+import { formatMoney } from "../utils/format";
 
 const CARD: React.CSSProperties = {
   background: "var(--color-canvas)", borderRadius: 16, padding: 24,
@@ -126,7 +128,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
     setSaveErr("");
     const newBuffer = parseFloat(form.cash_buffer_limit) || 0;
 
-    if (newBuffer > rawAvailableCash) { setSaveErr(`Cash Buffer Limit max is $${rawAvailableCash.toLocaleString()}`); return; }
+    if (newBuffer > rawAvailableCash) { setSaveErr(`Cash buffer limit cannot exceed ${formatMoney(rawAvailableCash)}`); return; }
 
     setSaving(true);
     try {
@@ -148,9 +150,9 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
       });
       onSaved();
       onClose();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Failed to save portfolio:", err);
-      setSaveErr(err instanceof Error ? err.message : "Save failed");
+      setSaveErr("Couldn't save the portfolio.");
     } finally {
       setSaving(false);
     }
@@ -170,11 +172,12 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
         executed_by: "Manual",
       });
       await api.updatePortfolio(portfolioId, { available_cash: rawAvailableCash + num });
-      onDepositWithdraw(`Deposited $${num.toLocaleString()} to ${portfolioName}`);
+      onDepositWithdraw(`Deposited ${formatMoney(num)} to ${portfolioName}`);
       setDwAmount("");
       onSaved();
-    } catch (e: any) {
-      setDwError(e.message || "Deposit failed");
+    } catch (e: unknown) {
+      console.error("Failed to deposit cash:", e);
+      setDwError("Couldn't deposit cash.");
     } finally {
       setDwProcessing(false);
     }
@@ -183,7 +186,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
   const handleWithdraw = async () => {
     const num = parseFloat(dwAmount);
     if (isNaN(num) || num <= 0) { setDwError("Enter a valid amount"); return; }
-    if (num > rawAvailableCash) { setDwError(`Maximum withdraw is $${rawAvailableCash.toLocaleString()}`); return; }
+    if (num > rawAvailableCash) { setDwError(`Maximum withdraw is ${formatMoney(rawAvailableCash)}`); return; }
     setDwProcessing(true);
     setDwError("");
     try {
@@ -195,11 +198,12 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
         executed_by: "Manual",
       });
       await api.updatePortfolio(portfolioId, { available_cash: rawAvailableCash - num });
-      onDepositWithdraw(`Withdrew $${num.toLocaleString()} from ${portfolioName}`);
+      onDepositWithdraw(`Withdrew ${formatMoney(num)} from ${portfolioName}`);
       setDwAmount("");
       onSaved();
-    } catch (e: any) {
-      setDwError(e.message || "Withdraw failed");
+    } catch (e: unknown) {
+      console.error("Failed to withdraw cash:", e);
+      setDwError("Couldn't withdraw cash.");
     } finally {
       setDwProcessing(false);
     }
@@ -236,8 +240,8 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Edit portfolio">
-      <div className="w-full max-w-lg mx-4 relative" style={CARD}>
-          <div className="flex justify-between items-center" style={{ marginBottom: 24 }}>
+      <div className={`${MODAL_CARD} w-full max-w-lg mx-4 relative`} style={CARD}>
+          <div className={`${MODAL_HEADER} flex justify-between items-center`} style={{ marginBottom: 16 }}>
             <h3 style={TITLE}>Edit portfolio</h3>
             <button onClick={onClose} className="p-1 hover:bg-surface-soft rounded-full transition-colors">
               <svg className="w-5 h-5 text-slate" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -246,25 +250,26 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
             </button>
           </div>
 
+          <div className={MODAL_BODY}>
           <div className="flex flex-col" style={{ gap: 16 }}>
             <div>
               <label style={LABEL}>Portfolio name</label>
               <input value={form.portfolio_name} onChange={(e) => handleChange("portfolio_name", e.target.value)}
                 className="border border-hairline focus:border-brand-teal" style={INPUT} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 items-start">
               <div>
                 <label style={LABEL}>Available cash</label>
                 <div style={{ ...INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent" }}>
-                  ${displayEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatMoney(displayEquity)}
                 </div>
               </div>
               <div>
-                <label style={LABEL}>Initial capital</label>
-                <input type="number" step="any" value={form.initial_capital}
-                  onChange={(e) => handleChange("initial_capital", e.target.value)}
-                  className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="0.00" />
-                <p style={HELPER}>baseline for the profit share, not the cash balance</p>
+                <label style={LABEL}>Margin locked (computed)</label>
+                <div style={{ ...INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent" }}>
+                  {formatMoney(marginLocked)}
+                </div>
+                <p style={HELPER}>Computed as Σ mark × multiplier × qty × margin rate</p>
               </div>
             </div>
 
@@ -290,34 +295,42 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
                 </datalist>
               </div>
               <div>
-                <label style={LABEL}>X</label>
-                <div className="flex items-center gap-2">
+                <label style={LABEL}>Multiplier</label>
+                <div style={{ position: "relative" }}>
                   <input type="number" step="any" value={form.x_amount}
                     onChange={(e) => handleChange("x_amount", e.target.value)}
-                    className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="0" />
-                  <span style={{ fontSize: 12, color: "var(--color-slate)" }}>points</span>
+                    className="border border-hairline focus:border-brand-teal"
+                    style={{ ...INPUT, paddingRight: 32 }} placeholder="0" />
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)",
+                      fontSize: 13, color: "var(--color-slate)", pointerEvents: "none",
+                    }}
+                  >×</span>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 items-start">
               <div>
-                <label style={LABEL}>Margin locked (computed)</label>
-                <div style={{ ...INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent" }}>
-                  ${marginLocked.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </div>
-                <p style={HELPER}>คิดจาก Σ mark × multiplier × qty × margin rate</p>
+                <label style={LABEL}>Initial capital</label>
+                <input type="number" step="any" value={form.initial_capital}
+                  onChange={(e) => handleChange("initial_capital", e.target.value)}
+                  className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="0.00" />
+                <p style={HELPER}>baseline for the profit share, not the cash balance</p>
               </div>
               <div>
                 <label style={LABEL}>Cash buffer limit</label>
                 <input type="number" value={form.cash_buffer_limit} onChange={(e) => handleChange("cash_buffer_limit", e.target.value)}
                   className="border border-hairline focus:border-brand-teal" style={INPUT} />
               </div>
-              <div>
-                <label style={LABEL}>Tags (comma separated)</label>
-                <input value={form.tags} onChange={(e) => handleChange("tags", e.target.value)}
-                  className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="crypto, bot, binance" />
-              </div>
+            </div>
+
+            <div>
+              <label style={LABEL}>Tags (comma separated)</label>
+              <input value={form.tags} onChange={(e) => handleChange("tags", e.target.value)}
+                className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="crypto, bot, binance" />
             </div>
 
           </div>
@@ -385,8 +398,9 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
               </p>
             </div>
           )}
+          </div>
 
-          <div className="flex justify-end gap-3" style={{ marginTop: 24 }}>
+          <div className={`${MODAL_FOOTER} flex justify-end gap-3`} style={{ marginTop: 12 }}>
             <button onClick={onClose} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
             <button onClick={handleSave} disabled={saving}
               className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"

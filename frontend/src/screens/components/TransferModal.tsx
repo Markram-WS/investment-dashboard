@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../../lib/api';
 import ModalShell from './ModalShell';
+import { formatMoney } from '../../utils/format';
 
 interface TransferModalProps {
   open: boolean;
@@ -46,7 +47,7 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
 
   const handleConfirm = async () => {
     if (isNaN(num) || num <= 0) { setError('Please enter a valid amount'); return; }
-    if (num > source.available) { setError(`Maximum transfer is $${source.available.toLocaleString()}`); return; }
+    if (num > source.available) { setError(`Maximum transfer is ${formatMoney(source.available)}`); return; }
     setLoading(true);
     setError('');
     try {
@@ -56,10 +57,11 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
         amount: num,
       });
       await api.confirmTransfer(transfer.transaction_id, "auto-confirm");
-      onSuccess(`Transferred $${num.toLocaleString()} from ${source.name} → ${destination.name}`);
+      onSuccess(`Transferred ${formatMoney(num)} from ${source.name} → ${destination.name}`);
       onClose();
-    } catch (e: any) {
-      setError(e.message || 'Transfer failed');
+    } catch (e: unknown) {
+      console.error("Failed to transfer cash:", e);
+      setError("Couldn't transfer cash.");
     } finally {
       setLoading(false);
     }
@@ -103,7 +105,7 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
         </div>
 
         <div style={{ ...HELPER, marginBottom: 20 }}>
-          Available: <strong style={{ color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' }}>${source.available.toLocaleString()}</strong>
+          Available: <strong style={{ color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(source.available)}</strong>
         </div>
 
         {error && (

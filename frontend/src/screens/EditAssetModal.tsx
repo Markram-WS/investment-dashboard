@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import ModalShell from './components/ModalShell';
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
 
 /** Editable asset shape read by this modal (callers may pass the raw row). */
 interface EditableAsset {
@@ -162,7 +163,8 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
       onSaved();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update asset');
+      console.error('Failed to update the asset', e);
+      setError("Couldn't update the asset.");
     } finally {
       setLoading(false);
     }
@@ -177,7 +179,8 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
       onSaved();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete asset');
+      console.error('Failed to delete the asset', e);
+      setError("Couldn't delete the asset.");
     } finally {
       setLoading(false);
     }
@@ -187,9 +190,10 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
 
   return (
     <ModalShell open={open} onClose={onClose} title={"Edit Asset " + (asset?.ticker || '')} zIndex={9999}>
-      <div className={modalPanel}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 12px' }}>Edit asset — {asset.ticker}</h3>
+      <div className={`${MODAL_CARD} ${modalPanel}`}>
+        <h3 className={`${MODAL_HEADER} block`} style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 12px' }}>Edit asset — {asset.ticker}</h3>
 
+        <div className={MODAL_BODY}>
         {error && <div style={errorText}>{error}</div>}
 
         <p style={contextLine}>
@@ -252,8 +256,9 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
             </div>
           )}
         </div>
+        </div>
 
-        <div className="flex justify-between items-center" style={{ marginTop: 16 }}>
+        <div className={`${MODAL_FOOTER} flex justify-between items-center`} style={{ marginTop: 12 }}>
           <div>
             {canDelete && (
               <button type="button" onClick={handleDelete} disabled={loading} className={actionButtonClass} style={dangerButton}>Delete</button>

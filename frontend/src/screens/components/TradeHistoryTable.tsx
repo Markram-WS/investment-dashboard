@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
+import { formatMoney } from "../../utils/format";
 
 interface TradeHistoryTableProps {
   tradeHistory: any[];
@@ -133,14 +134,14 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                           </span>
                         </td>
                         <td className="px-3 py-1.5 text-right text-ink" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{h.amount ?? "-"}</td>
-                        <td className="px-3 py-1.5 text-right text-ink" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{h.entry_price != null ? `$${Number(h.entry_price).toLocaleString()}` : "-"}</td>
-                        <td className="hidden md:table-cell px-3 py-1.5 text-right text-ink" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{h.exit_price != null ? `$${Number(h.exit_price).toLocaleString()}` : "-"}</td>
+                        <td className="px-3 py-1.5 text-right text-ink" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{h.entry_price != null ? formatMoney(Number(h.entry_price)) : "-"}</td>
+                        <td className="hidden md:table-cell px-3 py-1.5 text-right text-ink" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{h.exit_price != null ? formatMoney(Number(h.exit_price)) : "-"}</td>
                         <td className="px-3 py-1.5 text-right font-medium" style={{
                           fontSize: 13,
                           fontVariantNumeric: 'tabular-nums',
                           color: (h.realized_pl ?? 0) >= 0 ? 'var(--color-positive-text)' : 'var(--color-danger-text)',
                         }}>
-                          {h.realized_pl != null ? `$${Number(h.realized_pl).toLocaleString()}` : "-"}
+                          {h.realized_pl != null ? formatMoney(Number(h.realized_pl)) : "-"}
                         </td>
                         <td className="px-3 py-1.5">
                           <span style={badgeStyle}>{h.remark?.note === "Canceled" ? "Canceled" : "Close"}</span>

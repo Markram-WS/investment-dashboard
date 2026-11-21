@@ -15,6 +15,7 @@ import MFSellHoldingModal from "./MFSellHoldingModal";
 import MFEditPortfolioModal from "./MFEditPortfolioModal";
 import PageLayout from "../components/PageLayout";
 import PageHeader from "../components/PageHeader";
+import { formatMoney, formatPct } from "../utils/format";
 
 interface ManagedFundProps {
   portfolioId?: string;
@@ -78,10 +79,15 @@ function PctBadge({ value }: { value: number }) {
         fontSize: 12,
         fontWeight: 600,
         fontVariantNumeric: "tabular-nums",
-        color: value >= 0 ? "var(--color-positive-text)" : "var(--color-danger-text)",
+        color:
+          value > 0
+            ? "var(--color-positive-text)"
+            : value < 0
+              ? "var(--color-danger-text)"
+              : "var(--color-slate)",
       }}
     >
-      {value >= 0 ? "+" : ""}{value.toFixed(2)}%
+      {formatPct(value)}
     </span>
   );
 }
@@ -92,7 +98,7 @@ function StatusBadge({ status }: { status: string }) {
       ? "var(--color-positive-text)"
       : status === "cancelled"
         ? "var(--color-danger-text)"
-        : "var(--color-status-warning)";
+        : "var(--color-warning-text)";
   return (
     <span
       style={{
@@ -279,7 +285,7 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
         title={portfolio.portfolio_name}
         meta={
           <>
-            <span className="px-3 py-1 rounded-full bg-teal-light text-brand-teal" style={{ fontSize: 12, fontWeight: 500 }}>
+            <span className="px-3 py-1 rounded-full bg-teal-light" style={{ fontSize: 12, fontWeight: 500, color: "var(--color-teal-chip-text)" }}>
               Managed Fund
             </span>
             {portfolio.last_rebalance_date && (
@@ -319,20 +325,20 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4" style={{ marginBottom: 48 }}>
         <div style={{ background: "var(--color-teal-light)", borderRadius: 16, padding: 20 }}>
           <p style={sectionLabelStyle}>Current NAV</p>
-          <p style={statValueStyle}>${(portfolio.current_nav || 0).toLocaleString()}</p>
+          <p style={statValueStyle}>{formatMoney(portfolio.current_nav || 0, "USD")}</p>
         </div>
         <div style={{ background: "var(--color-canvas)", borderRadius: 16, padding: 20 }}>
           <p style={sectionLabelStyle}>Available cash</p>
-          <p style={statValueStyle}>${(portfolio.available_cash || 0).toLocaleString()}</p>
+          <p style={statValueStyle}>{formatMoney(portfolio.available_cash || 0, "USD")}</p>
         </div>
         <div style={{ background: "var(--color-canvas)", borderRadius: 16, padding: 20 }}>
           <p style={sectionLabelStyle}>Total invested</p>
-          <p style={statValueStyle}>${totalInvested.toLocaleString()}</p>
+          <p style={statValueStyle}>{formatMoney(totalInvested, "USD")}</p>
         </div>
         <div style={{ background: "var(--color-canvas)", borderRadius: 16, padding: 20 }}>
           <p style={sectionLabelStyle}>Unrealized P/L</p>
-          <p style={{ ...statValueStyle, color: totalPl >= 0 ? "var(--color-positive-text)" : "var(--color-danger-text)" }}>
-            ${totalPl >= 0 ? "+" : ""}{totalPl.toLocaleString()}
+          <p style={{ ...statValueStyle, color: totalPl > 0 ? "var(--color-positive-text)" : totalPl < 0 ? "var(--color-danger-text)" : "var(--color-slate)" }}>
+            {totalPl > 0 ? "+" : ""}{formatMoney(totalPl, "USD")}
           </p>
         </div>
       </div>
@@ -373,18 +379,18 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
                 <tr key={h.holding_id} className="border-b border-hairline hover:bg-surface transition-colors">
                   <td className="px-3 py-3 first:pl-0 last:pr-0 font-semibold text-ink">{h.asset}</td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">{h.qty.toFixed(4)}</td>
-                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">${h.avg_entry_price.toFixed(2)}</td>
-                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">${h.current_price.toFixed(2)}</td>
-                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">${h.market_value.toLocaleString()}</td>
-                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right font-medium" style={{ color: h.unrealized_pl >= 0 ? "var(--color-positive-text)" : "var(--color-danger-text)" }}>
-                    ${h.unrealized_pl >= 0 ? "+" : ""}{h.unrealized_pl.toFixed(2)}
+                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">{formatMoney(h.avg_entry_price, "USD")}</td>
+                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">{formatMoney(h.current_price, "USD")}</td>
+                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">{formatMoney(h.market_value, "USD")}</td>
+                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right font-medium" style={{ color: h.unrealized_pl > 0 ? "var(--color-positive-text)" : h.unrealized_pl < 0 ? "var(--color-danger-text)" : "var(--color-slate)" }}>
+                    {h.unrealized_pl > 0 ? "+" : ""}{formatMoney(h.unrealized_pl, "USD")}
                   </td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-right"><PctBadge value={h.unrealized_pl_pct} /></td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">
                     <button
                       onClick={() => { setSellHoldingTarget(h); setShowSellHolding(true); }}
-                      className="text-brand-coral hover:underline"
-                      style={{ fontSize: 12, fontWeight: 600 }}
+                      className="hover:underline"
+                      style={{ color: "var(--color-danger-text)", fontSize: 12, fontWeight: 600 }}
                       title="Sell all"
                     >
                       <svg className="w-4 h-4 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -436,12 +442,12 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
                 <tr key={o.order_id} className="border-b border-hairline hover:bg-surface transition-colors">
                   <td className="px-3 py-3 first:pl-0 last:pr-0 font-semibold text-ink">{o.asset}</td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0">
-                    <span className={`px-2 py-0.5 rounded ${o.side === "Buy" ? "bg-teal-light text-brand-teal" : "bg-coral-light text-brand-coral"}`} style={{ fontSize: 11, fontWeight: 600 }}>
+                    <span className={`px-2 py-0.5 rounded ${o.side === "Buy" ? "bg-teal-light" : "bg-coral-light"}`} style={{ fontSize: 11, fontWeight: 600, color: o.side === "Buy" ? "var(--color-teal-chip-text)" : "var(--color-coral-chip-text)" }}>
                       {o.side}
                     </span>
                   </td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">{o.qty.toFixed(4)}</td>
-                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">${o.price?.toFixed(2) || "—"}</td>
+                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">{o.price != null ? formatMoney(o.price, "USD") : "—"}</td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-center"><StatusBadge status={o.status} /></td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">
                     <div className="flex items-center justify-end gap-1.5">
@@ -496,12 +502,12 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
                 <tr key={h.history_id} className="border-b border-hairline hover:bg-surface transition-colors">
                   <td className="px-3 py-3 first:pl-0 last:pr-0 font-semibold text-ink">{h.asset}</td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0">
-                    <span className={`px-2 py-0.5 rounded ${h.side === "Buy" ? "bg-teal-light text-brand-teal" : "bg-coral-light text-brand-coral"}`} style={{ fontSize: 11, fontWeight: 600 }}>
+                    <span className={`px-2 py-0.5 rounded ${h.side === "Buy" ? "bg-teal-light" : "bg-coral-light"}`} style={{ fontSize: 11, fontWeight: 600, color: h.side === "Buy" ? "var(--color-teal-chip-text)" : "var(--color-coral-chip-text)" }}>
                       {h.side}
                     </span>
                   </td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">{h.qty.toFixed(4)}</td>
-                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">${h.price?.toFixed(2) || "—"}</td>
+                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">{h.price != null ? formatMoney(h.price, "USD") : "—"}</td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-center"><StatusBadge status={h.status} /></td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-right text-slate" style={{ fontSize: 12 }}>
                     {h.executed_at ? new Date(h.executed_at).toLocaleDateString() : "—"}

@@ -1,20 +1,47 @@
 import { EXCHANGE_RATE } from '../constants/colors';
 
-export function fmtAmount(n: number | null | undefined, currency: "USD" | "THB"): string {
-  if (n == null) n = 0;
-  const v = currency === "THB" ? n * EXCHANGE_RATE : n;
-  return currency === "USD"
-    ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    : `฿${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export type Currency = "USD" | "THB";
+
+const moneyFormatters: Record<Currency, Intl.NumberFormat> = {
+  USD: new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    currencyDisplay: "narrowSymbol",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }),
+  THB: new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "THB",
+    currencyDisplay: "narrowSymbol",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }),
+};
+
+/** Single money source: `$1,234.56` / `฿1,234.56`, with `-$5.00` for negatives. */
+export function formatMoney(value: number | null | undefined, currency: Currency = "USD"): string {
+  const n = value == null || !Number.isFinite(value) ? 0 : value;
+  return moneyFormatters[currency].format(n);
 }
 
-export function formatCurrency(amount: number | null | undefined, currency: "USD" | "THB"): string {
-  const base = amount ?? 0;
-  const converted = currency === "THB" ? base * EXCHANGE_RATE : base;
-  if (currency === "USD") {
-    return `$${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
-  return `฿${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/**
+ * Signed percentage with one decimal: `+2.3%`, `-1.0%`, `0.0%`.
+ * The sign is omitted only for an exact zero.
+ */
+export function formatPct(value: number | null | undefined): string {
+  const n = value == null || !Number.isFinite(value) ? 0 : value;
+  const sign = n > 0 ? "+" : n < 0 ? "-" : "";
+  return `${sign}${Math.abs(n).toFixed(1)}%`;
+}
+
+export function fmtAmount(n: number | null | undefined, currency: Currency): string {
+  const base = n == null ? 0 : n;
+  return formatMoney(currency === "THB" ? base * EXCHANGE_RATE : base, currency);
+}
+
+export function formatCurrency(amount: number | null | undefined, currency: Currency): string {
+  return fmtAmount(amount, currency);
 }
 
 /**
@@ -42,12 +69,28 @@ export function priceLabel(label: string): string {
 export function formatDate(dateString: string | null): string {
   if (!dateString) return "";
   const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
-  return new Date(dateString).toLocaleDateString(undefined, options);
+  return new Date(dateString).toLocaleDateString("en-US", options);
 }
 
+const dateTimeParts = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
+/** Stable `YYYY-MM-DD HH:mm:ss` in the viewer's local time. */
 export function formatDateTime(dateString: string | null): string {
   if (!dateString) return "";
   const d = new Date(dateString);
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  if (Number.isNaN(d.getTime())) return "";
+  const parts: Record<string, string> = {};
+  for (const part of dateTimeParts.formatToParts(d)) {
+    if (part.type !== "literal") parts[part.type] = part.value;
+  }
+  const hour = parts.hour === "24" ? "00" : parts.hour;
+  return `${parts.year}-${parts.month}-${parts.day} ${hour}:${parts.minute}:${parts.second}`;
 }

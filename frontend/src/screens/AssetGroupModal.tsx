@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api, type AssetGroupRecord } from '../lib/api';
 import ModalShell from './components/ModalShell';
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
 import IconButton from '../components/IconButton';
 
 interface AssetGroupModalProps {
@@ -122,12 +123,13 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
 
   return (
     <ModalShell open={open} onClose={onClose} title="Asset Groups">
-      <div className={modalPanel}>
-        <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
+      <div className={`${MODAL_CARD} ${modalPanel}`}>
+        <div className={`${MODAL_HEADER} flex items-center justify-between`} style={{ marginBottom: 16 }}>
           <h3 style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0 }}>Asset groups</h3>
           <button onClick={onClose} className="text-slate hover:text-ink leading-none" style={{ fontSize: 20, background: 'none', border: 'none', cursor: 'pointer' }}>&times;</button>
         </div>
 
+        <div className={MODAL_BODY}>
         {showForm && (
           <div className="mb-6" style={{ borderTop: '1px solid var(--color-hairline)', borderBottom: '1px solid var(--color-hairline)', padding: '16px 0' }}>
             <h4 style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink)', margin: '0 0 10px' }}>{editingId ? 'Edit group' : 'New group'}</h4>
@@ -147,7 +149,20 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
         )}
 
         {loading ? (
-          <p className="text-center py-4" style={{ fontSize: 13, color: 'var(--color-slate)' }}>Loading...</p>
+          <div className="animate-pulse" aria-hidden="true">
+            <div className="flex items-center gap-6 pb-2" style={{ borderBottom: '1px solid var(--color-hairline)' }}>
+              <div className="h-3 bg-surface rounded w-24" />
+              <div className="ml-auto h-3 bg-surface rounded w-16" />
+              <div className="h-3 bg-surface rounded w-10" />
+            </div>
+            {[0, 1, 2].map((row) => (
+              <div key={row} className="flex items-center gap-6 py-2.5" style={{ borderBottom: '1px solid var(--color-hairline-soft)' }}>
+                <div className="h-4 bg-surface rounded w-40" />
+                <div className="ml-auto h-3 bg-surface rounded w-14" />
+                <div className="h-4 bg-surface rounded w-10" />
+              </div>
+            ))}
+          </div>
         ) : groups.length === 0 && !showForm ? (
           <p className="text-center py-4" style={{ fontSize: 13, color: 'var(--color-slate)' }}>No asset groups defined yet.</p>
         ) : (
@@ -187,8 +202,9 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
             </tbody>
           </table>
         )}
+        </div>
 
-        <div className="flex items-center justify-between" style={{ marginTop: 24 }}>
+        <div className={`${MODAL_FOOTER} flex items-center justify-between`} style={{ marginTop: 12, borderTop: '1px solid var(--color-hairline)', paddingTop: 12 }}>
           {!showForm && (
             <button onClick={handleAdd} style={primaryButton}>
               + Add group

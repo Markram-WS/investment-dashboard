@@ -7,55 +7,152 @@ import PageHeader from '../components/PageHeader';
 
 const panelStyle = {
   background: "var(--color-canvas)",
-  borderRadius: 16,
-  padding: 24,
+  borderRadius: 14,
+  border: "1px solid var(--color-hairline)",
+  padding: 20,
+} as const;
+
+const railStyle = {
+  background: "var(--color-canvas)",
+  borderRadius: 14,
+  border: "1px solid var(--color-hairline)",
+  padding: 20,
 } as const;
 
 const labelStyle = {
   display: "block",
   margin: 0,
-  marginBottom: 8,
+  marginBottom: 6,
   fontSize: 12,
   fontWeight: 500,
   color: "var(--color-slate)",
 } as const;
 
-const subLabelStyle = { ...labelStyle, marginBottom: 6 } as const;
+const subLabelStyle = { ...labelStyle } as const;
 
 const fieldStyle = {
   width: "100%",
   boxSizing: "border-box",
-  fontSize: 15,
+  fontSize: 14,
   color: "var(--color-ink)",
   background: "var(--color-canvas)",
   border: "1px solid var(--color-hairline)",
   borderRadius: 8,
-  padding: "10px 12px",
+  padding: "7px 10px",
 } as const;
 
 const helperStyle = {
-  margin: "6px 0 0",
-  fontSize: 12,
+  margin: "4px 0 0",
+  fontSize: 11,
+  lineHeight: 1.4,
   color: "var(--color-slate)",
 } as const;
 
 const groupHeadStyle = {
   margin: 0,
-  fontSize: 15,
+  fontSize: 14,
   fontWeight: 600,
   color: "var(--color-ink)",
 } as const;
 
 const ruleStyle = {
   borderTop: "1px solid var(--color-hairline)",
-  paddingTop: 16,
+  paddingTop: 14,
+} as const;
+
+const eyebrowStyle = {
+  margin: 0,
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  color: "var(--color-slate)",
+} as const;
+
+const PORT_TYPES = ['Managed Fund', 'Active Trading', 'Custom Portfolio'] as const;
+
+const PORT_TYPE_DESCRIPTIONS: Record<string, string> = {
+  'Managed Fund': 'Focus on portfolio rebalancing according to target ratios.',
+  'Active Trading': 'Manage individual orders (stocks, futures, options).',
+  'Custom Portfolio': 'Isolated external database for orders, transactions, and assets.',
+};
+
+const PortTypeIcon: React.FC<{ type: string; size?: number }> = ({ type, size = 24 }) => {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.5,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  if (type === 'Managed Fund') {
+    return (
+      <svg {...common}>
+        <line x1="12" y1="20" x2="12" y2="10" />
+        <line x1="18" y1="20" x2="18" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="16" />
+      </svg>
+    );
+  }
+  if (type === 'Active Trading') {
+    return (
+      <svg {...common}>
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+    </svg>
+  );
+};
+
+const fmtMoney = (value: unknown) => `$${(Number(value) || 0).toFixed(2)}`;
+
+/** Parses an allocation map from user JSON; numeric entries only, null when invalid. */
+const parseTargetRatios = (raw: string): Record<string, number> | null => {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const ratios: Record<string, number> = {};
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === 'number') ratios[key] = value;
+    }
+    return ratios;
+  } catch {
+    return null;
+  }
+};
+
+const summaryRowStyle = {
+  display: "flex",
+  alignItems: "baseline",
+  justifyContent: "space-between",
+  gap: 12,
+  margin: 0,
+  fontSize: 12,
+  color: "var(--color-slate)",
+} as const;
+
+const summaryValueStyle = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: "var(--color-ink)",
+  fontVariantNumeric: "tabular-nums",
 } as const;
 
 const CreateNewPortfolio: React.FC = () => {
   const [formData, setFormData] = useState({
     portfolio_name: '',
     port_type: '',
-    target_ratio: {} as any,
+    target_ratio: {} as Record<string, number>,
     current_nav: null,
     cash_buffer_limit: 0,
     broker_id: null as number | null,
@@ -64,7 +161,7 @@ const CreateNewPortfolio: React.FC = () => {
     initial_capital: 0,
     available_cash: 0,
     trade_plan_md: '',
-    tags: {} as any,
+    tags: {} as Record<string, boolean>,
     // Custom portfolio connection
     db_host: '',
     db_port: 5432,
@@ -134,8 +231,8 @@ const CreateNewPortfolio: React.FC = () => {
       });
       setConnectionStatus({ ok: true, message: result.message || 'Connection successful' });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Connection failed';
-      setConnectionStatus({ ok: false, message: msg });
+      console.error('Connection test failed:', err);
+      setConnectionStatus({ ok: false, message: "Couldn't test the connection. Try again." });
     } finally {
       setTestingConnection(false);
     }
@@ -168,14 +265,16 @@ const CreateNewPortfolio: React.FC = () => {
         db_password: formData.db_password,
       };
       if (formData.port_type === 'Managed Fund' && targetRatioStr.trim()) {
-        try {
-          const parsed = JSON.parse(targetRatioStr);
-          const vals = Object.values(parsed).filter((v): v is number => typeof v === 'number');
+        const parsed = parseTargetRatios(targetRatioStr);
+        if (parsed) {
+          const vals = Object.values(parsed);
           if (vals.length > 0 && Math.max(...vals) <= 1) {
             for (const k of Object.keys(parsed)) parsed[k] = parsed[k] * 100;
           }
           payload.target_ratio = parsed;
-        } catch { payload.target_ratio = {}; }
+        } else {
+          payload.target_ratio = {};
+        }
       }
       // Remove empty connection fields for non-custom portfolios
       if (formData.port_type !== 'Custom Portfolio') {
@@ -191,7 +290,8 @@ const CreateNewPortfolio: React.FC = () => {
         navigate('/');
       }, 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      console.error('Failed to create portfolio:', err);
+      setError("Couldn't create the portfolio. Try again.");
       setLoading(false);
     }
   };
@@ -229,43 +329,82 @@ const CreateNewPortfolio: React.FC = () => {
   const testDisabled =
     testingConnection || !formData.db_host || !formData.db_name || !formData.db_user || !formData.db_password;
 
+  const submitStyle: React.CSSProperties = submitDisabled
+    ? {
+        padding: "9px 22px",
+        fontSize: 13,
+        fontWeight: 600,
+        borderRadius: 9999,
+        border: "1px solid var(--color-hairline)",
+        background: "var(--color-surface)",
+        color: "var(--color-slate)",
+        cursor: "not-allowed",
+        fontVariantNumeric: "tabular-nums",
+      }
+    : {
+        padding: "9px 22px",
+        fontSize: 13,
+        fontWeight: 600,
+        borderRadius: 9999,
+        border: "1px solid transparent",
+        background: "var(--color-primary)",
+        color: "var(--color-on-primary)",
+        cursor: "pointer",
+        fontVariantNumeric: "tabular-nums",
+      };
+
+  const hasConnectionLine =
+    formData.port_type === 'Custom Portfolio' && Boolean(formData.db_host);
+
   return (
     <PageLayout>
-      <div className="max-w-3xl">
-        <PageHeader
-          title="Create New Portfolio"
-          meta={
-            <button
-              onClick={() => navigate('/')}
-              className="text-slate hover:text-ink transition-colors"
-              style={{ background: "none", border: "none", padding: 0, fontSize: 14, cursor: "pointer" }}
-            >
-              ← Back to Overview
-            </button>
-          }
-        />
+      <button
+        onClick={() => navigate('/')}
+        className="text-slate hover:text-ink transition-colors"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          background: "none",
+          border: "none",
+          padding: 0,
+          marginBottom: 6,
+          fontSize: 12,
+          fontWeight: 500,
+          color: "var(--color-slate)",
+          cursor: "pointer",
+        }}
+      >
+        <span aria-hidden="true">←</span> Back to Overview
+      </button>
 
+      <PageHeader title="Create New Portfolio" />
+
+      <div
+        className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]"
+        style={{ gap: 20, alignItems: "start" }}
+      >
         <div style={panelStyle}>
           {error && (
             <div
               style={{
-                marginBottom: 24,
-                padding: "12px 16px",
+                marginBottom: 16,
+                padding: "10px 14px",
                 borderRadius: 8,
                 background: "var(--color-coral-light)",
                 color: "var(--color-danger-text)",
-                fontSize: 15,
+                fontSize: 13,
               }}
             >
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: "grid", gap: 24 }}>
+          <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
             {/* Portfolio Name */}
             <div>
               <label style={labelStyle} htmlFor="portfolio_name">
-                Portfolio Name &amp; Identity
+                Portfolio Name*
               </label>
               <input
                 id="portfolio_name"
@@ -279,62 +418,62 @@ const CreateNewPortfolio: React.FC = () => {
               />
             </div>
 
-            {/* Port Type Selection - Card-based as per UI spec */}
+            {/* Port Type Selection */}
             <div>
               <label style={labelStyle}>Portfolio Type*</label>
-              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 16 }}>
-                {(['Managed Fund', 'Active Trading', 'Custom Portfolio'] as const).map((type) => {
-                  const iconMap: Record<string, React.ReactNode> = {
-                    'Managed Fund': (
-                      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="12" y1="20" x2="12" y2="10" />
-                        <line x1="18" y1="20" x2="18" y2="4" />
-                        <line x1="6" y1="20" x2="6" y2="16" />
-                      </svg>
-                    ),
-                    'Active Trading': (
-                      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                      </svg>
-                    ),
-                    'Custom Portfolio': (
-                      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <ellipse cx="12" cy="5" rx="9" ry="3" />
-                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-                      </svg>
-                    ),
-                  };
-                  const descMap: Record<string, string> = {
-                    'Managed Fund': 'Focus on portfolio rebalancing according to target ratios.',
-                    'Active Trading': 'Manage individual orders (stocks, futures, options).',
-                    'Custom Portfolio': 'Isolated external database for orders, transactions, and assets.',
-                  };
+              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 12 }}>
+                {PORT_TYPES.map((type) => {
                   const selected = formData.port_type === type;
                   return (
-                  <label
-                    key={type}
-                    className={`relative cursor-pointer flex flex-col items-center border-2 transition-colors text-center ${
-                      selected
-                        ? 'border-brand-teal bg-teal-light'
-                        : 'border-dashed border-hairline hover:border-brand-teal'
-                    }`}
-                    style={{ padding: 16, borderRadius: 12, gap: 6 }}
-                  >
-                    <input
-                      type="radio"
-                      name="port_type"
-                      value={type}
-                      checked={selected}
-                      onChange={handleChange}
-                      className="absolute left-0 top-0 w-0 h-0 opacity-0"
-                    />
-                    <div style={{ color: "var(--color-ink)" }}>{iconMap[type]}</div>
-                    <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--color-ink)" }}>
-                      {type}
-                    </h3>
-                    <p style={{ margin: 0, fontSize: 12, color: "var(--color-slate)" }}>{descMap[type]}</p>
-                  </label>
+                    <label
+                      key={type}
+                      className={`relative cursor-pointer flex flex-col items-center text-center border-2 transition-colors focus-within:border-ink ${
+                        selected
+                          ? 'border-ink bg-surface'
+                          : 'border-hairline bg-canvas hover:border-slate'
+                      }`}
+                      style={{ padding: "12px 12px 14px", borderRadius: 12, gap: 4 }}
+                    >
+                      <input
+                        type="radio"
+                        name="port_type"
+                        value={type}
+                        checked={selected}
+                        onChange={handleChange}
+                        className="absolute left-0 top-0 w-0 h-0 opacity-0"
+                      />
+                      {selected && (
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            position: "absolute",
+                            top: 8,
+                            right: 8,
+                            width: 16,
+                            height: 16,
+                            borderRadius: 9999,
+                            background: "var(--color-ink)",
+                            color: "var(--color-canvas)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </span>
+                      )}
+                      <div style={{ color: "var(--color-ink)" }}>
+                        <PortTypeIcon type={type} size={26} />
+                      </div>
+                      <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>
+                        {type}
+                      </h3>
+                      <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.4, color: "var(--color-slate)" }}>
+                        {PORT_TYPE_DESCRIPTIONS[type]}
+                      </p>
+                    </label>
                   );
                 })}
               </div>
@@ -344,10 +483,10 @@ const CreateNewPortfolio: React.FC = () => {
             {formData.port_type === 'Custom Portfolio' && (
               <div style={ruleStyle}>
                 <h3 style={groupHeadStyle}>External Database Connection</h3>
-                <p style={{ margin: "6px 0 16px", fontSize: 12, color: "var(--color-slate)" }}>
-                  All transactional data (orders, transactions, assets) will be stored on this external PostgreSQL database.
+                <p style={{ margin: "4px 0 12px", fontSize: 11, lineHeight: 1.4, color: "var(--color-slate)" }}>
+                  All transactional data (orders, transactions, assets) is stored in this external PostgreSQL database.
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 16 }}>
+                <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 12 }}>
                   <div>
                     <label style={subLabelStyle} htmlFor="db_host">Host *</label>
                     <input
@@ -419,7 +558,7 @@ const CreateNewPortfolio: React.FC = () => {
                       disabled={testDisabled}
                       className={`text-white font-medium transition-opacity ${testDisabled ? 'opacity-50' : 'hover:opacity-90'}`}
                       style={{
-                        padding: "10px 20px",
+                        padding: "8px 18px",
                         borderRadius: 9999,
                         border: "none",
                         fontSize: 13,
@@ -434,10 +573,10 @@ const CreateNewPortfolio: React.FC = () => {
                 {connectionStatus && (
                   <div
                     style={{
-                      marginTop: 12,
-                      padding: "10px 12px",
+                      marginTop: 10,
+                      padding: "8px 12px",
                       borderRadius: 8,
-                      fontSize: 13,
+                      fontSize: 12,
                       background: connectionStatus.ok
                         ? "var(--color-teal-light)"
                         : "var(--color-coral-light)",
@@ -456,10 +595,10 @@ const CreateNewPortfolio: React.FC = () => {
             {/* Product, Capital & Risk Funds */}
             <div style={ruleStyle}>
               <h3 style={groupHeadStyle}>Product</h3>
-              <p style={{ margin: "6px 0 16px", fontSize: 12, color: "var(--color-slate)" }}>
+              <p style={{ margin: "4px 0 12px", fontSize: 11, lineHeight: 1.4, color: "var(--color-slate)" }}>
                 Margin locked is computed from open orders — there is no manual margin input.
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 16 }}>
+              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 12 }}>
                 <div>
                   <label style={subLabelStyle} htmlFor="broker_id">Broker</label>
                   <select
@@ -495,8 +634,8 @@ const CreateNewPortfolio: React.FC = () => {
                   </datalist>
                 </div>
                 <div>
-                  <label style={subLabelStyle} htmlFor="x_amount">X</label>
-                  <div className="flex items-center" style={{ gap: 8 }}>
+                  <label style={subLabelStyle} htmlFor="x_amount">Multiplier</label>
+                  <div style={{ position: "relative" }}>
                     <input
                       id="x_amount"
                       type="number"
@@ -504,15 +643,29 @@ const CreateNewPortfolio: React.FC = () => {
                       name="x_amount"
                       value={formData.x_amount ?? ''}
                       onChange={handleNumberChange}
-                      style={{ ...fieldStyle, fontVariantNumeric: "tabular-nums" }}
+                      className="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      style={{ ...fieldStyle, paddingRight: 32, fontVariantNumeric: "tabular-nums" }}
                       placeholder="0"
                     />
-                    <span style={{ fontSize: 12, color: "var(--color-slate)" }}>points</span>
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        right: 11,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        fontSize: 13,
+                        color: "var(--color-slate)",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      ×
+                    </span>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 16, marginTop: 16 }}>
+              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 12, marginTop: 12 }}>
                 <div>
                   <label style={subLabelStyle} htmlFor="available_cash">Available Cash</label>
                   <input
@@ -537,7 +690,7 @@ const CreateNewPortfolio: React.FC = () => {
                     style={{ ...fieldStyle, fontVariantNumeric: "tabular-nums" }}
                     placeholder="0.00"
                   />
-                  <p style={helperStyle}>baseline for the profit share, not the cash balance</p>
+                  <p style={helperStyle}>Baseline for the profit share, not the cash balance.</p>
                 </div>
                 <div>
                   <label style={subLabelStyle} htmlFor="cash_buffer_limit">Cash Buffer Limit</label>
@@ -567,16 +720,13 @@ const CreateNewPortfolio: React.FC = () => {
                   onChange={(e) => {
                     const raw = e.target.value;
                     setTargetRatioStr(raw);
-                    try {
-                      const parsed = JSON.parse(raw);
-                      setFormData(prev => ({ ...prev, target_ratio: parsed }));
-                    } catch {
-                      // Allow free typing; parsed state stays at last valid value
-                    }
+                    const parsed = parseTargetRatios(raw);
+                    if (parsed) setFormData(prev => ({ ...prev, target_ratio: parsed }));
+                    // Allow free typing; parsed state stays at last valid value
                   }}
                   style={{
                     ...fieldStyle,
-                    minHeight: 80,
+                    minHeight: 72,
                     resize: "vertical",
                     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                   }}
@@ -588,6 +738,8 @@ const CreateNewPortfolio: React.FC = () => {
               </div>
             )}
 
+            {/* Trade Plan + Metadata Tags */}
+            <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: 12 }}>
             {/* Trade Plan (Markdown) - Sticky Note Style */}
             <div>
               <label style={labelStyle} htmlFor="trade_plan_md">
@@ -600,7 +752,7 @@ const CreateNewPortfolio: React.FC = () => {
                 onChange={handleChange}
                 style={{
                   ...fieldStyle,
-                  minHeight: 100,
+                  minHeight: 78,
                   resize: "vertical",
                   background: "var(--color-yellow-light)",
                   border: "1px solid var(--color-brand-yellow)",
@@ -608,7 +760,7 @@ const CreateNewPortfolio: React.FC = () => {
                 placeholder="Enter your trading strategy or rules here... (e.g., 'Never hold more than 30 days', 'Focus on premium collection')"
               ></textarea>
               <p style={helperStyle}>
-                Visualized as a sticky note — for recording your investment intentions
+                Visualized as a sticky note — for recording your investment intentions.
               </p>
             </div>
 
@@ -633,7 +785,7 @@ const CreateNewPortfolio: React.FC = () => {
                       target.value = '';
                     }
                   }}
-                  style={{ ...fieldStyle, width: "auto", flex: 1, minWidth: 220 }}
+                  style={{ ...fieldStyle, width: "auto", flex: 1, minWidth: 200 }}
                 />
                 <button
                   onClick={(e) => {
@@ -650,7 +802,7 @@ const CreateNewPortfolio: React.FC = () => {
                   }}
                   className="text-white font-medium transition-opacity hover:opacity-90"
                   style={{
-                    padding: "10px 18px",
+                    padding: "7px 16px",
                     borderRadius: 9999,
                     border: "none",
                     fontSize: 13,
@@ -662,7 +814,7 @@ const CreateNewPortfolio: React.FC = () => {
                 </button>
               </div>
               {(formData.tags || Object.keys(formData.tags).length > 0) && (
-                <div className="flex flex-wrap" style={{ gap: 8, marginTop: 12 }}>
+                <div className="flex flex-wrap" style={{ gap: 8, marginTop: 10 }}>
                   {Object.keys(formData.tags || {}).map((tag, index) => (
                     <span
                       key={index}
@@ -670,7 +822,7 @@ const CreateNewPortfolio: React.FC = () => {
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 6,
-                        padding: "4px 10px",
+                        padding: "3px 10px",
                         borderRadius: 9999,
                         fontSize: 12,
                         fontWeight: 500,
@@ -707,91 +859,144 @@ const CreateNewPortfolio: React.FC = () => {
                 </div>
               )}
               <p style={helperStyle}>
-                Tags help categorize your portfolio by market, broker, or strategy type
+                Tags help categorize your portfolio by market, broker, or strategy type.
               </p>
             </div>
-
-            {/* Live Preview */}
-            <div style={{ borderTop: "1px solid var(--color-hairline)", marginTop: 20, paddingTop: 16 }}>
-              <p style={labelStyle}>Live Preview</p>
-              <div className="flex items-start" style={{ gap: 16 }}>
-                <div style={{ color: "var(--color-ink)" }}>{formData.port_type === 'Managed Fund' ? (
-                  <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="20" x2="12" y2="10" />
-                    <line x1="18" y1="20" x2="18" y2="4" />
-                    <line x1="6" y1="20" x2="6" y2="16" />
-                  </svg>
-                ) : formData.port_type === 'Active Trading' ? (
-                  <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                  </svg>
-                ) : (
-                  <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <ellipse cx="12" cy="5" rx="9" ry="3" />
-                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-                  </svg>
-                )}</div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--color-ink)" }}>
-                    {formData.portfolio_name || 'Portfolio Name'}
-                  </p>
-                  <p
-                    style={{
-                      margin: "2px 0 0",
-                      fontSize: 15,
-                      color: "var(--color-ink)",
-                      fontVariantNumeric: "tabular-nums",
-                    }}
-                  >
-                    <span style={{ color: "var(--color-slate)" }}>
-                      {formData.port_type || 'Select portfolio type'}
-                    </span>
-                    <span style={{ marginLeft: 12 }}>
-                      ${(formData.available_cash || 0).toFixed(2)} available
-                    </span>
-                  </p>
-                  {formData.port_type === 'Custom Portfolio' && formData.db_host && (
-                    <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--color-brand-teal)" }}>
-                      <svg className="w-3.5 h-3.5 inline-block align-middle mr-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                      </svg>
-                      Connected to {formData.db_host}:{formData.db_port}/{formData.db_name}</p>
-                  )}
-                  {formData.trade_plan_md && (
-                    <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--color-slate)", fontStyle: "italic" }}>
-                      "{formData.trade_plan_md.substring(0, 30)}..."
-                    </p>
-                  )}
-                </div>
-              </div>
             </div>
 
-            {/* Submit Button */}
-            <div style={{ paddingTop: 4 }}>
+            {/* Actions */}
+            <div
+              className="flex flex-wrap items-center justify-end"
+              style={{
+                gap: 10,
+                borderTop: "1px solid var(--color-hairline)",
+                paddingTop: 14,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                disabled={loading}
+                className="hover:bg-surface transition-colors"
+                style={{
+                  padding: "9px 18px",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  borderRadius: 9999,
+                  border: "1px solid var(--color-hairline)",
+                  background: "var(--color-canvas)",
+                  color: "var(--color-ink)",
+                  cursor: loading ? "not-allowed" : "pointer",
+                }}
+              >
+                Cancel
+              </button>
               <button
                 type="submit"
                 disabled={submitDisabled}
-                className={`w-full flex justify-center items-center font-medium text-white transition-opacity ${
-                  submitDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
-                }`}
-                style={{
-                  padding: "14px 24px",
-                  fontSize: 15,
-                  borderRadius: 9999,
-                  border: "none",
-                  background: "var(--color-brand-teal)",
-                  color: "var(--color-on-primary)",
-                  opacity: submitDisabled ? 0.5 : 1,
-                  cursor: submitDisabled ? "not-allowed" : "pointer",
-                }}
+                className="transition-colors"
+                style={submitStyle}
               >
                 {loading ? 'Creating Portfolio...' : 'Create Portfolio'}
               </button>
             </div>
           </form>
         </div>
+
+        {/* Live preview / summary rail */}
+        <aside style={railStyle} aria-label="Portfolio preview">
+          <p style={eyebrowStyle}>Live preview</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                background: "var(--color-surface)",
+                color: "var(--color-ink)",
+                flex: "0 0 auto",
+              }}
+            >
+              <PortTypeIcon type={formData.port_type} size={22} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "var(--color-ink)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {formData.portfolio_name || 'Portfolio Name'}
+              </p>
+              <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--color-slate)" }}>
+                {formData.port_type || 'Select portfolio type'}
+              </p>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 8,
+              borderTop: "1px solid var(--color-hairline)",
+              marginTop: 16,
+              paddingTop: 12,
+            }}
+          >
+            <p style={summaryRowStyle}>
+              <span>Available cash</span>
+              <span style={summaryValueStyle}>{fmtMoney(formData.available_cash)}</span>
+            </p>
+            <p style={summaryRowStyle}>
+              <span>Initial capital</span>
+              <span style={summaryValueStyle}>{fmtMoney(formData.initial_capital)}</span>
+            </p>
+            <p style={summaryRowStyle}>
+              <span>Cash buffer</span>
+              <span style={summaryValueStyle}>{fmtMoney(formData.cash_buffer_limit)}</span>
+            </p>
+            <p style={summaryRowStyle}>
+              <span>Multiplier</span>
+              <span style={summaryValueStyle}>
+                {Number(formData.x_amount) || 0}
+                <span style={{ color: "var(--color-slate)", fontWeight: 400 }}> ×</span>
+              </span>
+            </p>
+          </div>
+
+          {hasConnectionLine && (
+            <p style={{ margin: "12px 0 0", fontSize: 11, lineHeight: 1.45, color: "var(--color-slate)" }}>
+              <svg className="w-3 h-3 inline-block align-middle mr-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+              {formData.db_host}:{formData.db_port}/{formData.db_name}
+            </p>
+          )}
+
+          {formData.trade_plan_md && (
+            <p
+              style={{
+                margin: "12px 0 0",
+                fontSize: 11,
+                lineHeight: 1.45,
+                color: "var(--color-slate)",
+                fontStyle: "italic",
+              }}
+            >
+              “{formData.trade_plan_md.substring(0, 80)}
+              {formData.trade_plan_md.length > 80 ? '…' : ''}”
+            </p>
+          )}
+        </aside>
       </div>
     </PageLayout>
   );

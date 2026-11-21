@@ -5,7 +5,12 @@ colors:
   primary: "#1c1c1e"
   on-primary: "#ffffff"
   brand-yellow: "#ffd02f"
-  brand-teal: "#0fbcb0"
+  brand-teal: "#0a7a73"
+  brand-teal-strong: "#0a7a73"
+  teal-chip-text: "#0a6f69"
+  positive-text: "#00746d"
+  danger-text: "#c22f2f"
+  on-brand-accent: "#1c1c1e"
   brand-coral: "#ff9999"
   brand-blue: "#4262ff"
   teal-light: "#c3faf5"
@@ -77,7 +82,12 @@ spacing:
   section: "64px"
 components:
   button-primary:
-    backgroundColor: "{colors.brand-teal}"
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    rounded: "{rounded.full}"
+    padding: "16px 24px"
+  button-accent:
+    backgroundColor: "{colors.brand-teal-strong}"
     textColor: "{colors.on-primary}"
     rounded: "{rounded.full}"
     padding: "16px 24px"
@@ -88,7 +98,7 @@ components:
     padding: "16px 24px"
   button-outline:
     backgroundColor: transparent
-    textColor: "{colors.brand-teal}"
+    textColor: "{colors.teal-chip-text}"
     rounded: "{rounded.full}"
     padding: "16px 24px"
   button-danger:
@@ -149,19 +159,30 @@ What this system explicitly rejects: fintech navy-and-gold, dark-mode-terminal a
 
 ## 2. Colors
 
-Four named accent roles — yellow (anchor), teal (safe/primary action), coral (danger/warning), blue (neutral accent/info) — on a clean neutral surface.
+Four named accent roles — yellow (anchor), teal (safe/confirmation action), coral (danger/warning), blue (neutral accent/info) — on a clean neutral surface.
 
 ### Primary
 - **Ink** (`#1c1c1e`): Primary text, active nav backgrounds, button text on tinted surfaces. The black-pill anchor.
 
 ### Accent
 - **Brand Yellow** (`#ffd02f`): The single loud note. Used for the Available Cash card, logo mark, and attention calls. Never decorative.
-- **Brand Teal** (`#0fbcb0`): Primary action color (main CTA buttons), success indicators, safe/target status. The default "go" signal.
+- **Brand Teal** (`#0a7a73` light / `#0fbcb0` dark): the text, line, focus, and small-indicator colour — safe/target status, the focus ring, the status dot, links, and the ladder's progress and profit fills. The pastel teal could not carry a white 11–13px label (2.38:1) and could not carry a focus indicator at the 3:1 non-text floor, so the fills moved to a darker step of the same hue rather than the labels moving to ink. `#0a7a73` measures 5.19:1 on white; dark mode keeps `#0fbcb0`, which measures 7.75:1 on the dark canvas.
+- **Brand Teal Strong** (`#0a7a73`, hover `#087068`, active `#075f5a`): the solid fill of the `accent` button variant — the teal confirmation action, no longer the default CTA. The same hue at a value dark enough that a white label clears the floor: white on it measures 5.19:1. The token is not redefined in `.dark`, so the fill holds in both themes.
 - **Brand Coral** (`#ff9999`): Danger signals, negative P&L, risk warnings.
 - **Brand Blue** (`#4262ff`): Neutral accent for info cards, secondary indicators, link behavior.
 
 ### Light Variants
 - **Teal Light** (`#c3faf5`), **Coral Light** (`#ffc6c6`), **Yellow Light** (`#fff9e6`): Tinted backgrounds for status banners, cards, and badges. At 12-25% opacity equivalents, they tint without overwhelming the container.
+
+### Text on tinted surfaces
+
+A text token is measured against the fill it lands on, not against white, and each pair below ships together.
+
+- **`--color-teal-chip-text`** (`#0a6f69` light / `#7fe3d8` dark): text on the teal chip fill (`#c3faf5`), 5.25:1. The brand teal itself already clears 4.53:1 there; the chip token adds headroom at 11px.
+- **`--color-coral-chip-text`** (`#a32020` / `#ffb3b3`): text on the coral chip fill (`#ffc6c6`), 5.08:1.
+- **`--color-warning-text`** (`#8a6200` / `#ffd02f`): warning copy on canvas or surface, distinct from the solid `--color-status-warning` fill (`#b57f00`) the attention chip paints when pressed.
+- **`--color-positive-text`** (`#00746d` / `#29b3a8`) and **`--color-danger-text`** (`#c22f2f` / `#ff8a8a`): P/L, deltas, and instrument direction text on canvas.
+- **`--color-on-brand-accent`** (`#1c1c1e` default): text and icons sitting on the user-selected accent. `AccentMenu` recomputes it from the accent's luminance whenever the accent changes, so ink wins on a light accent and white on a dark one without per-palette hand-editing.
 
 ### Neutral
 - **Canvas** (`#ffffff`): Default card and page background. Pure white.
@@ -262,13 +283,14 @@ Interaction states and overlays (modals, dropdowns, sticky nav) use the three-st
 
 ### Buttons
 - **Shape:** Full pill (9999px radius).
-- **Primary (teal):** `bg-brand-teal text-white` — the default call to action. Hover darkens to `teal-600`.
+- **Primary (ink):** `bg-primary text-on-primary` — the default call to action, the black pill on every page (`Refresh`, `Create order`, `Create Portfolio`). Hover is `color-mix(in srgb, var(--color-primary) 88%, var(--color-on-primary))`; press is `color-mix(in srgb, var(--color-primary) 85%, black)`; disabled keeps the system `opacity-50`. The label is `--color-on-primary`, not white, so on the pale dark-mode pill it flips to ink instead of printing white on pale gray. Measured: white on `#1c1c1e` 17.01:1, the hover step 11.88:1, and the dark-mode pill (`#e8e8e8` with a `#1c1c1e` label) 13.89:1.
+- **Accent (teal):** `bg-[var(--color-brand-teal-strong)] text-white` — the teal confirmation fill, carried as its own variant with hover `--color-brand-teal-strong-hover` (`#087068`) and press `--color-brand-teal-strong-active` (`#075f5a`); no screen uses it yet. Teal now serves accent, outline, and link affordances only (section 2, Brand Teal Strong), never the default CTA.
 - **Secondary:** `bg-canvas text-ink border hairline` — outlined with white fill. Hover gets `bg-surface`.
-- **Outline:** `border brand-teal text-brand-teal` — transparent fill. Hover gets `bg-teal-50`.
+- **Outline:** `border-[color:var(--color-teal-chip-text)] text-[color:var(--color-teal-chip-text)]` — transparent fill, border and label from the same text-safe teal. Hover gets `bg-teal-light`.
 - **Danger:** `bg-red-600 text-white` — destructive actions. Hover darkens.
 - **Ghost:** `bg-transparent text-slate border hairline` — lowest emphasis.
 - **Icon action (`IconButton`):** a 20px full circle with the 1px hairline, canvas fill and a 12px / stroke-width 2 icon at `--color-slate`. Hover takes ink text and an outline-coloured border; `danger` hovers `--color-danger-text`, `success` hovers `--color-success`, `aria-pressed` is brand-teal, disabled drops to 0.5. It is the only shape for a pencil, refresh, trash, tick or close inside a row or table cell — `AllAssets`, `AssetGroupModal`, `ZoneGroupModal`, `PortfolioMutualFund` and the ladder's hover overlay all use it.
-- **States:** Hover is per variant (`hover:bg-teal-600`, `hover:bg-surface`, `hover:bg-teal-50`, `hover:bg-red-700`, `hover:bg-surface`) at `frontend/src/screens/components/Button.tsx:14-18`. Press scales the button to 0.97 (`active:scale-[0.97]`, `Button.tsx:40`). Disabled renders at `opacity-50` with `cursor-not-allowed` and cancels the press scale (`disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100`, `Button.tsx:40`). The transition is `transition-all duration-150` (`Button.tsx:40`).
+- **States:** Hover is per variant (`color-mix` on `--color-primary` for primary, `--color-brand-teal-strong-hover` for accent, `hover:bg-surface`, `hover:bg-teal-light`, `hover:bg-red-700`, `hover:bg-surface`) at `frontend/src/screens/components/Button.tsx:21-28`. Press scales the button to 0.97 (`active:scale-[0.97]`, `Button.tsx:50`). Disabled renders at `opacity-50` with `cursor-not-allowed` and cancels the press scale (`disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100`, `Button.tsx:50`). The transition is `transition-all duration-150` (`Button.tsx:50`).
 - **Focus:** not set by the component. It inherits the global `:focus-visible` outline at 2px brand-teal with 2px offset (`index.css:585-596`).
 - **Sizes:** sm `px-3 py-1.5 text-[10px]` renders 11.25px horizontal, 5.625px vertical, 10px type; md `px-4 py-2 text-xs` renders 15px, 7.5px, 11.25px; lg `px-6 py-3 text-sm` renders 22.5px, 11.25px, 13.125px (`Button.tsx:21-25`). The rem-based utilities scale down because the root is 15px (`index.css:84`).
 - **Loading:** not implemented. The `loading` prop is declared (`Button.tsx:6`) and only feeds `disabled` (`Button.tsx:39`); no spinner, label change, or width reservation renders.
@@ -457,8 +479,8 @@ States ship per component, not per token. A state that the code does not impleme
 | State | Visual change | Where |
 |---|---|---|
 | Resting | Variant fill, full pill, bold text, 150ms transition on all properties | `Button.tsx:14-20`, `Button.tsx:40` |
-| Hover | Teal-600 (primary), surface (secondary), teal-50 (outline), red-700 (danger), surface (ghost) | `Button.tsx:14-18` |
-| Pressed | Scales to 0.97 | `Button.tsx:40` |
+| Hover | Primary mixes 88% `--color-primary` with `--color-on-primary`; accent `--color-brand-teal-strong-hover` (#087068), secondary `surface`, outline `teal-light`, danger `red-700`, ghost `surface` | `Button.tsx:21-28` |
+| Pressed | Primary mixes 85% `--color-primary` with black; accent `--color-brand-teal-strong-active` (#075f5a); pressed buttons scale to 0.97 | `Button.tsx:21-24`, `Button.tsx:50` |
 | Focus-visible | 2px brand-teal outline at 2px offset, inherited from the global rule | `index.css:585-596` |
 | Disabled | Opacity 0.5, `cursor-not-allowed`, press scale cancelled | `Button.tsx:40` |
 | Loading | Not implemented: the prop only feeds `disabled` | `Button.tsx:6`, `Button.tsx:39` |
@@ -554,7 +576,33 @@ States ship per component, not per token. A state that the code does not impleme
 | Pressed | Not implemented | none |
 | Disabled | Not implemented | none |
 
-## 10. Iteration Guide
+## 10. Surface Contracts
+
+A contract is a property the surface must hold at every viewport, not a style choice each page makes again. These rules come from the 2026-11-20 review of the running app at `http://localhost:8080` in Chromium; each number is the measured failure that produced the rule, so a regression is recognisable as the same number returning.
+
+### Named Rules
+
+**The Always-Visible Action Rule.** A modal's primary action is never below the fold at any supported viewport. The panel is `max-height: calc(100dvh - 48px)` with a fixed header and a footer pinned to the card bottom; the body between them is the only scroll region. The overlay is never the scroll mechanism, and `body` stays locked while the internal body scrolls — an overlay that scrolls hides the action with no visible affordance. Measured at 1258x555: the add-order panel stood 579px tall and its `Create order` button sat at y=568..589, entirely below the viewport, while the overlay was the only scroll container and rendered no scrollbar; edit portfolio hid its footer even at 700px. The cause was `screens/components/ModalShell.tsx`'s panel wrapper carrying no max-height and each modal card owning no internal scroll region, so the rule is enforced once in the shell: every modal inherits it, and no card sets its own height. Floor to verify: 1258x555.
+
+**The Measured-Contrast Rule.** Every text/background pairing ships with a computed ratio written beside the token: 4.5:1 for body text at 11–13px, 3:1 for large text. Four pairs failed the 2026-11-20 pass: white on `#0fbcb0` at 2.38:1 (the then-teal primary buttons), `#0fbcb0` on `#c3faf5` at 2.07:1 (managed-fund chip), white on the grey liquidity segment at 2.54:1, and the dark-mode logo mark (`text-ink` on yellow) at 1.2:1 — 1.4:1 once the user picked a light accent, which was lilac in the stored profile. Resolutions: the teal stays a fill and its label token must measure 4.5; a chip on teal-light takes a darker teal text token; liquidity segment labels take per-segment ink instead of one white. Measure on the composited background, as section 11 item 5 requires, not on the raw token.
+
+**The Fixed-Anchor Rule.** Brand Yellow is fixed, and no user setting repaints it. `components/AccentMenu.tsx` writes `--color-brand-accent`, and the alias `--color-brand-yellow: var(--color-brand-accent)` let a chosen accent repaint the semantic available-liquidity fill and the logo mark — the anchor the rest of the palette reads against. A user accent repaints chrome only: active pills, links, and the focus ring; never a semantic fill and never the mark. Accent-backed text uses `--color-on-brand-accent`, derived from the accent's own luminance, so every palette option stays at or above 4.5:1 in both themes; a fixed white label cannot satisfy that across palettes.
+
+**The One-Number Rule.** One formatter module, `frontend/src/utils/format.ts`, owns `formatMoney`, `formatPct`, and `formatDateTime`; a page calls it and formats nothing itself. The locale is explicit `en-US`, never `toLocaleString(undefined, …)`, so grouping does not follow the browser and a Thai browser cannot render Buddhist-era digits inside an English UI. A delta is always signed — `+` or `-` — and exact zero is unsigned; `$+0` is not a value. A timestamp carries its date and its timezone, because `Updated 21:54:15` says nothing outside the machine that rendered it. The drift in one pass: `$+0` on the managed-fund summary, `+0.0%` in one portfolio row against `0.0%` in the next, `Updated 21:54:15` with no date or timezone, and Thai Buddhist date digits inside an English UI. Page-local `toLocaleString` formatting is forbidden.
+
+**The Never-The-Exception Rule.** No rendered text contains a raw `err.message`, an HTTP status, or a stack fragment. A failed page shows a card: one sentence naming what failed, a `Retry` that re-runs the same fetch, and an escape hatch — a link back to a known-good page. The raw status goes to the console only. `/analytics/detail` rendered the entire document as `Error: HTTP error! status: 500`, with no chrome, no retry, and no way out; a page whose only exit is the browser's back button is a dead end, not an error state.
+
+**The Skeleton-Not-Text Rule.** Every page's loading state is a pulse skeleton shaped like the content it replaces; a bare `Loading…` line is a violation. On the same build, Overview and Transactions rendered bare `Loading…` text while Risk Analytics and Managed Fund already used pulse skeletons — the rule is conformance, not a new pattern, and the skeleton stands in for the block (strip, rows, chart) rather than a generic spinner.
+
+**The Compact-Empty Rule.** An empty region is one block no taller than 120px, carrying one primary action and one sentence that teaches the next step. Three stacked full-width empty cards are forbidden: `/managed-fund` with no data rendered three, roughly 420px of chrome at a 720px viewport for a page with nothing to show. An unpopulated ladder level renders blank, never a dash — a dash means "known value, missing" — so the 97 low-contrast `—` nodes painted into every empty price level on one dark-mode page made an empty column read as broken data.
+
+**The Filled-Width Rule.** Content fills the `max-w-[1200px]` shell. A form page is either centred or a two-column layout with a summary rail, and a left-anchored card may never leave a dead column wider than roughly 15% of the content width. On `/create-portfolio` at 1258x700 a `max-w-3xl` card (720px) sat in a 1258px main, leaving 486px empty while the document grew to 1283px and pushed the submit to y=1190..1241 — two screens below the fold. The dead column is what forced the height.
+
+**The English-UI Rule.** All UI copy is English, whatever the user's locale or the author's language — helper text, labels, and empty states included. Developer strings never ship: `yfinance symbol patterns` and `1 asset in 2 groups, manual refresh` describe the implementation, so a user reading them learns the schema instead of the task. A string the user cannot act on is not UI copy.
+
+**The Verified-Viewport Rule.** Supported viewports are 1258x555 (the real-user floor: 1920x1080 scaled 1.5 inside a window), 1258x700, 1024x768, and 1440x900. Every page and every modal ships screenshot-verified at all four, with no horizontal overflow, the primary action reachable without scrolling the overlay, and the page's first actionable row above the fold. Desktop is the primary surface; a phone layout must not break but is not a target, which is why section 8 collapses the tables rather than fitting them.
+
+## 11. Iteration Guide
 
 1. Change the token or the component in code first, then update this document in the same commit. `6c1760b` is that pair: it changed `DESIGN.md`, `frontend/src/index.css`, and `frontend/src/pages/PortfolioOverview.tsx` together.
 2. Never document a value the code does not set. When a value is a target rather than an implementation, mark it as a target: the 44px floor is a coarse-pointer rule (`index.css:569-575`), not a universal one.
@@ -563,7 +611,7 @@ States ship per component, not per token. A state that the code does not impleme
 5. Measure contrast on the composited background, not on the raw token. A chip's fill is a `color-mix` result over its container (`index.css:257`); pale ink `#e8e8e8` (`index.css:110`) on the solid warning fill measures 1.20:1 (measured from the token values), which is why the pressed state switches to `--color-on-brand-yellow` (`index.css:342-345`).
 6. Keep the frontmatter machine-readable: a new token goes into the frontmatter and into `frontend/src/index.css` in the same change. The frontmatter `colors` and `components` blocks mirror the `:root` variables (`index.css:10-90`).
 
-## 11. Known Gaps
+## 12. Known Gaps
 
 - **Dark mode is not enumerated per token.** `.dark` redefines 31 properties (`index.css:110-148`), including canvas `#13131f`, ink `#e8e8e8`, and all three pastel tints. Section 2 describes the intent and names three examples; the full mapping exists only in CSS.
 - **Two pages predate the standard.** `pages/CreateNewPortfolio.tsx:116` and `:131` use `min-h-screen` with `bg-gradient-to-br from-cream-to-peach`; `screens/PortfolioMutualFund.tsx:180` uses `min-h-screen` and its own page padding. They break the no-gradient rule and the rule that the page body is `surface`. `cream` and `peach` are not colours in `tailwind.config.js`, so that gradient emits nothing, but the pages still bypass the shell. `screens/PortfolioGrid.tsx` no longer does: it owns `.at-page`, which pins the viewport height deliberately (section 6).
@@ -573,3 +621,14 @@ States ship per component, not per token. A state that the code does not impleme
 - **Dead CSS outnumbers live CSS in places.** `.input` (`index.css:238-248`), `.nav-link` (`index.css:305-319`), `.badge` and its variants (`index.css:170-188`), `.select-trigger`, `.select-dropdown`, and `.select-option` (`index.css:191-235`), and `.portfolio-grid` (`index.css:477-485`) are bound by no component. There is no shared input component at all: 87 `<input>` elements are styled per screen.
 - **Components outside Overview are undocumented.** `PerformanceSection`, `TradeHistoryTable`, `ZoneGroupModal`, `OptionsStrategyTable`, and the chart components ship their own padding, type sizes, and states; section 5 covers the Overview set and the detail-page components, and section 6 records the detail page's geometry rules.
 - **Three places hardcode 60px for the nav while the bar derives its height from a rem class.** `main` reserves 60px (`GlobalLayout.tsx:8`), `.ledger-head` sticks at `top: 60px` (`index.css:286`), and `h-16` renders 60px only because the root is 15px (`Navigation.tsx:76`, `index.css:102`). They agree today, but a change to the root font size or to the bar class silently desyncs the sticky offset and the shell reserve.
+- **Portfolio rows lose their column labels below 1024px.** The ledger head is hidden at `max-width: 1023px` and each row collapses to `minmax(0,1fr) auto` (`index.css:325-343`). The numbers keep their alignment but no label, so a row read at tablet width is a name followed by four unlabelled figures; the collapse is deliberate (section 8), the missing labels are not.
+- **The all-assets table hides five of its eight columns behind an unmarked horizontal scroll at 390px.** The table keeps every column and scrolls sideways inside its container; five sit outside the initial view and nothing marks the region as scrollable, so a narrow reader does not know the contract spec columns exist (see section 8 on collapsing by collapse, not scroll).
+- **Sora is loaded from `fonts.googleapis.com` in a self-hosted LAN app.** The font request leaves the network the app is built to run inside, so a machine without internet renders the fallback stack and the whole measured scale changes its metrics at once. The fix is a self-hosted subset served from the frontend, in the same change as the `@font-face` declaration.
+- **`pointer: coarse` is the only trigger for the 44px floor.** Buttons, links, inputs, and `[role="button"]` reach 44px only under `(pointer: coarse)` (`index.css:569-575`); a touch laptop or pen reporting a fine pointer keeps the button's computed height, which is 22.5–30px by size. The floor is a target rather than a universal rule (section 11 item 2), and the modality query is why.
+- **The payoff chart's strike line and break-even marker are unlabelled.** `PayoffChart.tsx` draws both verticals but names neither, so the reader has to infer which line is the strike and where the position turns profitable. This is the concrete instance of the unwritten data-visualisation spec above; labelling the two markers belongs in that spec, not in a one-off annotation.
+- **Header risk status is inert.** On Overview the header prints `Pool health 67%` and `Reserve inefficient` as plain text beside a coloured dot; neither links to `/risk-analytics` and `Reserve inefficient` explains nothing. Measured at 1258x539 (`pages/PortfolioOverview.tsx:335-350`).
+- **No keyboard path for cash transfer.** The drag handle on a portfolio row is a `div` with `aria-label` and `title` but no `role` or `tabIndex` (`pages/PortfolioOverview.tsx:141-155`), so the transfer gesture exists only for pointer users.
+- **Overview ends in dead space.** At 1258x539 the content stops around 520px with the ledger's last row and the remaining ~280px of the workbench carries nothing; the row is a link but has no visible open affordance — no chevron, no hover cue.
+- **Money inputs show raw values beside formatted read-only fields.** `Edit portfolio` and `MF edit portfolio` render `Initial capital` and `Cash buffer limit` as bare numbers (`7000`) while `Available cash` beside them reads `$7,006.00`, and the rule for typed inputs versus read-only money is unwritten, so the next screen will guess (`screens/EditPortfolioModal.tsx:317-330`, `screens/MFEditPortfolioModal.tsx:267`).
+- **The zone table has an empty band under its head.** `ZoneGroupModal` leaves a blank row-height gap between the column heads and the first zone row; the shared grid is aligned (0px head/cell centre delta) but the spacing between them is not (`screens/ZoneGroupModal.tsx` `GRID_ROW` / `HEAD_CELL`).
+- **One page still ships a bare loading line.** `PortfolioGrid.tsx:313` returns `Loading portfolio analytics...` instead of a skeleton, while Overview, Transactions, Asset groups and Zones use pulse skeletons.
