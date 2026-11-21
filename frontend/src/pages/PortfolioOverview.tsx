@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDrag, useDrop } from "react-dnd";
 import { api } from "../lib/api";
@@ -201,6 +201,7 @@ export default function PortfolioOverview() {
   const navigate = useNavigate();
   const [data, setData] = useState<OverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [currency] = useState<"USD" | "THB">("USD");
   const { notify } = useNotification();
   const [transferModal, setTransferModal] = useState<{
@@ -211,12 +212,21 @@ export default function PortfolioOverview() {
   const [sortKey, setSortKey] = useState<SortKey>("value");
   const [attentionOnly, setAttentionOnly] = useState(false);
 
-  useEffect(() => {
+  const loadOverview = useCallback(() => {
+    setLoading(true);
+    setFetchError(false);
     api.getOverview()
       .then(setData)
-      .catch(() => {})
+      .catch((error: unknown) => {
+        console.error("Failed to load overview:", error);
+        setFetchError(true);
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadOverview();
+  }, [loadOverview]);
 
   if (loading) return (
     <PageLayout>
@@ -274,7 +284,34 @@ export default function PortfolioOverview() {
     </PageLayout>
   );
 
-  if (!data) return null;
+  if (fetchError || !data) return (
+    <PageLayout>
+      <PageHeader title="Overview" />
+
+      <div
+        className="card"
+        role="alert"
+        style={{ maxWidth: 440, margin: "12vh auto 0", textAlign: "center" }}
+      >
+        <h1 style={{ margin: 0, fontSize: "var(--fs-section)", fontWeight: 600, color: "var(--color-ink)" }}>
+          Overview didn't load
+        </h1>
+        <p style={{ margin: "8px 0 20px", fontSize: "var(--fs-body)", color: "var(--color-slate)" }}>
+          The server could not return your portfolio overview.
+        </p>
+        <div className="flex items-center justify-center gap-3">
+          <Button variant="primary" onClick={loadOverview}>Retry</Button>
+          <Link
+            to="/all-assets"
+            style={{ fontSize: "var(--fs-body)", fontWeight: 600, color: "var(--color-brand-teal)" }}
+            className="no-underline hover:underline"
+          >
+            Go to All Assets
+          </Link>
+        </div>
+      </div>
+    </PageLayout>
+  );
 
   const { margin, buffer, available_cash, total_pl, pool_health_index, money_reserve_status, portfolios } = data;
   const totalEquity = (margin || 0) + (buffer || 0) + (available_cash || 0) + (total_pl || 0);
@@ -609,7 +646,7 @@ export default function PortfolioOverview() {
         source={transferModal.source!}
         destination={transferModal.destination!}
         onClose={() => setTransferModal({ source: null, destination: null })}
-        onSuccess={(msg) => { notify(msg, "success"); api.getOverview().then(setData).catch(() => {}); }}
+        onSuccess={(msg) => { notify(msg, "success"); loadOverview(); }}
       />
     </PageLayout>
   );

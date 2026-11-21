@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../../lib/api';
 import ModalShell from './ModalShell';
+import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './modalLayout';
 import { formatMoney } from '../../utils/format';
 
 interface TransferModalProps {
@@ -69,57 +70,59 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
 
   return (
     <ModalShell open={open} onClose={onClose} title="Transfer cash" zIndex={9999}>
-      <div className="w-full max-w-[400px] mx-4" style={CARD}>
-        <h3 style={TITLE}>Transfer cash</h3>
+      <div className={`${MODAL_CARD} w-full max-w-[400px] mx-4`} style={CARD}>
+        <h3 className={MODAL_HEADER} style={TITLE}>Transfer cash</h3>
 
-        <div style={{ marginBottom: 20, marginTop: 24 }}>
-          <div style={LABEL}>From</div>
-          <div style={VALUE}>{source.name}</div>
-        </div>
+        <div className={MODAL_BODY}>
+          <div style={{ marginBottom: 20, marginTop: 24 }}>
+            <div style={LABEL}>From</div>
+            <div style={VALUE}>{source.name}</div>
+          </div>
 
-        <div style={{ marginBottom: 24 }}>
-          <div style={LABEL}>To</div>
-          <div style={VALUE}>{destination.name}</div>
-        </div>
+          <div style={{ marginBottom: 24 }}>
+            <div style={LABEL}>To</div>
+            <div style={VALUE}>{destination.name}</div>
+          </div>
 
-        <div style={{ marginBottom: 8 }}>
-          <label style={{ ...LABEL, display: 'block', marginBottom: 6 }}>Amount</label>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              step={100}
-              placeholder="0"
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              className="flex-1 border border-hairline focus:border-brand-teal"
-              style={INPUT}
-            />
-            <button
-              onClick={handleMax}
-              className="rounded-full hover:bg-surface-soft transition-colors"
-              style={BTN_SECONDARY}
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ ...LABEL, display: 'block', marginBottom: 6 }}>Amount</label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                step={100}
+                placeholder="0"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                className="flex-1 border border-hairline focus:border-brand-teal"
+                style={INPUT}
+              />
+              <button
+                onClick={handleMax}
+                className="rounded-full hover:bg-surface-soft transition-colors"
+                style={BTN_SECONDARY}
+              >
+                Max
+              </button>
+            </div>
+          </div>
+
+          <div style={{ ...HELPER, marginBottom: 20 }}>
+            Available: <strong style={{ color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(source.available)}</strong>
+          </div>
+
+          {error && (
+            <div
+              style={{
+                fontSize: 12, fontWeight: 500, color: 'var(--color-danger-text)',
+                background: 'var(--color-coral-light)', borderRadius: 8, padding: '8px 12px', marginBottom: 16,
+              }}
             >
-              Max
-            </button>
-          </div>
+              {error}
+            </div>
+          )}
         </div>
 
-        <div style={{ ...HELPER, marginBottom: 20 }}>
-          Available: <strong style={{ color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(source.available)}</strong>
-        </div>
-
-        {error && (
-          <div
-            style={{
-              fontSize: 12, fontWeight: 500, color: 'var(--color-danger-text)',
-              background: 'var(--color-coral-light)', borderRadius: 8, padding: '8px 12px', marginBottom: 16,
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <div className="flex gap-3 justify-end">
+        <div className={`${MODAL_FOOTER} flex gap-3 justify-end`} style={{ marginTop: 12 }}>
           <button onClick={onClose} disabled={loading} style={BTN_SECONDARY}>Cancel</button>
           <button
             onClick={handleConfirm}

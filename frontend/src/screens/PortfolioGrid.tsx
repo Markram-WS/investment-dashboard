@@ -310,7 +310,68 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
 
   const { renderMarkdown } = useMarkdownRenderer();
 
-  if (loading) return <PageLayout><p className="text-slate">Loading portfolio analytics...</p></PageLayout>;
+  if (loading) return (
+    <PageLayout>
+      <div className="at-page animate-pulse" aria-busy="true" aria-label="Loading portfolio analytics">
+        <div className="at-head">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="h-3 bg-surface rounded w-28" />
+            <div className="h-5 bg-surface rounded w-64" style={{ marginTop: 8 }} />
+          </div>
+          <div className="at-head-meta">
+            <div className="h-5 bg-surface rounded-full w-16" />
+            <div className="h-5 bg-surface rounded w-20" />
+            <div className="h-7 bg-surface rounded-full w-20" />
+          </div>
+        </div>
+
+        <section className="at-card at-rail">
+          <div>
+            <div className="h-3 bg-surface rounded w-20" />
+            <div className="h-6 bg-surface rounded w-32" style={{ marginTop: 8 }} />
+          </div>
+          <div className="at-vline" />
+          <div>
+            <div className="h-3 bg-surface rounded w-full" />
+            <div className="h-4 bg-surface rounded w-full" style={{ marginTop: 10 }} />
+          </div>
+          <div className="at-vline" />
+          <div className="at-rail-side">
+            <div className="h-3 bg-surface rounded w-24" />
+            <div className="h-3 bg-surface rounded w-full" style={{ marginTop: 12 }} />
+            <div className="h-3 bg-surface rounded w-20" style={{ marginTop: 12 }} />
+          </div>
+        </section>
+
+        <div className="at-workspace">
+          <div className="at-col">
+            <section className="at-card at-detail">
+              <div className="flex items-center gap-6" style={{ padding: "0 8px 8px" }}>
+                <div className="h-3 bg-surface rounded w-24" />
+                <div className="h-3 bg-surface rounded w-12" />
+                <div className="h-3 bg-surface rounded w-16" />
+                <div className="ml-auto h-3 bg-surface rounded w-16" />
+                <div className="h-3 bg-surface rounded w-12" />
+              </div>
+              {[0, 1, 2, 3, 4, 5, 6, 7].map((row) => (
+                <div key={row} className="flex items-center gap-6 border-t border-hairline" style={{ height: 31, padding: "0 8px" }}>
+                  <div className="h-3 bg-surface rounded w-40" />
+                  <div className="h-3 bg-surface rounded w-16" />
+                  <div className="h-3 bg-surface rounded w-20" />
+                  <div className="ml-auto h-3 bg-surface rounded w-16" />
+                  <div className="h-3 bg-surface rounded w-12" />
+                </div>
+              ))}
+            </section>
+            <section className="at-card" style={{ height: 116 }} />
+          </div>
+          <div className="at-col at-right">
+            <section className="at-card at-payoff" />
+          </div>
+        </div>
+      </div>
+    </PageLayout>
+  );
   if (error) return (
     <PageLayout>
       <div
