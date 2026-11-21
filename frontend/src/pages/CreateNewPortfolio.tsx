@@ -100,6 +100,14 @@ const PortTypeIcon: React.FC<{ type: string; size?: number }> = ({ type, size = 
 
 const fmtMoney = (value: unknown) => `$${(Number(value) || 0).toFixed(2)}`;
 
+/** Numeric form field: untouched (''), cleared (null), or typed (number). */
+type OptionalNumber = number | '' | null;
+
+const hasNumber = (value: OptionalNumber) => value !== '' && value !== null;
+
+const toOptionalNumber = (value: OptionalNumber): number | undefined =>
+  value === '' || value === null ? undefined : Number(value);
+
 /** Parses an allocation map from user JSON; numeric entries only, null when invalid. */
 const parseTargetRatios = (raw: string): Record<string, number> | null => {
   try {
@@ -203,12 +211,12 @@ const CreateNewPortfolio: React.FC = () => {
     port_type: '',
     target_ratio: {} as Record<string, number>,
     current_nav: null,
-    cash_buffer_limit: 0,
+    cash_buffer_limit: '' as OptionalNumber,
     broker_id: null as number | null,
     product_ticker: '',
-    x_amount: 0,
-    initial_capital: 0,
-    available_cash: 0,
+    x_amount: '' as OptionalNumber,
+    initial_capital: '' as OptionalNumber,
+    available_cash: '' as OptionalNumber,
     trade_plan_md: '',
     tags: {} as Record<string, boolean>,
     // Custom portfolio connection
@@ -299,12 +307,8 @@ const CreateNewPortfolio: React.FC = () => {
         port_type: formData.port_type,
         target_ratio: formData.target_ratio,
         current_nav: formData.current_nav,
-        cash_buffer_limit: Number(formData.cash_buffer_limit) || 0,
-        available_cash: Number(formData.available_cash) || 0,
         broker_id: formData.broker_id ?? null,
         product_ticker: formData.product_ticker.trim() || null,
-        x_amount: Number(formData.x_amount) || 0,
-        initial_capital: Number(formData.initial_capital) || 0,
         trade_plan_md: formData.trade_plan_md,
         tags: formData.tags,
         db_host: formData.db_host,
@@ -313,6 +317,14 @@ const CreateNewPortfolio: React.FC = () => {
         db_user: formData.db_user,
         db_password: formData.db_password,
       };
+      const cashBufferLimit = toOptionalNumber(formData.cash_buffer_limit);
+      if (cashBufferLimit !== undefined) payload.cash_buffer_limit = cashBufferLimit;
+      const availableCash = toOptionalNumber(formData.available_cash);
+      if (availableCash !== undefined) payload.available_cash = availableCash;
+      const xAmount = toOptionalNumber(formData.x_amount);
+      if (xAmount !== undefined) payload.x_amount = xAmount;
+      const initialCapital = toOptionalNumber(formData.initial_capital);
+      if (initialCapital !== undefined) payload.initial_capital = initialCapital;
       if (formData.port_type === 'Managed Fund' && targetRatioStr.trim()) {
         const parsed = parseTargetRatios(targetRatioStr);
         if (parsed) {
@@ -650,8 +662,8 @@ const CreateNewPortfolio: React.FC = () => {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 230px", gap: "var(--space-lg)", alignItems: "start" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-md)" }}>
-                    <div style={{ width: 130, minWidth: 0 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "var(--space-md)" }}>
+                    <div style={{ minWidth: 0 }}>
                       <label style={CONTROL_LABEL} htmlFor="broker_id">Broker</label>
                   <div style={{ position: "relative" }}>
                     <select
@@ -690,7 +702,7 @@ const CreateNewPortfolio: React.FC = () => {
                     </span>
                   </div>
                 </div>
-                <div style={{ width: 170, minWidth: 0 }}>
+                <div style={{ minWidth: 0 }}>
                   <label style={CONTROL_LABEL} htmlFor="product_ticker">Product Ticker</label>
                   <input
                     id="product_ticker"
@@ -706,7 +718,7 @@ const CreateNewPortfolio: React.FC = () => {
                     {tickers.map(t => <option key={t} value={t} />)}
                   </datalist>
                 </div>
-                <div style={{ width: 120, minWidth: 0 }}>
+                <div style={{ minWidth: 0 }}>
                   <label style={CONTROL_LABEL} htmlFor="x_amount">Multiplier</label>
                   <AffixInput
                     id="x_amount"
@@ -720,8 +732,8 @@ const CreateNewPortfolio: React.FC = () => {
                   />
                 </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "flex-start" }}>
-                    <div style={{ width: 150, minWidth: 0 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "var(--space-md)" }}>
+                    <div style={{ minWidth: 0 }}>
                       <label style={CONTROL_LABEL} htmlFor="available_cash">Available Cash</label>
                       <AffixInput
                         id="available_cash"
@@ -733,7 +745,7 @@ const CreateNewPortfolio: React.FC = () => {
                         placeholder="0.00"
                       />
                     </div>
-                    <div style={{ width: 150, minWidth: 0, marginLeft: 16 }}>
+                    <div style={{ minWidth: 0 }}>
                       <label style={CONTROL_LABEL} htmlFor="initial_capital">Initial Capital</label>
                       <AffixInput
                         id="initial_capital"
@@ -746,7 +758,7 @@ const CreateNewPortfolio: React.FC = () => {
                         placeholder="0.00"
                       />
                     </div>
-                    <div style={{ width: 110, minWidth: 0, marginLeft: 16 }}>
+                    <div style={{ minWidth: 0 }}>
                       <label style={CONTROL_LABEL} htmlFor="cash_buffer_limit">Cash Buffer Limit</label>
                       <AffixInput
                         id="cash_buffer_limit"
@@ -956,21 +968,25 @@ const CreateNewPortfolio: React.FC = () => {
           >
             <p style={summaryRowStyle}>
               <span>Available cash</span>
-              <span style={summaryValueStyle}>{fmtMoney(formData.available_cash)}</span>
+              <span style={summaryValueStyle}>{hasNumber(formData.available_cash) ? fmtMoney(formData.available_cash) : '—'}</span>
             </p>
             <p style={summaryRowStyle}>
               <span>Initial capital</span>
-              <span style={summaryValueStyle}>{fmtMoney(formData.initial_capital)}</span>
+              <span style={summaryValueStyle}>{hasNumber(formData.initial_capital) ? fmtMoney(formData.initial_capital) : '—'}</span>
             </p>
             <p style={summaryRowStyle}>
               <span>Cash buffer</span>
-              <span style={summaryValueStyle}>{fmtMoney(formData.cash_buffer_limit)}</span>
+              <span style={summaryValueStyle}>{hasNumber(formData.cash_buffer_limit) ? fmtMoney(formData.cash_buffer_limit) : '—'}</span>
             </p>
             <p style={summaryRowStyle}>
               <span>Multiplier</span>
               <span style={summaryValueStyle}>
-                {Number(formData.x_amount) || 0}
-                <span style={{ color: "var(--color-slate)", fontWeight: 400 }}> ×</span>
+                {hasNumber(formData.x_amount) ? (
+                  <>
+                    {formData.x_amount}
+                    <span style={{ color: "var(--color-slate)", fontWeight: 400 }}> ×</span>
+                  </>
+                ) : '—'}
               </span>
             </p>
           </div>
