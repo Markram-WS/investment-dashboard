@@ -20,7 +20,7 @@ const PerformanceChart: FC<PerformanceChartProps> = ({ data, viewMode }) => {
   if (!Array.isArray(points) || points.length === 0) {
     return (
       <div className="flex items-center justify-center" style={{ paddingTop: 32, paddingBottom: 32 }}>
-        <span style={{ fontSize: 12, color: "var(--color-slate)" }}>No trade data yet</span>
+        <span className="text-[length:var(--fs-label)]" style={{ color: "var(--color-slate)" }}>No trade data yet</span>
       </div>
     );
   }

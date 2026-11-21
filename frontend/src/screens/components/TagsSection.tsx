@@ -9,17 +9,16 @@ const TagsSection: React.FC<TagsSectionProps> = ({ tags }) => {
   if (entries.length === 0) return null;
   return (
     <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--color-hairline)" }}>
-      <p style={{ fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: 0, marginBottom: 12 }}>
+      <p className="text-[length:var(--fs-label)]" style={{ fontWeight: 500, color: "var(--color-slate)", margin: 0, marginBottom: 12 }}>
         Metadata tags
       </p>
       <div className="flex flex-wrap" style={{ gap: 8 }}>
         {entries.map((tag) => (
           <span
             key={tag}
-            className="rounded-full"
+            className="rounded-full text-[length:var(--fs-label)]"
             style={{
-              padding: "2px 10px",
-              fontSize: 12,
+              padding: "2px var(--control-btn-pad-x)",
               fontWeight: 500,
               color: "var(--color-ink)",
               background: "var(--color-surface-soft)",

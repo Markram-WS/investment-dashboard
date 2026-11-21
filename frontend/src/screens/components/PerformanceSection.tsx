@@ -53,8 +53,8 @@ const PerformanceSection: React.FC<PerformanceSectionProps> = ({
 
   const totalPl = performanceData && viewMode === "equity" ? (
     <span
+      className="text-[length:var(--fs-label)]"
       style={{
-        fontSize: "var(--fs-label)",
         color: "var(--color-slate)",
         fontVariantNumeric: "tabular-nums",
         whiteSpace: "nowrap",
@@ -92,9 +92,8 @@ const PerformanceSection: React.FC<PerformanceSectionProps> = ({
           aria-controls={panelId}
           tabIndex={viewMode === tab.mode ? 0 : -1}
           onClick={() => onViewModeChange(tab.mode)}
-          className={`px-4 rounded-full transition-colors ${viewMode === tab.mode ? "bg-ink text-canvas" : "text-slate hover:text-ink"}`}
+          className={`px-4 rounded-full transition-colors text-[length:var(--fs-label)] ${viewMode === tab.mode ? "bg-ink text-canvas" : "text-slate hover:text-ink"}`}
           style={{
-            fontSize: 11,
             fontWeight: 500,
             ...(embedded ? { height: 24, paddingTop: 0, paddingBottom: 0, lineHeight: "24px" } : {}),
           }}
@@ -128,7 +127,7 @@ const PerformanceSection: React.FC<PerformanceSectionProps> = ({
         </div>
       ) : (
         <div className="flex justify-between items-center" style={{ marginBottom: 16 }}>
-          <h3 style={{ fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: 0 }}>Performance</h3>
+          <h3 className="text-[length:var(--fs-label)]" style={{ fontWeight: 500, color: "var(--color-slate)", margin: 0 }}>Performance</h3>
           <div className="flex items-center" style={{ gap: 16 }}>
             {totalPl}
             {tabList}
@@ -148,7 +147,7 @@ const PerformanceSection: React.FC<PerformanceSectionProps> = ({
             <PerformanceChart data={performanceData} viewMode={viewMode} />
           ) : (
             <div className="flex items-center justify-center" style={{ paddingTop: 32, paddingBottom: 32 }}>
-              <span style={{ fontSize: 12, color: "var(--color-slate)" }}>No trade data yet</span>
+              <span className="text-[length:var(--fs-label)]" style={{ color: "var(--color-slate)" }}>No trade data yet</span>
             </div>
           )
         ) : (

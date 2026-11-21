@@ -46,7 +46,7 @@ export default function NotificationBell() {
       >
         <IconBell className="w-5 h-5 nav-icon-hover" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full px-1 leading-none shadow">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-[length:var(--fs-caption)] font-bold rounded-full px-1 leading-none shadow">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -60,8 +60,8 @@ export default function NotificationBell() {
             {unreadCount > 0 && (
               <button
                 onClick={markAllRead}
-                className="bg-transparent border-none cursor-pointer hover:underline"
-                style={{ fontSize: 12, fontWeight: 500, color: "var(--color-slate)" }}
+                className="bg-transparent border-none cursor-pointer hover:underline text-[length:var(--fs-label)]"
+                style={{ fontWeight: 500, color: "var(--color-slate)" }}
               >
                 Mark all read
               </button>
@@ -94,8 +94,8 @@ export default function NotificationBell() {
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] text-ink leading-snug">{n.message}</div>
-                    <div className="text-[9px] text-slate/50 mt-0.5">{timeAgo(n.timestamp)}</div>
+                    <div className="text-[length:var(--fs-label)] text-ink leading-snug">{n.message}</div>
+                    <div className="text-[length:var(--fs-caption)] text-slate/50 mt-0.5">{timeAgo(n.timestamp)}</div>
                   </div>
 
                   {/* Dismiss */}
@@ -115,8 +115,8 @@ export default function NotificationBell() {
             <div className="border-t border-hairline px-4 py-2">
               <button
                 onClick={clearAll}
-                className="w-full bg-transparent border-none cursor-pointer transition-colors"
-                style={{ fontSize: 12, fontWeight: 500, color: "var(--color-slate)" }}
+                className="w-full bg-transparent border-none cursor-pointer transition-colors text-[length:var(--fs-label)]"
+                style={{ fontWeight: 500, color: "var(--color-slate)" }}
               >
                 Clear all
               </button>

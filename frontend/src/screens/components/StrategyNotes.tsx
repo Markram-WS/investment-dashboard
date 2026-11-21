@@ -1,6 +1,10 @@
 import React, { useState } from "react";
 import { api } from "../../lib/api";
 import { TradePlanView } from "./TradePlanView";
+import {
+  CONTROL_BUTTON_PRIMARY,
+  CONTROL_BUTTON_SECONDARY,
+} from "./controlStyles";
 
 interface StrategyNotesProps {
   tradePlanMd: string | null;
@@ -10,7 +14,7 @@ interface StrategyNotesProps {
   onSaved: () => void;
 }
 
-const LABEL: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: 0 };
+const LABEL: React.CSSProperties = { fontWeight: 500, color: "var(--color-slate)", margin: 0 };
 
 const StrategyNotes: React.FC<StrategyNotesProps> = ({
   tradePlanMd, portfolioId, renderMarkdown, internalNotes, onSaved,
@@ -37,10 +41,10 @@ const StrategyNotes: React.FC<StrategyNotesProps> = ({
       className="col-span-12 lg:col-span-4 flex flex-col"
       style={{ background: "var(--color-yellow-light)", borderRadius: 16, padding: 24 }}
     >
-      <h3 style={{ ...LABEL, marginBottom: 16 }}>Strategy &amp; notes</h3>
+      <h3 className="text-[length:var(--fs-label)]" style={{ ...LABEL, marginBottom: 16 }}>Strategy &amp; notes</h3>
       <div className="flex flex-col" style={{ gap: 16 }}>
         <div>
-          <span style={LABEL}>Primary strategy</span>
+          <span className="text-[length:var(--fs-label)]" style={LABEL}>Primary strategy</span>
           <div style={{ marginTop: 8 }}>
             <TradePlanView
               tradePlanMd={tradePlanMd}
@@ -51,42 +55,42 @@ const StrategyNotes: React.FC<StrategyNotesProps> = ({
           </div>
         </div>
         <div style={{ paddingTop: 16, borderTop: "1px solid var(--color-hairline)" }}>
-          <label style={{ ...LABEL, display: "block", marginBottom: 8 }}>Internal notes</label>
+          <label className="text-[length:var(--fs-label)]" style={{ ...LABEL, display: "block", marginBottom: 8 }}>Internal notes</label>
           {editingNotes ? (
             <div>
               <textarea
                 value={notesContent}
                 onChange={(e) => setNotesContent(e.target.value)}
-                className="w-full h-32 resize-none rounded-md p-2 outline-none focus:ring-2 focus:ring-brand-yellow"
-                style={{ background: "transparent", fontSize: 15, color: "var(--color-ink)" }}
+                className="w-full h-32 resize-none rounded-md p-2 outline-none focus:ring-2 focus:ring-brand-yellow text-[length:var(--fs-content)]"
+                style={{ background: "transparent", color: "var(--color-ink)" }}
                 placeholder="Type your observation..."
                 autoFocus
               />
               <div className="flex justify-end" style={{ gap: 8, marginTop: 8 }}>
                 <button
                   onClick={() => setEditingNotes(false)}
-                  className="rounded-full hover:bg-surface-soft transition-colors"
-                  style={{ padding: "6px 12px", fontSize: 12, fontWeight: 500, color: "var(--color-slate)" }}
+                  className="hover:bg-surface-soft transition-colors"
+                  style={CONTROL_BUTTON_SECONDARY}
                 >
                   Cancel
                 </button>
                 <button onClick={handleSaveNotes} disabled={savingNotes}
-                  className="rounded-full transition-opacity hover:opacity-90 disabled:opacity-50"
-                  style={{ padding: "6px 12px", fontSize: 12, fontWeight: 500, background: "var(--color-ink)", color: "var(--color-canvas)" }}>
+                  className="transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={CONTROL_BUTTON_PRIMARY}>
                   {savingNotes ? "Saving..." : "Save"}
                 </button>
               </div>
             </div>
           ) : (
             <div
-              className="w-full min-h-[80px] cursor-pointer"
-              style={{ fontSize: 15, color: "var(--color-ink)" }}
+              className="w-full min-h-[80px] cursor-pointer text-[length:var(--fs-content)]"
+              style={{ color: "var(--color-ink)" }}
               onClick={() => { setNotesContent(internalNotes || ""); setEditingNotes(true); }}
             >
               {internalNotes ? (
-                <p className="whitespace-pre-wrap" style={{ fontSize: 15, color: "var(--color-ink)", margin: 0 }}>{internalNotes}</p>
+                <p className="whitespace-pre-wrap text-[length:var(--fs-content)]" style={{ color: "var(--color-ink)", margin: 0 }}>{internalNotes}</p>
               ) : (
-                <p className="italic" style={{ fontSize: 15, color: "var(--color-slate)", margin: 0 }}>Click to add notes...</p>
+                <p className="italic text-[length:var(--fs-content)]" style={{ color: "var(--color-slate)", margin: 0 }}>Click to add notes...</p>
               )}
             </div>
           )}

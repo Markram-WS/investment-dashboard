@@ -8,17 +8,16 @@ interface TradeHistoryTableProps {
   onDropOnTradeHistory?: (orderId: string) => void;
 }
 
-/** Ledger column head: 12px/500 slate, sentence case. */
-const headCell = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)" } as const;
+/** Ledger column head: 11px/500 slate, sentence case. */
+const headCell = { fontWeight: 500, color: "var(--color-slate)" } as const;
 
-/** Badge: 12px/500 slate on surface-soft, pill radius. */
+/** Badge: 11px/500 slate on surface-soft, pill radius. */
 const badgeStyle = {
-  fontSize: 12,
   fontWeight: 500,
   color: "var(--color-slate)",
   background: "var(--color-surface-soft)",
-  borderRadius: 999,
-  padding: "2px 10px",
+  borderRadius: "var(--rounded-full)",
+  padding: "2px var(--control-btn-pad-x)",
   whiteSpace: "nowrap",
 } as const;
 
@@ -89,10 +88,10 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
         style={isDragOver ? { background: dragSurface } : undefined}
       >
         <span className="flex items-center gap-2">
-          <span style={badgeStyle}>
+          <span className="text-[length:var(--fs-label)]" style={badgeStyle}>
             Trade history ({tradeHistory.length})
           </span>
-          {isDragOver && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-brand-teal)' }}>Drop to close/cancel</span>}
+          {isDragOver && <span className="text-[length:var(--fs-label)]" style={{ fontWeight: 600, color: 'var(--color-brand-teal)' }}>Drop to close/cancel</span>}
         </span>
         <svg className={`w-3 h-3 transition-transform ${showHistory ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polyline points="6 9 12 15 18 9" />
@@ -101,15 +100,15 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
       {showHistory && (
         <div className="max-h-72 overflow-auto">
           {tradeHistory.length === 0 ? (
-            <p className="px-4 py-3 text-slate text-center" style={{ fontSize: 13 }}>No closed orders yet.</p>
+            <p className="px-4 py-3 text-slate text-center text-[length:var(--fs-content)]">No closed orders yet.</p>
           ) : (
             groupedByAsset.map(([asset, rows]) => (
               <div key={asset}>
                 <div className="px-3 py-2 bg-surface-soft border-b border-hairline sticky top-0">
-                  <span className="text-ink" style={{ fontSize: 12, fontWeight: 600 }}>{asset} ({rows.length})</span>
+                  <span className="text-ink text-[length:var(--fs-label)]" style={{ fontWeight: 600 }}>{asset} ({rows.length})</span>
                 </div>
                 <table className="w-full">
-                  <thead className="bg-surface">
+                  <thead className="bg-surface text-[length:var(--fs-label)]">
                     <tr>
                       <th className="px-3 py-1.5 text-left" style={headCell}>Open ID</th>
                       <th className="hidden md:table-cell px-3 py-1.5 text-left" style={headCell}>Close ID</th>
@@ -126,28 +125,27 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                   <tbody>
                     {rows.map((h: any) => (
                       <tr key={h.history_id} className="border-b border-hairline-soft">
-                        <td className="px-3 py-1.5 text-slate" style={{ fontSize: 13 }}>{h.order_id ?? "-"}</td>
-                        <td className="hidden md:table-cell px-3 py-1.5 text-slate" style={{ fontSize: 13 }}>{h.close_order_id ?? "-"}</td>
+                        <td className="px-3 py-1.5 text-slate text-[length:var(--fs-content)]">{h.order_id ?? "-"}</td>
+                        <td className="hidden md:table-cell px-3 py-1.5 text-slate text-[length:var(--fs-content)]">{h.close_order_id ?? "-"}</td>
                         <td className="px-3 py-1.5">
-                          <span style={badgeStyle}>
+                          <span className="text-[length:var(--fs-label)]" style={badgeStyle}>
                             {h.type ? `${String(h.type).charAt(0).toUpperCase()}${String(h.type).slice(1).toLowerCase()}` : h.type}
                           </span>
                         </td>
-                        <td className="px-3 py-1.5 text-right text-ink" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{h.amount ?? "-"}</td>
-                        <td className="px-3 py-1.5 text-right text-ink" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{h.entry_price != null ? formatMoney(Number(h.entry_price)) : "-"}</td>
-                        <td className="hidden md:table-cell px-3 py-1.5 text-right text-ink" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{h.exit_price != null ? formatMoney(Number(h.exit_price)) : "-"}</td>
-                        <td className="px-3 py-1.5 text-right font-medium" style={{
-                          fontSize: 13,
+                        <td className="px-3 py-1.5 text-right text-ink text-[length:var(--fs-content)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{h.amount ?? "-"}</td>
+                        <td className="px-3 py-1.5 text-right text-ink text-[length:var(--fs-content)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{h.entry_price != null ? formatMoney(Number(h.entry_price)) : "-"}</td>
+                        <td className="hidden md:table-cell px-3 py-1.5 text-right text-ink text-[length:var(--fs-content)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{h.exit_price != null ? formatMoney(Number(h.exit_price)) : "-"}</td>
+                        <td className="px-3 py-1.5 text-right font-medium text-[length:var(--fs-content)]" style={{
                           fontVariantNumeric: 'tabular-nums',
                           color: (h.realized_pl ?? 0) >= 0 ? 'var(--color-positive-text)' : 'var(--color-danger-text)',
                         }}>
                           {h.realized_pl != null ? formatMoney(Number(h.realized_pl)) : "-"}
                         </td>
                         <td className="px-3 py-1.5">
-                          <span style={badgeStyle}>{h.remark?.note === "Canceled" ? "Canceled" : "Close"}</span>
+                          <span className="text-[length:var(--fs-label)]" style={badgeStyle}>{h.remark?.note === "Canceled" ? "Canceled" : "Close"}</span>
                         </td>
-                        <td className="hidden lg:table-cell px-3 py-1.5 text-right text-slate" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{fmt(h.entry_date)}</td>
-                        <td className="hidden lg:table-cell px-3 py-1.5 text-right text-slate" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{fmt(h.exit_date)}</td>
+                        <td className="hidden lg:table-cell px-3 py-1.5 text-right text-slate text-[length:var(--fs-content)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(h.entry_date)}</td>
+                        <td className="hidden lg:table-cell px-3 py-1.5 text-right text-slate text-[length:var(--fs-content)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(h.exit_date)}</td>
                       </tr>
                     ))}
                   </tbody>

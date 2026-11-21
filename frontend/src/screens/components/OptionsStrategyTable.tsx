@@ -1,25 +1,26 @@
 import React, { useState, useEffect, useRef } from "react";
 import { IconPlus, IconX } from "../../components/icons";
+import {
+  CONTROL_BUTTON_SECONDARY,
+  CONTROL_INPUT,
+  CONTROL_INPUT_TEXT,
+} from "./controlStyles";
 
-/** Section caption: 12px/500 slate, sentence case. */
-const CAPTION: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: 0 };
+/** Section caption: 11px/500 slate, sentence case. */
+const CAPTION: React.CSSProperties = { fontWeight: 500, color: "var(--color-slate)", margin: 0 };
 
-/** Column head: 12px/500 slate, sentence case. */
-const headCell: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)", whiteSpace: "nowrap" };
+/** Column head: 11px/500 slate, sentence case. */
+const headCell: React.CSSProperties = { fontWeight: 500, color: "var(--color-slate)", whiteSpace: "nowrap" };
 
 /** Segment toggle — ink pill when selected, quiet slate when not. */
 const toggleStyle = (active: boolean): React.CSSProperties => ({
-  fontSize: 12,
   fontWeight: 500,
-  padding: "2px 10px",
+  padding: "2px var(--control-btn-pad-x)",
   border: "none",
   cursor: "pointer",
   background: active ? "var(--color-ink)" : "transparent",
   color: active ? "var(--color-canvas)" : "var(--color-slate)",
 });
-
-/** Table input: 12px ink, hairline border. */
-const inputStyle: React.CSSProperties = { fontSize: 12, color: "var(--color-ink)" };
 
 export interface OptionRow {
   id: number;
@@ -91,7 +92,7 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
   return (
     <div className="h-full">
       <div className="flex items-center justify-between px-4 py-2 bg-surface border-b border-hairline">
-        <span style={CAPTION}>Options strategy</span>
+        <span className="text-[length:var(--fs-label)]" style={CAPTION}>Options strategy</span>
         <button
           onClick={onClose}
           className="h-8 w-8 rounded-full bg-canvas text-slate border border-hairline hover:bg-surface transition-all flex items-center justify-center"
@@ -101,8 +102,8 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
         </button>
       </div>
       <div className="table-responsive">
-      <table className="w-full text-xs">
-        <thead>
+      <table className="w-full text-[length:var(--fs-content)]">
+        <thead className="text-[length:var(--fs-label)]">
           <tr className="bg-surface">
             <th className="px-2 py-1.5 text-center" style={headCell}>Side</th>
             <th className="px-2 py-1.5 text-center" style={headCell}>Type</th>
@@ -117,7 +118,7 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={8} className="px-4 py-4 text-center text-slate" style={{ fontSize: 12 }}>
+              <td colSpan={8} className="px-4 py-4 text-center text-slate text-[length:var(--fs-content)]">
                 No rows yet. Click [+] to add a strategy leg.
               </td>
             </tr>
@@ -128,12 +129,14 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                   <div className="flex rounded-full overflow-hidden bg-surface-soft">
                     <button
                       onClick={() => updateRow(row.id, "side", "LONG")}
+                      className="text-[length:var(--fs-label)]"
                       style={toggleStyle(row.side === "LONG")}
                     >
                       Long
                     </button>
                     <button
                       onClick={() => updateRow(row.id, "side", "SHORT")}
+                      className="text-[length:var(--fs-label)]"
                       style={toggleStyle(row.side === "SHORT")}
                     >
                       Short
@@ -144,12 +147,14 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                   <div className="flex rounded-full overflow-hidden bg-surface-soft">
                     <button
                       onClick={() => updateRow(row.id, "type", "Call")}
+                      className="text-[length:var(--fs-label)]"
                       style={toggleStyle(row.type === "Call")}
                     >
                       Call
                     </button>
                     <button
                       onClick={() => updateRow(row.id, "type", "Put")}
+                      className="text-[length:var(--fs-label)]"
                       style={toggleStyle(row.type === "Put")}
                     >
                       Put
@@ -163,8 +168,8 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     placeholder="0"
                     value={row.strike}
                     onChange={(e) => updateRow(row.id, "strike", e.target.value)}
-                    className="border border-hairline rounded px-1 py-0.5 bg-canvas w-full text-right"
-                    style={inputStyle}
+                    className="w-full text-right"
+                    style={CONTROL_INPUT}
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -174,8 +179,8 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     placeholder="0"
                     value={row.price}
                     onChange={(e) => updateRow(row.id, "price", e.target.value)}
-                    className="border border-hairline rounded px-1 py-0.5 bg-canvas w-full text-right"
-                    style={inputStyle}
+                    className="w-full text-right"
+                    style={CONTROL_INPUT}
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -185,8 +190,8 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     placeholder="0"
                     value={row.qty}
                     onChange={(e) => updateRow(row.id, "qty", e.target.value)}
-                    className="border border-hairline rounded px-1 py-0.5 bg-canvas w-full text-right"
-                    style={inputStyle}
+                    className="w-full text-right"
+                    style={CONTROL_INPUT}
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -194,8 +199,8 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     type="date"
                     value={row.expiry}
                     onChange={(e) => updateRow(row.id, "expiry", e.target.value)}
-                    className="border border-hairline rounded px-1 py-0.5 bg-canvas w-full"
-                    style={inputStyle}
+                    className="w-full"
+                    style={CONTROL_INPUT_TEXT}
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -205,8 +210,8 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
                     placeholder="0"
                     value={row.iv}
                     onChange={(e) => updateRow(row.id, "iv", e.target.value)}
-                    className="border border-hairline rounded px-1 py-0.5 bg-canvas w-full text-right"
-                    style={inputStyle}
+                    className="w-full text-right"
+                    style={CONTROL_INPUT}
                   />
                 </td>
                 <td className="px-1 py-1 text-center">
@@ -226,8 +231,8 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
       <div className="flex justify-center px-4 py-1.5 border-t border-hairline bg-surface">
         <button
           onClick={addRow}
-          className="flex items-center gap-1 rounded-full border border-hairline text-ink hover:bg-surface-soft transition-colors"
-          style={{ fontSize: 12, fontWeight: 600, padding: "4px 12px" }}
+          className="flex items-center gap-1 text-ink hover:bg-surface-soft transition-colors"
+          style={CONTROL_BUTTON_SECONDARY}
         >
           <IconPlus className="w-4 h-4" />
           Add leg

@@ -16,6 +16,7 @@ import MFEditPortfolioModal from "./MFEditPortfolioModal";
 import PageLayout from "../components/PageLayout";
 import PageHeader from "../components/PageHeader";
 import { formatMoney, formatPct } from "../utils/format";
+import { CONTROL_BUTTON_SECONDARY } from "./components/controlStyles";
 
 interface ManagedFundProps {
   portfolioId?: string;
@@ -23,7 +24,7 @@ interface ManagedFundProps {
 
 const panelStyle: CSSProperties = {
   background: "var(--color-canvas)",
-  borderRadius: 16,
+  borderRadius: "var(--rounded-xl)",
   padding: "20px 24px",
 };
 
@@ -37,27 +38,20 @@ const panelHeadStyle: CSSProperties = {
 };
 
 const sectionLabelStyle: CSSProperties = {
-  fontSize: 12,
   fontWeight: 500,
   color: "var(--color-slate)",
   margin: 0,
 };
 
 const panelActionStyle: CSSProperties = {
-  fontSize: 12,
+  ...CONTROL_BUTTON_SECONDARY,
   fontWeight: 600,
-  color: "var(--color-ink)",
-  border: "1px solid var(--color-hairline)",
-  borderRadius: 999,
-  padding: "5px 12px",
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
-  cursor: "pointer",
 };
 
 const statValueStyle: CSSProperties = {
-  fontSize: 22,
   fontWeight: 600,
   letterSpacing: "-0.01em",
   fontVariantNumeric: "tabular-nums",
@@ -66,7 +60,6 @@ const statValueStyle: CSSProperties = {
 };
 
 const thStyle: CSSProperties = {
-  fontSize: 12,
   fontWeight: 500,
   color: "var(--color-slate)",
   whiteSpace: "nowrap",
@@ -75,8 +68,8 @@ const thStyle: CSSProperties = {
 function PctBadge({ value }: { value: number }) {
   return (
     <span
+      className="text-[length:var(--fs-content)]"
       style={{
-        fontSize: 12,
         fontWeight: 600,
         fontVariantNumeric: "tabular-nums",
         color:
@@ -101,12 +94,12 @@ function StatusBadge({ status }: { status: string }) {
         : "var(--color-warning-text)";
   return (
     <span
+      className="text-[length:var(--fs-label)]"
       style={{
         display: "inline-block",
         padding: "2px 8px",
-        borderRadius: 999,
+        borderRadius: "var(--rounded-full)",
         background: "var(--color-surface)",
-        fontSize: 11,
         fontWeight: 600,
         color,
       }}
@@ -244,10 +237,10 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
     return (
       <PageLayout>
         <div style={panelStyle}>
-          <h2 style={{ fontSize: "1.25rem", fontWeight: 600, lineHeight: 1.3, color: "var(--color-ink)", margin: "0 0 8px" }}>
+          <h2 className="text-[length:var(--fs-section)]" style={{ fontWeight: 600, lineHeight: 1.3, color: "var(--color-ink)", margin: "0 0 8px" }}>
             Error loading portfolio
           </h2>
-          <p style={{ fontSize: 15, color: "var(--color-danger-text)", margin: 0 }}>{error}</p>
+          <p className="text-[length:var(--fs-content)]" style={{ color: "var(--color-danger-text)", margin: 0 }}>{error}</p>
         </div>
       </PageLayout>
     );
@@ -257,7 +250,7 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
     return (
       <PageLayout>
         <div style={{ ...panelStyle, textAlign: "center" }}>
-          <p style={{ fontSize: 15, color: "var(--color-slate)", margin: 0 }}>No portfolio data available</p>
+          <p className="text-[length:var(--fs-content)]" style={{ color: "var(--color-slate)", margin: 0 }}>No portfolio data available</p>
         </div>
       </PageLayout>
     );
@@ -266,8 +259,8 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
   return (
     <PageLayout>
       <div
-        className="flex items-center gap-2 mb-2"
-        style={{ fontSize: 12, fontWeight: 500, color: "var(--color-slate)" }}
+        className="flex items-center gap-2 mb-2 text-[length:var(--fs-label)]"
+        style={{ fontWeight: 500, color: "var(--color-slate)" }}
       >
         <Link
           to="/"
@@ -285,11 +278,11 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
         title={portfolio.portfolio_name}
         meta={
           <>
-            <span className="px-3 py-1 rounded-full bg-teal-light" style={{ fontSize: 12, fontWeight: 500, color: "var(--color-teal-chip-text)" }}>
+            <span className="px-3 py-1 rounded-full bg-teal-light text-[length:var(--fs-label)]" style={{ fontWeight: 500, color: "var(--color-teal-chip-text)" }}>
               Managed Fund
             </span>
             {portfolio.last_rebalance_date && (
-              <span className="text-slate" style={{ fontSize: 12 }}>Last rebalanced: {portfolio.last_rebalance_date}</span>
+              <span className="text-slate text-[length:var(--fs-label)]">Last rebalanced: {portfolio.last_rebalance_date}</span>
             )}
             <div className="flex items-center gap-2">
               <Button variant="primary" size="sm" onClick={handleCalculateRebalance}>
@@ -312,10 +305,10 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
             <div
               key={i}
               className="flex items-center gap-2"
-              style={{ background: "var(--color-coral-light)", borderRadius: 12, padding: "12px 16px" }}
+              style={{ background: "var(--color-coral-light)", borderRadius: "var(--rounded-lg)", padding: "12px 16px" }}
             >
               <svg className="w-5 h-5 text-brand-coral shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              <span style={{ fontSize: 15, fontWeight: 500, color: "var(--color-danger-text)" }}>{a.message}</span>
+              <span className="text-[length:var(--fs-content)]" style={{ fontWeight: 500, color: "var(--color-danger-text)" }}>{a.message}</span>
             </div>
           ))}
         </div>
@@ -323,21 +316,21 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
 
       {/* Key Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4" style={{ marginBottom: 48 }}>
-        <div style={{ background: "var(--color-teal-light)", borderRadius: 16, padding: 20 }}>
-          <p style={sectionLabelStyle}>Current NAV</p>
-          <p style={statValueStyle}>{formatMoney(portfolio.current_nav || 0, "USD")}</p>
+        <div style={{ background: "var(--color-teal-light)", borderRadius: "var(--rounded-xl)", padding: 20 }}>
+          <p className="text-[length:var(--fs-label)]" style={sectionLabelStyle}>Current NAV</p>
+          <p className="text-[length:var(--fs-page-title)]" style={statValueStyle}>{formatMoney(portfolio.current_nav || 0, "USD")}</p>
         </div>
-        <div style={{ background: "var(--color-canvas)", borderRadius: 16, padding: 20 }}>
-          <p style={sectionLabelStyle}>Available cash</p>
-          <p style={statValueStyle}>{formatMoney(portfolio.available_cash || 0, "USD")}</p>
+        <div style={{ background: "var(--color-canvas)", borderRadius: "var(--rounded-xl)", padding: 20 }}>
+          <p className="text-[length:var(--fs-label)]" style={sectionLabelStyle}>Available cash</p>
+          <p className="text-[length:var(--fs-page-title)]" style={statValueStyle}>{formatMoney(portfolio.available_cash || 0, "USD")}</p>
         </div>
-        <div style={{ background: "var(--color-canvas)", borderRadius: 16, padding: 20 }}>
-          <p style={sectionLabelStyle}>Total invested</p>
-          <p style={statValueStyle}>{formatMoney(totalInvested, "USD")}</p>
+        <div style={{ background: "var(--color-canvas)", borderRadius: "var(--rounded-xl)", padding: 20 }}>
+          <p className="text-[length:var(--fs-label)]" style={sectionLabelStyle}>Total invested</p>
+          <p className="text-[length:var(--fs-page-title)]" style={statValueStyle}>{formatMoney(totalInvested, "USD")}</p>
         </div>
-        <div style={{ background: "var(--color-canvas)", borderRadius: 16, padding: 20 }}>
-          <p style={sectionLabelStyle}>Unrealized P/L</p>
-          <p style={{ ...statValueStyle, color: totalPl > 0 ? "var(--color-positive-text)" : totalPl < 0 ? "var(--color-danger-text)" : "var(--color-slate)" }}>
+        <div style={{ background: "var(--color-canvas)", borderRadius: "var(--rounded-xl)", padding: 20 }}>
+          <p className="text-[length:var(--fs-label)]" style={sectionLabelStyle}>Unrealized P/L</p>
+          <p className="text-[length:var(--fs-page-title)]" style={{ ...statValueStyle, color: totalPl > 0 ? "var(--color-positive-text)" : totalPl < 0 ? "var(--color-danger-text)" : "var(--color-slate)" }}>
             {totalPl > 0 ? "+" : ""}{formatMoney(totalPl, "USD")}
           </p>
         </div>
@@ -346,7 +339,7 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
       {/* Asset List */}
       <section style={{ ...panelStyle, marginBottom: 48 }}>
         <div style={panelHeadStyle}>
-          <h3 style={sectionLabelStyle}>Asset list (holdings)</h3>
+          <h3 className="text-[length:var(--fs-label)]" style={sectionLabelStyle}>Asset list (holdings)</h3>
           <button
             type="button"
             onClick={fetchData}
@@ -357,12 +350,12 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
           </button>
         </div>
         {holdings.length === 0 ? (
-          <div style={{ padding: "32px 0 12px", textAlign: "center", fontSize: 15, color: "var(--color-slate)" }}>
+          <div className="text-[length:var(--fs-content)]" style={{ padding: "32px 0 12px", textAlign: "center", color: "var(--color-slate)" }}>
             No holdings yet. Create an order to get started.
           </div>
         ) : (
-          <table className="w-full" style={{ fontSize: 15, fontVariantNumeric: "tabular-nums" }}>
-            <thead>
+          <table className="w-full text-[length:var(--fs-content)]" style={{ fontVariantNumeric: "tabular-nums" }}>
+            <thead className="text-[length:var(--fs-label)]">
               <tr className="border-b border-hairline">
                 <th className="text-left px-3 py-3 first:pl-0 last:pr-0" style={thStyle}>Asset</th>
                 <th className="text-right px-3 py-3 first:pl-0 last:pr-0" style={thStyle}>Qty</th>
@@ -389,8 +382,8 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">
                     <button
                       onClick={() => { setSellHoldingTarget(h); setShowSellHolding(true); }}
-                      className="hover:underline"
-                      style={{ color: "var(--color-danger-text)", fontSize: 12, fontWeight: 600 }}
+                      className="hover:underline text-[length:var(--fs-label)]"
+                      style={{ color: "var(--color-danger-text)", fontWeight: 600 }}
                       title="Sell all"
                     >
                       <svg className="w-4 h-4 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -408,7 +401,7 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
       {/* Order in Progress */}
       <section style={{ ...panelStyle, marginBottom: 48 }}>
         <div style={panelHeadStyle}>
-          <h3 style={sectionLabelStyle}>Order in progress</h3>
+          <h3 className="text-[length:var(--fs-label)]" style={sectionLabelStyle}>Order in progress</h3>
           <button
             type="button"
             onClick={() => setShowCreateOrder(true)}
@@ -422,12 +415,12 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
           </button>
         </div>
         {orders.length === 0 ? (
-          <div style={{ padding: "32px 0 12px", textAlign: "center", fontSize: 15, color: "var(--color-slate)" }}>
+          <div className="text-[length:var(--fs-content)]" style={{ padding: "32px 0 12px", textAlign: "center", color: "var(--color-slate)" }}>
             No orders in progress
           </div>
         ) : (
-          <table className="w-full" style={{ fontSize: 15, fontVariantNumeric: "tabular-nums" }}>
-            <thead>
+          <table className="w-full text-[length:var(--fs-content)]" style={{ fontVariantNumeric: "tabular-nums" }}>
+            <thead className="text-[length:var(--fs-label)]">
               <tr className="border-b border-hairline">
                 <th className="text-left px-3 py-3 first:pl-0 last:pr-0" style={thStyle}>Asset</th>
                 <th className="text-left px-3 py-3 first:pl-0 last:pr-0" style={thStyle}>Side</th>
@@ -442,7 +435,7 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
                 <tr key={o.order_id} className="border-b border-hairline hover:bg-surface transition-colors">
                   <td className="px-3 py-3 first:pl-0 last:pr-0 font-semibold text-ink">{o.asset}</td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0">
-                    <span className={`px-2 py-0.5 rounded ${o.side === "Buy" ? "bg-teal-light" : "bg-coral-light"}`} style={{ fontSize: 11, fontWeight: 600, color: o.side === "Buy" ? "var(--color-teal-chip-text)" : "var(--color-coral-chip-text)" }}>
+                    <span className={`px-2 py-0.5 rounded text-[length:var(--fs-label)] ${o.side === "Buy" ? "bg-teal-light" : "bg-coral-light"}`} style={{ fontWeight: 600, color: o.side === "Buy" ? "var(--color-teal-chip-text)" : "var(--color-coral-chip-text)" }}>
                       {o.side}
                     </span>
                   </td>
@@ -479,15 +472,15 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
       {/* Order History */}
       <section style={panelStyle}>
         <div style={panelHeadStyle}>
-          <h3 style={sectionLabelStyle}>Order history</h3>
+          <h3 className="text-[length:var(--fs-label)]" style={sectionLabelStyle}>Order history</h3>
         </div>
         {history.length === 0 ? (
-          <div style={{ padding: "32px 0 12px", textAlign: "center", fontSize: 15, color: "var(--color-slate)" }}>
+          <div className="text-[length:var(--fs-content)]" style={{ padding: "32px 0 12px", textAlign: "center", color: "var(--color-slate)" }}>
             No order history yet
           </div>
         ) : (
-          <table className="w-full" style={{ fontSize: 15, fontVariantNumeric: "tabular-nums" }}>
-            <thead>
+          <table className="w-full text-[length:var(--fs-content)]" style={{ fontVariantNumeric: "tabular-nums" }}>
+            <thead className="text-[length:var(--fs-label)]">
               <tr className="border-b border-hairline">
                 <th className="text-left px-3 py-3 first:pl-0 last:pr-0" style={thStyle}>Asset</th>
                 <th className="text-left px-3 py-3 first:pl-0 last:pr-0" style={thStyle}>Side</th>
@@ -502,14 +495,14 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
                 <tr key={h.history_id} className="border-b border-hairline hover:bg-surface transition-colors">
                   <td className="px-3 py-3 first:pl-0 last:pr-0 font-semibold text-ink">{h.asset}</td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0">
-                    <span className={`px-2 py-0.5 rounded ${h.side === "Buy" ? "bg-teal-light" : "bg-coral-light"}`} style={{ fontSize: 11, fontWeight: 600, color: h.side === "Buy" ? "var(--color-teal-chip-text)" : "var(--color-coral-chip-text)" }}>
+                    <span className={`px-2 py-0.5 rounded text-[length:var(--fs-label)] ${h.side === "Buy" ? "bg-teal-light" : "bg-coral-light"}`} style={{ fontWeight: 600, color: h.side === "Buy" ? "var(--color-teal-chip-text)" : "var(--color-coral-chip-text)" }}>
                       {h.side}
                     </span>
                   </td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">{h.qty.toFixed(4)}</td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-right">{h.price != null ? formatMoney(h.price, "USD") : "—"}</td>
                   <td className="px-3 py-3 first:pl-0 last:pr-0 text-center"><StatusBadge status={h.status} /></td>
-                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right text-slate" style={{ fontSize: 12 }}>
+                  <td className="px-3 py-3 first:pl-0 last:pr-0 text-right text-slate text-[length:var(--fs-content)]">
                     {h.executed_at ? new Date(h.executed_at).toLocaleDateString() : "—"}
                   </td>
                 </tr>

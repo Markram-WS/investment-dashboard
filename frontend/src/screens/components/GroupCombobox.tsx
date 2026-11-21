@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GroupOption } from '../../types';
 import { formatMoney } from '../../utils/format';
+import { TextInput } from './Field';
+import { CONTROL_INPUT_TEXT } from './controlStyles';
 
 interface GroupComboboxProps {
   groups: GroupOption[];
@@ -30,8 +32,8 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
   return (
     <div ref={ref} className="relative">
       <div
-        className="w-full border rounded flex items-center justify-between cursor-pointer"
-        style={{ fontSize: 11, padding: '4px 8px' }}
+        className="w-full flex items-center justify-between cursor-pointer"
+        style={CONTROL_INPUT_TEXT}
         onClick={() => setOpen(!open)}
       >
         <span className={value ? '' : 'text-slate'}>
@@ -45,18 +47,16 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
       </div>
       {open && (
         <div className="absolute z-10 mt-1 w-full bg-canvas border rounded shadow-lg max-h-60 overflow-auto">
-          <input
+          <TextInput
             autoFocus
-            type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Type to filter..."
-            className="w-full border-b outline-none"
-            style={{ fontSize: 11, padding: '6px 8px' }}
+            aria-label="Filter zones"
           />
           <div
-            className="text-slate hover:bg-surface cursor-pointer"
-            style={{ fontSize: 11, padding: '6px 8px' }}
+            className="text-slate hover:bg-surface cursor-pointer text-[length:var(--fs-label)]"
+            style={{ padding: '6px 8px' }}
             onClick={() => { onChange(null); setOpen(false); setQuery(''); }}
           >
             No zone
@@ -64,8 +64,8 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
           {filtered.map(g => (
             <div
               key={g.id}
-              className={`cursor-pointer hover:bg-surface ${g.id === value ? 'font-bold bg-surface-soft' : ''}`}
-              style={{ fontSize: 11, padding: '6px 8px' }}
+              className={`cursor-pointer hover:bg-surface text-[length:var(--fs-label)] ${g.id === value ? 'font-bold bg-surface-soft' : ''}`}
+              style={{ padding: '6px 8px' }}
               onClick={() => { onChange(g.id); setOpen(false); setQuery(''); }}
             >
               <span>{g.name}</span>
@@ -75,7 +75,7 @@ export const GroupCombobox: React.FC<GroupComboboxProps> = ({ groups, value, onC
             </div>
           ))}
           {filtered.length === 0 && (
-            <div className="text-slate" style={{ fontSize: 11, padding: '6px 8px' }}>No zones found</div>
+            <div className="text-slate text-[length:var(--fs-label)]" style={{ padding: '6px 8px' }}>No zones found</div>
           )}
         </div>
       )}

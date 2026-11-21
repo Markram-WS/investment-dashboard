@@ -8,6 +8,7 @@ import { formatMoney, formatPct } from "../utils/format";
 import TransferModal from "../screens/components/TransferModal";
 import LiquidityStack from "../screens/components/LiquidityStack";
 import Button from "../screens/components/Button";
+import { SelectInput, TextInput } from "../screens/components/Field";
 import { useNotification } from "../contexts/NotificationContext";
 import PageLayout from "../components/PageLayout";
 import PageHeader from "../components/PageHeader";
@@ -20,7 +21,6 @@ interface DragItem {
 
 const labelStyle = {
   margin: 0,
-  fontSize: "var(--fs-label)",
   fontWeight: 500,
   color: "var(--color-slate)",
 } as const;
@@ -40,7 +40,7 @@ function Amount({ value, currency }: { value: number; currency: "USD" | "THB" })
   return (
     <span className="inline-flex items-baseline" style={tabular}>
       <span>{text.slice(0, dot)}</span>
-      <span style={{ fontSize: "0.6em", color: "var(--color-slate)" }}>{text.slice(dot)}</span>
+      <span className="text-[length:var(--fs-label)]" style={{ color: "var(--color-slate)" }}>{text.slice(dot)}</span>
     </span>
   );
 }
@@ -106,18 +106,18 @@ function PortfolioRow({
     >
       <div className="ledger-cell-name" style={{ minWidth: 0 }}>
         <div className="flex flex-wrap items-center gap-2">
-          <span style={{ fontSize: "var(--fs-body)", fontWeight: 600, color: "var(--color-ink)" }}>
+          <span className="text-[length:var(--fs-body)]" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
             {p.portfolio_name}
           </span>
           {tags.map((tag) => (
             <span
               key={tag}
+              className="text-[length:var(--fs-micro)]"
               style={{
-                fontSize: "var(--fs-micro)",
                 fontWeight: 500,
                 color: "var(--color-slate)",
                 background: "var(--color-surface)",
-                borderRadius: 9999,
+                borderRadius: "var(--rounded-full)",
                 padding: "2px 8px",
               }}
             >
@@ -126,7 +126,7 @@ function PortfolioRow({
           ))}
         </div>
         {secondary && (
-          <p style={{ margin: "2px 0 0", fontSize: "var(--fs-label)", color: "var(--color-slate)" }}>{secondary}</p>
+          <p className="text-[length:var(--fs-label)]" style={{ margin: "2px 0 0", color: "var(--color-slate)" }}>{secondary}</p>
         )}
       </div>
 
@@ -143,11 +143,11 @@ function PortfolioRow({
           ref={dragRef}
           aria-label={availableLabel}
           title={availableLabel}
+          className="text-[length:var(--fs-body)]"
           style={{
             display: "flex",
             alignItems: "center",
             gap: 6,
-            fontSize: 12,
             whiteSpace: "nowrap",
             cursor: "grab",
             opacity: isDragging ? 0.45 : 1,
@@ -162,16 +162,15 @@ function PortfolioRow({
       </div>
 
       <div
-        className="ledger-cell-value ledger-num"
-        style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)", ...tabular }}
+        className="ledger-cell-value ledger-num text-[length:var(--fs-content)]"
+        style={{ fontWeight: 600, color: "var(--color-ink)", ...tabular }}
       >
         {formatMoney(total, currency)}
       </div>
 
       <div
-        className="ledger-cell-pnl ledger-num"
+        className="ledger-cell-pnl ledger-num text-[length:var(--fs-body)]"
         style={{
-          fontSize: 12,
           fontWeight: 600,
           color:
             profitSign > 0
@@ -185,7 +184,7 @@ function PortfolioRow({
         {formatPct(profitPct)}
       </div>
 
-      <div className="ledger-cell-status" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--fs-label)", color: "var(--color-slate)" }}>
+      <div className="ledger-cell-status text-[length:var(--fs-label)]" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--color-slate)" }}>
         {p.risk_status && (
           <>
             <span className="status-dot" style={{ background: riskColor(p.risk_status) }} />
@@ -293,18 +292,18 @@ export default function PortfolioOverview() {
         role="alert"
         style={{ maxWidth: 440, margin: "12vh auto 0", textAlign: "center" }}
       >
-        <h1 style={{ margin: 0, fontSize: "var(--fs-section)", fontWeight: 600, color: "var(--color-ink)" }}>
+        <h1 className="text-[length:var(--fs-section)]" style={{ margin: 0, fontWeight: 600, color: "var(--color-ink)" }}>
           Overview didn't load
         </h1>
-        <p style={{ margin: "8px 0 20px", fontSize: "var(--fs-body)", color: "var(--color-slate)" }}>
+        <p className="text-[length:var(--fs-body)]" style={{ margin: "8px 0 20px", color: "var(--color-slate)" }}>
           The server could not return your portfolio overview.
         </p>
         <div className="flex items-center justify-center gap-3">
           <Button variant="primary" onClick={loadOverview}>Retry</Button>
           <Link
             to="/all-assets"
-            style={{ fontSize: "var(--fs-body)", fontWeight: 600, color: "var(--color-brand-teal)" }}
-            className="no-underline hover:underline"
+            className="no-underline hover:underline text-[length:var(--fs-body)]"
+            style={{ fontWeight: 600, color: "var(--color-brand-teal)" }}
           >
             Go to All Assets
           </Link>
@@ -372,16 +371,16 @@ export default function PortfolioOverview() {
         title="Overview"
         meta={
           <>
-            <span className="flex items-center gap-2" style={{ fontSize: 12, color: "var(--color-slate)" }}>
+            <span className="flex items-center gap-2 text-[length:var(--fs-label)]" style={{ color: "var(--color-slate)" }}>
               <span className="status-dot" style={{ background: poolHealthColor }} />
               Pool health {gaugePercent}%
             </span>
             <span
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 text-[length:var(--fs-label)]"
               role="img"
               title={reserveRangeLabel}
               aria-label={reserveRangeLabel}
-              style={{ fontSize: 12, color: "var(--color-slate)" }}
+              style={{ color: "var(--color-slate)" }}
             >
               <span className="status-dot" style={{ background: reserveStatusColor }} />
               Reserve {money_reserve_status.toLowerCase()}
@@ -407,12 +406,11 @@ export default function PortfolioOverview() {
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <p style={labelStyle}>Total equity</p>
+            <p className="text-[length:var(--fs-label)]" style={labelStyle}>Total equity</p>
             <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
               <span
-                className="text-ink"
+                className="text-ink text-[length:var(--fs-datum)]"
                 style={{
-                  fontSize: "var(--fs-datum)",
                   fontWeight: 600,
                   letterSpacing: "-0.01em",
                   lineHeight: 1.15,
@@ -422,8 +420,8 @@ export default function PortfolioOverview() {
                 <Amount value={totalEquity} currency={currency} />
               </span>
               <span
+                className="text-[length:var(--fs-label)]"
                 style={{
-                  fontSize: "var(--fs-label)",
                   fontWeight: 600,
                   padding: "2px 10px",
                   borderRadius: 999,
@@ -455,14 +453,14 @@ export default function PortfolioOverview() {
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 24, marginTop: 12 }}>
               <div>
-                <p style={{ margin: 0, fontSize: "var(--fs-micro)", fontWeight: 500, color: "var(--color-slate)" }}>P/L</p>
-                <p style={{ margin: 0, marginTop: 4, fontSize: "var(--fs-body)", fontWeight: 600, color: plColor, ...tabular }}>
+                <p className="text-[length:var(--fs-micro)]" style={{ margin: 0, fontWeight: 500, color: "var(--color-slate)" }}>P/L</p>
+                <p className="text-[length:var(--fs-body)]" style={{ margin: 0, marginTop: 4, fontWeight: 600, color: plColor, ...tabular }}>
                   {plPrefix}{formatMoney(Math.abs(total_pl || 0), currency)}
                 </p>
               </div>
               <div>
-                <p style={{ margin: 0, fontSize: "var(--fs-micro)", fontWeight: 500, color: "var(--color-slate)" }}>Deployed</p>
-                <p style={{ margin: 0, marginTop: 4, fontSize: "var(--fs-body)", fontWeight: 600, ...tabular, color: deployedElevated ? "var(--color-status-warning)" : "var(--color-ink)" }}>
+                <p className="text-[length:var(--fs-micro)]" style={{ margin: 0, fontWeight: 500, color: "var(--color-slate)" }}>Deployed</p>
+                <p className="text-[length:var(--fs-body)]" style={{ margin: 0, marginTop: 4, fontWeight: 600, ...tabular, color: deployedElevated ? "var(--color-status-warning)" : "var(--color-ink)" }}>
                   {Math.round(deployedPct)}%
                 </p>
               </div>
@@ -475,7 +473,7 @@ export default function PortfolioOverview() {
           />
 
           <div style={{ minWidth: 0 }}>
-            <p style={{ ...labelStyle, marginBottom: 6 }}>Cash allocation</p>
+            <p className="text-[length:var(--fs-label)]" style={{ ...labelStyle, marginBottom: 6 }}>Cash allocation</p>
             <LiquidityStack
               margin={margin}
               buffer={buffer}
@@ -493,8 +491,8 @@ export default function PortfolioOverview() {
         {portfolios.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
             <h2
-              className="m-0"
-              style={{ fontSize: "var(--fs-section)", lineHeight: 1.3, fontWeight: 600, color: "var(--color-ink)" }}
+              className="m-0 text-[length:var(--fs-section)]"
+              style={{ lineHeight: 1.3, fontWeight: 600, color: "var(--color-ink)" }}
             >
               Portfolios
             </h2>
@@ -502,11 +500,10 @@ export default function PortfolioOverview() {
               {attentionCount > 0 && (
                 <button
                   type="button"
-                  className="attention-chip"
+                  className="attention-chip text-[length:var(--fs-label)]"
                   aria-pressed={attentionOnly}
                   onClick={() => setAttentionOnly((value) => !value)}
                   style={{
-                    fontSize: "var(--fs-label)",
                     fontWeight: 600,
                     padding: "2px 10px",
                     borderRadius: 999,
@@ -517,7 +514,7 @@ export default function PortfolioOverview() {
                   Needs attention · {attentionCount}
                 </button>
               )}
-              <span style={{ fontSize: "var(--fs-label)", color: "var(--color-slate)" }}>
+              <span className="text-[length:var(--fs-label)]" style={{ color: "var(--color-slate)" }}>
                 {dense
                   ? `${sortedPortfolios.length} of ${portfolios.length} portfolios`
                   : `${portfolios.length} ${portfolios.length === 1 ? "portfolio" : "portfolios"}`}
@@ -535,40 +532,24 @@ export default function PortfolioOverview() {
               marginBottom: 8,
             }}
           >
-            <input
+            <TextInput
               type="text"
               value={portfolioQuery}
               onChange={(e) => setPortfolioQuery(e.target.value)}
               placeholder="Search portfolios"
               aria-label="Search portfolios"
-              style={{
-                fontSize: 13,
-                color: "var(--color-ink)",
-                border: "1px solid var(--color-hairline)",
-                borderRadius: 8,
-                padding: "6px 12px",
-                minWidth: 200,
-                maxWidth: 280,
-                background: "var(--color-canvas)",
-              }}
+              style={{ minWidth: 200, maxWidth: 280 }}
             />
-            <select
+            <SelectInput
               value={sortKey}
               onChange={(e) => setSortKey(e.target.value as SortKey)}
               aria-label="Sort portfolios"
-              style={{
-                fontSize: 13,
-                color: "var(--color-ink)",
-                border: "1px solid var(--color-hairline)",
-                borderRadius: 8,
-                padding: "6px 10px",
-                background: "var(--color-canvas)",
-              }}
+              style={{ width: "auto" }}
             >
               <option value="value">Value</option>
               <option value="pnl">P&amp;L %</option>
               <option value="name">Name</option>
-            </select>
+            </SelectInput>
           </div>
         )}
         {portfolios.length === 0 ? (
@@ -579,8 +560,8 @@ export default function PortfolioOverview() {
               padding: "24px 20px",
             }}
           >
-            <p className="m-0 text-ink" style={{ fontSize: 17, fontWeight: 600 }}>No portfolios yet</p>
-            <p className="m-0 mb-4" style={{ fontSize: 14, color: "var(--color-slate)", marginTop: 4 }}>
+            <p className="m-0 text-ink text-[length:var(--fs-section)]" style={{ fontWeight: 600 }}>No portfolios yet</p>
+            <p className="m-0 mb-4 text-[length:var(--fs-body)]" style={{ color: "var(--color-slate)", marginTop: 4 }}>
               Create your first portfolio
             </p>
             <Button variant="primary" onClick={() => navigate("/create-portfolio")}>+ Create Portfolio</Button>
@@ -606,7 +587,7 @@ export default function PortfolioOverview() {
                   padding: 8,
                 }}
               >
-                <span style={{ fontSize: 14, color: "var(--color-slate)" }}>
+                <span className="text-[length:var(--fs-body)]" style={{ color: "var(--color-slate)" }}>
                   {attentionOnly ? "No portfolios need attention" : `No portfolios match "${portfolioQuery}"`}
                 </span>
                 <button
@@ -615,10 +596,9 @@ export default function PortfolioOverview() {
                     if (attentionOnly) setAttentionOnly(false);
                     else setPortfolioQuery("");
                   }}
-                  className="bg-transparent border-none cursor-pointer"
+                  className="bg-transparent border-none cursor-pointer text-[length:var(--fs-body)]"
                   style={{
                     padding: 0,
-                    fontSize: 13,
                     color: "var(--color-brand-teal)",
                     textDecoration: "underline",
                   }}
