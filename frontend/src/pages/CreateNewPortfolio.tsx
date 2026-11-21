@@ -761,11 +761,20 @@ const CreateNewPortfolio: React.FC = () => {
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "stretch" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <label style={CONTROL_LABEL} htmlFor="tag_input">
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      flex: "0 0 1px",
+                      width: 1,
+                      alignSelf: "stretch",
+                      background: "var(--color-hairline)",
+                    }}
+                  />
+                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)", flex: 1, minWidth: 0, paddingLeft: "var(--space-sm)" }}>
+                    <label style={{ ...CONTROL_LABEL, margin: 0 }} htmlFor="tag_input">
                       Metadata Tags (Market/Broker)
                     </label>
-                    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)", marginBottom: "var(--space-xs)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
                       <input
                         id="tag_input"
                         type="text"
@@ -810,7 +819,7 @@ const CreateNewPortfolio: React.FC = () => {
                       </button>
                     </div>
                     {Object.keys(formData.tags || {}).length > 0 && (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-xs)", marginBottom: "var(--space-xs)" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-xs)" }}>
                         {Object.keys(formData.tags || {}).map((tag, index) => (
                           <span
                             key={index}
@@ -858,16 +867,6 @@ const CreateNewPortfolio: React.FC = () => {
                       Tags help categorize your portfolio by market, broker, or strategy type.
                     </p>
                   </div>
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      flex: "0 0 1px",
-                      width: 1,
-                      alignSelf: "stretch",
-                      background: "var(--color-hairline)",
-                      marginLeft: "var(--space-xs)",
-                    }}
-                  />
                 </div>
               </div>
 
