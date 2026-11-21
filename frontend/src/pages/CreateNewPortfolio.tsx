@@ -5,7 +5,7 @@ import type { BrokerRecord, PortfolioPayload } from '../lib/api';
 import PageLayout from '../components/PageLayout';
 import PageHeader from '../components/PageHeader';
 import {
-  CONTROL_LABEL, CONTROL_INPUT, CONTROL_HELPER,
+  CONTROL_LABEL, CONTROL_INPUT, CONTROL_HELPER, CONTROL_VALUE,
   CONTROL_BUTTON_PRIMARY, CONTROL_BUTTON_SECONDARY,
 } from '../screens/components/controlStyles';
 
@@ -629,11 +629,25 @@ const CreateNewPortfolio: React.FC = () => {
 
             {/* Product, Capital & Risk Funds */}
             <div style={ruleStyle}>
-              <h3 style={groupHeadStyle}>Product</h3>
-              <p style={{ ...CONTROL_HELPER, margin: "4px 0 12px" }}>
-                Margin locked is computed from open orders — there is no manual margin input.
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: "var(--space-md)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)", marginBottom: 12 }}>
+                <div>
+                  <h3 style={groupHeadStyle}>Product</h3>
+                  <p style={{ ...CONTROL_HELPER, margin: "4px 0 0" }}>
+                    Margin locked is computed from open orders — there is no manual margin input.
+                  </p>
+                </div>
+                <div style={{ marginLeft: "auto", display: "flex", alignItems: "baseline", gap: 6, flex: "0 0 auto" }}>
+                  <span style={{ ...CONTROL_LABEL, margin: 0 }}>Margin locked</span>
+                  <span style={{ ...CONTROL_VALUE, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(0)}</span>
+                </div>
+              </div>
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: "minmax(0, 220px) minmax(0, 200px) minmax(0, 140px)",
+                  gap: "var(--space-md)",
+                }}
+              >
                 <div className="min-w-0">
                   <label style={CONTROL_LABEL} htmlFor="broker_id">Broker</label>
                   <select
@@ -683,7 +697,14 @@ const CreateNewPortfolio: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: "var(--space-md)", marginTop: "var(--space-md)" }}>
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: "minmax(0, 220px) minmax(0, 200px) minmax(0, 140px)",
+                  gap: "var(--space-md)",
+                  marginTop: "var(--space-md)",
+                }}
+              >
                 <div className="min-w-0">
                   <label style={CONTROL_LABEL} htmlFor="available_cash">Available Cash</label>
                   <AffixInput
@@ -729,7 +750,7 @@ const CreateNewPortfolio: React.FC = () => {
                 <label style={CONTROL_LABEL} htmlFor="tag_input">
                   Metadata Tags (Market/Broker)
                 </label>
-                <div className="flex flex-wrap" style={{ gap: 8 }}>
+                <div className="flex" style={{ gap: "var(--space-xs)", alignItems: "center", flexWrap: "wrap" }}>
                   <input
                     id="tag_input"
                     type="text"
@@ -745,7 +766,7 @@ const CreateNewPortfolio: React.FC = () => {
                         target.value = '';
                       }
                     }}
-                    style={{ ...CONTROL_INPUT, width: "auto", flex: 1, minWidth: 200 }}
+                    style={{ ...CONTROL_INPUT, width: "auto", flex: "0 1 240px", minWidth: 160, maxWidth: 240 }}
                   />
                   <button
                     type="button"
@@ -765,58 +786,54 @@ const CreateNewPortfolio: React.FC = () => {
                     style={{
                       ...CONTROL_BUTTON_SECONDARY,
                       height: "var(--control-h)",
-                      alignSelf: "stretch",
+                      flex: "0 0 auto",
                       cursor: "pointer",
                     }}
                   >
                     Add Tag
                   </button>
-                </div>
-                {(formData.tags || Object.keys(formData.tags).length > 0) && (
-                  <div className="flex flex-wrap" style={{ gap: 8, marginTop: 10 }}>
-                    {Object.keys(formData.tags || {}).map((tag, index) => (
-                      <span
-                        key={index}
+                  {Object.keys(formData.tags || {}).map((tag, index) => (
+                    <span
+                      key={index}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "var(--control-btn-pad-y) var(--control-btn-pad-x)",
+                        borderRadius: "var(--rounded-full)",
+                        fontSize: "var(--fs-label)",
+                        fontWeight: 500,
+                        background: "var(--color-teal-light)",
+                        color: "var(--color-positive-text)",
+                      }}
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFormData(prev => {
+                            const newTags = { ...(prev.tags || {}) };
+                            delete newTags[tag];
+                            return { ...prev, tags: newTags };
+                          });
+                        }}
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          padding: "var(--control-btn-pad-y) var(--control-btn-pad-x)",
-                          borderRadius: "var(--rounded-full)",
+                          background: "none",
+                          border: "none",
+                          padding: 0,
                           fontSize: "var(--fs-label)",
-                          fontWeight: 500,
-                          background: "var(--color-teal-light)",
-                          color: "var(--color-positive-text)",
+                          lineHeight: 1,
+                          color: "inherit",
+                          cursor: "pointer",
+                          opacity: 0.7,
                         }}
                       >
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFormData(prev => {
-                              const newTags = { ...(prev.tags || {}) };
-                              delete newTags[tag];
-                              return { ...prev, tags: newTags };
-                            });
-                          }}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            padding: 0,
-                            fontSize: "var(--fs-label)",
-                            lineHeight: 1,
-                            color: "inherit",
-                            cursor: "pointer",
-                            opacity: 0.7,
-                          }}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
                 <p style={CONTROL_HELPER}>
                   Tags help categorize your portfolio by market, broker, or strategy type.
                 </p>
@@ -974,10 +991,7 @@ const CreateNewPortfolio: React.FC = () => {
             <p style={CONTROL_HELPER}>
               Visualized as a sticky note — for recording your investment intentions.
             </p>
-          </div>
-
-          <div style={cardStyle}>
-            <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-sm)", marginTop: "var(--space-sm)" }}>
               <button
                 type="button"
                 onClick={() => navigate('/')}
@@ -985,7 +999,6 @@ const CreateNewPortfolio: React.FC = () => {
                 className="hover:bg-surface transition-colors"
                 style={{
                   ...CONTROL_BUTTON_SECONDARY,
-                  flex: 1,
                   cursor: loading ? "not-allowed" : "pointer",
                 }}
               >
@@ -996,7 +1009,7 @@ const CreateNewPortfolio: React.FC = () => {
                 form="create-portfolio-form"
                 disabled={submitDisabled}
                 className="transition-colors"
-                style={{ ...submitStyle, flex: 1 }}
+                style={submitStyle}
               >
                 {loading ? 'Creating Portfolio...' : 'Create Portfolio'}
               </button>
