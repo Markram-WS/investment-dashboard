@@ -650,8 +650,8 @@ const CreateNewPortfolio: React.FC = () => {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 230px", gap: "var(--space-lg)", alignItems: "start" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start" }}>
-                    <div style={{ width: 110, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-md)" }}>
+                    <div style={{ width: 130, minWidth: 0 }}>
                       <label style={CONTROL_LABEL} htmlFor="broker_id">Broker</label>
                   <div style={{ position: "relative" }}>
                     <select
@@ -662,9 +662,9 @@ const CreateNewPortfolio: React.FC = () => {
                         ...prev,
                         broker_id: e.target.value === '' ? null : Number(e.target.value),
                       }))}
-                      style={{ ...CONTROL_INPUT, color: "transparent" }}
+                      style={{ ...CONTROL_INPUT, color: "transparent", WebkitTextFillColor: "transparent" }}
                     >
-                      <option value="" style={{ color: "var(--color-ink)" }}>—</option>
+                      <option value="" style={{ color: "var(--color-ink)" }}>Select broker</option>
                       {brokers.map(b => (
                         <option key={b.id} value={b.id} style={{ color: "var(--color-ink)" }}>{b.code} — {b.name}</option>
                       ))}
@@ -682,15 +682,15 @@ const CreateNewPortfolio: React.FC = () => {
                         whiteSpace: "nowrap",
                         fontSize: "var(--fs-label)",
                         fontWeight: 500,
-                        color: "var(--color-ink)",
+                        color: formData.broker_id == null ? "var(--color-slate)" : "var(--color-ink)",
                         pointerEvents: "none",
                       }}
                     >
-                      {brokers.find(b => b.id === formData.broker_id)?.code ?? '—'}
+                      {brokers.find(b => b.id === formData.broker_id)?.code ?? 'Select broker'}
                     </span>
                   </div>
                 </div>
-                <div style={{ width: 96, minWidth: 0, marginLeft: 56 }}>
+                <div style={{ width: 170, minWidth: 0 }}>
                   <label style={CONTROL_LABEL} htmlFor="product_ticker">Product Ticker</label>
                   <input
                     id="product_ticker"
@@ -706,7 +706,7 @@ const CreateNewPortfolio: React.FC = () => {
                     {tickers.map(t => <option key={t} value={t} />)}
                   </datalist>
                 </div>
-                <div style={{ width: 72, minWidth: 0, marginLeft: 70 }}>
+                <div style={{ width: 120, minWidth: 0 }}>
                   <label style={CONTROL_LABEL} htmlFor="x_amount">Multiplier</label>
                   <AffixInput
                     id="x_amount"
