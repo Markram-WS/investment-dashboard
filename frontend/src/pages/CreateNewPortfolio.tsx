@@ -17,10 +17,19 @@ const panelStyle = {
 } as const;
 
 const railStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--space-sm)",
+  alignSelf: "start",
+  position: "sticky",
+  top: 76,
+} as const;
+
+const cardStyle = {
   background: "var(--color-canvas)",
-  borderRadius: "var(--rounded-lg)",
+  borderRadius: "var(--rounded-xl)",
   border: "1px solid var(--color-hairline)",
-  padding: "var(--space-lg)",
+  padding: "var(--space-sm)",
 } as const;
 
 const groupHeadStyle = {
@@ -106,6 +115,70 @@ const parseTargetRatios = (raw: string): Record<string, number> | null => {
   }
 };
 
+const affixShellStyle = {
+  position: "relative",
+  display: "flex",
+  alignItems: "center",
+  width: "100%",
+  minHeight: "var(--control-h)",
+  background: "var(--color-canvas)",
+  border: "1px solid var(--color-hairline)",
+  borderRadius: "var(--control-radius)",
+} as const;
+
+const affixStyle = {
+  position: "absolute",
+  top: "50%",
+  transform: "translateY(-50%)",
+  fontSize: "var(--fs-label)",
+  fontWeight: 500,
+  color: "var(--color-slate)",
+  lineHeight: 1,
+  pointerEvents: "none",
+} as const;
+
+const affixInputStyle = {
+  width: "100%",
+  minHeight: "calc(var(--control-h) - 2px)",
+  fontSize: "var(--fs-label)",
+  fontWeight: 500,
+  color: "var(--color-ink)",
+  background: "transparent",
+  border: "none",
+  borderRadius: "var(--control-radius)",
+  padding: "var(--control-pad-y) var(--control-pad-x)",
+  lineHeight: 1.3,
+  fontVariantNumeric: "tabular-nums",
+  textAlign: "right",
+  outline: "none",
+} as const;
+
+type AffixInputProps = React.InputHTMLAttributes<HTMLInputElement> & {
+  prefix?: string;
+  suffix?: string;
+};
+
+/** Numeric input with a leading/trailing affix inside one control shell. */
+const AffixInput: React.FC<AffixInputProps> = ({ prefix, suffix, style, ...props }) => (
+  <div className="control-money" style={affixShellStyle}>
+    {prefix ? (
+      <span aria-hidden="true" style={{ ...affixStyle, left: 8 }}>{prefix}</span>
+    ) : null}
+    <input
+      {...props}
+      style={{
+        ...affixInputStyle,
+        paddingLeft: prefix ? 20 : "var(--control-pad-x)",
+        paddingRight: suffix ? 20 : "var(--control-pad-x)",
+        ...style,
+      }}
+    />
+    {suffix ? (
+      <span aria-hidden="true" style={{ ...affixStyle, right: 8 }}>{suffix}</span>
+    ) : null}
+  </div>
+);
+
 const summaryRowStyle = {
   display: "flex",
   alignItems: "baseline",
@@ -113,6 +186,7 @@ const summaryRowStyle = {
   gap: 12,
   margin: 0,
   fontSize: "var(--fs-label)",
+  lineHeight: 1.3,
   color: "var(--color-slate)",
 } as const;
 
@@ -360,7 +434,7 @@ const CreateNewPortfolio: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
+          <form id="create-portfolio-form" onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
             {/* Portfolio Name */}
             <div>
               <label style={CONTROL_LABEL} htmlFor="portfolio_name">
@@ -520,11 +594,10 @@ const CreateNewPortfolio: React.FC = () => {
                       type="button"
                       onClick={handleTestConnection}
                       disabled={testDisabled}
-                      className={`text-white font-medium transition-opacity ${testDisabled ? 'opacity-50' : 'hover:opacity-90'}`}
+                      className={`transition-opacity ${testDisabled ? 'opacity-50' : 'hover:opacity-90'}`}
                       style={{
-                        ...CONTROL_BUTTON_PRIMARY,
-                        background: "var(--color-brand-teal)",
-                        borderColor: "var(--color-brand-teal)",
+                        ...CONTROL_BUTTON_SECONDARY,
+                        height: "var(--control-h)",
                         cursor: testDisabled ? "not-allowed" : "pointer",
                       }}
                     >
@@ -560,8 +633,8 @@ const CreateNewPortfolio: React.FC = () => {
               <p style={{ ...CONTROL_HELPER, margin: "4px 0 12px" }}>
                 Margin locked is computed from open orders — there is no manual margin input.
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 12 }}>
-                <div>
+              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: "var(--space-md)" }}>
+                <div className="min-w-0">
                   <label style={CONTROL_LABEL} htmlFor="broker_id">Broker</label>
                   <select
                     id="broker_id"
@@ -575,11 +648,11 @@ const CreateNewPortfolio: React.FC = () => {
                   >
                     <option value="">—</option>
                     {brokers.map(b => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
+                      <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
                     ))}
                   </select>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label style={CONTROL_LABEL} htmlFor="product_ticker">Product Ticker</label>
                   <input
                     id="product_ticker"
@@ -595,74 +668,158 @@ const CreateNewPortfolio: React.FC = () => {
                     {tickers.map(t => <option key={t} value={t} />)}
                   </datalist>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label style={CONTROL_LABEL} htmlFor="x_amount">Multiplier</label>
-                  <div style={{ position: "relative" }}>
-                    <input
-                      id="x_amount"
-                      type="number"
-                      step="any"
-                      name="x_amount"
-                      value={formData.x_amount ?? ''}
-                      onChange={handleNumberChange}
-                      style={{ ...CONTROL_INPUT, paddingRight: "calc(var(--control-pad-x) * 4)" }}
-                      placeholder="0"
-                    />
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        position: "absolute",
-                        right: 11,
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        fontSize: "var(--fs-body)",
-                      }}
-                    >
-                      ×
-                    </span>
-                  </div>
+                  <AffixInput
+                    id="x_amount"
+                    type="number"
+                    step="any"
+                    name="x_amount"
+                    value={formData.x_amount ?? ''}
+                    onChange={handleNumberChange}
+                    suffix="×"
+                    placeholder="0"
+                  />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 12, marginTop: 12 }}>
-                <div>
+              <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: "var(--space-md)", marginTop: "var(--space-md)" }}>
+                <div className="min-w-0">
                   <label style={CONTROL_LABEL} htmlFor="available_cash">Available Cash</label>
-                  <input
+                  <AffixInput
                     id="available_cash"
                     type="number"
                     name="available_cash"
                     value={formData.available_cash !== null && formData.available_cash !== undefined ? formData.available_cash : ''}
                     onChange={handleNumberChange}
-                    style={{ ...CONTROL_INPUT, fontVariantNumeric: "tabular-nums" }}
+                    prefix="$"
                     placeholder="0.00"
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label style={CONTROL_LABEL} htmlFor="initial_capital">Initial Capital</label>
-                  <input
+                  <AffixInput
                     id="initial_capital"
                     type="number"
                     step="any"
                     name="initial_capital"
                     value={formData.initial_capital !== null && formData.initial_capital !== undefined ? formData.initial_capital : ''}
                     onChange={handleNumberChange}
-                    style={{ ...CONTROL_INPUT, fontVariantNumeric: "tabular-nums" }}
+                    prefix="$"
                     placeholder="0.00"
                   />
                   <p style={CONTROL_HELPER}>Baseline for the profit share, not the cash balance.</p>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label style={CONTROL_LABEL} htmlFor="cash_buffer_limit">Cash Buffer Limit</label>
-                  <input
+                  <AffixInput
                     id="cash_buffer_limit"
                     type="number"
                     name="cash_buffer_limit"
                     value={formData.cash_buffer_limit !== null && formData.cash_buffer_limit !== undefined ? formData.cash_buffer_limit : ''}
                     onChange={handleNumberChange}
-                    style={{ ...CONTROL_INPUT, fontVariantNumeric: "tabular-nums" }}
+                    prefix="$"
                     placeholder="0.00"
                   />
                 </div>
+              </div>
+
+              {/* Metadata Tags */}
+              <div style={{ marginTop: 12 }}>
+                <label style={CONTROL_LABEL} htmlFor="tag_input">
+                  Metadata Tags (Market/Broker)
+                </label>
+                <div className="flex flex-wrap" style={{ gap: 8 }}>
+                  <input
+                    id="tag_input"
+                    type="text"
+                    placeholder="Add tag (e.g., Crypto, Binance, TFEX)..."
+                    onKeyDown={(e) => {
+                      const target = e.target as HTMLInputElement;
+                      if (e.key === 'Enter' && target.value.trim()) {
+                        const tag = target.value.trim();
+                        setFormData(prev => {
+                          const newTags = { ...(prev.tags || {}), [tag]: true };
+                          return { ...prev, tags: newTags };
+                        });
+                        target.value = '';
+                      }
+                    }}
+                    style={{ ...CONTROL_INPUT, width: "auto", flex: 1, minWidth: 200 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                      if (input && input.value.trim()) {
+                        const tag = input.value.trim();
+                        setFormData(prev => {
+                          const newTags = { ...(prev.tags || {}), [tag]: true };
+                          return { ...prev, tags: newTags };
+                        });
+                        input.value = '';
+                      }
+                    }}
+                    className="transition-colors"
+                    style={{
+                      ...CONTROL_BUTTON_SECONDARY,
+                      height: "var(--control-h)",
+                      alignSelf: "stretch",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Add Tag
+                  </button>
+                </div>
+                {(formData.tags || Object.keys(formData.tags).length > 0) && (
+                  <div className="flex flex-wrap" style={{ gap: 8, marginTop: 10 }}>
+                    {Object.keys(formData.tags || {}).map((tag, index) => (
+                      <span
+                        key={index}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "var(--control-btn-pad-y) var(--control-btn-pad-x)",
+                          borderRadius: "var(--rounded-full)",
+                          fontSize: "var(--fs-label)",
+                          fontWeight: 500,
+                          background: "var(--color-teal-light)",
+                          color: "var(--color-positive-text)",
+                        }}
+                      >
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFormData(prev => {
+                              const newTags = { ...(prev.tags || {}) };
+                              delete newTags[tag];
+                              return { ...prev, tags: newTags };
+                            });
+                          }}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            fontSize: "var(--fs-label)",
+                            lineHeight: 1,
+                            color: "inherit",
+                            cursor: "pointer",
+                            opacity: 0.7,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p style={CONTROL_HELPER}>
+                  Tags help categorize your portfolio by market, broker, or strategy type.
+                </p>
               </div>
             </div>
 
@@ -696,175 +853,21 @@ const CreateNewPortfolio: React.FC = () => {
                 </p>
               </div>
             )}
-
-            {/* Trade Plan + Metadata Tags */}
-            <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: 12 }}>
-            {/* Trade Plan (Markdown) - Sticky Note Style */}
-            <div>
-              <label style={CONTROL_LABEL} htmlFor="trade_plan_md">
-                Trade Plan / Strategy Notes (Optional)
-              </label>
-              <textarea
-                id="trade_plan_md"
-                name="trade_plan_md"
-                value={formData.trade_plan_md || ''}
-                onChange={handleChange}
-                style={{
-                  ...CONTROL_INPUT,
-                  minHeight: 78,
-                  resize: "vertical",
-                  background: "var(--color-yellow-light)",
-                  border: "1px solid var(--color-brand-yellow)",
-                }}
-                placeholder="Enter your trading strategy or rules here... (e.g., 'Never hold more than 30 days', 'Focus on premium collection')"
-              ></textarea>
-              <p style={CONTROL_HELPER}>
-                Visualized as a sticky note — for recording your investment intentions.
-              </p>
-            </div>
-
-            {/* Metadata Tags */}
-            <div>
-              <label style={CONTROL_LABEL} htmlFor="tag_input">
-                Metadata Tags (Market/Broker)
-              </label>
-              <div className="flex flex-wrap" style={{ gap: 8 }}>
-                <input
-                  id="tag_input"
-                  type="text"
-                  placeholder="Add tag (e.g., Crypto, Binance, TFEX)..."
-                  onKeyDown={(e) => {
-                    const target = e.target as HTMLInputElement;
-                    if (e.key === 'Enter' && target.value.trim()) {
-                      const tag = target.value.trim();
-                      setFormData(prev => {
-                        const newTags = { ...(prev.tags || {}), [tag]: true };
-                        return { ...prev, tags: newTags };
-                      });
-                      target.value = '';
-                    }
-                  }}
-                  style={{ ...CONTROL_INPUT, width: "auto", flex: 1, minWidth: 200 }}
-                />
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                    if (input && input.value.trim()) {
-                      const tag = input.value.trim();
-                      setFormData(prev => {
-                        const newTags = { ...(prev.tags || {}), [tag]: true };
-                        return { ...prev, tags: newTags };
-                      });
-                      input.value = '';
-                    }
-                  }}
-                  className="text-white font-medium transition-opacity hover:opacity-90"
-                  style={{
-                    ...CONTROL_BUTTON_PRIMARY,
-                    background: "var(--color-brand-teal)",
-                    borderColor: "var(--color-brand-teal)",
-                    cursor: "pointer",
-                  }}
-                >
-                  Add Tag
-                </button>
-              </div>
-              {(formData.tags || Object.keys(formData.tags).length > 0) && (
-                <div className="flex flex-wrap" style={{ gap: 8, marginTop: 10 }}>
-                  {Object.keys(formData.tags || {}).map((tag, index) => (
-                    <span
-                      key={index}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "var(--control-btn-pad-y) var(--control-btn-pad-x)",
-                        borderRadius: "var(--rounded-full)",
-                        fontSize: "var(--fs-label)",
-                        fontWeight: 500,
-                        background: "var(--color-teal-light)",
-                        color: "var(--color-positive-text)",
-                      }}
-                    >
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFormData(prev => {
-                            const newTags = { ...(prev.tags || {}) };
-                            delete newTags[tag];
-                            return { ...prev, tags: newTags };
-                          });
-                        }}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          padding: 0,
-                          fontSize: "var(--fs-label)",
-                          lineHeight: 1,
-                          color: "inherit",
-                          cursor: "pointer",
-                          opacity: 0.7,
-                        }}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <p style={CONTROL_HELPER}>
-                Tags help categorize your portfolio by market, broker, or strategy type.
-              </p>
-            </div>
-            </div>
-
-            {/* Actions */}
-            <div
-              className="flex flex-wrap items-center justify-end"
-              style={{
-                gap: 10,
-                borderTop: "1px solid var(--color-hairline)",
-                paddingTop: "var(--space-sm)",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => navigate('/')}
-                disabled={loading}
-                className="hover:bg-surface transition-colors"
-                style={{
-                  ...CONTROL_BUTTON_SECONDARY,
-                  cursor: loading ? "not-allowed" : "pointer",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={submitDisabled}
-                className="transition-colors"
-                style={submitStyle}
-              >
-                {loading ? 'Creating Portfolio...' : 'Create Portfolio'}
-              </button>
-            </div>
           </form>
         </div>
 
         {/* Live preview / summary rail */}
         <aside style={railStyle} aria-label="Portfolio preview">
+          <div style={cardStyle}>
           <p style={eyebrowStyle}>Live preview</p>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: "calc(var(--space-lg) + var(--space-md))",
-                height: "calc(var(--space-lg) + var(--space-md))",
+                width: "var(--space-xl)",
+                height: "var(--space-xl)",
                 borderRadius: "var(--control-radius)",
                 background: "var(--color-surface)",
                 color: "var(--color-ink)",
@@ -896,10 +899,10 @@ const CreateNewPortfolio: React.FC = () => {
           <div
             style={{
               display: "grid",
-              gap: 8,
+              gap: 2,
               borderTop: "1px solid var(--color-hairline)",
-              marginTop: 16,
-              paddingTop: "var(--space-sm)",
+              marginTop: 6,
+              paddingTop: 4,
             }}
           >
             <p style={summaryRowStyle}>
@@ -947,6 +950,58 @@ const CreateNewPortfolio: React.FC = () => {
               {formData.trade_plan_md.length > 80 ? '…' : ''}”
             </p>
           )}
+          </div>
+
+          <div style={cardStyle}>
+            <label style={CONTROL_LABEL} htmlFor="trade_plan_md">
+              Trade Plan / Strategy Notes (Optional)
+            </label>
+            <textarea
+              id="trade_plan_md"
+              name="trade_plan_md"
+              value={formData.trade_plan_md || ''}
+              onChange={handleChange}
+              style={{
+                ...CONTROL_INPUT,
+                minHeight: 56,
+                resize: "vertical",
+                overflow: "auto",
+                background: "var(--color-yellow-light)",
+                border: "1px solid var(--color-brand-yellow)",
+              }}
+              placeholder="Enter your trading strategy or rules here... (e.g., 'Never hold more than 30 days', 'Focus on premium collection')"
+            ></textarea>
+            <p style={CONTROL_HELPER}>
+              Visualized as a sticky note — for recording your investment intentions.
+            </p>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                disabled={loading}
+                className="hover:bg-surface transition-colors"
+                style={{
+                  ...CONTROL_BUTTON_SECONDARY,
+                  flex: 1,
+                  cursor: loading ? "not-allowed" : "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="create-portfolio-form"
+                disabled={submitDisabled}
+                className="transition-colors"
+                style={{ ...submitStyle, flex: 1 }}
+              >
+                {loading ? 'Creating Portfolio...' : 'Create Portfolio'}
+              </button>
+            </div>
+          </div>
         </aside>
       </div>
     </PageLayout>

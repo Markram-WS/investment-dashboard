@@ -544,6 +544,13 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
+/* Affixed numeric shell: the wrapper draws the one focus ring; the inner
+   borderless input never does. */
+.control-money:focus-within {
+  outline: 2px solid var(--color-brand-accent);
+  outline-offset: 2px;
+}
+
 /* Compact numeric fields: the native stepper is 15px of chrome on a 26px box,
    and every amount/price here is typed or dropped, never nudged. */
 input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
