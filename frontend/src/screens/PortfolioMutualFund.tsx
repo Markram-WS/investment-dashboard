@@ -16,7 +16,7 @@ import MFEditPortfolioModal from "./MFEditPortfolioModal";
 import PageLayout from "../components/PageLayout";
 import PageHeader from "../components/PageHeader";
 import { formatMoney, formatPct } from "../utils/format";
-import { CONTROL_BUTTON_SECONDARY } from "./components/controlStyles";
+import { CONTROL_BUTTON_PRIMARY, CONTROL_BUTTON_SECONDARY } from "./components/controlStyles";
 
 interface ManagedFundProps {
   portfolioId?: string;
@@ -350,8 +350,27 @@ export default function ManagedFund({ portfolioId = "1" }: ManagedFundProps) {
           </button>
         </div>
         {holdings.length === 0 ? (
-          <div className="text-[length:var(--fs-content)]" style={{ padding: "32px 0 12px", textAlign: "center", color: "var(--color-slate)" }}>
-            No holdings yet. Create an order to get started.
+          <div
+            data-testid="holdings-empty"
+            className="text-[length:var(--fs-content)]"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 12,
+              padding: "24px 0",
+              textAlign: "center",
+              color: "var(--color-slate)",
+            }}
+          >
+            <p style={{ margin: 0 }}>No holdings yet.</p>
+            <button
+              type="button"
+              onClick={() => setShowCreateOrder(true)}
+              style={CONTROL_BUTTON_PRIMARY}
+            >
+              Create order
+            </button>
           </div>
         ) : (
           <table className="w-full text-[length:var(--fs-content)]" style={{ fontVariantNumeric: "tabular-nums" }}>

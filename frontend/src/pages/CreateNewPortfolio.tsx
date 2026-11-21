@@ -644,27 +644,48 @@ const CreateNewPortfolio: React.FC = () => {
               <div
                 className="grid"
                 style={{
-                  gridTemplateColumns: "minmax(0, 220px) minmax(0, 200px) minmax(0, 140px)",
+                  gridTemplateColumns: "minmax(0, 110px) minmax(0, 96px) minmax(0, 72px)",
                   gap: "var(--space-md)",
                 }}
               >
                 <div className="min-w-0">
                   <label style={CONTROL_LABEL} htmlFor="broker_id">Broker</label>
-                  <select
-                    id="broker_id"
-                    name="broker_id"
-                    value={formData.broker_id ?? ''}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      broker_id: e.target.value === '' ? null : Number(e.target.value),
-                    }))}
-                    style={CONTROL_INPUT}
-                  >
-                    <option value="">—</option>
-                    {brokers.map(b => (
-                      <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
-                    ))}
-                  </select>
+                  <div style={{ position: "relative" }}>
+                    <select
+                      id="broker_id"
+                      name="broker_id"
+                      value={formData.broker_id ?? ''}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        broker_id: e.target.value === '' ? null : Number(e.target.value),
+                      }))}
+                      style={{ ...CONTROL_INPUT, color: "transparent" }}
+                    >
+                      <option value="" style={{ color: "var(--color-ink)" }}>—</option>
+                      {brokers.map(b => (
+                        <option key={b.id} value={b.id} style={{ color: "var(--color-ink)" }}>{b.code} — {b.name}</option>
+                      ))}
+                    </select>
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        left: 9,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        maxWidth: "calc(100% - 26px)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        fontSize: "var(--fs-label)",
+                        fontWeight: 500,
+                        color: "var(--color-ink)",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      {brokers.find(b => b.id === formData.broker_id)?.code ?? '—'}
+                    </span>
+                  </div>
                 </div>
                 <div className="min-w-0">
                   <label style={CONTROL_LABEL} htmlFor="product_ticker">Product Ticker</label>
@@ -700,7 +721,7 @@ const CreateNewPortfolio: React.FC = () => {
               <div
                 className="grid"
                 style={{
-                  gridTemplateColumns: "minmax(0, 220px) minmax(0, 200px) minmax(0, 140px)",
+                  gridTemplateColumns: "minmax(0, 150px) minmax(0, 150px) minmax(0, 110px)",
                   gap: "var(--space-md)",
                   marginTop: "var(--space-md)",
                 }}
@@ -754,7 +775,8 @@ const CreateNewPortfolio: React.FC = () => {
                   <input
                     id="tag_input"
                     type="text"
-                    placeholder="Add tag (e.g., Crypto, Binance, TFEX)..."
+                    placeholder="Add tag…"
+                    title="Add tag (e.g., Crypto, Binance, TFEX)..."
                     onKeyDown={(e) => {
                       const target = e.target as HTMLInputElement;
                       if (e.key === 'Enter' && target.value.trim()) {
@@ -766,7 +788,7 @@ const CreateNewPortfolio: React.FC = () => {
                         target.value = '';
                       }
                     }}
-                    style={{ ...CONTROL_INPUT, width: "auto", flex: "0 1 240px", minWidth: 160, maxWidth: 240 }}
+                    style={{ ...CONTROL_INPUT, width: "auto", flex: "0 1 140px", minWidth: 100, maxWidth: 140 }}
                   />
                   <button
                     type="button"
