@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { api } from "../lib/api";
 import type { PortfolioSummary, TransactionRecord } from "../lib/api";
 import { Transaction } from "../types";
@@ -7,7 +7,7 @@ import { useNotification } from "../contexts/NotificationContext";
 import PageLayout from "../components/PageLayout";
 import PageHeader from "../components/PageHeader";
 import { Field, NumberInput, SelectInput, TextInput } from "../screens/components/Field";
-import { CONTROL_BUTTON_PRIMARY, CONTROL_LABEL } from "../screens/components/controlStyles";
+import { CONTROL_BUTTON_PRIMARY, CONTROL_BUTTON_SECONDARY, CONTROL_LABEL } from "../screens/components/controlStyles";
 
 /** Ledger column head: 11px/500 slate, sentence case. */
 const headCell = { fontWeight: 500, color: "var(--color-slate)" } as const;
@@ -41,6 +41,8 @@ export default function TransactionsPage() {
   const [formAmount, setFormAmount] = useState("");
   const [formLoading, setFormLoading] = useState(false);
   const [formErr, setFormErr] = useState("");
+  const newTransactionRef = useRef<HTMLDivElement>(null);
+  const amountInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     Promise.all([
@@ -75,6 +77,17 @@ export default function TransactionsPage() {
     if (filters.type && tx.type !== filters.type) return false;
     return true;
   });
+
+  const filtersActive = Boolean(filters.dateRange.start || filters.dateRange.end || filters.type);
+
+  const clearFilters = () => {
+    setFilters({ dateRange: { start: "", end: "" }, type: "" });
+  };
+
+  const startNewTransaction = () => {
+    newTransactionRef.current?.scrollIntoView({ block: "center" });
+    amountInputRef.current?.focus({ preventScroll: true });
+  };
 
   const resetForm = () => {
     setFormFrom("deposit");
@@ -232,7 +245,7 @@ export default function TransactionsPage() {
               </Field>
             </div>
           </div>
-          <div className="w-full md:w-1/2 flex flex-col items-start">
+          <div ref={newTransactionRef} className="w-full md:w-1/2 flex flex-col items-start">
             <h2 style={groupHeading}>New transaction</h2>
             <div className="flex items-end flex-wrap" style={{ gap: 8, marginTop: 12 }}>
               <Field label="From" htmlFor="tx-form-from">
@@ -246,7 +259,7 @@ export default function TransactionsPage() {
                 </SelectInput>
               </Field>
               <Field label="Amount" htmlFor="tx-form-amount">
-                <NumberInput id="tx-form-amount" step={100} placeholder="Amount" value={formAmount}
+                <NumberInput ref={amountInputRef} id="tx-form-amount" step={100} placeholder="Amount" value={formAmount}
                   onChange={(e) => setFormAmount(e.target.value)}
                   style={{ width: 100 }} />
               </Field>
@@ -291,8 +304,20 @@ export default function TransactionsPage() {
             <tbody>
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-slate text-[length:var(--fs-body)]">
-                    No transactions found.
+                  <td colSpan={7} className="px-5 text-center">
+                    <div className="flex flex-col items-center justify-center" style={{ padding: "20px 0", gap: 8 }}>
+                      <p className="m-0 text-[length:var(--fs-body)] text-slate">
+                        {filtersActive ? "No transactions match these filters." : "No transactions yet."}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={filtersActive ? clearFilters : startNewTransaction}
+                        className="transition-opacity hover:opacity-90"
+                        style={filtersActive ? CONTROL_BUTTON_SECONDARY : CONTROL_BUTTON_PRIMARY}
+                      >
+                        {filtersActive ? "Clear filters" : "Record a transaction"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : (
