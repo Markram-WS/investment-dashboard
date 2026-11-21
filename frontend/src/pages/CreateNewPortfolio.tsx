@@ -648,9 +648,11 @@ const CreateNewPortfolio: React.FC = () => {
                   <span style={{ ...CONTROL_VALUE, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(0)}</span>
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "flex-start" }}>
-                <div style={{ width: 110, minWidth: 0 }}>
-                  <label style={CONTROL_LABEL} htmlFor="broker_id">Broker</label>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 230px", gap: "var(--space-lg)", alignItems: "start" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start" }}>
+                    <div style={{ width: 110, minWidth: 0 }}>
+                      <label style={CONTROL_LABEL} htmlFor="broker_id">Broker</label>
                   <div style={{ position: "relative" }}>
                     <select
                       id="broker_id"
@@ -717,7 +719,48 @@ const CreateNewPortfolio: React.FC = () => {
                     placeholder="0"
                   />
                 </div>
-                <div style={{ width: 230, minWidth: 0, marginLeft: 111, display: "flex", alignItems: "stretch" }}>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-start" }}>
+                    <div style={{ width: 150, minWidth: 0 }}>
+                      <label style={CONTROL_LABEL} htmlFor="available_cash">Available Cash</label>
+                      <AffixInput
+                        id="available_cash"
+                        type="number"
+                        name="available_cash"
+                        value={formData.available_cash !== null && formData.available_cash !== undefined ? formData.available_cash : ''}
+                        onChange={handleNumberChange}
+                        prefix="$"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div style={{ width: 150, minWidth: 0, marginLeft: 16 }}>
+                      <label style={CONTROL_LABEL} htmlFor="initial_capital">Initial Capital</label>
+                      <AffixInput
+                        id="initial_capital"
+                        type="number"
+                        step="any"
+                        name="initial_capital"
+                        value={formData.initial_capital !== null && formData.initial_capital !== undefined ? formData.initial_capital : ''}
+                        onChange={handleNumberChange}
+                        prefix="$"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div style={{ width: 110, minWidth: 0, marginLeft: 16 }}>
+                      <label style={CONTROL_LABEL} htmlFor="cash_buffer_limit">Cash Buffer Limit</label>
+                      <AffixInput
+                        id="cash_buffer_limit"
+                        type="number"
+                        name="cash_buffer_limit"
+                        value={formData.cash_buffer_limit !== null && formData.cash_buffer_limit !== undefined ? formData.cash_buffer_limit : ''}
+                        onChange={handleNumberChange}
+                        prefix="$"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "stretch" }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <label style={CONTROL_LABEL} htmlFor="tag_input">
                       Metadata Tags (Market/Broker)
@@ -824,46 +867,6 @@ const CreateNewPortfolio: React.FC = () => {
                       background: "var(--color-hairline)",
                       marginLeft: "var(--space-xs)",
                     }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "flex-start", marginTop: "var(--space-md)" }}>
-                <div style={{ width: 150, minWidth: 0 }}>
-                  <label style={CONTROL_LABEL} htmlFor="available_cash">Available Cash</label>
-                  <AffixInput
-                    id="available_cash"
-                    type="number"
-                    name="available_cash"
-                    value={formData.available_cash !== null && formData.available_cash !== undefined ? formData.available_cash : ''}
-                    onChange={handleNumberChange}
-                    prefix="$"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div style={{ width: 150, minWidth: 0, marginLeft: 16 }}>
-                  <label style={CONTROL_LABEL} htmlFor="initial_capital">Initial Capital</label>
-                  <AffixInput
-                    id="initial_capital"
-                    type="number"
-                    step="any"
-                    name="initial_capital"
-                    value={formData.initial_capital !== null && formData.initial_capital !== undefined ? formData.initial_capital : ''}
-                    onChange={handleNumberChange}
-                    prefix="$"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div style={{ width: 110, minWidth: 0, marginLeft: 16 }}>
-                  <label style={CONTROL_LABEL} htmlFor="cash_buffer_limit">Cash Buffer Limit</label>
-                  <AffixInput
-                    id="cash_buffer_limit"
-                    type="number"
-                    name="cash_buffer_limit"
-                    value={formData.cash_buffer_limit !== null && formData.cash_buffer_limit !== undefined ? formData.cash_buffer_limit : ''}
-                    onChange={handleNumberChange}
-                    prefix="$"
-                    placeholder="0.00"
                   />
                 </div>
               </div>
