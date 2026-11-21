@@ -418,7 +418,14 @@ const CreateNewPortfolio: React.FC = () => {
         className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]"
         style={{ gap: 20, alignItems: "start" }}
       >
-        <div style={panelStyle}>
+        <div
+          style={{
+            ...panelStyle,
+            boxSizing: "border-box",
+            borderRight: "1px solid var(--color-hairline-soft)",
+            paddingRight: "var(--space-lg)",
+          }}
+        >
           {error && (
             <div
               style={{
@@ -644,8 +651,9 @@ const CreateNewPortfolio: React.FC = () => {
               <div
                 className="grid"
                 style={{
-                  gridTemplateColumns: "minmax(0, 110px) minmax(0, 96px) minmax(0, 72px)",
+                  gridTemplateColumns: "minmax(0, 110px) minmax(0, 96px) minmax(0, 72px) minmax(0, 1fr)",
                   gap: "var(--space-md)",
+                  alignItems: "start",
                 }}
               >
                 <div className="min-w-0">
@@ -716,6 +724,99 @@ const CreateNewPortfolio: React.FC = () => {
                     placeholder="0"
                   />
                 </div>
+                <div style={{ minWidth: 0 }}>
+                  <label style={CONTROL_LABEL} htmlFor="tag_input">
+                    Metadata Tags (Market/Broker)
+                  </label>
+                  <div className="flex" style={{ gap: "var(--space-xs)", alignItems: "center", flexWrap: "wrap" }}>
+                    <input
+                      id="tag_input"
+                      type="text"
+                      placeholder="Add tag…"
+                      title="Add tag (e.g., Crypto, Binance, TFEX)..."
+                      onKeyDown={(e) => {
+                        const target = e.target as HTMLInputElement;
+                        if (e.key === 'Enter' && target.value.trim()) {
+                          const tag = target.value.trim();
+                          setFormData(prev => {
+                            const newTags = { ...(prev.tags || {}), [tag]: true };
+                            return { ...prev, tags: newTags };
+                          });
+                          target.value = '';
+                        }
+                      }}
+                      style={{ ...CONTROL_INPUT, width: "auto", flex: "0 1 140px", minWidth: 100, maxWidth: 140 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                        if (input && input.value.trim()) {
+                          const tag = input.value.trim();
+                          setFormData(prev => {
+                            const newTags = { ...(prev.tags || {}), [tag]: true };
+                            return { ...prev, tags: newTags };
+                          });
+                          input.value = '';
+                        }
+                      }}
+                      className="transition-colors"
+                      style={{
+                        ...CONTROL_BUTTON_SECONDARY,
+                        height: "var(--control-h)",
+                        flex: "0 0 auto",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Add Tag
+                    </button>
+                    {Object.keys(formData.tags || {}).map((tag, index) => (
+                      <span
+                        key={index}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "var(--control-btn-pad-y) var(--control-btn-pad-x)",
+                          borderRadius: "var(--rounded-full)",
+                          fontSize: "var(--fs-label)",
+                          fontWeight: 500,
+                          background: "var(--color-teal-light)",
+                          color: "var(--color-positive-text)",
+                        }}
+                      >
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFormData(prev => {
+                              const newTags = { ...(prev.tags || {}) };
+                              delete newTags[tag];
+                              return { ...prev, tags: newTags };
+                            });
+                          }}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            fontSize: "var(--fs-label)",
+                            lineHeight: 1,
+                            color: "inherit",
+                            cursor: "pointer",
+                            opacity: 0.7,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <p style={CONTROL_HELPER}>
+                    Tags help categorize your portfolio by market, broker, or strategy type.
+                  </p>
+                </div>
               </div>
 
               <div
@@ -766,100 +867,6 @@ const CreateNewPortfolio: React.FC = () => {
                 </div>
               </div>
 
-              {/* Metadata Tags */}
-              <div style={{ marginTop: 12 }}>
-                <label style={CONTROL_LABEL} htmlFor="tag_input">
-                  Metadata Tags (Market/Broker)
-                </label>
-                <div className="flex" style={{ gap: "var(--space-xs)", alignItems: "center", flexWrap: "wrap" }}>
-                  <input
-                    id="tag_input"
-                    type="text"
-                    placeholder="Add tag…"
-                    title="Add tag (e.g., Crypto, Binance, TFEX)..."
-                    onKeyDown={(e) => {
-                      const target = e.target as HTMLInputElement;
-                      if (e.key === 'Enter' && target.value.trim()) {
-                        const tag = target.value.trim();
-                        setFormData(prev => {
-                          const newTags = { ...(prev.tags || {}), [tag]: true };
-                          return { ...prev, tags: newTags };
-                        });
-                        target.value = '';
-                      }
-                    }}
-                    style={{ ...CONTROL_INPUT, width: "auto", flex: "0 1 140px", minWidth: 100, maxWidth: 140 }}
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                      if (input && input.value.trim()) {
-                        const tag = input.value.trim();
-                        setFormData(prev => {
-                          const newTags = { ...(prev.tags || {}), [tag]: true };
-                          return { ...prev, tags: newTags };
-                        });
-                        input.value = '';
-                      }
-                    }}
-                    className="transition-colors"
-                    style={{
-                      ...CONTROL_BUTTON_SECONDARY,
-                      height: "var(--control-h)",
-                      flex: "0 0 auto",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Add Tag
-                  </button>
-                  {Object.keys(formData.tags || {}).map((tag, index) => (
-                    <span
-                      key={index}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "var(--control-btn-pad-y) var(--control-btn-pad-x)",
-                        borderRadius: "var(--rounded-full)",
-                        fontSize: "var(--fs-label)",
-                        fontWeight: 500,
-                        background: "var(--color-teal-light)",
-                        color: "var(--color-positive-text)",
-                      }}
-                    >
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFormData(prev => {
-                            const newTags = { ...(prev.tags || {}) };
-                            delete newTags[tag];
-                            return { ...prev, tags: newTags };
-                          });
-                        }}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          padding: 0,
-                          fontSize: "var(--fs-label)",
-                          lineHeight: 1,
-                          color: "inherit",
-                          cursor: "pointer",
-                          opacity: 0.7,
-                        }}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <p style={CONTROL_HELPER}>
-                  Tags help categorize your portfolio by market, broker, or strategy type.
-                </p>
-              </div>
             </div>
 
             {/* Target Ratio (for Managed Funds) */}
