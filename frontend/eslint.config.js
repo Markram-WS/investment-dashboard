@@ -32,6 +32,10 @@ export default [
       'src/screens/EditAssetModal.tsx',
       'src/screens/EditOrderModal.tsx',
       'src/screens/CloseOrderModal.tsx',
+      'src/screens/AddOrderModal.tsx',
+      'src/screens/EditPortfolioModal.tsx',
+      'src/screens/MFEditPortfolioModal.tsx',
+      'src/screens/MFEditOrderModal.tsx',
       'src/screens/components/Field.tsx',
     ],
     rules: {

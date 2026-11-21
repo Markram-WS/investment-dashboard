@@ -4,63 +4,32 @@ import { GroupCombobox } from './components/GroupCombobox';
 import type { AddOrderForm } from '../hooks/useAddOrder';
 import ModalShell from './components/ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
+import { Field, NumberInput, TextInput } from './components/Field';
+import {
+  CONTROL_BUTTON_PRIMARY,
+  CONTROL_BUTTON_SECONDARY,
+  CONTROL_HELPER,
+  CONTROL_LABEL,
+  CONTROL_TITLE,
+} from './components/controlStyles';
 import { priceLabel, formatMoney } from '../utils/format';
-
-/** Field label: 10px/500 slate, sentence case. */
-const fieldLabel = {
-  display: 'block',
-  fontSize: 10,
-  fontWeight: 500,
-  color: 'var(--color-slate)',
-  margin: '0 0 3px',
-} as const;
 
 /** Band label: 11px/600 ink, sentence case. */
 const bandLabel = {
-  display: 'block',
-  fontSize: 11,
+  ...CONTROL_LABEL,
   fontWeight: 600,
   color: 'var(--color-ink)',
   margin: '0 0 6px',
 } as const;
 
-/** Text field: 11px ink on canvas, 1px hairline, radius 8. */
-const fieldInput = {
-  width: '100%',
-  boxSizing: 'border-box' as const,
-  fontSize: 11,
-  color: 'var(--color-ink)',
-  background: 'var(--color-canvas)',
-  border: '1px solid var(--color-hairline)',
-  borderRadius: 8,
-  padding: '4px 8px',
-} as const;
+const primaryButton = CONTROL_BUTTON_PRIMARY;
+const secondaryButton = CONTROL_BUTTON_SECONDARY;
 
-const primaryButton = {
-  padding: '3px 10px',
-  fontSize: 11,
-  lineHeight: 1.3,
-  fontWeight: 500,
-  background: 'var(--color-ink)',
-  color: 'var(--color-canvas)',
-  border: '1px solid var(--color-ink)',
-  borderRadius: 999,
-  cursor: 'pointer',
+const modalPanel = 'bg-canvas border border-hairline w-full max-w-md mx-4';
+const modalPanelStyle = {
+  padding: 'var(--space-md)',
+  borderRadius: 'var(--rounded-xl)',
 } as const;
-
-const secondaryButton = {
-  padding: '3px 10px',
-  fontSize: 11,
-  lineHeight: 1.3,
-  fontWeight: 500,
-  background: 'var(--color-canvas)',
-  color: 'var(--color-ink)',
-  border: '1px solid var(--color-hairline)',
-  borderRadius: 999,
-  cursor: 'pointer',
-} as const;
-
-const modalPanel = 'bg-canvas border border-hairline rounded-xl p-3.5 w-full max-w-md mx-4';
 
 const ROW_GAP = 12;
 const FIELD_GAP = 6;
@@ -190,23 +159,20 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Add order" closeOnBackdrop={false} zIndex={110}>
-      <div className={`${MODAL_CARD} ${modalPanel}`}>
+      <div className={`${MODAL_CARD} ${modalPanel}`} style={modalPanelStyle}>
         <div className={`${MODAL_HEADER} flex items-baseline justify-between`} style={{ gap: 12, margin: '0 0 12px' }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0 }}>Add order</h3>
-          <div className="flex items-center" style={{ gap: 6 }}>
-            <label htmlFor="add-order-id" style={{ fontSize: 10, fontWeight: 500, color: 'var(--color-slate)', whiteSpace: 'nowrap' }}>
-              Order ID
-            </label>
-            <input
+          <h3 style={CONTROL_TITLE}>Add order</h3>
+          <Field label="Order ID" htmlFor="add-order-id" className="flex items-baseline gap-1.5">
+            <TextInput
               id="add-order-id"
               type="text"
               value={formData.order_id}
               onChange={(e) => onChange('order_id', e.target.value)}
               autoComplete="off"
               aria-label="Order ID"
-              style={{ ...fieldInput, width: 132 }}
+              style={{ width: 132 }}
             />
-          </div>
+          </Field>
         </div>
 
         <div className={`${MODAL_BODY} -mr-1 pr-1 overflow-x-hidden`}>
@@ -220,23 +186,23 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 onChange={(v) => onChange('contract_type', v)}
                 fullWidth
               />
-              <div className="min-w-0">
-                <label className="block" style={fieldLabel}>Asset type</label>
-                <input
+              <Field label="Asset type" htmlFor="add-order-asset-type">
+                <TextInput
+                  id="add-order-asset-type"
                   type="text"
                   value={formData.asset_type}
                   onChange={(e) => onChange('asset_type', e.target.value)}
                   list="asset-types-add"
-                  className="w-full" style={fieldInput}
+                  className="w-full"
                 />
-                <datalist id="asset-types-add">
-                  {assetTypeOptions.map((t) => <option key={t} value={t} />)}
-                </datalist>
-              </div>
+              </Field>
+              <datalist id="asset-types-add">
+                {assetTypeOptions.map((t) => <option key={t} value={t} />)}
+              </datalist>
               {contractType === 'option' ? (
                 <div style={twoCol}>
                   <div className="min-w-0">
-                    <label className="block" style={fieldLabel}>Side</label>
+                    <label style={CONTROL_LABEL}>Side</label>
                     <ToggleBtn
                       options={sideOptions}
                       value={formData.side}
@@ -245,7 +211,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                     />
                   </div>
                   <div className="min-w-0">
-                    <label className="block" style={fieldLabel}>Option type</label>
+                    <label style={CONTROL_LABEL}>Option type</label>
                     <ToggleBtn
                       options={OPTION_TYPE_OPTS}
                       value={formData.option_type}
@@ -256,7 +222,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 </div>
               ) : (
                 <div className="min-w-0">
-                  <label className="block" style={fieldLabel}>Side</label>
+                  <label style={CONTROL_LABEL}>Side</label>
                   <ToggleBtn
                     options={sideOptions}
                     value={formData.side}
@@ -272,61 +238,56 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             <div style={bandLabel}>Size &amp; price</div>
             <div style={fieldStack}>
               <div style={twoCol}>
-                <div className="min-w-0">
-                  <label className="block" style={fieldLabel}>Entry price</label>
-                  <input
-                    type="number"
+                <Field className="min-w-0" label="Entry price" htmlFor="add-order-entry-price">
+                  <NumberInput
+                    id="add-order-entry-price"
                     step="any"
                     value={formData.entry_price}
                     onChange={(e) => onChange('entry_price', e.target.value)}
-                    className="w-full" style={fieldInput}
+                    className="w-full"
                   />
-                </div>
-                <div className="min-w-0">
-                  <label className="block" style={fieldLabel}>Qty</label>
-                  <input
-                    type="number"
+                </Field>
+                <Field className="min-w-0" label="Qty" htmlFor="add-order-qty">
+                  <NumberInput
+                    id="add-order-qty"
                     step="any"
                     value={formData.qty}
                     onChange={(e) => onChange('qty', e.target.value)}
-                    className="w-full" style={fieldInput}
+                    className="w-full"
                   />
-                </div>
+                </Field>
               </div>
               {contractType === 'option' ? (
                 <div style={twoCol}>
-                  <div className="min-w-0">
-                    <label className="block" style={fieldLabel}>Cost</label>
-                    <input
-                      type="number"
+                  <Field className="min-w-0" label="Cost" htmlFor="add-order-cost">
+                    <NumberInput
+                      id="add-order-cost"
                       step="any"
                       value={formData.cost}
                       onChange={(e) => onChange('cost', e.target.value)}
-                      className="w-full" style={fieldInput}
+                      className="w-full"
                     />
-                  </div>
-                  <div className="min-w-0">
-                    <label className="block" style={fieldLabel}>Strike price</label>
-                    <input
-                      type="number"
+                  </Field>
+                  <Field className="min-w-0" label="Strike price" htmlFor="add-order-strike-price">
+                    <NumberInput
+                      id="add-order-strike-price"
                       step="any"
                       value={formData.strike_price}
                       onChange={(e) => onChange('strike_price', e.target.value)}
-                      className="w-full" style={fieldInput}
+                      className="w-full"
                     />
-                  </div>
+                  </Field>
                 </div>
               ) : (
-                <div className="min-w-0">
-                  <label className="block" style={fieldLabel}>Cost</label>
-                  <input
-                    type="number"
+                <Field className="min-w-0" label="Cost" htmlFor="add-order-cost">
+                  <NumberInput
+                    id="add-order-cost"
                     step="any"
                     value={formData.cost}
                     onChange={(e) => onChange('cost', e.target.value)}
-                    className="w-full" style={fieldInput}
+                    className="w-full"
                   />
-                </div>
+                </Field>
               )}
             </div>
           </section>
@@ -334,26 +295,24 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           <section className="min-w-0">
             <div style={bandLabel}>Exits</div>
             <div style={twoCol}>
-              <div className="min-w-0">
-                <label className="block" style={fieldLabel}>TP price</label>
-                <input
-                  type="number"
+              <Field className="min-w-0" label="TP price" htmlFor="add-order-tp-price">
+                <NumberInput
+                  id="add-order-tp-price"
                   step="any"
                   value={formData.tp_price}
                   onChange={(e) => onChange('tp_price', e.target.value)}
-                  className="w-full" style={fieldInput}
+                  className="w-full"
                 />
-              </div>
-              <div className="min-w-0">
-                <label className="block" style={fieldLabel}>SL price</label>
-                <input
-                  type="number"
+              </Field>
+              <Field className="min-w-0" label="SL price" htmlFor="add-order-sl-price">
+                <NumberInput
+                  id="add-order-sl-price"
                   step="any"
                   value={formData.sl_price}
                   onChange={(e) => onChange('sl_price', e.target.value)}
-                  className="w-full" style={fieldInput}
+                  className="w-full"
                 />
-              </div>
+              </Field>
             </div>
           </section>
 
@@ -363,7 +322,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               {contractType !== 'spot' ? (
                 <div className="min-w-0" style={fieldStack}>
                   <div className="min-w-0">
-                    <label className="block" style={fieldLabel}>Status</label>
+                    <label style={CONTROL_LABEL}>Status</label>
                     <ToggleBtn
                       options={STATUS_OPTS}
                       value={formData.order_status}
@@ -371,19 +330,20 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                       fullWidth
                     />
                   </div>
-                  <div className="min-w-0">
-                    <label className="block" style={fieldLabel}>Expiry date</label>
-                    <input
+                  <Field className="min-w-0" label="Expiry date" htmlFor="add-order-expiry-date">
+                    <TextInput
+                      id="add-order-expiry-date"
                       type="date"
                       value={formData.expiry_date}
                       onChange={(e) => onChange('expiry_date', e.target.value)}
-                      className="w-full" style={{ ...fieldInput, minWidth: 0, maxWidth: '100%' }}
+                      className="w-full"
+                      style={{ minWidth: 0, maxWidth: '100%', height: 'var(--control-h)' }}
                     />
-                  </div>
+                  </Field>
                 </div>
               ) : (
                 <div className="min-w-0">
-                  <label className="block" style={fieldLabel}>Status</label>
+                  <label style={CONTROL_LABEL}>Status</label>
                   <ToggleBtn
                     options={STATUS_OPTS}
                     value={formData.order_status}
@@ -393,12 +353,12 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 </div>
               )}
               <div className="min-w-0">
-                <label className="block" style={fieldLabel}>Zone</label>
+                <label style={CONTROL_LABEL}>Zone</label>
                 <GroupCombobox groups={groups} value={formData.group_id} onChange={(v) => onChange('group_id', v)} />
                 {groupWarnings.length > 0 && (
                   <div className="mt-1 space-y-0.5">
                     {groupWarnings.map((w, i) => (
-                      <p key={i} style={{ fontSize: 11, color: 'var(--color-danger-text)', display: 'flex', alignItems: 'center', gap: 4, margin: 0 }}>
+                      <p key={i} style={{ ...CONTROL_HELPER, color: 'var(--color-danger-text)', display: 'flex', alignItems: 'center', gap: 4, margin: 0 }}>
                         <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
                         {w}
                       </p>
@@ -411,7 +371,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           </div>
 
           {summary && (
-            <p style={{ fontSize: 11, color: 'var(--color-slate)', margin: '10px 0 0' }}>{summary}</p>
+            <p style={{ ...CONTROL_HELPER, margin: '10px 0 0' }}>{summary}</p>
           )}
         </div>
 

@@ -3,6 +3,13 @@ import type { CSSProperties } from "react";
 import { MFOrder, MFOrderUpdate } from "../types";
 import ModalShell from "./components/ModalShell";
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
+import { Field, NumberInput, TextInput } from "./components/Field";
+import {
+  CONTROL_BUTTON_PRIMARY,
+  CONTROL_BUTTON_SECONDARY,
+  CONTROL_LABEL,
+  CONTROL_TITLE,
+} from "./components/controlStyles";
 
 interface MFEditOrderModalProps {
   show: boolean;
@@ -11,28 +18,11 @@ interface MFEditOrderModalProps {
   onSave: (orderId: number, data: MFOrderUpdate) => void;
 }
 
-const CARD: CSSProperties = { background: "var(--color-canvas)", borderRadius: 16, padding: 24 };
-const TITLE: CSSProperties = {
-  fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--color-ink)", margin: 0,
+const modalPanelStyle: CSSProperties = {
+  padding: "var(--space-md)", borderRadius: "var(--rounded-xl)",
 };
-const LABEL: CSSProperties = {
-  display: "block", fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: "0 0 6px",
-};
-const INPUT: CSSProperties = {
-  width: "100%", padding: "8px 12px", fontSize: 15, fontWeight: 500,
-  fontVariantNumeric: "tabular-nums", color: "var(--color-ink)", background: "transparent",
-  borderRadius: 8,
-};
-const BTN: CSSProperties = {
-  fontSize: 12, fontWeight: 500, borderRadius: 999, padding: "6px 14px",
-  border: "1px solid transparent", cursor: "pointer",
-};
-const BTN_PRIMARY: CSSProperties = {
-  ...BTN, background: "var(--color-ink)", color: "var(--color-canvas)",
-};
-const BTN_SECONDARY: CSSProperties = {
-  ...BTN, background: "transparent", color: "var(--color-ink)", borderColor: "var(--color-hairline)",
-};
+const primaryButton = CONTROL_BUTTON_PRIMARY;
+const secondaryButton = CONTROL_BUTTON_SECONDARY;
 
 export default function MFEditOrderModal({ show, order, onClose, onSave }: MFEditOrderModalProps) {
   const [asset, setAsset] = useState("");
@@ -62,21 +52,19 @@ export default function MFEditOrderModal({ show, order, onClose, onSave }: MFEdi
 
   return (
     <ModalShell open={show} onClose={onClose} title="Edit order" closeOnBackdrop={false}>
-      <div className={`${MODAL_CARD} w-full max-w-sm mx-4`} style={CARD}>
-        <h3 className={MODAL_HEADER} style={{ ...TITLE, marginBottom: 12 }}>Edit order</h3>
+      <div className={`${MODAL_CARD} w-full max-w-sm mx-4`} style={modalPanelStyle}>
+        <h3 className={MODAL_HEADER} style={{ ...CONTROL_TITLE, marginBottom: 12 }}>Edit order</h3>
         <div className={`${MODAL_BODY} flex flex-col`} style={{ gap: 12 }}>
-          <div>
-            <label style={LABEL}>Asset</label>
-            <input
+          <Field label="Asset" htmlFor="mf-edit-order-asset">
+            <TextInput
+              id="mf-edit-order-asset"
               type="text"
               value={asset}
               onChange={(e) => setAsset(e.target.value)}
-              className="border border-hairline focus:border-brand-teal"
-              style={INPUT}
             />
-          </div>
+          </Field>
           <div>
-            <label style={LABEL}>Side</label>
+            <span style={CONTROL_LABEL}>Side</span>
             <div className="inline-flex gap-x-1.5">
               {["Buy", "Sell"].map((s) => (
                 <button
@@ -84,9 +72,7 @@ export default function MFEditOrderModal({ show, order, onClose, onSave }: MFEdi
                   type="button"
                   onClick={() => setSide(s)}
                   className="transition-colors"
-                  style={side === s
-                    ? { ...BTN, background: "var(--color-ink)", color: "var(--color-canvas)" }
-                    : { ...BTN_SECONDARY }}
+                  style={side === s ? primaryButton : secondaryButton}
                 >
                   {s}
                 </button>
@@ -94,33 +80,27 @@ export default function MFEditOrderModal({ show, order, onClose, onSave }: MFEdi
             </div>
           </div>
           <div className="flex gap-3">
-            <div className="flex-1">
-              <label style={LABEL}>Quantity</label>
-              <input
-                type="number"
+            <Field className="flex-1" label="Quantity" htmlFor="mf-edit-order-qty">
+              <NumberInput
+                id="mf-edit-order-qty"
                 step="any"
                 value={qty}
                 onChange={(e) => setQty(e.target.value)}
-                className="border border-hairline focus:border-brand-teal"
-                style={INPUT}
               />
-            </div>
-            <div className="flex-1">
-              <label style={LABEL}>Price</label>
-              <input
-                type="number"
+            </Field>
+            <Field className="flex-1" label="Price" htmlFor="mf-edit-order-price">
+              <NumberInput
+                id="mf-edit-order-price"
                 step="any"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="border border-hairline focus:border-brand-teal"
-                style={INPUT}
               />
-            </div>
+            </Field>
           </div>
         </div>
         <div className={`${MODAL_FOOTER} flex justify-end gap-2`} style={{ marginTop: 12 }}>
-          <button onClick={onClose} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
-          <button onClick={handleSave} style={BTN_PRIMARY} className="transition-opacity hover:opacity-90">Save changes</button>
+          <button onClick={onClose} style={secondaryButton} className="transition-colors hover:bg-surface-soft">Cancel</button>
+          <button onClick={handleSave} style={primaryButton} className="transition-opacity hover:opacity-90">Save changes</button>
         </div>
       </div>
     </ModalShell>

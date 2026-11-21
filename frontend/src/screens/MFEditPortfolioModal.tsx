@@ -6,42 +6,36 @@ import { api } from "../lib/api";
 import { MFSetting, MFHolding } from "../types";
 import ModalShell from "./components/ModalShell";
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
+import { Field, NumberInput, TextInput } from "./components/Field";
+import {
+  CONTROL_BUTTON_PRIMARY,
+  CONTROL_BUTTON_SECONDARY,
+  CONTROL_HELPER,
+  CONTROL_INPUT,
+  CONTROL_LABEL,
+  CONTROL_TITLE,
+} from "./components/controlStyles";
 import { formatMoney } from "../utils/format";
 
-const CARD: CSSProperties = {
-  background: "var(--color-canvas)", borderRadius: 16, padding: 24,
+const modalPanelStyle: CSSProperties = {
+  padding: "var(--space-md)", borderRadius: "var(--rounded-xl)",
 };
-const TITLE: CSSProperties = {
-  fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--color-ink)", margin: 0,
+const readonlyValue: CSSProperties = {
+  ...CONTROL_INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent",
 };
-const LABEL: CSSProperties = {
-  display: "block", fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: "0 0 6px",
+const confirmTitle: CSSProperties = {
+  fontWeight: 600, letterSpacing: "-0.01em", color: "var(--color-ink)", margin: 0,
 };
-const INPUT: CSSProperties = {
-  width: "100%", padding: "8px 12px", fontSize: 15, fontWeight: 500,
-  fontVariantNumeric: "tabular-nums", color: "var(--color-ink)", background: "transparent",
-  borderRadius: 8,
-};
-const HELPER: CSSProperties = {
-  fontSize: 12, fontWeight: 400, color: "var(--color-slate)", margin: "4px 0 0",
-};
+const percentSuffix: CSSProperties = { color: "var(--color-slate)" };
 const ADD_LINK: CSSProperties = {
-  fontSize: 12, fontWeight: 500, color: "var(--color-brand-teal)",
+  color: "var(--color-brand-teal)",
   background: "transparent", border: 0, padding: 0, cursor: "pointer",
 };
-const BTN: CSSProperties = {
-  fontSize: 12, fontWeight: 500, borderRadius: 999, padding: "6px 14px",
-  border: "1px solid transparent", cursor: "pointer",
-};
-const BTN_PRIMARY: CSSProperties = {
-  ...BTN, background: "var(--color-ink)", color: "var(--color-canvas)",
-};
-const BTN_SECONDARY: CSSProperties = {
-  ...BTN, background: "transparent", color: "var(--color-ink)", borderColor: "var(--color-hairline)",
-};
-const BTN_DANGER: CSSProperties = {
-  ...BTN, background: "transparent", color: "var(--color-danger-text)", borderColor: "var(--color-hairline)",
-};
+const primaryButton = CONTROL_BUTTON_PRIMARY;
+const secondaryButton = CONTROL_BUTTON_SECONDARY;
+const dangerButton = {
+  ...CONTROL_BUTTON_SECONDARY, color: "var(--color-danger-text)",
+} as const;
 const SEPARATOR: CSSProperties = {
   border: 0, borderTop: "1px solid var(--color-hairline)", margin: "24px 0",
 };
@@ -229,9 +223,9 @@ export default function MFEditPortfolioModal({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Edit managed fund">
-      <div className={`${MODAL_CARD} w-full max-w-xl mx-4 relative`} style={CARD}>
+      <div className={`${MODAL_CARD} w-full max-w-xl mx-4 relative`} style={modalPanelStyle}>
         <div className={`${MODAL_HEADER} flex justify-between items-center`} style={{ marginBottom: 16 }}>
-          <h3 style={TITLE}>Edit managed fund</h3>
+          <h3 style={CONTROL_TITLE}>Edit managed fund</h3>
           <button onClick={onClose} className="p-1 hover:bg-surface-soft rounded-full transition-colors">
             <svg className="w-5 h-5 text-slate" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -242,37 +236,22 @@ export default function MFEditPortfolioModal({
         <div className={MODAL_BODY}>
         {/* Basic Info */}
         <div className="flex flex-col" style={{ gap: 16 }}>
-          <div>
-            <label style={LABEL}>Portfolio name</label>
-            <input value={name} onChange={e => setName(e.target.value)}
-              className="border border-hairline focus:border-brand-teal" style={INPUT} />
-          </div>
-          <div>
-            <label style={LABEL}>Available cash</label>
-            <div style={{ ...INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent" }}>
-              {formatMoney(availableDisplay)}
-            </div>
-          </div>
+          <Field label="Portfolio name" htmlFor="mf-portfolio-name">
+            <TextInput id="mf-portfolio-name" value={name} onChange={e => setName(e.target.value)} />
+          </Field>
+          <Field label="Available cash">
+            <div style={readonlyValue}>{formatMoney(availableDisplay)}</div>
+          </Field>
           <div className="grid grid-cols-2 gap-4 items-start">
-            <div>
-              <label style={LABEL}>Margin locked (computed)</label>
-              <div style={{ ...INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent" }}>
-                {formatMoney(portfolio.margin_locked || 0)}
-              </div>
-              <p style={{ fontSize: 12, fontWeight: 400, color: "var(--color-slate)", margin: "4px 0 0" }}>
-                Computed as Σ mark × multiplier × qty × margin rate
-              </p>
-            </div>
-            <div>
-              <label style={LABEL}>Cash buffer limit</label>
-              <input type="number" value={cashBuffer} onChange={e => setCashBuffer(e.target.value)}
-                className="border border-hairline focus:border-brand-teal" style={INPUT} />
-            </div>
-            <div>
-              <label style={LABEL}>Tags (comma separated)</label>
-              <input value={tagsStr} onChange={e => setTagsStr(e.target.value)}
-                className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="crypto, fund, long-term" />
-            </div>
+            <Field label="Margin locked (computed)" hint="Computed as Σ mark × multiplier × qty × margin rate">
+              <div style={readonlyValue}>{formatMoney(portfolio.margin_locked || 0)}</div>
+            </Field>
+            <Field label="Cash buffer limit" htmlFor="mf-portfolio-cash-buffer">
+              <NumberInput id="mf-portfolio-cash-buffer" value={cashBuffer} onChange={e => setCashBuffer(e.target.value)} />
+            </Field>
+            <Field label="Tags (comma separated)" htmlFor="mf-portfolio-tags">
+              <TextInput id="mf-portfolio-tags" value={tagsStr} onChange={e => setTagsStr(e.target.value)} placeholder="crypto, fund, long-term" />
+            </Field>
           </div>
         </div>
 
@@ -280,50 +259,50 @@ export default function MFEditPortfolioModal({
 
         {/* Target Ratios */}
         <div>
-          <p style={{ ...LABEL, marginBottom: 12 }}>Target allocation ratios</p>
+          <p style={{ ...CONTROL_LABEL, marginBottom: 12 }}>Target allocation ratios</p>
           <div className="flex flex-col" style={{ gap: 8 }}>
             {ratioEntries.map((e, i) => (
               <div key={i} className="flex items-center gap-2">
-                <input type="text" value={e.asset} onChange={v => {
+                <TextInput type="text" value={e.asset} onChange={v => {
                   const copy = [...ratioEntries]; copy[i] = { ...copy[i], asset: v.target.value.toUpperCase() }; setRatioEntries(copy);
-                }} placeholder="Asset" className="w-24 border border-hairline focus:border-brand-teal" style={{ ...INPUT, padding: "6px 8px" }} />
-                <input type="number" step="0.1" value={e.pct} onChange={v => {
+                }} placeholder="Asset" style={{ width: 96 }} />
+                <NumberInput step="0.1" value={e.pct} onChange={v => {
                   const copy = [...ratioEntries]; copy[i] = { ...copy[i], pct: v.target.value }; setRatioEntries(copy);
-                }} placeholder="%" className="w-20 border border-hairline focus:border-brand-teal" style={{ ...INPUT, padding: "6px 8px" }} />
-                <span style={{ fontSize: 12, color: "var(--color-slate)" }}>%</span>
+                }} placeholder="%" style={{ width: 80 }} />
+                <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
                 {ratioEntries.length > 1 && (
                   <button onClick={() => setRatioEntries(ratioEntries.filter((_, idx) => idx !== i))}
-                    className="px-1 opacity-70 hover:opacity-100 transition-opacity"
-                    style={{ fontSize: 15, fontWeight: 600, color: "var(--color-danger-text)", background: "transparent", border: 0, cursor: "pointer" }}>×</button>
+                    className="px-1 opacity-70 hover:opacity-100 transition-opacity text-[length:var(--fs-content)]"
+                    style={{ fontWeight: 600, color: "var(--color-danger-text)", background: "transparent", border: 0, cursor: "pointer" }}>×</button>
                 )}
               </div>
             ))}
           </div>
           <button onClick={() => setRatioEntries([...ratioEntries, { asset: "", pct: "0" }])}
-            className="hover:underline" style={{ ...ADD_LINK, marginTop: 8 }}>+ Add asset</button>
+            className="hover:underline text-[length:var(--fs-label)]" style={{ ...ADD_LINK, marginTop: 8 }}>+ Add asset</button>
         </div>
 
         <hr style={SEPARATOR} />
 
         {/* Profit Thresholds */}
         <div>
-          <p style={{ ...LABEL, marginBottom: 12 }}>Profit thresholds</p>
+          <p style={{ ...CONTROL_LABEL, marginBottom: 12 }}>Profit thresholds</p>
           <div style={{ marginBottom: 12 }}>
-            <label style={LABEL}>Global threshold (%)</label>
-            <input type="number" step="0.1" value={globalThreshold} onChange={e => setGlobalThreshold(e.target.value)}
-              className="border border-hairline focus:border-brand-teal" style={INPUT} />
+            <Field label="Global threshold (%)" htmlFor="mf-global-threshold">
+              <NumberInput id="mf-global-threshold" step="0.1" value={globalThreshold} onChange={e => setGlobalThreshold(e.target.value)} />
+            </Field>
           </div>
           {holdings.length > 0 && (
             <div>
-              <label style={{ ...LABEL, marginBottom: 8 }}>Per-asset (%)</label>
+              <label style={{ ...CONTROL_LABEL, marginBottom: 8 }}>Per-asset (%)</label>
               <div className="flex flex-col" style={{ gap: 6 }}>
                 {holdings.map(h => (
                   <div key={h.holding_id} className="flex items-center gap-2">
-                    <span className="w-16" style={{ fontSize: 15, fontWeight: 500, color: "var(--color-ink)" }}>{h.asset}</span>
-                    <input type="number" step="0.1" value={perAssetThreshold[h.holding_id] || "0"}
+                    <span className="w-16 text-[length:var(--fs-content)]" style={{ fontWeight: 500, color: "var(--color-ink)" }}>{h.asset}</span>
+                    <NumberInput step="0.1" value={perAssetThreshold[h.holding_id] || "0"}
                       onChange={e => setPerAssetThreshold({ ...perAssetThreshold, [h.holding_id]: e.target.value })}
-                      className="w-20 border border-hairline focus:border-brand-teal" style={{ ...INPUT, padding: "6px 8px" }} />
-                    <span style={{ fontSize: 12, color: "var(--color-slate)" }}>%</span>
+                      style={{ width: 80 }} />
+                    <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
                   </div>
                 ))}
               </div>
@@ -334,39 +313,36 @@ export default function MFEditPortfolioModal({
         <hr style={SEPARATOR} />
 
         {/* Deposit/Withdraw */}
-        <div>
-          <p style={{ ...LABEL, marginBottom: 12 }}>Adjust cash balance</p>
-          <div className="flex gap-2" style={{ marginBottom: 8 }}>
-            <input type="number" step={100} placeholder="0" value={dwAmount} onChange={e => setDwAmount(e.target.value)}
-              className="flex-1 border border-hairline focus:border-brand-teal" style={INPUT} />
+        <Field label="Adjust cash balance" error={dwError}>
+          <div className="flex gap-2">
+            <NumberInput step={100} placeholder="0" value={dwAmount} onChange={e => setDwAmount(e.target.value)} className="flex-1" />
             <button onClick={handleDeposit} disabled={dwProcessing}
               className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={BTN_PRIMARY}>
+              style={primaryButton}>
               Deposit
             </button>
             <button onClick={handleWithdraw} disabled={dwProcessing}
               className="transition-colors hover:bg-surface-soft disabled:opacity-50 disabled:cursor-not-allowed"
-              style={BTN_DANGER}>
+              style={dangerButton}>
               Withdraw
             </button>
           </div>
-          {dwError && <p style={{ ...HELPER, color: "var(--color-danger-text)" }}>{dwError}</p>}
-        </div>
+        </Field>
 
         <hr style={SEPARATOR} />
 
         {/* Save Error */}
-        {saveErr && <p style={{ ...HELPER, color: "var(--color-danger-text)", marginBottom: 16 }}>{saveErr}</p>}
+        {saveErr && <p style={{ ...CONTROL_HELPER, color: "var(--color-danger-text)", marginBottom: 16 }}>{saveErr}</p>}
 
         {/* Danger Zone */}
         <div className="flex items-center justify-between">
           <div>
-            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)", margin: 0 }}>Danger zone</p>
-            <p style={{ ...HELPER, marginTop: 4 }}>Permanently delete this portfolio and all related data</p>
+            <p style={CONTROL_TITLE}>Danger zone</p>
+            <p style={{ ...CONTROL_HELPER, marginTop: 4 }}>Permanently delete this portfolio and all related data</p>
           </div>
           <button onClick={() => setShowConfirmDelete(true)}
             className="inline-flex items-center gap-1.5 transition-colors hover:bg-surface-soft"
-            style={BTN_DANGER}>
+            style={dangerButton}>
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="3 6 5 6 21 6" />
               <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -380,10 +356,10 @@ export default function MFEditPortfolioModal({
 
         {/* Action buttons */}
         <div className={`${MODAL_FOOTER} flex justify-end gap-3`} style={{ marginTop: 12 }}>
-          <button onClick={onClose} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
+          <button onClick={onClose} style={secondaryButton} className="transition-colors hover:bg-surface-soft">Cancel</button>
           <button onClick={handleSave} disabled={saving}
             className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={BTN_PRIMARY}>
+            style={primaryButton}>
             Save changes
           </button>
         </div>
@@ -391,7 +367,7 @@ export default function MFEditPortfolioModal({
         {/* Delete confirmation overlay */}
         {showConfirmDelete && (
           <div className="absolute inset-0 z-10 flex items-center justify-center p-8"
-            style={{ borderRadius: 16, background: "color-mix(in srgb, var(--color-canvas) 92%, transparent)", backdropFilter: "blur(4px)" }}>
+            style={{ borderRadius: "var(--rounded-xl)", background: "color-mix(in srgb, var(--color-canvas) 92%, transparent)", backdropFilter: "blur(4px)" }}>
             <div className="w-full max-w-sm">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
@@ -402,17 +378,17 @@ export default function MFEditPortfolioModal({
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <h4 style={{ ...TITLE, fontSize: 16, letterSpacing: 0 }}>Delete "{portfolio.portfolio_name}"?</h4>
-                  <p style={{ fontSize: 15, color: "var(--color-slate)", margin: "8px 0 0" }}>
+                  <h4 className="text-[length:var(--fs-section)]" style={confirmTitle}>Delete "{portfolio.portfolio_name}"?</h4>
+                  <p className="text-[length:var(--fs-content)]" style={{ color: "var(--color-slate)", margin: "8px 0 0" }}>
                     This permanently deletes all Managed Fund data including holdings, orders, history, settings,
                     and the portfolio itself. Cannot be undone.
                   </p>
-                  {deleteErr && <p style={{ ...HELPER, color: "var(--color-danger-text)", marginTop: 8 }}>{deleteErr}</p>}
+                  {deleteErr && <p style={{ ...CONTROL_HELPER, color: "var(--color-danger-text)", marginTop: 8 }}>{deleteErr}</p>}
                   <div className="flex justify-end gap-2" style={{ marginTop: 20 }}>
-                    <button onClick={() => setShowConfirmDelete(false)} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
+                    <button onClick={() => setShowConfirmDelete(false)} style={secondaryButton} className="transition-colors hover:bg-surface-soft">Cancel</button>
                     <button onClick={handleConfirmDelete} disabled={deleting}
                       className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={BTN_DANGER}>
+                      style={dangerButton}>
                       Confirm delete
                     </button>
                   </div>

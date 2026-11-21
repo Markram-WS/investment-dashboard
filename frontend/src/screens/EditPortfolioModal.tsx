@@ -3,38 +3,30 @@ import { api } from "../lib/api";
 import type { BrokerRecord } from "../lib/api";
 import ModalShell from "./components/ModalShell";
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
+import { Field, NumberInput, SelectInput, TextInput } from "./components/Field";
+import {
+  CONTROL_BUTTON_PRIMARY,
+  CONTROL_BUTTON_SECONDARY,
+  CONTROL_HELPER,
+  CONTROL_INPUT,
+  CONTROL_TITLE,
+} from "./components/controlStyles";
 import { formatMoney } from "../utils/format";
 
-const CARD: React.CSSProperties = {
-  background: "var(--color-canvas)", borderRadius: 16, padding: 24,
-};
-const TITLE: React.CSSProperties = {
-  fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--color-ink)", margin: 0,
-};
-const LABEL: React.CSSProperties = {
-  display: "block", fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: "0 0 6px",
-};
-const INPUT: React.CSSProperties = {
-  width: "100%", padding: "8px 12px", fontSize: 15, fontWeight: 500,
-  fontVariantNumeric: "tabular-nums", color: "var(--color-ink)", background: "transparent",
-  borderRadius: 8,
-};
-const HELPER: React.CSSProperties = {
-  fontSize: 12, fontWeight: 400, color: "var(--color-slate)", margin: "4px 0 0",
-};
-const BTN: React.CSSProperties = {
-  fontSize: 12, fontWeight: 500, borderRadius: 999, padding: "6px 14px",
-  border: "1px solid transparent", cursor: "pointer",
-};
-const BTN_PRIMARY: React.CSSProperties = {
-  ...BTN, background: "var(--color-ink)", color: "var(--color-canvas)",
-};
-const BTN_SECONDARY: React.CSSProperties = {
-  ...BTN, background: "transparent", color: "var(--color-ink)", borderColor: "var(--color-hairline)",
-};
-const BTN_DANGER: React.CSSProperties = {
-  ...BTN, background: "transparent", color: "var(--color-danger-text)", borderColor: "var(--color-hairline)",
-};
+const modalPanelStyle = {
+  padding: "var(--space-md)", borderRadius: "var(--rounded-xl)",
+} as const;
+const readonlyValue = {
+  ...CONTROL_INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent",
+} as const;
+const confirmTitle = {
+  fontWeight: 600, letterSpacing: "-0.01em", color: "var(--color-ink)", margin: 0,
+} as const;
+const primaryButton = CONTROL_BUTTON_PRIMARY;
+const secondaryButton = CONTROL_BUTTON_SECONDARY;
+const dangerButton = {
+  ...CONTROL_BUTTON_SECONDARY, color: "var(--color-danger-text)",
+} as const;
 const SEPARATOR: React.CSSProperties = {
   border: 0, borderTop: "1px solid var(--color-hairline)", margin: "24px 0",
 };
@@ -240,9 +232,9 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Edit portfolio">
-      <div className={`${MODAL_CARD} w-full max-w-lg mx-4 relative`} style={CARD}>
+      <div className={`${MODAL_CARD} w-full max-w-lg mx-4 relative`} style={modalPanelStyle}>
           <div className={`${MODAL_HEADER} flex justify-between items-center`} style={{ marginBottom: 16 }}>
-            <h3 style={TITLE}>Edit portfolio</h3>
+            <h3 style={CONTROL_TITLE}>Edit portfolio</h3>
             <button onClick={onClose} className="p-1 hover:bg-surface-soft rounded-full transition-colors">
               <svg className="w-5 h-5 text-slate" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -252,130 +244,136 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
 
           <div className={MODAL_BODY}>
           <div className="flex flex-col" style={{ gap: 16 }}>
-            <div>
-              <label style={LABEL}>Portfolio name</label>
-              <input value={form.portfolio_name} onChange={(e) => handleChange("portfolio_name", e.target.value)}
-                className="border border-hairline focus:border-brand-teal" style={INPUT} />
-            </div>
+            <Field label="Portfolio name" htmlFor="edit-portfolio-name">
+              <TextInput id="edit-portfolio-name" value={form.portfolio_name} onChange={(e) => handleChange("portfolio_name", e.target.value)} />
+            </Field>
             <div className="grid grid-cols-2 gap-4 items-start">
-              <div>
-                <label style={LABEL}>Available cash</label>
-                <div style={{ ...INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent" }}>
-                  {formatMoney(displayEquity)}
-                </div>
-              </div>
-              <div>
-                <label style={LABEL}>Margin locked (computed)</label>
-                <div style={{ ...INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent" }}>
-                  {formatMoney(marginLocked)}
-                </div>
-                <p style={HELPER}>Computed as Σ mark × multiplier × qty × margin rate</p>
-              </div>
+              <Field label="Available cash">
+                <div style={readonlyValue}>{formatMoney(displayEquity)}</div>
+              </Field>
+              <Field
+                label="Margin locked (computed)"
+                hint="Computed as Σ mark × multiplier × qty × margin rate"
+              >
+                <div style={readonlyValue}>{formatMoney(marginLocked)}</div>
+              </Field>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label style={LABEL}>Broker</label>
-                <select value={form.broker_id ?? ""}
+              <Field label="Broker" htmlFor="edit-portfolio-broker">
+                <SelectInput
+                  id="edit-portfolio-broker"
+                  value={form.broker_id ?? ""}
                   onChange={(e) => handleChange("broker_id", e.target.value === "" ? null : Number(e.target.value))}
-                  className="border border-hairline focus:border-brand-teal" style={INPUT}>
+                >
                   <option value="">—</option>
                   {brokers.map((b) => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
-                </select>
-              </div>
-              <div>
-                <label style={LABEL}>Product ticker</label>
-                <input list="edit-portfolio-tickers" value={form.product_ticker}
+                </SelectInput>
+              </Field>
+              <Field label="Product ticker" htmlFor="edit-portfolio-ticker">
+                <TextInput
+                  id="edit-portfolio-ticker"
+                  list="edit-portfolio-tickers"
+                  value={form.product_ticker}
                   onChange={(e) => handleChange("product_ticker", e.target.value)}
-                  className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="e.g. S50" />
-                <datalist id="edit-portfolio-tickers">
-                  {tickers.map((t) => <option key={t} value={t} />)}
-                </datalist>
-              </div>
-              <div>
-                <label style={LABEL}>Multiplier</label>
+                  placeholder="e.g. S50"
+                />
+              </Field>
+              <datalist id="edit-portfolio-tickers">
+                {tickers.map((t) => <option key={t} value={t} />)}
+              </datalist>
+              <Field label="Multiplier" htmlFor="edit-portfolio-multiplier">
                 <div style={{ position: "relative" }}>
-                  <input type="number" step="any" value={form.x_amount}
+                  <NumberInput
+                    id="edit-portfolio-multiplier"
+                    step="any"
+                    value={form.x_amount}
                     onChange={(e) => handleChange("x_amount", e.target.value)}
-                    className="border border-hairline focus:border-brand-teal"
-                    style={{ ...INPUT, paddingRight: 32 }} placeholder="0" />
+                    style={{ paddingRight: "calc(var(--control-pad-x) + 24px)" }}
+                    placeholder="0"
+                  />
                   <span
                     aria-hidden="true"
+                    className="text-[length:var(--fs-body)]"
                     style={{
                       position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)",
-                      fontSize: 13, color: "var(--color-slate)", pointerEvents: "none",
+                      color: "var(--color-slate)", pointerEvents: "none",
                     }}
                   >×</span>
                 </div>
-              </div>
+              </Field>
             </div>
 
             <div className="grid grid-cols-2 gap-4 items-start">
-              <div>
-                <label style={LABEL}>Initial capital</label>
-                <input type="number" step="any" value={form.initial_capital}
+              <Field
+                label="Initial capital"
+                htmlFor="edit-portfolio-initial-capital"
+                hint="baseline for the profit share, not the cash balance"
+              >
+                <NumberInput
+                  id="edit-portfolio-initial-capital"
+                  step="any"
+                  value={form.initial_capital}
                   onChange={(e) => handleChange("initial_capital", e.target.value)}
-                  className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="0.00" />
-                <p style={HELPER}>baseline for the profit share, not the cash balance</p>
-              </div>
-              <div>
-                <label style={LABEL}>Cash buffer limit</label>
-                <input type="number" value={form.cash_buffer_limit} onChange={(e) => handleChange("cash_buffer_limit", e.target.value)}
-                  className="border border-hairline focus:border-brand-teal" style={INPUT} />
-              </div>
+                  placeholder="0.00"
+                />
+              </Field>
+              <Field label="Cash buffer limit" htmlFor="edit-portfolio-cash-buffer">
+                <NumberInput
+                  id="edit-portfolio-cash-buffer"
+                  value={form.cash_buffer_limit}
+                  onChange={(e) => handleChange("cash_buffer_limit", e.target.value)}
+                />
+              </Field>
             </div>
 
-            <div>
-              <label style={LABEL}>Tags (comma separated)</label>
-              <input value={form.tags} onChange={(e) => handleChange("tags", e.target.value)}
-                className="border border-hairline focus:border-brand-teal" style={INPUT} placeholder="crypto, bot, binance" />
-            </div>
+            <Field label="Tags (comma separated)" htmlFor="edit-portfolio-tags">
+              <TextInput
+                id="edit-portfolio-tags"
+                value={form.tags}
+                onChange={(e) => handleChange("tags", e.target.value)}
+                placeholder="crypto, bot, binance"
+              />
+            </Field>
 
           </div>
 
           <hr style={SEPARATOR} />
 
-          <div>
-            <p style={{ ...LABEL, marginBottom: 12 }}>Adjust cash balance</p>
-            <div className="flex gap-2" style={{ marginBottom: 8 }}>
-              <input type="number" step={100} placeholder="0"
+          <Field label="Adjust cash balance" error={dwError}>
+            <div className="flex gap-2">
+              <NumberInput step={100} placeholder="0"
                 value={dwAmount} onChange={e => setDwAmount(e.target.value)}
-                className="flex-1 border border-hairline"
-                style={INPUT}
-                onFocus={e => e.target.style.borderColor = 'var(--color-brand-teal)'}
-                onBlur={e => e.target.style.borderColor = 'var(--color-hairline)'} />
+                className="flex-1" />
               <button onClick={handleDeposit} disabled={dwProcessing}
                 className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={BTN_PRIMARY}>
+                style={primaryButton}>
                 Deposit
               </button>
               <button onClick={handleWithdraw} disabled={dwProcessing}
                 className="transition-colors hover:bg-surface-soft disabled:opacity-50 disabled:cursor-not-allowed"
-                style={BTN_DANGER}>
+                style={dangerButton}>
                 Withdraw
               </button>
             </div>
-            {dwError && (
-              <p style={{ ...HELPER, color: "var(--color-danger-text)" }}>{dwError}</p>
-            )}
-          </div>
+          </Field>
 
           <hr style={SEPARATOR} />
 
           {saveErr && (
-            <p style={{ ...HELPER, color: "var(--color-danger-text)", marginBottom: 16 }}>{saveErr}</p>
+            <p style={{ ...CONTROL_HELPER, color: "var(--color-danger-text)", marginBottom: 16 }}>{saveErr}</p>
           )}
 
           <div className="flex items-center justify-between">
             <div>
-              <p style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)", margin: 0 }}>Danger zone</p>
-              <p style={{ ...HELPER, marginTop: 4 }}>Permanently delete this portfolio and all related data</p>
+              <p style={CONTROL_TITLE}>Danger zone</p>
+              <p style={{ ...CONTROL_HELPER, marginTop: 4 }}>Permanently delete this portfolio and all related data</p>
             </div>
             <button onClick={handleDeleteClick}
               className="inline-flex items-center gap-1.5 transition-colors hover:bg-surface-soft"
-              style={BTN_DANGER}>
+              style={dangerButton}>
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="3 6 5 6 21 6" />
                 <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -388,11 +386,11 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
 
           {showWarning && (
             <div className="flex items-start gap-2"
-              style={{ marginTop: 12, padding: 12, background: "var(--color-coral-light)", borderRadius: 8 }}>
+              style={{ marginTop: 12, padding: 12, background: "var(--color-coral-light)", borderRadius: "var(--rounded-md)" }}>
               <svg className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "var(--color-danger-text)" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
-              <p style={{ fontSize: 12, color: "var(--color-danger-text)", margin: 0 }}>
+              <p style={{ ...CONTROL_HELPER, color: "var(--color-danger-text)", margin: 0 }}>
                 You must close all {activeOrderCount} active order{activeOrderCount > 1 ? "s" : ""} before deleting this portfolio.
                 <button onClick={() => setShowWarning(false)} className="ml-2 underline" style={{ fontWeight: 600, color: "inherit" }}>Dismiss</button>
               </p>
@@ -401,17 +399,17 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
           </div>
 
           <div className={`${MODAL_FOOTER} flex justify-end gap-3`} style={{ marginTop: 12 }}>
-            <button onClick={onClose} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
+            <button onClick={onClose} style={secondaryButton} className="transition-colors hover:bg-surface-soft">Cancel</button>
             <button onClick={handleSave} disabled={saving}
               className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={BTN_PRIMARY}>
+              style={primaryButton}>
               Save changes
             </button>
           </div>
 
           {showConfirmDelete && (
             <div className="absolute inset-0 z-10 flex items-center justify-center p-8"
-              style={{ borderRadius: 16, background: "color-mix(in srgb, var(--color-canvas) 92%, transparent)", backdropFilter: "blur(4px)" }}>
+              style={{ borderRadius: "var(--rounded-xl)", background: "color-mix(in srgb, var(--color-canvas) 92%, transparent)", backdropFilter: "blur(4px)" }}>
               <div className="w-full max-w-sm">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
@@ -422,15 +420,15 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
                     </svg>
                   </div>
                   <div className="flex-1">
-                    <h4 style={{ ...TITLE, fontSize: 16, letterSpacing: 0 }}>Delete "{portfolioName}"?</h4>
-                    <p style={{ fontSize: 15, color: "var(--color-slate)", margin: "8px 0 0" }}>
+                    <h4 className="text-[length:var(--fs-section)]" style={confirmTitle}>Delete "{portfolioName}"?</h4>
+                    <p className="text-[length:var(--fs-content)]" style={{ color: "var(--color-slate)", margin: "8px 0 0" }}>
                       This will permanently delete this portfolio and all related data including trade history, trade plans, zone groups, and transactions. This action cannot be undone.
                     </p>
                     <div className="flex justify-end gap-2" style={{ marginTop: 20 }}>
-                      <button onClick={() => setShowConfirmDelete(false)} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
+                      <button onClick={() => setShowConfirmDelete(false)} style={secondaryButton} className="transition-colors hover:bg-surface-soft">Cancel</button>
                       <button onClick={handleConfirmDelete} disabled={deleting}
                         className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={BTN_DANGER}>
+                        style={dangerButton}>
                         Confirm delete
                       </button>
                     </div>
