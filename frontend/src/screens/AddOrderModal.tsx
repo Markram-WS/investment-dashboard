@@ -27,6 +27,7 @@ const bandLabel = {
 /** Text field: 11px ink on canvas, 1px hairline, radius 8. */
 const fieldInput = {
   width: '100%',
+  boxSizing: 'border-box' as const,
   fontSize: 11,
   color: 'var(--color-ink)',
   background: 'var(--color-canvas)',
@@ -65,7 +66,7 @@ const ROW_GAP = 12;
 const FIELD_GAP = 6;
 
 const fieldStack: React.CSSProperties = { display: 'grid', gap: FIELD_GAP };
-const twoCol: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: ROW_GAP };
+const twoCol: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: ROW_GAP };
 
 interface AddOrderModalProps {
   formData: AddOrderForm;
@@ -101,7 +102,7 @@ const ToggleBtn = React.memo(function ToggleBtn({ options, value, onChange, full
   fullWidth?: boolean;
 }) {
   return (
-    <div style={fullWidth ? { display: 'flex', gap: 6, width: '100%' } : { display: 'inline-flex', gap: 6 }}>
+    <div style={fullWidth ? { display: 'flex', gap: 6, width: '100%', minWidth: 0, maxWidth: '100%' } : { display: 'inline-flex', gap: 6 }}>
       {options.map((opt) => {
         const isActive = value === opt.value;
         return (
@@ -112,7 +113,7 @@ const ToggleBtn = React.memo(function ToggleBtn({ options, value, onChange, full
             className="tg-pill"
             data-tone={opt.tone}
             data-active={isActive}
-            style={{ flex: fullWidth ? 1 : undefined }}
+            style={{ flex: fullWidth ? 1 : undefined, minWidth: 0 }}
           >
             {opt.label}
           </button>
@@ -208,7 +209,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           </div>
         </div>
 
-        <div className={`${MODAL_BODY} -mr-1 pr-1`}>
+        <div className={`${MODAL_BODY} -mr-1 pr-1 overflow-x-hidden`}>
           <div className="grid grid-cols-2 items-start gap-x-4 gap-y-3.5">
           <section className="min-w-0">
             <div style={bandLabel}>Instrument</div>
@@ -219,7 +220,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 onChange={(v) => onChange('contract_type', v)}
                 fullWidth
               />
-              <div>
+              <div className="min-w-0">
                 <label className="block" style={fieldLabel}>Asset type</label>
                 <input
                   type="text"
@@ -234,7 +235,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               </div>
               {contractType === 'option' ? (
                 <div style={twoCol}>
-                  <div>
+                  <div className="min-w-0">
                     <label className="block" style={fieldLabel}>Side</label>
                     <ToggleBtn
                       options={sideOptions}
@@ -243,7 +244,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                       fullWidth
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="block" style={fieldLabel}>Option type</label>
                     <ToggleBtn
                       options={OPTION_TYPE_OPTS}
@@ -254,7 +255,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                   </div>
                 </div>
               ) : (
-                <div>
+                <div className="min-w-0">
                   <label className="block" style={fieldLabel}>Side</label>
                   <ToggleBtn
                     options={sideOptions}
@@ -271,7 +272,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             <div style={bandLabel}>Size &amp; price</div>
             <div style={fieldStack}>
               <div style={twoCol}>
-                <div>
+                <div className="min-w-0">
                   <label className="block" style={fieldLabel}>Entry price</label>
                   <input
                     type="number"
@@ -281,7 +282,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                     className="w-full" style={fieldInput}
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="block" style={fieldLabel}>Qty</label>
                   <input
                     type="number"
@@ -294,7 +295,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               </div>
               {contractType === 'option' ? (
                 <div style={twoCol}>
-                  <div>
+                  <div className="min-w-0">
                     <label className="block" style={fieldLabel}>Cost</label>
                     <input
                       type="number"
@@ -304,7 +305,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                       className="w-full" style={fieldInput}
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="block" style={fieldLabel}>Strike price</label>
                     <input
                       type="number"
@@ -316,7 +317,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                   </div>
                 </div>
               ) : (
-                <div>
+                <div className="min-w-0">
                   <label className="block" style={fieldLabel}>Cost</label>
                   <input
                     type="number"
@@ -333,7 +334,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
           <section className="min-w-0">
             <div style={bandLabel}>Exits</div>
             <div style={twoCol}>
-              <div>
+              <div className="min-w-0">
                 <label className="block" style={fieldLabel}>TP price</label>
                 <input
                   type="number"
@@ -343,7 +344,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                   className="w-full" style={fieldInput}
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block" style={fieldLabel}>SL price</label>
                 <input
                   type="number"
@@ -360,8 +361,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             <div style={bandLabel}>Placement</div>
             <div style={fieldStack}>
               {contractType !== 'spot' ? (
-                <div style={twoCol}>
-                  <div>
+                <div className="min-w-0" style={fieldStack}>
+                  <div className="min-w-0">
                     <label className="block" style={fieldLabel}>Status</label>
                     <ToggleBtn
                       options={STATUS_OPTS}
@@ -370,18 +371,18 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                       fullWidth
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="block" style={fieldLabel}>Expiry date</label>
                     <input
                       type="date"
                       value={formData.expiry_date}
                       onChange={(e) => onChange('expiry_date', e.target.value)}
-                      className="w-full" style={fieldInput}
+                      className="w-full" style={{ ...fieldInput, minWidth: 0, maxWidth: '100%' }}
                     />
                   </div>
                 </div>
               ) : (
-                <div>
+                <div className="min-w-0">
                   <label className="block" style={fieldLabel}>Status</label>
                   <ToggleBtn
                     options={STATUS_OPTS}
@@ -391,7 +392,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                   />
                 </div>
               )}
-              <div>
+              <div className="min-w-0">
                 <label className="block" style={fieldLabel}>Zone</label>
                 <GroupCombobox groups={groups} value={formData.group_id} onChange={(v) => onChange('group_id', v)} />
                 {groupWarnings.length > 0 && (
