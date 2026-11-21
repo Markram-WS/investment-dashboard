@@ -13,7 +13,7 @@ export default function ActiveOrders() {
       <div style={{ marginTop: 48 }}>
         <p
           style={{
-            fontSize: 15,
+            fontSize: "var(--fs-content)",
             lineHeight: 1.6,
             color: "var(--color-slate)",
             margin: 0,

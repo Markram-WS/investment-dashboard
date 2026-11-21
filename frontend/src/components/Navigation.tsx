@@ -128,7 +128,7 @@ export default function Navigation() {
               <div className="absolute left-0 mt-1 w-52 bg-canvas border border-hairline rounded-xl shadow-lg overflow-hidden z-10">
                 <p
                   style={{
-                    fontSize: 11,
+                    fontSize: "var(--fs-label)",
                     color: "var(--color-slate)",
                     padding: "8px 12px 4px",
                     margin: 0,

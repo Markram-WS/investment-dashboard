@@ -23,41 +23,14 @@ export default [
     },
   },
   {
-    // Migrated controls: no literal font sizes. Add each screen as it adopts
-    // Field/TextInput/NumberInput/SelectInput.
-    files: [
-      'src/screens/ZoneGroupModal.tsx',
-      'src/screens/AssetGroupModal.tsx',
-      'src/screens/AddAssetModal.tsx',
-      'src/screens/EditAssetModal.tsx',
-      'src/screens/EditOrderModal.tsx',
-      'src/screens/CloseOrderModal.tsx',
-      'src/screens/AddOrderModal.tsx',
-      'src/screens/EditPortfolioModal.tsx',
-      'src/screens/MFEditPortfolioModal.tsx',
-      'src/screens/MFEditOrderModal.tsx',
-      'src/screens/MFCreateOrderModal.tsx',
-      'src/screens/MFSellHoldingModal.tsx',
-      'src/screens/MFRebalanceRecommendModal.tsx',
-      'src/pages/TransactionsPage.tsx',
-      'src/screens/components/Field.tsx',
-      'src/screens/PortfolioMutualFund.tsx',
-      'src/screens/components/TradeHistoryTable.tsx',
-      'src/screens/components/OptionsStrategyTable.tsx',
-      'src/screens/components/TradePlanView.tsx',
-      'src/screens/components/StrategyNotes.tsx',
-      'src/screens/components/TagsSection.tsx',
-      'src/screens/components/PerformanceSection.tsx',
-      'src/screens/components/PerformanceChart.tsx',
-      'src/screens/components/GroupCombobox.tsx',
-      'src/pages/PortfolioOverview.tsx',
-      'src/components/NotificationBell.tsx',
-    ],
+    // No numeric font sizes anywhere in the source tree; token references such
+    // as 'var(--fs-label)' are the sanctioned form.
+    files: ['src/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-syntax': [
         'error',
         {
-          selector: "Property[key.name='fontSize'][value.type='Literal']",
+          selector: "Property[key.name='fontSize'][value.type='Literal'][value.raw=/^[\"']?[0-9]/]",
           message: 'Use a control/type token instead of a literal fontSize.',
         },
         {

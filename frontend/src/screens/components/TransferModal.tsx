@@ -102,7 +102,7 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
           {error && (
             <div
               style={{
-                fontSize: 12, fontWeight: 500, color: 'var(--color-danger-text)',
+                fontSize: 'var(--fs-label)', fontWeight: 500, color: 'var(--color-danger-text)',
                 background: 'var(--color-coral-light)', borderRadius: 'var(--rounded-md)',
                 padding: 'var(--space-xs) var(--space-sm)', marginBottom: 16,
               }}
