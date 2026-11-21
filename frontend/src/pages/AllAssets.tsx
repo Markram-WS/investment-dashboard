@@ -10,6 +10,7 @@ import IconButton from '../components/IconButton';
 import AddAssetModal from '../screens/AddAssetModal';
 import EditAssetModal from '../screens/EditAssetModal';
 import AssetGroupModal from '../screens/AssetGroupModal';
+import { CONTROL_INPUT } from '../screens/components/controlStyles';
 import { formatMoney, formatPct } from '../utils/format';
 
 const TYPE_TABS = [
@@ -22,17 +23,17 @@ const TYPE_TABS = [
 
 const ITEM_TYPE = 'ASSET_ROW';
 
-/** Ledger column head: 12px/500 slate, sentence case. */
-const headCell = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)", whiteSpace: "nowrap" } as const;
+/** Ledger column head: 11px/500 slate, sentence case. */
+const headCell = { fontSize: "var(--fs-label)", fontWeight: 500, color: "var(--color-slate)", whiteSpace: "nowrap" } as const;
 
-/** Badge: 12px/500 slate on surface-soft, pill radius. */
+/** Badge: 11px/500 slate on surface-soft, pill radius. */
 const badgeStyle = {
-  fontSize: 12,
+  fontSize: "var(--fs-label)",
   fontWeight: 500,
   color: "var(--color-slate)",
   background: "var(--color-surface-soft)",
-  borderRadius: 999,
-  padding: "2px 10px",
+  borderRadius: "var(--rounded-full)",
+  padding: "calc(var(--control-pad-y) / 2) var(--control-btn-pad-x)",
   whiteSpace: "nowrap",
 } as const;
 
@@ -113,27 +114,29 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
       onChange={e => setSpecVal(e.target.value)}
       onBlur={() => commitSpec(field)}
       onKeyDown={e => handleSpecKeyDown(e, field)}
-      className="w-14 text-right text-[13px] border border-brand-teal rounded px-1.5 py-0.5 bg-canvas text-ink outline-none"
+      className="text-right"
+      style={{ ...CONTROL_INPUT, width: 56 }}
       onClick={e => e.stopPropagation()} />
   );
 
   return (
     <tr ref={dragRef} className={`border-t border-hairline hover:bg-surface transition-colors ${isDragging ? 'opacity-40' : ''}`}>
-      <td className="px-4 py-3 text-[15px] font-semibold text-ink">{asset.ticker}</td>
-      <td className="px-4 py-3 text-[15px] text-slate">{asset.name || '—'}</td>
-      <td className="px-4 py-3 text-[15px] text-right text-ink font-medium cursor-pointer" style={{ fontVariantNumeric: 'tabular-nums' }} onClick={startEdit}>
+      <td className="px-4 py-3 text-[length:var(--fs-content)] font-semibold text-ink">{asset.ticker}</td>
+      <td className="px-4 py-3 text-[length:var(--fs-content)] text-slate">{asset.name || '—'}</td>
+      <td className="px-4 py-3 text-[length:var(--fs-content)] text-right text-ink font-medium cursor-pointer" style={{ fontVariantNumeric: 'tabular-nums' }} onClick={startEdit}>
         {editing ? (
           <input type="number" step="any" value={editVal} autoFocus
             onChange={e => setEditVal(e.target.value)}
             onBlur={commitPrice}
             onKeyDown={handleKeyDown}
-            className="w-28 text-right text-[15px] border border-brand-teal rounded px-2 py-0.5 bg-canvas text-ink outline-none"
+            className="text-right"
+            style={{ ...CONTROL_INPUT, width: 112 }}
             onClick={e => e.stopPropagation()} />
         ) : (
           displayPrice != null ? formatMoney(Number(displayPrice), 'USD') : '—'
         )}
       </td>
-      <td className="px-4 py-3 text-[15px] text-right font-medium"
+      <td className="px-4 py-3 text-[length:var(--fs-content)] text-right font-medium"
         style={{
           fontVariantNumeric: 'tabular-nums',
           color: change != null
@@ -142,17 +145,17 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
         }}>
         {change != null ? formatPct(change) : '—'}
       </td>
-      <td className="px-3 py-3 text-[13px] text-slate" title={asset.broker_name || asset.broker_code || undefined}>
+      <td className="px-3 py-3 text-[length:var(--fs-content)] text-slate" title={asset.broker_name || asset.broker_code || undefined}>
         {asset.broker_code ?? '—'}
       </td>
-      <td className="px-3 py-3 text-[13px] text-right text-ink cursor-pointer"
+      <td className="px-3 py-3 text-[length:var(--fs-content)] text-right text-ink cursor-pointer"
         style={{ fontVariantNumeric: 'tabular-nums' }}
         title={asset.updated_at ? `updated ${asset.updated_at}` : undefined}
         onClick={() => startSpecEdit('multiplier')}>
         {specField === 'multiplier' ? specInput('multiplier')
           : asset.multiplier != null ? String(asset.multiplier) : '—'}
       </td>
-      <td className="px-3 py-3 text-[13px] text-right text-ink cursor-pointer"
+      <td className="px-3 py-3 text-[length:var(--fs-content)] text-right text-ink cursor-pointer"
         style={{ fontVariantNumeric: 'tabular-nums' }}
         title={`rate of notional, 0.10 = 10%${asset.updated_at ? ` · updated ${asset.updated_at}` : ''}`}
         onClick={() => startSpecEdit('margin_rate')}>
@@ -210,8 +213,8 @@ function GroupSection({ groupId, groupName, assets, onEdit, onDrop, onRefreshPri
     <section ref={dropRef} className="overflow-hidden transition-colors"
       style={{
         background: 'var(--color-canvas)',
-        borderRadius: 16,
-        padding: '20px 20px 12px',
+        borderRadius: "var(--rounded-xl)",
+        padding: "var(--space-lg) var(--space-lg) var(--space-sm)",
         outline: isOver ? '2px solid var(--color-brand-teal)' : undefined,
         outlineOffset: isOver ? -2 : undefined,
       }}>
@@ -222,7 +225,7 @@ function GroupSection({ groupId, groupName, assets, onEdit, onDrop, onRefreshPri
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
-          <h3 className="m-0 text-ink" style={{ fontSize: 15, fontWeight: 600 }}>{groupName}</h3>
+          <h3 className="m-0 text-ink" style={{ fontSize: "var(--fs-body)", fontWeight: 600 }}>{groupName}</h3>
           <span style={badgeStyle}>{assets.length}</span>
         </div>
       </div>
@@ -245,7 +248,7 @@ function GroupSection({ groupId, groupName, assets, onEdit, onDrop, onRefreshPri
             <tbody>
               {assets.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-6 text-center text-slate" style={{ fontSize: 12 }}>No assets in this group</td>
+                  <td colSpan={9} className="px-4 py-6 text-center text-slate" style={{ fontSize: "var(--fs-body)" }}>No assets in this group</td>
                 </tr>
               ) : (
                 assets.map((asset: any) => (
@@ -444,10 +447,10 @@ export default function AllAssets() {
                   </svg>
                 </button>
               ) : (
-                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-slate)' }}>Auto-refreshing every 10m</span>
+                <span style={{ fontSize: "var(--fs-label)", fontWeight: 500, color: 'var(--color-slate)' }}>Auto-refreshing every 10m</span>
               )}
               <div className="flex items-center gap-2">
-                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-slate)' }}>Auto</span>
+                <span style={{ fontSize: "var(--fs-label)", fontWeight: 500, color: 'var(--color-slate)' }}>Auto</span>
                 <button
                   onClick={() => setRefreshMode(prev => prev === 'manual' ? 'auto' : 'manual')}
                   className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors"
@@ -468,7 +471,7 @@ export default function AllAssets() {
                 <button key={tab.value} onClick={() => setTypeFilter(tab.value)}
                   className={`px-3 py-1.5 rounded-full border transition-all ${active ? 'border-ink' : 'border-hairline hover:text-ink'}`}
                   style={{
-                    fontSize: 12,
+                    fontSize: "var(--fs-label)",
                     fontWeight: 500,
                     color: active ? 'var(--color-canvas)' : 'var(--color-slate)',
                     background: active ? 'var(--color-ink)' : 'var(--color-canvas)',

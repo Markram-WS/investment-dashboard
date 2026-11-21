@@ -2,6 +2,10 @@ import React, { useState } from 'react';
 import { api } from '../../lib/api';
 import ModalShell from './ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './modalLayout';
+import {
+  CONTROL_TITLE, CONTROL_LABEL, CONTROL_VALUE, CONTROL_INPUT, CONTROL_HELPER,
+  CONTROL_BUTTON_PRIMARY, CONTROL_BUTTON_SECONDARY,
+} from './controlStyles';
 import { formatMoney } from '../../utils/format';
 
 interface TransferModalProps {
@@ -12,27 +16,10 @@ interface TransferModalProps {
   onSuccess: (msg: string) => void;
 }
 
-const CARD = { background: 'var(--color-canvas)', borderRadius: 16, padding: 24 } as const;
-const TITLE = {
-  fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0,
-} as const;
-const LABEL = { fontSize: 12, fontWeight: 500, color: 'var(--color-slate)', margin: 0 } as const;
-const VALUE = {
-  fontSize: 15, fontWeight: 500, color: 'var(--color-ink)', margin: '6px 0 0',
-} as const;
-const HELPER = { fontSize: 12, fontWeight: 400, color: 'var(--color-slate)', margin: 0 } as const;
-const INPUT = {
-  width: '100%', padding: '8px 12px', fontSize: 15, fontWeight: 500,
-  fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', background: 'transparent',
-  borderRadius: 8,
-} as const;
-const BTN = {
-  fontSize: 12, fontWeight: 500, borderRadius: 999, padding: '6px 14px',
-  border: '1px solid transparent', cursor: 'pointer',
-} as const;
-const BTN_PRIMARY = { ...BTN, background: 'var(--color-ink)', color: 'var(--color-canvas)' } as const;
-const BTN_SECONDARY = {
-  ...BTN, background: 'transparent', color: 'var(--color-ink)', borderColor: 'var(--color-hairline)',
+const CARD = {
+  background: 'var(--color-canvas)',
+  borderRadius: 'var(--rounded-xl)',
+  padding: 'var(--space-md)',
 } as const;
 
 const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination, onClose, onSuccess }) => {
@@ -71,21 +58,21 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
   return (
     <ModalShell open={open} onClose={onClose} title="Transfer cash" zIndex={9999}>
       <div className={`${MODAL_CARD} w-full max-w-[400px] mx-4`} style={CARD}>
-        <h3 className={MODAL_HEADER} style={TITLE}>Transfer cash</h3>
+        <h3 className={MODAL_HEADER} style={CONTROL_TITLE}>Transfer cash</h3>
 
         <div className={MODAL_BODY}>
           <div style={{ marginBottom: 20, marginTop: 24 }}>
-            <div style={LABEL}>From</div>
-            <div style={VALUE}>{source.name}</div>
+            <div style={CONTROL_LABEL}>From</div>
+            <div style={CONTROL_VALUE}>{source.name}</div>
           </div>
 
           <div style={{ marginBottom: 24 }}>
-            <div style={LABEL}>To</div>
-            <div style={VALUE}>{destination.name}</div>
+            <div style={CONTROL_LABEL}>To</div>
+            <div style={CONTROL_VALUE}>{destination.name}</div>
           </div>
 
           <div style={{ marginBottom: 8 }}>
-            <label style={{ ...LABEL, display: 'block', marginBottom: 6 }}>Amount</label>
+            <label style={CONTROL_LABEL}>Amount</label>
             <div className="flex gap-2">
               <input
                 type="number"
@@ -93,28 +80,31 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
                 placeholder="0"
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
-                className="flex-1 border border-hairline focus:border-brand-teal"
-                style={INPUT}
+                className="flex-1"
+                style={CONTROL_INPUT}
               />
               <button
                 onClick={handleMax}
                 className="rounded-full hover:bg-surface-soft transition-colors"
-                style={BTN_SECONDARY}
+                style={CONTROL_BUTTON_SECONDARY}
               >
                 Max
               </button>
             </div>
           </div>
 
-          <div style={{ ...HELPER, marginBottom: 20 }}>
-            Available: <strong style={{ color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(source.available)}</strong>
+          <div style={{ marginBottom: 20 }}>
+            <div style={CONTROL_HELPER}>
+              Available: <strong style={{ color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(source.available)}</strong>
+            </div>
           </div>
 
           {error && (
             <div
               style={{
                 fontSize: 12, fontWeight: 500, color: 'var(--color-danger-text)',
-                background: 'var(--color-coral-light)', borderRadius: 8, padding: '8px 12px', marginBottom: 16,
+                background: 'var(--color-coral-light)', borderRadius: 'var(--rounded-md)',
+                padding: 'var(--space-xs) var(--space-sm)', marginBottom: 16,
               }}
             >
               {error}
@@ -123,12 +113,12 @@ const TransferModal: React.FC<TransferModalProps> = ({ open, source, destination
         </div>
 
         <div className={`${MODAL_FOOTER} flex gap-3 justify-end`} style={{ marginTop: 12 }}>
-          <button onClick={onClose} disabled={loading} style={BTN_SECONDARY}>Cancel</button>
+          <button onClick={onClose} disabled={loading} style={CONTROL_BUTTON_SECONDARY}>Cancel</button>
           <button
             onClick={handleConfirm}
             disabled={loading}
             className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={BTN_PRIMARY}
+            style={CONTROL_BUTTON_PRIMARY}
           >
             Confirm →
           </button>

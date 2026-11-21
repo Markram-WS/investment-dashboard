@@ -4,65 +4,40 @@ import { api } from '../lib/api';
 import type { BrokerRecord, PortfolioPayload } from '../lib/api';
 import PageLayout from '../components/PageLayout';
 import PageHeader from '../components/PageHeader';
+import {
+  CONTROL_LABEL, CONTROL_INPUT, CONTROL_HELPER,
+  CONTROL_BUTTON_PRIMARY, CONTROL_BUTTON_SECONDARY,
+} from '../screens/components/controlStyles';
 
 const panelStyle = {
   background: "var(--color-canvas)",
-  borderRadius: 14,
+  borderRadius: "var(--rounded-lg)",
   border: "1px solid var(--color-hairline)",
-  padding: 20,
+  padding: "var(--space-lg)",
 } as const;
 
 const railStyle = {
   background: "var(--color-canvas)",
-  borderRadius: 14,
+  borderRadius: "var(--rounded-lg)",
   border: "1px solid var(--color-hairline)",
-  padding: 20,
-} as const;
-
-const labelStyle = {
-  display: "block",
-  margin: 0,
-  marginBottom: 6,
-  fontSize: 12,
-  fontWeight: 500,
-  color: "var(--color-slate)",
-} as const;
-
-const subLabelStyle = { ...labelStyle } as const;
-
-const fieldStyle = {
-  width: "100%",
-  boxSizing: "border-box",
-  fontSize: 14,
-  color: "var(--color-ink)",
-  background: "var(--color-canvas)",
-  border: "1px solid var(--color-hairline)",
-  borderRadius: 8,
-  padding: "7px 10px",
-} as const;
-
-const helperStyle = {
-  margin: "4px 0 0",
-  fontSize: 11,
-  lineHeight: 1.4,
-  color: "var(--color-slate)",
+  padding: "var(--space-lg)",
 } as const;
 
 const groupHeadStyle = {
   margin: 0,
-  fontSize: 14,
+  fontSize: "var(--fs-section)",
   fontWeight: 600,
   color: "var(--color-ink)",
 } as const;
 
 const ruleStyle = {
   borderTop: "1px solid var(--color-hairline)",
-  paddingTop: 14,
+  paddingTop: "var(--space-sm)",
 } as const;
 
 const eyebrowStyle = {
   margin: 0,
-  fontSize: 11,
+  fontSize: "var(--fs-label)",
   fontWeight: 600,
   letterSpacing: "0.06em",
   textTransform: "uppercase",
@@ -137,12 +112,12 @@ const summaryRowStyle = {
   justifyContent: "space-between",
   gap: 12,
   margin: 0,
-  fontSize: 12,
+  fontSize: "var(--fs-label)",
   color: "var(--color-slate)",
 } as const;
 
 const summaryValueStyle = {
-  fontSize: 13,
+  fontSize: "var(--fs-body)",
   fontWeight: 600,
   color: "var(--color-ink)",
   fontVariantNumeric: "tabular-nums",
@@ -302,18 +277,18 @@ const CreateNewPortfolio: React.FC = () => {
         <div className="max-w-3xl">
           <PageHeader title="Portfolio created" />
           <div style={panelStyle}>
-            <p style={{ margin: "0 0 24px", fontSize: 15, color: "var(--color-ink)" }}>
+            <p style={{ margin: "0 0 24px", fontSize: "var(--fs-content)", color: "var(--color-ink)" }}>
               Your new portfolio "{formData.portfolio_name}" has been created.
             </p>
             <div
               className="animate-pulse"
               style={{
                 display: "inline-block",
-                padding: "10px 18px",
-                borderRadius: 9999,
+                padding: "var(--space-sm)",
+                borderRadius: "var(--rounded-full)",
                 background: "var(--color-teal-light)",
                 color: "var(--color-positive-text)",
-                fontSize: 15,
+                fontSize: "var(--fs-content)",
                 fontWeight: 600,
               }}
             >
@@ -331,27 +306,12 @@ const CreateNewPortfolio: React.FC = () => {
 
   const submitStyle: React.CSSProperties = submitDisabled
     ? {
-        padding: "9px 22px",
-        fontSize: 13,
-        fontWeight: 600,
-        borderRadius: 9999,
-        border: "1px solid var(--color-hairline)",
+        ...CONTROL_BUTTON_SECONDARY,
         background: "var(--color-surface)",
         color: "var(--color-slate)",
         cursor: "not-allowed",
-        fontVariantNumeric: "tabular-nums",
       }
-    : {
-        padding: "9px 22px",
-        fontSize: 13,
-        fontWeight: 600,
-        borderRadius: 9999,
-        border: "1px solid transparent",
-        background: "var(--color-primary)",
-        color: "var(--color-on-primary)",
-        cursor: "pointer",
-        fontVariantNumeric: "tabular-nums",
-      };
+    : CONTROL_BUTTON_PRIMARY;
 
   const hasConnectionLine =
     formData.port_type === 'Custom Portfolio' && Boolean(formData.db_host);
@@ -369,7 +329,7 @@ const CreateNewPortfolio: React.FC = () => {
           border: "none",
           padding: 0,
           marginBottom: 6,
-          fontSize: 12,
+          fontSize: "var(--fs-label)",
           fontWeight: 500,
           color: "var(--color-slate)",
           cursor: "pointer",
@@ -389,11 +349,11 @@ const CreateNewPortfolio: React.FC = () => {
             <div
               style={{
                 marginBottom: 16,
-                padding: "10px 14px",
-                borderRadius: 8,
+                padding: "var(--space-sm) var(--space-md)",
+                borderRadius: "var(--rounded-md)",
                 background: "var(--color-coral-light)",
                 color: "var(--color-danger-text)",
-                fontSize: 13,
+                fontSize: "var(--fs-body)",
               }}
             >
               {error}
@@ -403,7 +363,7 @@ const CreateNewPortfolio: React.FC = () => {
           <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
             {/* Portfolio Name */}
             <div>
-              <label style={labelStyle} htmlFor="portfolio_name">
+              <label style={CONTROL_LABEL} htmlFor="portfolio_name">
                 Portfolio Name*
               </label>
               <input
@@ -413,14 +373,14 @@ const CreateNewPortfolio: React.FC = () => {
                 value={formData.portfolio_name || ''}
                 onChange={handleChange}
                 required
-                style={fieldStyle}
+                style={CONTROL_INPUT}
                 placeholder="Enter portfolio name (e.g., 'Crypto Growth Fund')"
               />
             </div>
 
             {/* Port Type Selection */}
             <div>
-              <label style={labelStyle}>Portfolio Type*</label>
+              <label style={CONTROL_LABEL}>Portfolio Type*</label>
               <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 12 }}>
                 {PORT_TYPES.map((type) => {
                   const selected = formData.port_type === type;
@@ -432,7 +392,11 @@ const CreateNewPortfolio: React.FC = () => {
                           ? 'border-ink bg-surface'
                           : 'border-hairline bg-canvas hover:border-slate'
                       }`}
-                      style={{ padding: "12px 12px 14px", borderRadius: 12, gap: 4 }}
+                      style={{
+                        padding: "var(--space-sm) var(--space-sm) var(--space-md)",
+                        borderRadius: "var(--rounded-lg)",
+                        gap: 4,
+                      }}
                     >
                       <input
                         type="radio"
@@ -447,11 +411,11 @@ const CreateNewPortfolio: React.FC = () => {
                           aria-hidden="true"
                           style={{
                             position: "absolute",
-                            top: 8,
-                            right: 8,
-                            width: 16,
-                            height: 16,
-                            borderRadius: 9999,
+                            top: "var(--space-xs)",
+                            right: "var(--space-xs)",
+                            width: "calc(var(--space-sm) + var(--control-pad-y))",
+                            height: "calc(var(--space-sm) + var(--control-pad-y))",
+                            borderRadius: "var(--rounded-full)",
                             background: "var(--color-ink)",
                             color: "var(--color-canvas)",
                             display: "flex",
@@ -467,10 +431,10 @@ const CreateNewPortfolio: React.FC = () => {
                       <div style={{ color: "var(--color-ink)" }}>
                         <PortTypeIcon type={type} size={26} />
                       </div>
-                      <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>
+                      <h3 style={{ margin: 0, fontSize: "var(--fs-body)", fontWeight: 600, color: "var(--color-ink)" }}>
                         {type}
                       </h3>
-                      <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.4, color: "var(--color-slate)" }}>
+                      <p style={{ margin: 0, fontSize: "var(--fs-caption)", lineHeight: 1.35, color: "var(--color-slate)" }}>
                         {PORT_TYPE_DESCRIPTIONS[type]}
                       </p>
                     </label>
@@ -483,12 +447,12 @@ const CreateNewPortfolio: React.FC = () => {
             {formData.port_type === 'Custom Portfolio' && (
               <div style={ruleStyle}>
                 <h3 style={groupHeadStyle}>External Database Connection</h3>
-                <p style={{ margin: "4px 0 12px", fontSize: 11, lineHeight: 1.4, color: "var(--color-slate)" }}>
+                <p style={{ ...CONTROL_HELPER, margin: "4px 0 12px" }}>
                   All transactional data (orders, transactions, assets) is stored in this external PostgreSQL database.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 12 }}>
                   <div>
-                    <label style={subLabelStyle} htmlFor="db_host">Host *</label>
+                    <label style={CONTROL_LABEL} htmlFor="db_host">Host *</label>
                     <input
                       id="db_host"
                       type="text"
@@ -496,24 +460,24 @@ const CreateNewPortfolio: React.FC = () => {
                       value={formData.db_host || ''}
                       onChange={handleChange}
                       required
-                      style={fieldStyle}
+                      style={CONTROL_INPUT}
                       placeholder="e.g. 192.168.1.100 or db.example.com"
                     />
                   </div>
                   <div>
-                    <label style={subLabelStyle} htmlFor="db_port">Port</label>
+                    <label style={CONTROL_LABEL} htmlFor="db_port">Port</label>
                     <input
                       id="db_port"
                       type="number"
                       name="db_port"
                       value={formData.db_port ?? 5432}
                       onChange={handleNumberChange}
-                      style={fieldStyle}
+                      style={CONTROL_INPUT}
                       placeholder="5432"
                     />
                   </div>
                   <div>
-                    <label style={subLabelStyle} htmlFor="db_name">Database Name *</label>
+                    <label style={CONTROL_LABEL} htmlFor="db_name">Database Name *</label>
                     <input
                       id="db_name"
                       type="text"
@@ -521,12 +485,12 @@ const CreateNewPortfolio: React.FC = () => {
                       value={formData.db_name || ''}
                       onChange={handleChange}
                       required
-                      style={fieldStyle}
+                      style={CONTROL_INPUT}
                       placeholder="e.g. investment_custom_1"
                     />
                   </div>
                   <div>
-                    <label style={subLabelStyle} htmlFor="db_user">Username *</label>
+                    <label style={CONTROL_LABEL} htmlFor="db_user">Username *</label>
                     <input
                       id="db_user"
                       type="text"
@@ -534,12 +498,12 @@ const CreateNewPortfolio: React.FC = () => {
                       value={formData.db_user || ''}
                       onChange={handleChange}
                       required
-                      style={fieldStyle}
+                      style={CONTROL_INPUT}
                       placeholder="e.g. dashboard"
                     />
                   </div>
                   <div>
-                    <label style={subLabelStyle} htmlFor="db_password">Password *</label>
+                    <label style={CONTROL_LABEL} htmlFor="db_password">Password *</label>
                     <input
                       id="db_password"
                       type="password"
@@ -547,7 +511,7 @@ const CreateNewPortfolio: React.FC = () => {
                       value={formData.db_password || ''}
                       onChange={handleChange}
                       required
-                      style={fieldStyle}
+                      style={CONTROL_INPUT}
                       placeholder="Database password"
                     />
                   </div>
@@ -558,11 +522,9 @@ const CreateNewPortfolio: React.FC = () => {
                       disabled={testDisabled}
                       className={`text-white font-medium transition-opacity ${testDisabled ? 'opacity-50' : 'hover:opacity-90'}`}
                       style={{
-                        padding: "8px 18px",
-                        borderRadius: 9999,
-                        border: "none",
-                        fontSize: 13,
+                        ...CONTROL_BUTTON_PRIMARY,
                         background: "var(--color-brand-teal)",
+                        borderColor: "var(--color-brand-teal)",
                         cursor: testDisabled ? "not-allowed" : "pointer",
                       }}
                     >
@@ -574,9 +536,9 @@ const CreateNewPortfolio: React.FC = () => {
                   <div
                     style={{
                       marginTop: 10,
-                      padding: "8px 12px",
-                      borderRadius: 8,
-                      fontSize: 12,
+                      padding: "var(--space-xs) var(--space-sm)",
+                      borderRadius: "var(--rounded-md)",
+                      fontSize: "var(--fs-label)",
                       background: connectionStatus.ok
                         ? "var(--color-teal-light)"
                         : "var(--color-coral-light)",
@@ -595,12 +557,12 @@ const CreateNewPortfolio: React.FC = () => {
             {/* Product, Capital & Risk Funds */}
             <div style={ruleStyle}>
               <h3 style={groupHeadStyle}>Product</h3>
-              <p style={{ margin: "4px 0 12px", fontSize: 11, lineHeight: 1.4, color: "var(--color-slate)" }}>
+              <p style={{ ...CONTROL_HELPER, margin: "4px 0 12px" }}>
                 Margin locked is computed from open orders — there is no manual margin input.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 12 }}>
                 <div>
-                  <label style={subLabelStyle} htmlFor="broker_id">Broker</label>
+                  <label style={CONTROL_LABEL} htmlFor="broker_id">Broker</label>
                   <select
                     id="broker_id"
                     name="broker_id"
@@ -609,7 +571,7 @@ const CreateNewPortfolio: React.FC = () => {
                       ...prev,
                       broker_id: e.target.value === '' ? null : Number(e.target.value),
                     }))}
-                    style={fieldStyle}
+                    style={CONTROL_INPUT}
                   >
                     <option value="">—</option>
                     {brokers.map(b => (
@@ -618,7 +580,7 @@ const CreateNewPortfolio: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label style={subLabelStyle} htmlFor="product_ticker">Product Ticker</label>
+                  <label style={CONTROL_LABEL} htmlFor="product_ticker">Product Ticker</label>
                   <input
                     id="product_ticker"
                     type="text"
@@ -626,7 +588,7 @@ const CreateNewPortfolio: React.FC = () => {
                     list="create-portfolio-tickers"
                     value={formData.product_ticker}
                     onChange={handleChange}
-                    style={fieldStyle}
+                    style={CONTROL_INPUT}
                     placeholder="e.g. S50"
                   />
                   <datalist id="create-portfolio-tickers">
@@ -634,7 +596,7 @@ const CreateNewPortfolio: React.FC = () => {
                   </datalist>
                 </div>
                 <div>
-                  <label style={subLabelStyle} htmlFor="x_amount">Multiplier</label>
+                  <label style={CONTROL_LABEL} htmlFor="x_amount">Multiplier</label>
                   <div style={{ position: "relative" }}>
                     <input
                       id="x_amount"
@@ -643,8 +605,7 @@ const CreateNewPortfolio: React.FC = () => {
                       name="x_amount"
                       value={formData.x_amount ?? ''}
                       onChange={handleNumberChange}
-                      className="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                      style={{ ...fieldStyle, paddingRight: 32, fontVariantNumeric: "tabular-nums" }}
+                      style={{ ...CONTROL_INPUT, paddingRight: "calc(var(--control-pad-x) * 4)" }}
                       placeholder="0"
                     />
                     <span
@@ -654,9 +615,7 @@ const CreateNewPortfolio: React.FC = () => {
                         right: 11,
                         top: "50%",
                         transform: "translateY(-50%)",
-                        fontSize: 13,
-                        color: "var(--color-slate)",
-                        pointerEvents: "none",
+                        fontSize: "var(--fs-body)",
                       }}
                     >
                       ×
@@ -667,19 +626,19 @@ const CreateNewPortfolio: React.FC = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 12, marginTop: 12 }}>
                 <div>
-                  <label style={subLabelStyle} htmlFor="available_cash">Available Cash</label>
+                  <label style={CONTROL_LABEL} htmlFor="available_cash">Available Cash</label>
                   <input
                     id="available_cash"
                     type="number"
                     name="available_cash"
                     value={formData.available_cash !== null && formData.available_cash !== undefined ? formData.available_cash : ''}
                     onChange={handleNumberChange}
-                    style={{ ...fieldStyle, fontVariantNumeric: "tabular-nums" }}
+                    style={{ ...CONTROL_INPUT, fontVariantNumeric: "tabular-nums" }}
                     placeholder="0.00"
                   />
                 </div>
                 <div>
-                  <label style={subLabelStyle} htmlFor="initial_capital">Initial Capital</label>
+                  <label style={CONTROL_LABEL} htmlFor="initial_capital">Initial Capital</label>
                   <input
                     id="initial_capital"
                     type="number"
@@ -687,20 +646,20 @@ const CreateNewPortfolio: React.FC = () => {
                     name="initial_capital"
                     value={formData.initial_capital !== null && formData.initial_capital !== undefined ? formData.initial_capital : ''}
                     onChange={handleNumberChange}
-                    style={{ ...fieldStyle, fontVariantNumeric: "tabular-nums" }}
+                    style={{ ...CONTROL_INPUT, fontVariantNumeric: "tabular-nums" }}
                     placeholder="0.00"
                   />
-                  <p style={helperStyle}>Baseline for the profit share, not the cash balance.</p>
+                  <p style={CONTROL_HELPER}>Baseline for the profit share, not the cash balance.</p>
                 </div>
                 <div>
-                  <label style={subLabelStyle} htmlFor="cash_buffer_limit">Cash Buffer Limit</label>
+                  <label style={CONTROL_LABEL} htmlFor="cash_buffer_limit">Cash Buffer Limit</label>
                   <input
                     id="cash_buffer_limit"
                     type="number"
                     name="cash_buffer_limit"
                     value={formData.cash_buffer_limit !== null && formData.cash_buffer_limit !== undefined ? formData.cash_buffer_limit : ''}
                     onChange={handleNumberChange}
-                    style={{ ...fieldStyle, fontVariantNumeric: "tabular-nums" }}
+                    style={{ ...CONTROL_INPUT, fontVariantNumeric: "tabular-nums" }}
                     placeholder="0.00"
                   />
                 </div>
@@ -710,7 +669,7 @@ const CreateNewPortfolio: React.FC = () => {
             {/* Target Ratio (for Managed Funds) */}
             {formData.port_type === 'Managed Fund' && (
               <div>
-                <label style={labelStyle} htmlFor="target_ratio">
+                <label style={CONTROL_LABEL} htmlFor="target_ratio">
                   Target Allocation Ratio (JSON format)
                 </label>
                 <textarea
@@ -725,14 +684,14 @@ const CreateNewPortfolio: React.FC = () => {
                     // Allow free typing; parsed state stays at last valid value
                   }}
                   style={{
-                    ...fieldStyle,
+                    ...CONTROL_INPUT,
                     minHeight: 72,
                     resize: "vertical",
                     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                   }}
                   placeholder='{"BTC": 0.4, "ETH": 0.3, "USDC": 0.3}'
                 />
-                <p style={helperStyle}>
+                <p style={CONTROL_HELPER}>
                   Example: {'{"BTC": 0.4, "ETH": 0.3, "USDC": 0.3}'}
                 </p>
               </div>
@@ -742,7 +701,7 @@ const CreateNewPortfolio: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: 12 }}>
             {/* Trade Plan (Markdown) - Sticky Note Style */}
             <div>
-              <label style={labelStyle} htmlFor="trade_plan_md">
+              <label style={CONTROL_LABEL} htmlFor="trade_plan_md">
                 Trade Plan / Strategy Notes (Optional)
               </label>
               <textarea
@@ -751,7 +710,7 @@ const CreateNewPortfolio: React.FC = () => {
                 value={formData.trade_plan_md || ''}
                 onChange={handleChange}
                 style={{
-                  ...fieldStyle,
+                  ...CONTROL_INPUT,
                   minHeight: 78,
                   resize: "vertical",
                   background: "var(--color-yellow-light)",
@@ -759,14 +718,14 @@ const CreateNewPortfolio: React.FC = () => {
                 }}
                 placeholder="Enter your trading strategy or rules here... (e.g., 'Never hold more than 30 days', 'Focus on premium collection')"
               ></textarea>
-              <p style={helperStyle}>
+              <p style={CONTROL_HELPER}>
                 Visualized as a sticky note — for recording your investment intentions.
               </p>
             </div>
 
             {/* Metadata Tags */}
             <div>
-              <label style={labelStyle} htmlFor="tag_input">
+              <label style={CONTROL_LABEL} htmlFor="tag_input">
                 Metadata Tags (Market/Broker)
               </label>
               <div className="flex flex-wrap" style={{ gap: 8 }}>
@@ -785,7 +744,7 @@ const CreateNewPortfolio: React.FC = () => {
                       target.value = '';
                     }
                   }}
-                  style={{ ...fieldStyle, width: "auto", flex: 1, minWidth: 200 }}
+                  style={{ ...CONTROL_INPUT, width: "auto", flex: 1, minWidth: 200 }}
                 />
                 <button
                   onClick={(e) => {
@@ -802,11 +761,9 @@ const CreateNewPortfolio: React.FC = () => {
                   }}
                   className="text-white font-medium transition-opacity hover:opacity-90"
                   style={{
-                    padding: "7px 16px",
-                    borderRadius: 9999,
-                    border: "none",
-                    fontSize: 13,
+                    ...CONTROL_BUTTON_PRIMARY,
                     background: "var(--color-brand-teal)",
+                    borderColor: "var(--color-brand-teal)",
                     cursor: "pointer",
                   }}
                 >
@@ -822,9 +779,9 @@ const CreateNewPortfolio: React.FC = () => {
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 6,
-                        padding: "3px 10px",
-                        borderRadius: 9999,
-                        fontSize: 12,
+                        padding: "var(--control-btn-pad-y) var(--control-btn-pad-x)",
+                        borderRadius: "var(--rounded-full)",
+                        fontSize: "var(--fs-label)",
                         fontWeight: 500,
                         background: "var(--color-teal-light)",
                         color: "var(--color-positive-text)",
@@ -845,7 +802,7 @@ const CreateNewPortfolio: React.FC = () => {
                           background: "none",
                           border: "none",
                           padding: 0,
-                          fontSize: 14,
+                          fontSize: "var(--fs-label)",
                           lineHeight: 1,
                           color: "inherit",
                           cursor: "pointer",
@@ -858,7 +815,7 @@ const CreateNewPortfolio: React.FC = () => {
                   ))}
                 </div>
               )}
-              <p style={helperStyle}>
+              <p style={CONTROL_HELPER}>
                 Tags help categorize your portfolio by market, broker, or strategy type.
               </p>
             </div>
@@ -870,7 +827,7 @@ const CreateNewPortfolio: React.FC = () => {
               style={{
                 gap: 10,
                 borderTop: "1px solid var(--color-hairline)",
-                paddingTop: 14,
+                paddingTop: "var(--space-sm)",
               }}
             >
               <button
@@ -879,13 +836,7 @@ const CreateNewPortfolio: React.FC = () => {
                 disabled={loading}
                 className="hover:bg-surface transition-colors"
                 style={{
-                  padding: "9px 18px",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  borderRadius: 9999,
-                  border: "1px solid var(--color-hairline)",
-                  background: "var(--color-canvas)",
-                  color: "var(--color-ink)",
+                  ...CONTROL_BUTTON_SECONDARY,
                   cursor: loading ? "not-allowed" : "pointer",
                 }}
               >
@@ -912,9 +863,9 @@ const CreateNewPortfolio: React.FC = () => {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: 40,
-                height: 40,
-                borderRadius: 10,
+                width: "calc(var(--space-lg) + var(--space-md))",
+                height: "calc(var(--space-lg) + var(--space-md))",
+                borderRadius: "var(--control-radius)",
                 background: "var(--color-surface)",
                 color: "var(--color-ink)",
                 flex: "0 0 auto",
@@ -926,7 +877,7 @@ const CreateNewPortfolio: React.FC = () => {
               <p
                 style={{
                   margin: 0,
-                  fontSize: 14,
+                  fontSize: "var(--fs-content)",
                   fontWeight: 600,
                   color: "var(--color-ink)",
                   overflow: "hidden",
@@ -936,7 +887,7 @@ const CreateNewPortfolio: React.FC = () => {
               >
                 {formData.portfolio_name || 'Portfolio Name'}
               </p>
-              <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--color-slate)" }}>
+              <p style={{ margin: "2px 0 0", fontSize: "var(--fs-label)", color: "var(--color-slate)" }}>
                 {formData.port_type || 'Select portfolio type'}
               </p>
             </div>
@@ -948,7 +899,7 @@ const CreateNewPortfolio: React.FC = () => {
               gap: 8,
               borderTop: "1px solid var(--color-hairline)",
               marginTop: 16,
-              paddingTop: 12,
+              paddingTop: "var(--space-sm)",
             }}
           >
             <p style={summaryRowStyle}>
@@ -973,7 +924,7 @@ const CreateNewPortfolio: React.FC = () => {
           </div>
 
           {hasConnectionLine && (
-            <p style={{ margin: "12px 0 0", fontSize: 11, lineHeight: 1.45, color: "var(--color-slate)" }}>
+            <p style={{ margin: "12px 0 0", fontSize: "var(--fs-label)", lineHeight: 1.45, color: "var(--color-slate)" }}>
               <svg className="w-3 h-3 inline-block align-middle mr-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -986,7 +937,7 @@ const CreateNewPortfolio: React.FC = () => {
             <p
               style={{
                 margin: "12px 0 0",
-                fontSize: 11,
+                fontSize: "var(--fs-label)",
                 lineHeight: 1.45,
                 color: "var(--color-slate)",
                 fontStyle: "italic",

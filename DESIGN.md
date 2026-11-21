@@ -354,11 +354,26 @@ The summary block a dashboard page starts with: a canvas card sitting on the sur
 - **Threshold data:** data that used to live in a legend under the bar belongs in the `title` and `aria-label` of the status dot that reports it.
 
 ### Inputs & Fields
-- **No shared component.** The `.input` class exists at `index.css:238-248` (8px 14px padding, 8px radius, hairline stroke, a teal border on `:focus` at `:247`, an `--color-outline` placeholder at `:248`), but no screen binds it: searching `frontend/src` for a `className` containing `input` returns nothing, against 87 `<input>` elements in the tree. Shipped inputs are styled per screen, either with Tailwind utility strings (for example `frontend/src/screens/ZoneGroupModal.tsx:142`) or with inline styles (the Overview dense toolbar).
-- **Overview search and sort:** the search input is 13px text, 1px hairline, 8px radius, `6px 12px` padding, canvas fill, 200px minimum and 280px maximum width; the sort select is the same radius and text size with `6px 10px` padding (`frontend/src/pages/PortfolioOverview.tsx:459-483`).
-- **Focus:** where a screen binds `.input`, `:focus` removes the outline and shifts the border to brand-teal (`index.css:247`); that is all it does, and no screen currently binds the class. The 2px brand-teal outline with 2px offset comes from the global `:focus-visible` rule, which applies to every element (`index.css:585-596`). The narrower `:focus-visible` outline with 1px offset exists only on `.select-trigger` (`index.css:208`).
-- **Placeholder:** `--color-outline` (`#77767b`, `index.css:45`) is applied by `.input::placeholder` (`index.css:248`), which is unused; the Overview toolbar passes no placeholder colour and renders the browser default.
-- **Disabled/Error:** not implemented. No shipped input renders an error, disabled, or loading state.
+- **Single source: `frontend/src/screens/components/controlStyles.ts`.** The control scale is one module, not per-screen literals. It exports `CONTROL_LABEL`, `CONTROL_INPUT`, `CONTROL_INPUT_TEXT`, `CONTROL_HELPER`, `CONTROL_BUTTON_PRIMARY`, `CONTROL_BUTTON_SECONDARY`, `CONTROL_VALUE`, and `CONTROL_TITLE` (`controlStyles.ts:16-104`). The element scale it reproduces is the reference implementation in `AddOrderModal.tsx:10-60` (`fieldLabel`, `fieldInput`, `primaryButton`, `secondaryButton`).
+- **Reference surface: `/analytics/portfolio/1`.** Main Pool Overview / Active Trading detail (`frontend/src/pages/PortfolioAnalyticsDetail.tsx`, rendering `PortfolioGrid` / `PortfolioMutualFund`) is the accepted model for proportions and type. Its measured scale: page title 22/600, section title 16/600, content/data text 15px (`--fs-content`, `index.css:95`), control chrome 11/500 at `3px 10px` (22px tall), small inline buttons 11/400 at `1px 9px`, breadcrumb 11/400, header band 44px, card padding `9px 14px 8px`. The control module follows that ladder; it does not shrink data text to fit.
+- **Type table.** The accepted reference proportions, as shipped:
+
+| Role | Size / weight | Source |
+|---|---|---|
+| Page title | 22 / 600 | `--fs-page-title`, `index.css:90` |
+| Section title | 16 / 600 | `--fs-section`, `index.css:92` |
+| Content / data text | 15 | `--fs-content`, `index.css:95` |
+| Control value (read-only From/To) | 13 / 500 | `--fs-body`, `index.css:93` |
+| Control label | 11 / 500 | `--control-fs-label`, `index.css:110` |
+| Control text, helper, button | 11 / 500, 11 / 400, 11 / 500 | `--fs-label`, `index.css:96` |
+| Table head | 11 / 500 | `AllAssets.tsx:27` |
+| Caption — portfolio-type card description only | 9 | `--fs-caption`, `index.css:99` |
+- **Every control value is a token.** The module reads the type ladder and control geometry from `:root` (`index.css:90-110`): control label/field/button `var(--fs-label)` = 11px (`--control-fs-label` is the alias token), the read-only value `var(--fs-body)` = 13px; field padding `var(--control-pad-y) var(--control-pad-x)` = 4px 8px, radius `var(--control-radius)` = 8px, min height `var(--control-h)` = 26px; pill buttons `var(--control-btn-pad-y) var(--control-btn-pad-x)` = 3px 10px at `var(--rounded-full)`. One edit in `:root` changes every control; no screen or module re-derives a number. The `@media (pointer: coarse)` 44px floor (`index.css:520-524`) is untouched — density tokens never scale below it.
+- **Screens bind the module.** `TransferModal.tsx:5-7` rebuilds the cash-transfer modal (title `CONTROL_TITLE` 15px, From/To `CONTROL_VALUE` 13px `var(--fs-body)` — one step above control text, below content, so the value reads as the datum and not as its own label; amount `CONTROL_INPUT`; Max/Cancel/Confirm `CONTROL_BUTTON_SECONDARY` / `CONTROL_BUTTON_PRIMARY`). `CreateNewPortfolio.tsx:7-10` binds it for every label, field, helper, and action (`CreateNewPortfolio.tsx:366`, `:376`, `:450`, `:539`). `AllAssets.tsx:13` binds `CONTROL_INPUT` for the in-place price and spec editors (`AllAssets.tsx:112-133`); the table head is 11px/500 (`var(--fs-label)`, `AllAssets.tsx:27`) and every body cell — ticker/name/price/change and the Broker/Mult/Margin cells — is the reference content size, `var(--fs-content)` 15px on `py-3` rows (`AllAssets.tsx:124-164`).
+- **Numeric fields carry no native stepper.** Every `input[type="number"]` renders as a plain field: `index.css` sets `appearance: textfield` and hides `::-webkit-inner/outer-spin-button`, so nothing is nudged by 15px of browser chrome on a 26px box. Screens never re-declare this per element.
+- **Focus is one indicator: no teal stroke.** Teal is a fill token, never a field stroke. On these surfaces an input or select never sets `border-brand-teal`, `focus:border-brand-teal`, or `outline-none`; the only focus signal is the global `:focus-visible` 2px `--color-brand-accent` ring at 2px offset (`index.css:533-543`). A focused field therefore shows one accent ring, not a green border inside an orange ring.
+- **No `.input` component class.** Earlier revisions of this document referenced one at `index.css:238-248`; it no longer exists. Shipped fields bind `controlStyles.ts`, and the `--color-outline` placeholder rule went with the class, so placeholders render the browser default.
+- **Disabled/error are per screen, not shared.** `TransferModal` renders a coral error notice (`TransferModal.tsx:102-110`); `CreateNewPortfolio` renders an error banner and a disabled submit variant (`CreateNewPortfolio.tsx:307-314`, `:349-358`). Neither is a control-scale concern.
 
 ### Navigation
 - **Style:** Horizontal pill links in the top bar. Inactive: slate text. Active: ink background with white text.
@@ -489,14 +504,14 @@ States ship per component, not per token. A state that the code does not impleme
 
 | State | Visual change | Where |
 |---|---|---|
-| Resting | 1px hairline border, 8px radius, canvas fill, 13px text | `PortfolioOverview.tsx:459-467`, `PortfolioOverview.tsx:474-482` |
-| Focus-visible | 2px brand-teal outline at 2px offset, from the global rule | `index.css:585-596` |
-| Focus (border shift) | Not implemented for shipped inputs: `.input:focus` exists but no element binds `.input` | `index.css:247` |
-| Hover | Not implemented | none |
-| Placeholder | Browser default in the toolbar; `--color-outline` applies only through the unbound `.input::placeholder` | `PortfolioOverview.tsx:456`, `index.css:248` |
-| Error | Not implemented | none |
-| Disabled | Not implemented | none |
-| Loading | Not implemented | none |
+| Resting | 1px hairline border, `var(--control-radius)` 8px radius, canvas fill, 11px/500 ink, `var(--control-pad-y) var(--control-pad-x)` 4px 8px padding, `var(--control-h)` 26px minimum height — all from `:root`, consumed through `controlStyles.ts` | `index.css:90-107`, `controlStyles.ts:25-36` |
+| Focus-visible | one indicator: 2px `--color-brand-accent` outline at 2px offset, from the global rule; the border colour does not change and no second ring is added | `index.css:530-540` |
+| Focus (border shift) | not part of the contract: teal is a fill token, never a stroke. No shipped field binds a teal border class, and adding one would double the focus signal | `controlStyles.ts:9-12` |
+| Hover | not implemented | none |
+| Placeholder | browser default; the old `.input::placeholder` rule no longer exists | `index.css` (no `.input` rule) |
+| Error | per screen, not shared: a coral error notice inside the transfer modal, an error banner on the create page | `TransferModal.tsx:102-110`, `CreateNewPortfolio.tsx:349-358` |
+| Disabled | per screen: the submit button switches to surface/slate with `cursor: not-allowed`; no shared disabled input state | `CreateNewPortfolio.tsx:307-314` |
+| Loading | per screen label swap only; no shared loading input state | `CreateNewPortfolio.tsx:307` |
 
 ### Chips
 
@@ -554,9 +569,9 @@ States ship per component, not per token. A state that the code does not impleme
 
 | State | Visual change | Where |
 |---|---|---|
-| Resting | `Mult` and `Margin` print 13px tabular numbers right-aligned in a hairline-free cell; `Broker` prints the code in 13px slate and cannot be edited | `AllAssets.tsx` `DraggableRow` |
+| Resting | `Mult` and `Margin` print 15px (`--fs-content`) tabular numbers right-aligned in a hairline-free cell; `Broker` prints the code in 15px slate and cannot be edited | `AllAssets.tsx` `DraggableRow` |
 | Hover | the cell is a click target with no background change, matching the Price cell beside it | same |
-| Editing | the cell swaps to a `w-14` number input with a brand-teal border, autofocused, value selected | same |
+| Editing | the cell swaps to a number input derived from the shared `CONTROL_INPUT` — 11px ink on canvas, 1px hairline, `var(--control-radius)` — autofocused, value selected; focus is the global accent ring, never a teal border | `AllAssets.tsx:112-119` |
 | Commit | Enter or blur saves through `PUT /assets/{id}`; `multiplier > 0` and `0 <= margin <= 1` are enforced, and an invalid or empty entry leaves the stored value untouched | `AllAssets.tsx` `commitSpec` |
 | Cancel | Escape closes the input without saving | same |
 | Failure | a warning toast names the ticker and the API message; the old value stays | `AllAssets.tsx` `handleSaveSpec` |

@@ -91,12 +91,25 @@
   --fs-datum: 19px;
   --fs-section: 16px;
   --fs-body: 13px;
+  /* Content/data text — the role /analytics/portfolio/1 renders at 15px. */
+  --fs-content: 15px;
   --fs-label: 11px;
   --fs-micro: 10px;
+  /* Portfolio-type card description — the only caption role. */
+  --fs-caption: 9px;
   --row-h: 44px;
   --row-h-dense: 38px;
   --row-h-ladder: 30px; /* Active Trading ladder: density row */
   --row-pad-y: 8px;
+  /* Control geometry — shared by controlStyles.ts and every screen that
+     renders a field or a pill button. Change here, not per screen. */
+  --control-pad-y: 4px;
+  --control-pad-x: 8px;
+  --control-radius: 8px;
+  --control-btn-pad-y: 3px;
+  --control-btn-pad-x: 10px;
+  --control-h: 26px;
+  --control-fs-label: var(--fs-label);
   --strip-pad-y: 14px;
   --strip-pad-x: 18px;
   --strip-mb: 24px;
@@ -530,6 +543,12 @@ a:focus-visible {
   outline: 2px solid var(--color-brand-accent);
   outline-offset: 2px;
 }
+
+/* Compact numeric fields: the native stepper is 15px of chrome on a 26px box,
+   and every amount/price here is typed or dropped, never nudged. */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
