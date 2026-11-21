@@ -4,29 +4,23 @@ import ModalShell from './components/ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
 import IconButton from '../components/IconButton';
 import { priceLabel, formatMoney } from '../utils/format';
+import { NumberInput, TextInput } from './components/Field';
+import { CONTROL_TITLE } from './components/controlStyles';
 
 const CARD: React.CSSProperties = { background: 'var(--color-canvas)', borderRadius: 16, padding: 24 };
-const TITLE: React.CSSProperties = {
-  fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0,
-};
 const GRID_COLS = 'minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 64px';
 const GRID_ROW: React.CSSProperties = {
   display: 'grid', gridTemplateColumns: GRID_COLS, columnGap: 12, alignItems: 'center',
 };
 const HEAD_CELL: React.CSSProperties = {
-  fontSize: 11, fontWeight: 500, color: 'var(--color-slate)', paddingBottom: 6,
+  fontWeight: 500, color: 'var(--color-slate)', paddingBottom: 6,
   whiteSpace: 'nowrap', minWidth: 0,
 };
 const CELL: React.CSSProperties = {
-  fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', minWidth: 0,
-};
-const INPUT: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', padding: '4px 8px', fontSize: 11, fontWeight: 500,
-  fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', background: 'transparent',
-  border: '1px solid var(--color-hairline)', borderRadius: 8,
+  fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', minWidth: 0,
 };
 const BTN: React.CSSProperties = {
-  fontSize: 11, fontWeight: 500, borderRadius: 999, padding: '3px 10px', lineHeight: 1.3,
+  fontWeight: 500, borderRadius: 999, padding: '3px 10px', lineHeight: 1.3,
   border: '1px solid transparent', cursor: 'pointer', whiteSpace: 'nowrap',
 };
 const BTN_SECONDARY: React.CSSProperties = {
@@ -163,8 +157,8 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
     <ModalShell open={showModal} onClose={onClose} title="Zones">
       <div className={`${MODAL_CARD} w-full max-w-3xl mx-4`} style={CARD}>
         <div className={`${MODAL_HEADER} flex items-center justify-between`} style={{ marginBottom: 12 }}>
-          <h3 style={TITLE}>Zones</h3>
-          <button onClick={onClose} className="text-slate hover:text-ink leading-none" style={{ fontSize: 20 }}>&times;</button>
+          <h3 style={CONTROL_TITLE}>Zones</h3>
+          <button onClick={onClose} className="text-xl text-slate hover:text-ink leading-none">&times;</button>
         </div>
 
         <div className={MODAL_BODY}>
@@ -200,18 +194,18 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
           <>
             {sortedZones.length === 0 && (
               <div style={{ padding: '4px 0 12px' }}>
-                <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-ink)', margin: 0 }}>No zones yet.</p>
-                <p style={{ fontSize: 11, color: 'var(--color-slate)', margin: '2px 0 0' }}>Add a price level to group orders under it.</p>
+                <p className="text-[length:var(--fs-body)]" style={{ fontWeight: 500, color: 'var(--color-ink)', margin: 0 }}>No zones yet.</p>
+                <p className="text-[length:var(--fs-label)]" style={{ color: 'var(--color-slate)', margin: '2px 0 0' }}>Add a price level to group orders under it.</p>
               </div>
             )}
             <div className="overflow-x-hidden">
               <div style={{ ...GRID_ROW, position: 'sticky', top: 0, background: 'var(--color-canvas)', zIndex: 1 }}>
-                <div style={HEAD_CELL}>Price</div>
-                <div style={{ ...HEAD_CELL, textAlign: 'right' }}>Max orders</div>
-                <div style={{ ...HEAD_CELL, textAlign: 'right' }}>Min price</div>
-                <div style={{ ...HEAD_CELL, textAlign: 'right' }}>Max price</div>
-                <div style={{ ...HEAD_CELL, textAlign: 'right' }}>Step</div>
-                <div style={HEAD_CELL} aria-hidden="true" />
+                <div className="text-[length:var(--fs-label)]" style={HEAD_CELL}>Price</div>
+                <div className="text-[length:var(--fs-label)]" style={{ ...HEAD_CELL, textAlign: 'right' }}>Max orders</div>
+                <div className="text-[length:var(--fs-label)]" style={{ ...HEAD_CELL, textAlign: 'right' }}>Min price</div>
+                <div className="text-[length:var(--fs-label)]" style={{ ...HEAD_CELL, textAlign: 'right' }}>Max price</div>
+                <div className="text-[length:var(--fs-label)]" style={{ ...HEAD_CELL, textAlign: 'right' }}>Step</div>
+                <div className="text-[length:var(--fs-label)]" style={HEAD_CELL} aria-hidden="true" />
               </div>
               {sortedZones.map((zone) => {
                 const isEditing = editingId === zone.id;
@@ -228,47 +222,42 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
                   >
                     {isEditing ? (
                       <>
-                        <input
+                        <TextInput
                           type="text"
                           value={editForm.name}
                           onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                          style={INPUT}
                           aria-label="Zone name"
                         />
-                        <input
-                          type="number"
+                        <NumberInput
                           step="1"
                           value={editForm.max_orders}
                           onChange={(e) => setEditForm({ ...editForm, max_orders: e.target.value })}
                           placeholder="unlimited"
-                          style={{ ...INPUT, textAlign: 'right' }}
+                          style={{ textAlign: 'right' }}
                           aria-label="Max orders"
                         />
-                        <input
-                          type="number"
+                        <NumberInput
                           step="any"
                           value={editForm.min_price}
                           onChange={(e) => setEditForm({ ...editForm, min_price: e.target.value })}
                           placeholder="—"
-                          style={{ ...INPUT, textAlign: 'right' }}
+                          style={{ textAlign: 'right' }}
                           aria-label="Min price"
                         />
-                        <input
-                          type="number"
+                        <NumberInput
                           step="any"
                           value={editForm.max_price}
                           onChange={(e) => setEditForm({ ...editForm, max_price: e.target.value })}
                           placeholder="—"
-                          style={{ ...INPUT, textAlign: 'right' }}
+                          style={{ textAlign: 'right' }}
                           aria-label="Max price"
                         />
-                        <input
-                          type="number"
+                        <NumberInput
                           step="any"
                           value={editForm.range}
                           onChange={(e) => setEditForm({ ...editForm, range: e.target.value })}
                           placeholder="e.g. 2.00"
-                          style={{ ...INPUT, textAlign: 'right' }}
+                          style={{ textAlign: 'right' }}
                           aria-label="Step"
                         />
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
@@ -278,12 +267,12 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
                       </>
                     ) : (
                       <>
-                        <div style={{ ...CELL, fontWeight: 600 }}>{priceLabel(zone.name)}</div>
-                        <div style={{ ...CELL, textAlign: 'right' }}>{zone.max_orders != null ? zone.max_orders : '∞'}</div>
-                        <div style={{ ...CELL, textAlign: 'right' }}>{zone.min_price != null ? formatMoney(zone.min_price) : '-'}</div>
-                        <div style={{ ...CELL, textAlign: 'right' }}>{zone.max_price != null ? formatMoney(zone.max_price) : '-'}</div>
-                        <div style={{ ...CELL, textAlign: 'right' }}>{zone.range != null ? formatMoney(zone.range) : '-'}</div>
-                        <div style={{ ...CELL, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                        <div className="text-[length:var(--fs-body)]" style={{ ...CELL, fontWeight: 600 }}>{priceLabel(zone.name)}</div>
+                        <div className="text-[length:var(--fs-body)]" style={{ ...CELL, textAlign: 'right' }}>{zone.max_orders != null ? zone.max_orders : '∞'}</div>
+                        <div className="text-[length:var(--fs-body)]" style={{ ...CELL, textAlign: 'right' }}>{zone.min_price != null ? formatMoney(zone.min_price) : '-'}</div>
+                        <div className="text-[length:var(--fs-body)]" style={{ ...CELL, textAlign: 'right' }}>{zone.max_price != null ? formatMoney(zone.max_price) : '-'}</div>
+                        <div className="text-[length:var(--fs-body)]" style={{ ...CELL, textAlign: 'right' }}>{zone.range != null ? formatMoney(zone.range) : '-'}</div>
+                        <div className="text-[length:var(--fs-body)]" style={{ ...CELL, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
                           <IconButton label="Edit" onClick={() => handleEdit(zone)}>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -321,62 +310,57 @@ export const ZoneGroupModal: React.FC<ZoneGroupModalProps> = ({
           <div
             className="grid flex-1 min-w-0 gap-2 grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,1fr))] max-[1023px]:basis-full"
           >
-            <input
+            <TextInput
               type="text"
               value={newForm.name}
               onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
               placeholder="Zone name"
-              style={INPUT}
               aria-label="New zone name"
             />
-            <input
-              type="number"
+            <NumberInput
               step="1"
               value={newForm.max_orders}
               onChange={(e) => setNewForm({ ...newForm, max_orders: e.target.value })}
               placeholder="unlimited"
-              style={{ ...INPUT, textAlign: 'right' }}
+              style={{ textAlign: 'right' }}
               aria-label="New zone max orders"
             />
-            <input
-              type="number"
+            <NumberInput
               step="any"
               value={newForm.min_price}
               onChange={(e) => setNewForm({ ...newForm, min_price: e.target.value })}
               placeholder="min"
-              style={{ ...INPUT, textAlign: 'right' }}
+              style={{ textAlign: 'right' }}
               aria-label="New zone min price"
             />
-            <input
-              type="number"
+            <NumberInput
               step="any"
               value={newForm.max_price}
               onChange={(e) => setNewForm({ ...newForm, max_price: e.target.value })}
               placeholder="max"
-              style={{ ...INPUT, textAlign: 'right' }}
+              style={{ textAlign: 'right' }}
               aria-label="New zone max price"
             />
-            <input
-              type="number"
+            <NumberInput
               step="any"
               value={newForm.range}
               onChange={(e) => setNewForm({ ...newForm, range: e.target.value })}
               placeholder="step"
-              style={{ ...INPUT, textAlign: 'right' }}
+              style={{ textAlign: 'right' }}
               aria-label="New zone step"
             />
           </div>
           <div className="ml-auto flex shrink-0 items-center max-[1023px]:w-full max-[1023px]:justify-end" style={{ gap: 8 }}>
             <button
               onClick={handleCreate}
-              className="shrink-0 transition-opacity hover:opacity-90"
+              className="shrink-0 text-[length:var(--fs-label)] transition-opacity hover:opacity-90"
               style={{ ...BTN, background: 'var(--color-ink)', color: 'var(--color-canvas)' }}
               title="Add zone"
               aria-label="Add zone"
             >
               Add zone
             </button>
-            <button onClick={onClose} style={BTN_SECONDARY} className="shrink-0 transition-colors hover:bg-surface-soft">
+            <button onClick={onClose} style={BTN_SECONDARY} className="shrink-0 text-[length:var(--fs-label)] transition-colors hover:bg-surface-soft">
               Close
             </button>
           </div>

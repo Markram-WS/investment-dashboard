@@ -3,20 +3,46 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
-import { defineConfig, globalIgnores } from 'eslint/config'
 
-export default defineConfig([
-  globalIgnores(['dist']),
+export default [
+  { ignores: ['dist'] },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
     files: ['**/*.{ts,tsx}'],
-    extends: [
-      js.configs.recommended,
-      tseslint.configs.recommended,
-      reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
-    ],
     languageOptions: {
       globals: globals.browser,
     },
+    plugins: {
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
+    },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      ...reactRefresh.configs.vite.rules,
+    },
   },
-])
+  {
+    // Migrated controls: no literal font sizes. Add each screen as it adopts
+    // Field/TextInput/NumberInput/SelectInput.
+    files: [
+      'src/screens/ZoneGroupModal.tsx',
+      'src/screens/AssetGroupModal.tsx',
+      'src/screens/AddAssetModal.tsx',
+      'src/screens/components/Field.tsx',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Property[key.name='fontSize'][value.type='Literal']",
+          message: 'Use a control/type token instead of a literal fontSize.',
+        },
+        {
+          selector: "Property[key.name='fontSize'][value.type='TemplateLiteral']",
+          message: 'Use a control/type token instead of a literal fontSize.',
+        },
+      ],
+    },
+  },
+]

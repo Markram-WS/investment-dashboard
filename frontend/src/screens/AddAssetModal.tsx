@@ -3,6 +3,8 @@ import { api } from '../lib/api';
 import type { BrokerRecord } from '../lib/api';
 import ModalShell from './components/ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
+import { Field, NumberInput, SelectInput, TextInput } from './components/Field';
+import { CONTROL_HELPER, CONTROL_TITLE } from './components/controlStyles';
 
 interface AddAssetModalProps {
   open: boolean;
@@ -14,38 +16,8 @@ interface AddAssetModalProps {
 const SOURCES = ['manual', 'yfinance'];
 const TYPES = ['stock', 'future', 'option', 'crypto'];
 
-/** Field label: 11px/500 slate, sentence case. */
-const fieldLabel = {
-  display: 'block',
-  fontSize: 11,
-  fontWeight: 500,
-  color: 'var(--color-slate)',
-  margin: '0 0 4px',
-} as const;
-
-/** Field control: 13px ink on canvas, 1px hairline, radius 8. */
-const fieldControl = {
-  width: '100%',
-  boxSizing: 'border-box',
-  fontSize: 13,
-  fontWeight: 500,
-  fontVariantNumeric: 'tabular-nums',
-  color: 'var(--color-ink)',
-  background: 'var(--color-canvas)',
-  border: '1px solid var(--color-hairline)',
-  borderRadius: 8,
-  padding: '5px 9px',
-} as const;
-
-const helperText = {
-  fontSize: 11,
-  color: 'var(--color-slate)',
-  margin: '4px 0 0',
-} as const;
-
 const primaryButton = {
   padding: '5px 12px',
-  fontSize: 12,
   fontWeight: 500,
   background: 'var(--color-ink)',
   color: 'var(--color-canvas)',
@@ -56,7 +28,6 @@ const primaryButton = {
 
 const secondaryButton = {
   padding: '5px 12px',
-  fontSize: 12,
   fontWeight: 500,
   background: 'var(--color-canvas)',
   color: 'var(--color-ink)',
@@ -66,7 +37,6 @@ const secondaryButton = {
 } as const;
 
 const errorText = {
-  fontSize: 11,
   color: 'var(--color-danger-text)',
   background: 'color-mix(in srgb, var(--color-danger-text) 10%, transparent)',
   borderRadius: 8,
@@ -154,76 +124,64 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({ open, onClose, onSaved, g
   return (
     <ModalShell open={open} onClose={onClose} title="Add Asset" zIndex={9999}>
       <div className={`${MODAL_CARD} ${modalPanel}`}>
-        <h3 className={`${MODAL_HEADER} block`} style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: '0 0 12px' }}>Add asset</h3>
+        <h3 className={`${MODAL_HEADER} block`} style={{ ...CONTROL_TITLE, margin: '0 0 12px' }}>Add asset</h3>
 
         <div className={MODAL_BODY}>
-        {error && <div style={errorText}>{error}</div>}
+        {error && <div style={errorText} className="text-[length:var(--fs-label)]">{error}</div>}
 
         <div className="space-y-2.5">
-          <div>
-            <label className="block" style={fieldLabel}>Symbol</label>
-            <input value={form.ticker} onChange={e => setForm(p => ({ ...p, ticker: e.target.value }))}
-              style={fieldControl} placeholder="e.g. AAPL" />
-          </div>
-          <div>
-            <label className="block" style={fieldLabel}>Name</label>
-            <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-              style={fieldControl} placeholder="Optional" />
-          </div>
+          <Field label="Symbol" htmlFor="add-asset-ticker" required>
+            <TextInput id="add-asset-ticker" value={form.ticker} onChange={e => setForm(p => ({ ...p, ticker: e.target.value }))}
+              placeholder="e.g. AAPL" />
+          </Field>
+          <Field label="Name" htmlFor="add-asset-name">
+            <TextInput id="add-asset-name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+              placeholder="Optional" />
+          </Field>
           <div className="flex gap-2.5">
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>Type</label>
-              <select value={form.asset_type} onChange={e => setForm(p => ({ ...p, asset_type: e.target.value }))}
-                style={fieldControl}>
+            <Field className="flex-1" label="Type" htmlFor="add-asset-type">
+              <SelectInput id="add-asset-type" value={form.asset_type} onChange={e => setForm(p => ({ ...p, asset_type: e.target.value }))}>
                 {TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="block" style={fieldLabel}>Source</label>
-              <select value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))}
-                style={fieldControl}>
+              </SelectInput>
+            </Field>
+            <Field className="flex-1" label="Source" htmlFor="add-asset-source">
+              <SelectInput id="add-asset-source" value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))}>
                 {SOURCES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-              </select>
-            </div>
+              </SelectInput>
+            </Field>
           </div>
-          <div>
-            <label className="block" style={fieldLabel}>Group</label>
-            <select value={form.group_id} onChange={e => setForm(p => ({ ...p, group_id: e.target.value }))}
-              style={fieldControl}>
+          <Field label="Group" htmlFor="add-asset-group">
+            <SelectInput id="add-asset-group" value={form.group_id} onChange={e => setForm(p => ({ ...p, group_id: e.target.value }))}>
               {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block" style={fieldLabel}>Broker</label>
-            <select value={form.broker_id} onChange={e => setForm(p => ({ ...p, broker_id: e.target.value }))}
-              style={fieldControl}>
+            </SelectInput>
+          </Field>
+          <Field label="Broker" htmlFor="add-asset-broker">
+            <SelectInput id="add-asset-broker" value={form.broker_id} onChange={e => setForm(p => ({ ...p, broker_id: e.target.value }))}>
               <option value="">—</option>
               {brokers.map(b => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
-            </select>
-          </div>
+            </SelectInput>
+          </Field>
           <div>
             <div className="flex gap-2.5">
-              <div className="flex-1">
-                <label className="block" style={fieldLabel}>Multiplier</label>
-                <input type="number" step="any" value={form.multiplier}
+              <Field className="flex-1" label="Multiplier" htmlFor="add-asset-multiplier">
+                <NumberInput id="add-asset-multiplier" step="any" value={form.multiplier}
                   onChange={e => setForm(p => ({ ...p, multiplier: e.target.value }))}
-                  style={fieldControl} placeholder="1" />
-              </div>
-              <div className="flex-1">
-                <label className="block" style={fieldLabel}>Margin rate</label>
-                <input type="number" step="any" value={form.margin_rate}
+                  placeholder="1" />
+              </Field>
+              <Field className="flex-1" label="Margin rate" htmlFor="add-asset-margin-rate">
+                <NumberInput id="add-asset-margin-rate" step="any" value={form.margin_rate}
                   onChange={e => setForm(p => ({ ...p, margin_rate: e.target.value }))}
-                  style={fieldControl} placeholder="0" />
-              </div>
+                  placeholder="0" />
+              </Field>
             </div>
-            <p style={helperText}>Margin 0.10 = 10% of notional</p>
+            <p style={CONTROL_HELPER}>Margin 0.10 = 10% of notional</p>
           </div>
         </div>
         </div>
 
         <div className={`${MODAL_FOOTER} flex justify-end`} style={{ gap: 8, marginTop: 12 }}>
-          <button type="button" onClick={onClose} style={secondaryButton}>Cancel</button>
-          <button type="button" onClick={handleSave} disabled={loading} style={primaryButton} className="transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">{loading ? 'Saving...' : 'Add asset'}</button>
+          <button type="button" onClick={onClose} style={secondaryButton} className="text-xs">Cancel</button>
+          <button type="button" onClick={handleSave} disabled={loading} style={primaryButton} className="text-xs transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">{loading ? 'Saving...' : 'Add asset'}</button>
         </div>
       </div>
     </ModalShell>

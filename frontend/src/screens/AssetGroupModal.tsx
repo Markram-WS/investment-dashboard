@@ -3,6 +3,8 @@ import { api, type AssetGroupRecord } from '../lib/api';
 import ModalShell from './components/ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
 import IconButton from '../components/IconButton';
+import { TextInput } from './components/Field';
+import { CONTROL_TITLE } from './components/controlStyles';
 
 interface AssetGroupModalProps {
   open: boolean;
@@ -12,22 +14,10 @@ interface AssetGroupModalProps {
 const emptyForm = { name: '' };
 
 /** Column head: 12px/500 slate, sentence case. */
-const headCell = { fontSize: 12, fontWeight: 500, color: 'var(--color-slate)', margin: 0 } as const;
-
-/** Field control: 15px ink on canvas, 1px hairline, radius 8. */
-const fieldControl = {
-  width: '100%',
-  fontSize: 15,
-  color: 'var(--color-ink)',
-  background: 'var(--color-canvas)',
-  border: '1px solid var(--color-hairline)',
-  borderRadius: 8,
-  padding: '8px 12px',
-} as const;
+const headCell = { fontWeight: 500, color: 'var(--color-slate)', margin: 0 } as const;
 
 /** Badge: 12px/500 slate on surface-soft, pill radius. */
 const badgeStyle = {
-  fontSize: 12,
   fontWeight: 500,
   color: 'var(--color-slate)',
   background: 'var(--color-surface-soft)',
@@ -38,7 +28,6 @@ const badgeStyle = {
 
 const primaryButton = {
   padding: '8px 16px',
-  fontSize: 13,
   fontWeight: 500,
   background: 'var(--color-ink)',
   color: 'var(--color-canvas)',
@@ -49,7 +38,6 @@ const primaryButton = {
 
 const secondaryButton = {
   padding: '8px 16px',
-  fontSize: 13,
   fontWeight: 500,
   background: 'var(--color-canvas)',
   color: 'var(--color-ink)',
@@ -73,7 +61,9 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
     try {
       const data = await api.getAssetGroups();
       setGroups(data);
-    } catch { }
+    } catch {
+      // Keep the previous list when the group fetch fails.
+    }
     setLoading(false);
   };
 
@@ -103,7 +93,9 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
     try {
       await api.deleteAssetGroup(id);
       fetchGroups();
-    } catch { }
+    } catch {
+      // Keep the modal list unchanged when the delete fails.
+    }
   };
 
   const handleSave = async () => {
@@ -116,7 +108,9 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
       }
       resetForm();
       fetchGroups();
-    } catch { }
+    } catch {
+      // Keep the form open when saving fails.
+    }
   };
 
   if (!open) return null;
@@ -125,23 +119,23 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
     <ModalShell open={open} onClose={onClose} title="Asset Groups">
       <div className={`${MODAL_CARD} ${modalPanel}`}>
         <div className={`${MODAL_HEADER} flex items-center justify-between`} style={{ marginBottom: 16 }}>
-          <h3 style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-ink)', margin: 0 }}>Asset groups</h3>
-          <button onClick={onClose} className="text-slate hover:text-ink leading-none" style={{ fontSize: 20, background: 'none', border: 'none', cursor: 'pointer' }}>&times;</button>
+          <h3 style={CONTROL_TITLE}>Asset groups</h3>
+          <button onClick={onClose} className="text-xl text-slate hover:text-ink leading-none" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>&times;</button>
         </div>
 
         <div className={MODAL_BODY}>
         {showForm && (
           <div className="mb-6" style={{ borderTop: '1px solid var(--color-hairline)', borderBottom: '1px solid var(--color-hairline)', padding: '16px 0' }}>
-            <h4 style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink)', margin: '0 0 10px' }}>{editingId ? 'Edit group' : 'New group'}</h4>
+            <h4 className="text-[length:var(--fs-body)]" style={{ fontWeight: 600, color: 'var(--color-ink)', margin: '0 0 10px' }}>{editingId ? 'Edit group' : 'New group'}</h4>
             <div className="flex" style={{ gap: 8 }}>
-              <input type="text" value={form.name}
+              <TextInput type="text" value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="Group name"
-                style={fieldControl} />
+                aria-label="Group name" />
             </div>
             <div className="flex justify-end" style={{ gap: 8, marginTop: 12 }}>
-              <button type="button" onClick={resetForm} style={secondaryButton}>Cancel</button>
-              <button type="button" onClick={handleSave} disabled={!form.name.trim()} className={actionButtonClass} style={primaryButton}>
+              <button type="button" onClick={resetForm} className="text-[length:var(--fs-body)]" style={secondaryButton}>Cancel</button>
+              <button type="button" onClick={handleSave} disabled={!form.name.trim()} className={`${actionButtonClass} text-[length:var(--fs-body)]`} style={primaryButton}>
                 {editingId ? 'Update' : 'Create'}
               </button>
             </div>
@@ -164,22 +158,22 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
             ))}
           </div>
         ) : groups.length === 0 && !showForm ? (
-          <p className="text-center py-4" style={{ fontSize: 13, color: 'var(--color-slate)' }}>No asset groups defined yet.</p>
+          <p className="text-center py-4 text-[length:var(--fs-body)]" style={{ color: 'var(--color-slate)' }}>No asset groups defined yet.</p>
         ) : (
           <table className="w-full text-left">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--color-hairline)' }}>
-                <th style={{ ...headCell, paddingBottom: 8 }}>Group</th>
-                <th style={{ ...headCell, paddingBottom: 8, textAlign: 'right' }}>Default</th>
+                <th className="text-xs" style={{ ...headCell, paddingBottom: 8 }}>Group</th>
+                <th className="text-xs" style={{ ...headCell, paddingBottom: 8, textAlign: 'right' }}>Default</th>
                 <th className="w-16" style={{ paddingBottom: 8 }} />
               </tr>
             </thead>
             <tbody>
               {groups.map((g) => (
                 <tr key={g.id} style={{ borderBottom: '1px solid var(--color-hairline-soft)' }}>
-                  <td style={{ padding: '10px 0', fontSize: 15, fontWeight: 600, color: 'var(--color-ink)' }}>{g.name}</td>
+                  <td className="text-[length:var(--fs-content)]" style={{ padding: '10px 0', fontWeight: 600, color: 'var(--color-ink)' }}>{g.name}</td>
                   <td style={{ padding: '10px 0', textAlign: 'right' }}>
-                    {g.is_default && <span style={badgeStyle}>default</span>}
+                    {g.is_default && <span className="text-xs" style={badgeStyle}>default</span>}
                   </td>
                   <td className="whitespace-nowrap" style={{ padding: '10px 0', textAlign: 'right' }}>
                     <IconButton label="Edit" onClick={() => handleEdit(g)}>
@@ -206,11 +200,11 @@ const AssetGroupModal: React.FC<AssetGroupModalProps> = ({ open, onClose }) => {
 
         <div className={`${MODAL_FOOTER} flex items-center justify-between`} style={{ marginTop: 12, borderTop: '1px solid var(--color-hairline)', paddingTop: 12 }}>
           {!showForm && (
-            <button onClick={handleAdd} style={primaryButton}>
+            <button onClick={handleAdd} className="text-[length:var(--fs-body)]" style={primaryButton}>
               + Add group
             </button>
           )}
-          <button onClick={onClose} className="ml-auto" style={secondaryButton}>
+          <button onClick={onClose} className="ml-auto text-[length:var(--fs-body)]" style={secondaryButton}>
             Close
           </button>
         </div>
