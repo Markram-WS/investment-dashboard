@@ -648,15 +648,8 @@ const CreateNewPortfolio: React.FC = () => {
                   <span style={{ ...CONTROL_VALUE, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(0)}</span>
                 </div>
               </div>
-              <div
-                className="grid"
-                style={{
-                  gridTemplateColumns: "minmax(0, 160px) minmax(0, 140px) minmax(0, 100px) minmax(0, 1fr)",
-                  gap: "var(--space-sm)",
-                  alignItems: "start",
-                }}
-              >
-                <div className="min-w-0">
+              <div style={{ display: "flex", alignItems: "flex-start" }}>
+                <div style={{ width: 110, minWidth: 0 }}>
                   <label style={CONTROL_LABEL} htmlFor="broker_id">Broker</label>
                   <div style={{ position: "relative" }}>
                     <select
@@ -695,7 +688,7 @@ const CreateNewPortfolio: React.FC = () => {
                     </span>
                   </div>
                 </div>
-                <div className="min-w-0">
+                <div style={{ width: 96, minWidth: 0, marginLeft: 56 }}>
                   <label style={CONTROL_LABEL} htmlFor="product_ticker">Product Ticker</label>
                   <input
                     id="product_ticker"
@@ -711,7 +704,7 @@ const CreateNewPortfolio: React.FC = () => {
                     {tickers.map(t => <option key={t} value={t} />)}
                   </datalist>
                 </div>
-                <div className="min-w-0">
+                <div style={{ width: 72, minWidth: 0, marginLeft: 70 }}>
                   <label style={CONTROL_LABEL} htmlFor="x_amount">Multiplier</label>
                   <AffixInput
                     id="x_amount"
@@ -724,127 +717,119 @@ const CreateNewPortfolio: React.FC = () => {
                     placeholder="0"
                   />
                 </div>
-                <div style={{ minWidth: 0 }}>
-                  <label style={{ ...CONTROL_LABEL, width: 140, whiteSpace: "nowrap", marginLeft: "calc(1px + var(--space-sm))" }} htmlFor="tag_input">
-                    Metadata Tags (Market/Broker)
-                  </label>
-                  <div style={{ display: "flex", alignItems: "stretch" }}>
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        flex: "0 0 1px",
-                        width: 1,
-                        alignSelf: "stretch",
-                        background: "var(--color-hairline)",
-                      }}
-                    />
-                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)", flex: 1, minWidth: 0, paddingLeft: "var(--space-sm)" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
-                        <input
-                          id="tag_input"
-                          type="text"
-                          placeholder="Add tag…"
-                          title="Add tag (e.g., Crypto, Binance, TFEX)..."
-                          onKeyDown={(e) => {
-                            const target = e.target as HTMLInputElement;
-                            if (e.key === 'Enter' && target.value.trim()) {
-                              const tag = target.value.trim();
-                              setFormData(prev => {
-                                const newTags = { ...(prev.tags || {}), [tag]: true };
-                                return { ...prev, tags: newTags };
-                              });
-                              target.value = '';
-                            }
-                          }}
-                          style={{ ...CONTROL_INPUT, width: 140, flex: "0 0 140px", minWidth: 100, maxWidth: 140 }}
-                        />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            const input = document.getElementById('tag_input') as HTMLInputElement | null;
-                            if (input && input.value.trim()) {
-                              const tag = input.value.trim();
-                              setFormData(prev => {
-                                const newTags = { ...(prev.tags || {}), [tag]: true };
-                                return { ...prev, tags: newTags };
-                              });
-                              input.value = '';
-                            }
-                          }}
-                          className="transition-colors"
-                          style={{
-                            ...CONTROL_BUTTON_SECONDARY,
-                            height: "var(--control-h)",
-                            flex: "0 0 auto",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Add Tag
-                        </button>
-                      </div>
-                      {Object.keys(formData.tags || {}).length > 0 && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-xs)" }}>
-                          {Object.keys(formData.tags || {}).map((tag, index) => (
-                            <span
-                              key={index}
+                <div style={{ width: 230, minWidth: 0, marginLeft: 111, display: "flex", alignItems: "stretch" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <label style={CONTROL_LABEL} htmlFor="tag_input">
+                      Metadata Tags (Market/Broker)
+                    </label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)", marginBottom: "var(--space-xs)" }}>
+                      <input
+                        id="tag_input"
+                        type="text"
+                        placeholder="Add tag…"
+                        title="Add tag (e.g., Crypto, Binance, TFEX)..."
+                        onKeyDown={(e) => {
+                          const target = e.target as HTMLInputElement;
+                          if (e.key === 'Enter' && target.value.trim()) {
+                            const tag = target.value.trim();
+                            setFormData(prev => {
+                              const newTags = { ...(prev.tags || {}), [tag]: true };
+                              return { ...prev, tags: newTags };
+                            });
+                            target.value = '';
+                          }
+                        }}
+                        style={{ ...CONTROL_INPUT, width: 140, flex: "0 0 140px", minWidth: 100, maxWidth: 140 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          const input = document.getElementById('tag_input') as HTMLInputElement | null;
+                          if (input && input.value.trim()) {
+                            const tag = input.value.trim();
+                            setFormData(prev => {
+                              const newTags = { ...(prev.tags || {}), [tag]: true };
+                              return { ...prev, tags: newTags };
+                            });
+                            input.value = '';
+                          }
+                        }}
+                        className="transition-colors"
+                        style={{
+                          ...CONTROL_BUTTON_SECONDARY,
+                          height: "var(--control-h)",
+                          flex: "0 0 auto",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Add Tag
+                      </button>
+                    </div>
+                    {Object.keys(formData.tags || {}).length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-xs)", marginBottom: "var(--space-xs)" }}>
+                        {Object.keys(formData.tags || {}).map((tag, index) => (
+                          <span
+                            key={index}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              padding: "var(--control-btn-pad-y) var(--control-btn-pad-x)",
+                              borderRadius: "var(--rounded-full)",
+                              fontSize: "var(--fs-label)",
+                              fontWeight: 500,
+                              background: "var(--color-teal-light)",
+                              color: "var(--color-positive-text)",
+                            }}
+                          >
+                            {tag}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setFormData(prev => {
+                                  const newTags = { ...(prev.tags || {}) };
+                                  delete newTags[tag];
+                                  return { ...prev, tags: newTags };
+                                });
+                              }}
                               style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 6,
-                                padding: "var(--control-btn-pad-y) var(--control-btn-pad-x)",
-                                borderRadius: "var(--rounded-full)",
+                                background: "none",
+                                border: "none",
+                                padding: 0,
                                 fontSize: "var(--fs-label)",
-                                fontWeight: 500,
-                                background: "var(--color-teal-light)",
-                                color: "var(--color-positive-text)",
+                                lineHeight: 1,
+                                color: "inherit",
+                                cursor: "pointer",
+                                opacity: 0.7,
                               }}
                             >
-                              {tag}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setFormData(prev => {
-                                    const newTags = { ...(prev.tags || {}) };
-                                    delete newTags[tag];
-                                    return { ...prev, tags: newTags };
-                                  });
-                                }}
-                                style={{
-                                  background: "none",
-                                  border: "none",
-                                  padding: 0,
-                                  fontSize: "var(--fs-label)",
-                                  lineHeight: 1,
-                                  color: "inherit",
-                                  cursor: "pointer",
-                                  opacity: 0.7,
-                                }}
-                              >
-                                ×
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <p style={{ ...CONTROL_HELPER, margin: 0 }}>
-                        Tags help categorize your portfolio by market, broker, or strategy type.
-                      </p>
-                    </div>
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <p style={{ ...CONTROL_HELPER, margin: 0 }}>
+                      Tags help categorize your portfolio by market, broker, or strategy type.
+                    </p>
                   </div>
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      flex: "0 0 1px",
+                      width: 1,
+                      alignSelf: "stretch",
+                      background: "var(--color-hairline)",
+                      marginLeft: "var(--space-xs)",
+                    }}
+                  />
                 </div>
               </div>
 
-              <div
-                className="grid"
-                style={{
-                  gridTemplateColumns: "minmax(0, 150px) minmax(0, 150px) minmax(0, 110px)",
-                  gap: "var(--space-md)",
-                  marginTop: "var(--space-md)",
-                }}
-              >
-                <div className="min-w-0">
+              <div style={{ display: "flex", alignItems: "flex-start", marginTop: "var(--space-md)" }}>
+                <div style={{ width: 150, minWidth: 0 }}>
                   <label style={CONTROL_LABEL} htmlFor="available_cash">Available Cash</label>
                   <AffixInput
                     id="available_cash"
@@ -856,7 +841,7 @@ const CreateNewPortfolio: React.FC = () => {
                     placeholder="0.00"
                   />
                 </div>
-                <div className="min-w-0">
+                <div style={{ width: 150, minWidth: 0, marginLeft: 16 }}>
                   <label style={CONTROL_LABEL} htmlFor="initial_capital">Initial Capital</label>
                   <AffixInput
                     id="initial_capital"
@@ -868,9 +853,8 @@ const CreateNewPortfolio: React.FC = () => {
                     prefix="$"
                     placeholder="0.00"
                   />
-                  <p style={CONTROL_HELPER}>Baseline for the profit share, not the cash balance.</p>
                 </div>
-                <div className="min-w-0">
+                <div style={{ width: 110, minWidth: 0, marginLeft: 16 }}>
                   <label style={CONTROL_LABEL} htmlFor="cash_buffer_limit">Cash Buffer Limit</label>
                   <AffixInput
                     id="cash_buffer_limit"
