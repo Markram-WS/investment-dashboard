@@ -1,7 +1,13 @@
 import { useState } from "react";
-import Button from "./components/Button";
+import type { CSSProperties } from "react";
 import ModalShell from "./components/ModalShell";
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
+import { NumberInput, TextInput } from "./components/Field";
+import {
+  CONTROL_BUTTON_PRIMARY,
+  CONTROL_BUTTON_SECONDARY,
+  CONTROL_TITLE,
+} from "./components/controlStyles";
 
 interface MFEditRatioModalProps {
   show: boolean;
@@ -9,6 +15,19 @@ interface MFEditRatioModalProps {
   onClose: () => void;
   onSave: (ratio: Record<string, number>) => void;
 }
+
+const modalPanelStyle: CSSProperties = {
+  padding: "var(--space-md)", borderRadius: "var(--rounded-xl)",
+};
+const ASSET_WIDTH: CSSProperties = { width: 96 };
+const PCT_WIDTH: CSSProperties = { width: 80 };
+const percentSuffix: CSSProperties = { color: "var(--color-slate)" };
+const removeButton: CSSProperties = {
+  padding: "0 4px", fontWeight: 600, color: "var(--color-danger-text)",
+  background: "transparent", border: 0, cursor: "pointer",
+};
+const primaryButton = CONTROL_BUTTON_PRIMARY;
+const secondaryButton = CONTROL_BUTTON_SECONDARY;
 
 export default function MFEditRatioModal({ show, targetRatio, onClose, onSave }: MFEditRatioModalProps) {
   const [entries, setEntries] = useState<{ asset: string; pct: string }[]>(() =>
@@ -37,38 +56,45 @@ export default function MFEditRatioModal({ show, targetRatio, onClose, onSave }:
 
   return (
     <ModalShell open={show} onClose={onClose} title="Edit Target Ratios" closeOnBackdrop={false}>
-      <div className={`${MODAL_CARD} bg-canvas border border-hairline rounded-xl p-3.5 w-full max-w-md mx-4`}>
-        <h3 className={`${MODAL_HEADER} text-lg font-bold mb-3`}>Edit Target Ratios</h3>
+      <div className={`${MODAL_CARD} bg-canvas border border-hairline w-full max-w-md mx-4`} style={modalPanelStyle}>
+        <h3 className={MODAL_HEADER} style={{ ...CONTROL_TITLE, marginBottom: 12 }}>Edit Target Ratios</h3>
         <div className={`${MODAL_BODY} space-y-2`}>
           {entries.map((e, i) => (
             <div key={i} className="flex items-center gap-2">
-              <input
+              <TextInput
                 type="text"
+                aria-label="Asset"
                 value={e.asset}
                 onChange={(v) => updateEntry(i, "asset", v.target.value)}
                 placeholder="Asset"
-                className="w-24 border border-hairline rounded px-2 py-1.5 text-sm"
+                style={ASSET_WIDTH}
               />
-              <input
-                type="number"
+              <NumberInput
                 step="0.1"
+                aria-label="Target percent"
                 value={e.pct}
                 onChange={(v) => updateEntry(i, "pct", v.target.value)}
                 placeholder="%"
-                className="w-20 border border-hairline rounded px-2 py-1.5 text-sm"
+                style={PCT_WIDTH}
               />
-              <span className="text-xs text-slate">%</span>
+              <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
               {entries.length > 1 && (
-                <button onClick={() => removeEntry(i)} className="text-red-500 hover:text-red-700 text-sm font-bold px-1">×</button>
+                <button
+                  type="button"
+                  aria-label={`Remove ${e.asset || "row"}`}
+                  onClick={() => removeEntry(i)}
+                  className="text-[length:var(--fs-content)] opacity-70 hover:opacity-100 transition-opacity"
+                  style={removeButton}
+                >×</button>
               )}
             </div>
           ))}
         </div>
-        <div className={`${MODAL_FOOTER} flex items-center gap-2 mt-3`}>
-          <button onClick={addEntry} className="text-xs text-brand-teal hover:underline">+ Add asset</button>
+        <div className={`${MODAL_FOOTER} flex items-center gap-2`} style={{ marginTop: 12 }}>
+          <button type="button" onClick={addEntry} style={secondaryButton}>+ Add asset</button>
           <div className="ml-auto flex gap-2">
-            <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button variant="primary" onClick={handleSave}>Save Ratios</Button>
+            <button type="button" onClick={onClose} style={secondaryButton}>Cancel</button>
+            <button type="button" onClick={handleSave} style={primaryButton}>Save Ratios</button>
           </div>
         </div>
       </div>

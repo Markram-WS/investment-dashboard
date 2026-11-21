@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../lib/api";
+import type { PortfolioSummary, TransactionRecord } from "../lib/api";
 import { Transaction } from "../types";
 import { formatCurrency, formatDateTime, formatMoney } from "../utils/format";
-import Button from "../screens/components/Button";
 import { useNotification } from "../contexts/NotificationContext";
 import PageLayout from "../components/PageLayout";
 import PageHeader from "../components/PageHeader";
+import { Field, NumberInput, SelectInput, TextInput } from "../screens/components/Field";
+import { CONTROL_BUTTON_PRIMARY, CONTROL_LABEL } from "../screens/components/controlStyles";
 
-/** Ledger column head: 12px/500 slate, sentence case. */
-const headCell = { fontSize: 12, fontWeight: 500, color: "var(--color-slate)" } as const;
+/** Ledger column head: 11px/500 slate, sentence case. */
+const headCell = { fontWeight: 500, color: "var(--color-slate)" } as const;
+const headCellClass = "text-[length:var(--fs-label)]";
+const groupHeading = { ...CONTROL_LABEL, margin: 0 } as const;
 
 function parseFlow(flow: string | null): { from: string; to: string } {
   if (!flow) return { from: "-", to: "-" };
@@ -22,7 +26,7 @@ function parseFlow(flow: string | null): { from: string; to: string } {
 
 export default function TransactionsPage() {
   const [transactionsData, setTransactionsData] = useState<Transaction[]>([]);
-  const [portfolios, setPortfolios] = useState<any[]>([]);
+  const [portfolios, setPortfolios] = useState<PortfolioSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [currency] = useState<"USD" | "THB">("USD");
   const { notify } = useNotification();
@@ -42,17 +46,21 @@ export default function TransactionsPage() {
     Promise.all([
       refreshTransactions().catch(() => {}),
       api.getPortfolios().catch(() => []),
-    ]).then(([_, ports]) => {
+    ]).then(([, ports]) => {
       setPortfolios(ports);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
 
-  const mapTx = (tx: any) => ({ ...tx, type: tx.transaction_type ?? tx.type, entry_date: tx.created_at ?? tx.entry_date });
+  const mapTx = (tx: TransactionRecord): Transaction => ({
+    ...(tx as unknown as Transaction),
+    type: tx.transaction_type,
+    entry_date: tx.created_at ?? null,
+  });
 
   const refreshTransactions = async () => {
     const txns = await api.getTransactions();
-    setTransactionsData((txns as any[]).map(mapTx));
+    setTransactionsData(txns.map(mapTx));
   };
 
   const fmtCurrency = (amount: number): string => formatCurrency(amount, currency);
@@ -137,7 +145,7 @@ export default function TransactionsPage() {
 
         <section
           className="animate-pulse"
-          style={{ background: "var(--color-canvas)", borderRadius: 16, padding: 20, marginBottom: "var(--space-xxl)" }}
+          style={{ background: "var(--color-canvas)", borderRadius: "var(--rounded-xl)", padding: "var(--space-md)", marginBottom: "var(--space-xxl)" }}
         >
           <div className="flex flex-col md:flex-row" style={{ gap: 24 }}>
             <div className="w-full md:w-1/2">
@@ -162,7 +170,7 @@ export default function TransactionsPage() {
 
         <section
           className="animate-pulse"
-          style={{ background: "var(--color-canvas)", borderRadius: 16, padding: "0 20px" }}
+          style={{ background: "var(--color-canvas)", borderRadius: "var(--rounded-xl)", padding: "0 var(--space-md)" }}
         >
           <div className="flex items-center gap-6 py-3">
             <div className="h-3 bg-surface rounded w-24" />
@@ -194,78 +202,96 @@ export default function TransactionsPage() {
 
       <PageHeader title="Transactions" />
 
-      <section className="mb-[var(--space-xxl)]" style={{ background: "var(--color-canvas)", borderRadius: 16, padding: 20 }}>
+      <section className="mb-[var(--space-xxl)]" style={{ background: "var(--color-canvas)", borderRadius: "var(--rounded-xl)", padding: "var(--space-md)" }}>
         <div className="flex flex-col md:flex-row md:items-start" style={{ gap: 24 }}>
           <div className="w-full md:w-1/2 flex flex-col items-start">
-            <h2 className="m-0" style={{ fontSize: 12, fontWeight: 500, color: "var(--color-slate)" }}>Filters</h2>
-            <div className="flex flex-wrap" style={{ gap: 8, marginTop: 12 }}>
-              <input type="date" value={filters.dateRange.start}
-                onChange={(e) => setFilters((prev) => ({ ...prev, dateRange: { ...prev.dateRange, start: e.target.value } }))}
-                className="px-2 py-1.5 border border-hairline rounded-lg text-[13px] text-ink bg-canvas" />
-              <input type="date" value={filters.dateRange.end}
-                onChange={(e) => setFilters((prev) => ({ ...prev, dateRange: { ...prev.dateRange, end: e.target.value } }))}
-                className="px-2 py-1.5 border border-hairline rounded-lg text-[13px] text-ink bg-canvas" />
-              <select value={filters.type}
-                onChange={(e) => setFilters((prev) => ({ ...prev, type: e.target.value }))}
-                className="px-2 py-1.5 border border-hairline rounded-lg text-[13px] text-ink bg-canvas"
-              >
-                <option value="">All types</option>
-                <option value="Deposit">Deposit</option>
-                <option value="Withdraw">Withdraw</option>
-                <option value="Transfer">Transfer</option>
-                <option value="Buy">Buy</option>
-                <option value="Sell">Sell</option>
-              </select>
+            <h2 style={groupHeading}>Filters</h2>
+            <div className="flex flex-wrap items-end" style={{ gap: 8, marginTop: 12 }}>
+              <Field label="Start" htmlFor="tx-filter-start">
+                <TextInput id="tx-filter-start" type="date" value={filters.dateRange.start}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, dateRange: { ...prev.dateRange, start: e.target.value } }))}
+                  style={{ width: 140 }} />
+              </Field>
+              <Field label="End" htmlFor="tx-filter-end">
+                <TextInput id="tx-filter-end" type="date" value={filters.dateRange.end}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, dateRange: { ...prev.dateRange, end: e.target.value } }))}
+                  style={{ width: 140 }} />
+              </Field>
+              <Field label="Type" htmlFor="tx-filter-type">
+                <SelectInput id="tx-filter-type" value={filters.type}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, type: e.target.value }))}
+                  style={{ width: 130 }}
+                >
+                  <option value="">All types</option>
+                  <option value="Deposit">Deposit</option>
+                  <option value="Withdraw">Withdraw</option>
+                  <option value="Transfer">Transfer</option>
+                  <option value="Buy">Buy</option>
+                  <option value="Sell">Sell</option>
+                </SelectInput>
+              </Field>
             </div>
           </div>
           <div className="w-full md:w-1/2 flex flex-col items-start">
-            <h2 className="m-0" style={{ fontSize: 12, fontWeight: 500, color: "var(--color-slate)" }}>New transaction</h2>
-            <div className="flex items-center flex-wrap" style={{ gap: 8, marginTop: 12 }}>
-              <select value={formFrom} onChange={(e) => setFormFrom(e.target.value)}
-                className="px-2 py-1.5 border border-hairline rounded-lg text-[13px] text-ink bg-canvas w-[130px]">
-                <option value="deposit" disabled={formTo === "withdraw"}>Deposit →</option>
-                {portfolios.map((p) => (
-                  <option key={p.portfolio_id} value={p.portfolio_id}
-                    disabled={formTo !== "" && formTo !== "withdraw" && p.portfolio_id === parseInt(formTo)}>{p.portfolio_name}</option>
-                ))}
-              </select>
-              <input type="number" step={100} placeholder="Amount" value={formAmount}
-                onChange={(e) => setFormAmount(e.target.value)}
-                className="px-2 py-1.5 border border-hairline rounded-lg text-[13px] text-ink bg-canvas w-[100px]" />
-              <select value={formTo} onChange={(e) => setFormTo(e.target.value)}
-                className="px-2 py-1.5 border border-hairline rounded-lg text-[13px] text-ink bg-canvas w-[130px]">
-                <option value="">Select portfolio</option>
-                {portfolios.map((p) => (
-                  <option key={p.portfolio_id} value={p.portfolio_id}
-                    disabled={formFrom !== "deposit" && p.portfolio_id === parseInt(formFrom)}>{p.portfolio_name}</option>
-                ))}
-                <option value="withdraw" disabled={formFrom === "deposit"}>← Withdraw</option>
-              </select>
-              <Button variant="primary" onClick={handleSubmitTransaction} loading={formLoading}>Confirm</Button>
+            <h2 style={groupHeading}>New transaction</h2>
+            <div className="flex items-end flex-wrap" style={{ gap: 8, marginTop: 12 }}>
+              <Field label="From" htmlFor="tx-form-from">
+                <SelectInput id="tx-form-from" value={formFrom} onChange={(e) => setFormFrom(e.target.value)}
+                  style={{ width: 130 }}>
+                  <option value="deposit" disabled={formTo === "withdraw"}>Deposit →</option>
+                  {portfolios.map((p) => (
+                    <option key={p.portfolio_id} value={p.portfolio_id}
+                      disabled={formTo !== "" && formTo !== "withdraw" && p.portfolio_id === parseInt(formTo)}>{p.portfolio_name}</option>
+                  ))}
+                </SelectInput>
+              </Field>
+              <Field label="Amount" htmlFor="tx-form-amount">
+                <NumberInput id="tx-form-amount" step={100} placeholder="Amount" value={formAmount}
+                  onChange={(e) => setFormAmount(e.target.value)}
+                  style={{ width: 100 }} />
+              </Field>
+              <Field label="To" htmlFor="tx-form-to">
+                <SelectInput id="tx-form-to" value={formTo} onChange={(e) => setFormTo(e.target.value)}
+                  style={{ width: 130 }}>
+                  <option value="">Select portfolio</option>
+                  {portfolios.map((p) => (
+                    <option key={p.portfolio_id} value={p.portfolio_id}
+                      disabled={formFrom !== "deposit" && p.portfolio_id === parseInt(formFrom)}>{p.portfolio_name}</option>
+                  ))}
+                  <option value="withdraw" disabled={formFrom === "deposit"}>← Withdraw</option>
+                </SelectInput>
+              </Field>
+              <button
+                type="button"
+                onClick={handleSubmitTransaction}
+                disabled={formLoading}
+                className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={CONTROL_BUTTON_PRIMARY}
+              >Confirm</button>
             </div>
-            {formErr && <p className="mt-1" style={{ fontSize: 12, color: "var(--color-danger-text)" }}>{formErr}</p>}
+            {formErr && <p className="mt-1 text-[length:var(--fs-body)]" style={{ color: "var(--color-danger-text)" }}>{formErr}</p>}
           </div>
         </div>
       </section>
 
-      <section className="overflow-hidden" style={{ background: "var(--color-canvas)", borderRadius: 16 }}>
+      <section className="overflow-hidden" style={{ background: "var(--color-canvas)", borderRadius: "var(--rounded-xl)" }}>
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-surface">
-                <th className="px-5 py-3 text-left" style={headCell}>Datetime</th>
-                <th className="px-5 py-3 text-left" style={headCell}>Type</th>
-                <th className="hidden md:table-cell px-5 py-3 text-left" style={headCell}>From</th>
-                <th className="hidden md:table-cell px-5 py-3 text-left" style={headCell}>To</th>
-                <th className="px-5 py-3 text-left" style={headCell}>Amount</th>
-                <th className="hidden lg:table-cell px-5 py-3 text-left" style={headCell}>Executed by</th>
-                <th className="px-5 py-3 text-left" style={headCell}>Status</th>
+                <th className={`px-5 py-3 text-left ${headCellClass}`} style={headCell}>Datetime</th>
+                <th className={`px-5 py-3 text-left ${headCellClass}`} style={headCell}>Type</th>
+                <th className={`hidden md:table-cell px-5 py-3 text-left ${headCellClass}`} style={headCell}>From</th>
+                <th className={`hidden md:table-cell px-5 py-3 text-left ${headCellClass}`} style={headCell}>To</th>
+                <th className={`px-5 py-3 text-left ${headCellClass}`} style={headCell}>Amount</th>
+                <th className={`hidden lg:table-cell px-5 py-3 text-left ${headCellClass}`} style={headCell}>Executed by</th>
+                <th className={`px-5 py-3 text-left ${headCellClass}`} style={headCell}>Status</th>
               </tr>
             </thead>
             <tbody>
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-slate" style={{ fontSize: 15 }}>
+                  <td colSpan={7} className="px-5 py-10 text-center text-slate text-[length:var(--fs-body)]">
                     No transactions found.
                   </td>
                 </tr>
@@ -275,25 +301,24 @@ export default function TransactionsPage() {
                   return (
                     <tr key={tx.history_id ?? tx.transaction_id ?? index}
                       className="border-t border-hairline hover:bg-surface transition-colors">
-                      <td className="px-5 py-3.5 text-[15px] text-ink">
+                      <td className="px-5 py-3.5 text-[length:var(--fs-content)] text-ink">
                         {formatDateTime(tx.entry_date)}
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="inline-flex items-center" style={{
-                          fontSize: 12,
+                        <span className="inline-flex items-center text-[length:var(--fs-label)]" style={{
                           fontWeight: 500,
                           color: "var(--color-slate)",
                           background: "var(--color-surface-soft)",
-                          borderRadius: 999,
+                          borderRadius: "var(--rounded-full)",
                           padding: "2px 10px",
                           whiteSpace: "nowrap",
                         }}>
                           {tx.type}
                         </span>
                       </td>
-                      <td className="hidden md:table-cell px-5 py-3.5 text-[15px] text-ink">{from}</td>
-                      <td className="hidden md:table-cell px-5 py-3.5 text-[15px] text-ink">{to}</td>
-                      <td className="px-5 py-3.5 text-[15px] text-ink font-medium" style={{ fontVariantNumeric: "tabular-nums" }}>
+                      <td className="hidden md:table-cell px-5 py-3.5 text-[length:var(--fs-content)] text-ink">{from}</td>
+                      <td className="hidden md:table-cell px-5 py-3.5 text-[length:var(--fs-content)] text-ink">{to}</td>
+                      <td className="px-5 py-3.5 text-[length:var(--fs-content)] text-ink font-medium" style={{ fontVariantNumeric: "tabular-nums" }}>
                         {tx.amount != null ? fmtCurrency(tx.amount) : "-"}
                       </td>
                       <td className="hidden lg:table-cell px-5 py-3.5">
@@ -301,10 +326,10 @@ export default function TransactionsPage() {
                           <span className="w-2 h-2 rounded-full" style={{
                             background: tx.executed_by === "AI" ? 'var(--color-brand-teal)' : tx.executed_by === "Bot" ? 'var(--color-brand-yellow)' : 'var(--color-ink)',
                           }} />
-                          <span className="text-[15px] text-ink">{tx.executed_by || "-"}</span>
+                          <span className="text-[length:var(--fs-content)] text-ink">{tx.executed_by || "-"}</span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-[15px] text-ink">
+                      <td className="px-5 py-3.5 text-[length:var(--fs-content)] text-ink">
                         {tx.executed_by === "AI" ? (
                           <span className="text-brand-teal">Completed</span>
                         ) : tx.type === "Transfer" ? (

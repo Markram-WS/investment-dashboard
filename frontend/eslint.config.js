@@ -36,6 +36,12 @@ export default [
       'src/screens/EditPortfolioModal.tsx',
       'src/screens/MFEditPortfolioModal.tsx',
       'src/screens/MFEditOrderModal.tsx',
+      'src/screens/MFCreateOrderModal.tsx',
+      'src/screens/MFProfitThresholdModal.tsx',
+      'src/screens/MFSellHoldingModal.tsx',
+      'src/screens/MFEditRatioModal.tsx',
+      'src/screens/MFRebalanceRecommendModal.tsx',
+      'src/pages/TransactionsPage.tsx',
       'src/screens/components/Field.tsx',
     ],
     rules: {

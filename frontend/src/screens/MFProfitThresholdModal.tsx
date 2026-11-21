@@ -3,6 +3,13 @@ import type { CSSProperties } from "react";
 import { MFHolding, MFSetting } from "../types";
 import ModalShell from "./components/ModalShell";
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
+import { Field, NumberInput } from "./components/Field";
+import {
+  CONTROL_BUTTON_PRIMARY,
+  CONTROL_BUTTON_SECONDARY,
+  CONTROL_LABEL,
+  CONTROL_TITLE,
+} from "./components/controlStyles";
 
 interface MFProfitThresholdModalProps {
   show: boolean;
@@ -12,31 +19,12 @@ interface MFProfitThresholdModalProps {
   onSave: (globalThreshold: number, perAsset: Record<number, number>) => void;
 }
 
-const CARD: CSSProperties = { background: "var(--color-canvas)", borderRadius: 16, padding: 24 };
-const TITLE: CSSProperties = {
-  fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--color-ink)", margin: 0,
+const modalPanelStyle: CSSProperties = {
+  padding: "var(--space-md)", borderRadius: "var(--rounded-xl)",
 };
-const LABEL: CSSProperties = {
-  display: "block", fontSize: 12, fontWeight: 500, color: "var(--color-slate)", margin: "0 0 6px",
-};
-const INPUT: CSSProperties = {
-  width: "100%", padding: "8px 12px", fontSize: 15, fontWeight: 500,
-  fontVariantNumeric: "tabular-nums", color: "var(--color-ink)", background: "transparent",
-  borderRadius: 8,
-};
-const HELPER: CSSProperties = {
-  fontSize: 12, fontWeight: 400, color: "var(--color-slate)", margin: "4px 0 0",
-};
-const BTN: CSSProperties = {
-  fontSize: 12, fontWeight: 500, borderRadius: 999, padding: "6px 14px",
-  border: "1px solid transparent", cursor: "pointer",
-};
-const BTN_PRIMARY: CSSProperties = {
-  ...BTN, background: "var(--color-ink)", color: "var(--color-canvas)",
-};
-const BTN_SECONDARY: CSSProperties = {
-  ...BTN, background: "transparent", color: "var(--color-ink)", borderColor: "var(--color-hairline)",
-};
+const groupLabel: CSSProperties = { ...CONTROL_LABEL, marginBottom: 8 };
+const primaryButton = CONTROL_BUTTON_PRIMARY;
+const secondaryButton = CONTROL_BUTTON_SECONDARY;
 
 export default function MFProfitThresholdModal({ show, settings, holdings, onClose, onSave }: MFProfitThresholdModalProps) {
   const [globalThreshold, setGlobalThreshold] = useState(
@@ -62,42 +50,43 @@ export default function MFProfitThresholdModal({ show, settings, holdings, onClo
 
   return (
     <ModalShell open={show} onClose={onClose} title="Profit threshold settings" closeOnBackdrop={false}>
-      <div className={`${MODAL_CARD} w-full max-w-md mx-4`} style={CARD}>
-        <h3 className={MODAL_HEADER} style={{ ...TITLE, marginBottom: 16 }}>Profit threshold settings</h3>
+      <div className={`${MODAL_CARD} bg-canvas border border-hairline w-full max-w-md mx-4`} style={modalPanelStyle}>
+        <h3 className={MODAL_HEADER} style={{ ...CONTROL_TITLE, marginBottom: 16 }}>Profit threshold settings</h3>
         <div className={MODAL_BODY}>
 
         <div style={{ marginBottom: 20 }}>
-          <label style={LABEL}>Global threshold (%)</label>
-          <input
-            type="number"
-            step="0.1"
-            value={globalThreshold}
-            onChange={(e) => setGlobalThreshold(e.target.value)}
-            className="border border-hairline focus:border-brand-teal"
-            style={INPUT}
-            placeholder="e.g. 10 = alert when P/L exceeds 10%"
-          />
-          <p style={HELPER}>Alert fires when any holding P/L % exceeds this value</p>
+          <Field
+            label="Global threshold (%)"
+            htmlFor="mf-global-threshold"
+            hint="Alert fires when any holding P/L % exceeds this value"
+          >
+            <NumberInput
+              id="mf-global-threshold"
+              step="0.1"
+              value={globalThreshold}
+              onChange={(e) => setGlobalThreshold(e.target.value)}
+              placeholder="e.g. 10 = alert when P/L exceeds 10%"
+            />
+          </Field>
         </div>
 
         {holdings.length > 0 && (
           <div>
-            <label style={{ ...LABEL, marginBottom: 8 }}>Per-asset threshold (%)</label>
+            <p style={groupLabel}>Per-asset threshold (%)</p>
             <div className="flex flex-col" style={{ gap: 8 }}>
               {holdings.map((h) => (
                 <div key={h.holding_id} className="flex items-center gap-2">
-                  <span className="w-16" style={{ fontSize: 15, fontWeight: 500, color: "var(--color-ink)" }}>{h.asset}</span>
-                  <input
-                    type="number"
+                  <span className="w-16 text-[length:var(--fs-content)]" style={{ fontWeight: 500, color: "var(--color-ink)" }}>{h.asset}</span>
+                  <NumberInput
                     step="0.1"
+                    aria-label={`${h.asset} profit threshold percent`}
                     value={perAsset[h.holding_id] || "0"}
                     onChange={(e) =>
                       setPerAsset({ ...perAsset, [h.holding_id]: e.target.value })
                     }
-                    className="w-20 border border-hairline focus:border-brand-teal"
-                    style={{ ...INPUT, padding: "6px 8px" }}
+                    style={{ width: 80 }}
                   />
-                  <span style={{ fontSize: 12, color: "var(--color-slate)" }}>%</span>
+                  <span className="text-[length:var(--fs-label)]" style={{ color: "var(--color-slate)" }}>%</span>
                 </div>
               ))}
             </div>
@@ -106,8 +95,8 @@ export default function MFProfitThresholdModal({ show, settings, holdings, onClo
 
         </div>
         <div className={`${MODAL_FOOTER} flex justify-end gap-2`} style={{ marginTop: 16 }}>
-          <button onClick={onClose} style={BTN_SECONDARY} className="transition-colors hover:bg-surface-soft">Cancel</button>
-          <button onClick={handleSave} style={BTN_PRIMARY} className="transition-opacity hover:opacity-90">Save thresholds</button>
+          <button onClick={onClose} style={secondaryButton} className="transition-colors hover:bg-surface-soft">Cancel</button>
+          <button onClick={handleSave} style={primaryButton} className="transition-opacity hover:opacity-90">Save thresholds</button>
         </div>
       </div>
     </ModalShell>
