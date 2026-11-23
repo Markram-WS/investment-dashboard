@@ -274,7 +274,9 @@ def _serialize_mapped_order(order: dict, plan_id: Optional[int]) -> dict:
         "qty": _to_float(order.get("qty")),
         "entry_price": _to_float(order.get("entry_price")),
         "current_price": _to_float(order.get("current_price")),
-        "tp_price": _to_float(order.get("tp_price")),
+        # The foreign schema's "Price out" lives in the mapped exit_price; fall
+        # back to it when the plan itself carries no tp_price.
+        "tp_price": _to_float(order.get("tp_price") or order.get("exit_price")),
         "sl_price": _to_float(order.get("sl_price")),
         "leverage": _to_float(order.get("leverage")),
         "margin_rate": _to_float(order.get("margin_rate")),

@@ -28,6 +28,7 @@ TFEX_SETTRADE_V1 = {
                 "qty": "volume",
                 "entry_price": "price",
                 "exit_price": "tp",
+                "tp_price": "tp",
                 "order_status": "status",
                 "remark": "remark",
                 "fee": "fee",

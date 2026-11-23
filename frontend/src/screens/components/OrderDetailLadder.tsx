@@ -464,7 +464,9 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
             {formatQty(eq.qty)}
           </span>
           <span className="at-num">{money(eq.entry_price)}</span>
-          <span className="at-num">{money(eq.current_price)}</span>
+          <span className="at-num">
+            {money(readOnly ? (eq.tp_price ?? eq.current_price) : eq.current_price)}
+          </span>
           {netCell(eq)}
           <RemarkCell order={eq} onSave={onUpdateRemark} readOnly={readOnly} />
         </>

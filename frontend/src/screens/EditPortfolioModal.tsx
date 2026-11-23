@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../lib/api";
-import type { BrokerRecord } from "../lib/api";
+import type { AssetRecord, BrokerRecord } from "../lib/api";
 import ModalShell from "./components/ModalShell";
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
 import { Field, NumberInput, SelectInput, TextInput } from "./components/Field";
@@ -9,12 +9,14 @@ import {
   CONTROL_BUTTON_SECONDARY,
   CONTROL_HELPER,
   CONTROL_INPUT,
+  CONTROL_LABEL,
   CONTROL_TITLE,
+  CONTROL_VALUE,
 } from "./components/controlStyles";
 import { formatMoney } from "../utils/format";
 
 const modalPanelStyle = {
-  padding: "var(--space-md)", borderRadius: "var(--rounded-xl)",
+  padding: 12, borderRadius: "var(--rounded-xl)", background: "var(--color-canvas)",
 } as const;
 const readonlyValue = {
   ...CONTROL_INPUT, background: "var(--color-surface)", fontWeight: 600, borderColor: "transparent",
@@ -28,7 +30,21 @@ const dangerButton = {
   ...CONTROL_BUTTON_SECONDARY, color: "var(--color-danger-text)",
 } as const;
 const SEPARATOR: React.CSSProperties = {
-  border: 0, borderTop: "1px solid var(--color-hairline)", margin: "24px 0",
+  border: 0, borderTop: "1px solid var(--color-hairline)", margin: 0,
+};
+/** One-line read-only contract spec: inline label + value pairs. */
+const SPEC_ROW: React.CSSProperties = {
+  display: "flex", flexWrap: "wrap", alignItems: "baseline",
+  columnGap: 14, rowGap: 2,
+};
+const SPEC_LABEL: React.CSSProperties = {
+  ...CONTROL_LABEL, display: "inline", margin: 0, marginRight: 4,
+};
+const SPEC_VALUE: React.CSSProperties = {
+  ...CONTROL_VALUE, fontVariantNumeric: "tabular-nums",
+};
+const SPEC_HINT: React.CSSProperties = {
+  ...CONTROL_HELPER, margin: 0,
 };
 
 interface EditPortfolioModalProps {
@@ -69,6 +85,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
     tags: tags ? Object.keys(tags).join(", ") : "",
   });
   const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
+  const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [tickers, setTickers] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState("");
@@ -111,6 +128,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
     api.getAssets()
       .then((rows) => {
         if (cancelled) return;
+        setAssets(rows);
         setTickers(Array.from(new Set(rows.map((a) => a.ticker).filter(Boolean))));
       })
       .catch((err) => console.error("Failed to load asset tickers:", err));
@@ -235,10 +253,18 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
   const projectedAvailableCash = Math.max(0, rawAvailableCash - projectedDiff);
   const displayEquity = projectedAvailableCash + cumulativePl;
 
+  // The contract spec is owned by All Assets, keyed by ticker + broker.
+  const tickerQuery = form.product_ticker.trim().toUpperCase();
+  const contractAsset = tickerQuery
+    ? assets.find((a) =>
+        a.ticker.toUpperCase() === tickerQuery &&
+        (form.broker_id == null ? a.broker_id == null : a.broker_id === form.broker_id))
+    : undefined;
+
   return (
     <ModalShell open={showModal} onClose={onClose} title="Edit portfolio">
       <div className={`${MODAL_CARD} w-full max-w-lg mx-4 relative`} style={modalPanelStyle}>
-          <div className={`${MODAL_HEADER} flex justify-between items-center`} style={{ marginBottom: 16 }}>
+          <div className={`${MODAL_HEADER} flex justify-between items-center`} style={{ marginBottom: 12 }}>
             <h3 style={CONTROL_TITLE}>Edit portfolio</h3>
             <button onClick={onClose} className="p-1 hover:bg-surface-soft rounded-full transition-colors">
               <svg className="w-5 h-5 text-slate" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -248,23 +274,45 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
           </div>
 
           <div className={MODAL_BODY}>
-          <div className="flex flex-col" style={{ gap: 16 }}>
-            <Field label="Portfolio name" htmlFor="edit-portfolio-name">
-              <TextInput id="edit-portfolio-name" value={form.portfolio_name} onChange={(e) => handleChange("portfolio_name", e.target.value)} />
-            </Field>
-            <div className="grid grid-cols-2 gap-4 items-start">
-              <Field label="Available cash">
-                <div style={readonlyValue}>{formatMoney(displayEquity)}</div>
-              </Field>
-              <Field
-                label="Margin locked (computed)"
-                hint="Computed as Σ mark × multiplier × qty × margin rate"
-              >
-                <div style={readonlyValue}>{formatMoney(marginLocked)}</div>
-              </Field>
+          <div className="flex flex-col" style={{ gap: 8 }}>
+            {/* Portfolio: name + money */}
+            <div>
+              <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "1fr 1fr 1.15fr" }}>
+                <Field label="Portfolio name" htmlFor="edit-portfolio-name">
+                  <TextInput id="edit-portfolio-name" value={form.portfolio_name} onChange={(e) => handleChange("portfolio_name", e.target.value)} />
+                </Field>
+                <Field label="Available cash">
+                  <div style={readonlyValue}>{formatMoney(displayEquity)}</div>
+                </Field>
+                <div>
+                  <label style={CONTROL_LABEL}>
+                    {readOnly ? "Margin locked (external)" : "Margin locked (computed)"}
+                  </label>
+                  <div
+                    id="edit-portfolio-margin"
+                    aria-describedby="edit-portfolio-money-hint"
+                    style={readonlyValue}
+                  >
+                    {formatMoney(marginLocked)}
+                  </div>
+                </div>
+              </div>
+              <p id="edit-portfolio-money-hint" style={{ ...CONTROL_HELPER, margin: "4px 0 0" }}>
+                {readOnly
+                  ? "read from account_history in the external database"
+                  : "Computed as Σ mark × multiplier × qty × margin rate"}
+              </p>
+              {readOnly && (
+                <p style={{ ...CONTROL_HELPER, margin: "2px 0 0" }}>
+                  Cash and margin are read from the external database.
+                </p>
+              )}
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <hr style={SEPARATOR} />
+
+            {/* Product: broker + ticker + strike, then the spec All Assets owns */}
+            <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "1fr 1fr 1.6fr" }}>
               <Field label="Broker" htmlFor="edit-portfolio-broker">
                 <SelectInput
                   id="edit-portfolio-broker"
@@ -289,74 +337,82 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
               <datalist id="edit-portfolio-tickers">
                 {tickers.map((t) => <option key={t} value={t} />)}
               </datalist>
-              <Field label="Multiplier" htmlFor="edit-portfolio-multiplier">
-                <div style={{ position: "relative" }}>
-                  <NumberInput
-                    id="edit-portfolio-multiplier"
-                    step="any"
-                    value={form.x_amount}
-                    onChange={(e) => handleChange("x_amount", e.target.value)}
-                    style={{ paddingRight: "calc(var(--control-pad-x) + 24px)" }}
-                    placeholder="0"
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="text-[length:var(--fs-body)]"
-                    style={{
-                      position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)",
-                      color: "var(--color-slate)", pointerEvents: "none",
-                    }}
-                  >×</span>
-                </div>
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 items-start">
               <Field
-                label="Initial capital"
-                htmlFor="edit-portfolio-initial-capital"
-                hint="baseline for the profit share, not the cash balance"
+                label="Adverse move (X)"
+                htmlFor="edit-portfolio-multiplier"
+                hint="price points used by the risk card"
               >
                 <NumberInput
-                  id="edit-portfolio-initial-capital"
+                  id="edit-portfolio-multiplier"
                   step="any"
-                  value={form.initial_capital}
-                  onChange={(e) => handleChange("initial_capital", e.target.value)}
-                  placeholder="0.00"
-                />
-              </Field>
-              <Field label="Cash buffer limit" htmlFor="edit-portfolio-cash-buffer">
-                <NumberInput
-                  id="edit-portfolio-cash-buffer"
-                  value={form.cash_buffer_limit}
-                  onChange={(e) => handleChange("cash_buffer_limit", e.target.value)}
+                  value={form.x_amount}
+                  onChange={(e) => handleChange("x_amount", e.target.value)}
+                  placeholder="0"
                 />
               </Field>
             </div>
 
-            <Field label="Tags (comma separated)" htmlFor="edit-portfolio-tags">
-              <TextInput
-                id="edit-portfolio-tags"
-                value={form.tags}
-                onChange={(e) => handleChange("tags", e.target.value)}
-                placeholder="crypto, bot, binance"
-              />
-            </Field>
+            <div style={SPEC_ROW}>
+              <span>
+                <span style={SPEC_LABEL}>Contract multiplier</span>{" "}
+                <span style={SPEC_VALUE}>
+                  {contractAsset?.multiplier == null || Number.isNaN(contractAsset.multiplier)
+                    ? "—" : String(contractAsset.multiplier)}
+                </span>
+              </span>{" "}
+              <span>
+                <span style={SPEC_LABEL}>Margin rate</span>{" "}
+                <span style={SPEC_VALUE}>
+                  {contractAsset?.margin_rate == null || Number.isNaN(contractAsset.margin_rate)
+                    ? "—" : String(contractAsset.margin_rate)}
+                </span>
+              </span>{" "}
+              <span style={SPEC_HINT}>maintained in All Assets</span>
+            </div>
 
-          </div>
+            <hr style={SEPARATOR} />
 
-          {readOnly ? (
-            <p style={{ ...CONTROL_HELPER, marginTop: 16 }}>
-              Cash and margin are read from the external database.
-            </p>
-          ) : (
-            <>
-              <hr style={SEPARATOR} />
+            {/* Capital: initial capital + buffer + tags */}
+            <div>
+              <div className="grid grid-cols-3 gap-3 items-start">
+                <Field label="Initial capital" htmlFor="edit-portfolio-initial-capital">
+                  <NumberInput
+                    id="edit-portfolio-initial-capital"
+                    step="any"
+                    value={form.initial_capital}
+                    onChange={(e) => handleChange("initial_capital", e.target.value)}
+                    placeholder="0.00"
+                    aria-describedby="edit-portfolio-initial-hint"
+                  />
+                </Field>
+                <Field label="Cash buffer limit" htmlFor="edit-portfolio-cash-buffer">
+                  <NumberInput
+                    id="edit-portfolio-cash-buffer"
+                    value={form.cash_buffer_limit}
+                    onChange={(e) => handleChange("cash_buffer_limit", e.target.value)}
+                  />
+                </Field>
+                <Field label="Tags (comma separated)" htmlFor="edit-portfolio-tags">
+                  <TextInput
+                    id="edit-portfolio-tags"
+                    value={form.tags}
+                    onChange={(e) => handleChange("tags", e.target.value)}
+                    placeholder="crypto, bot, binance"
+                  />
+                </Field>
+              </div>
+              <p id="edit-portfolio-initial-hint" style={{ ...CONTROL_HELPER, margin: "4px 0 0" }}>
+                baseline for the profit share, not the cash balance
+              </p>
+            </div>
 
-              <Field label="Adjust cash balance" error={dwError}>
+            {!readOnly && (
+              <div>
+                <label style={CONTROL_LABEL} htmlFor="edit-portfolio-adjust-cash">Adjust cash balance</label>
                 <div className="flex gap-2">
-                  <NumberInput step={100} placeholder="0"
+                  <NumberInput id="edit-portfolio-adjust-cash" step={100} placeholder="0"
                     value={dwAmount} onChange={e => setDwAmount(e.target.value)}
+                    aria-describedby={dwError ? "edit-portfolio-adjust-cash-error" : undefined}
                     className="flex-1" />
                   <button onClick={handleDeposit} disabled={dwProcessing}
                     className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -369,17 +425,21 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
                     Withdraw
                   </button>
                 </div>
-              </Field>
-
-              <hr style={SEPARATOR} />
-            </>
-          )}
+                {dwError && (
+                  <p id="edit-portfolio-adjust-cash-error"
+                    style={{ ...CONTROL_HELPER, color: "var(--color-danger-text)" }}>{dwError}</p>
+                )}
+              </div>
+            )}
+          </div>
 
           {saveErr && (
-            <p style={{ ...CONTROL_HELPER, color: "var(--color-danger-text)", marginBottom: 16 }}>{saveErr}</p>
+            <p style={{ ...CONTROL_HELPER, color: "var(--color-danger-text)", margin: "8px 0 0" }}>{saveErr}</p>
           )}
 
-          <div className="flex items-center justify-between">
+          <hr style={{ ...SEPARATOR, marginTop: 8 }} />
+
+          <div className="flex items-center justify-between" style={{ marginTop: 8 }}>
             <div>
               <p style={CONTROL_TITLE}>Danger zone</p>
               <p style={{ ...CONTROL_HELPER, marginTop: 4 }}>Permanently delete this portfolio and all related data</p>

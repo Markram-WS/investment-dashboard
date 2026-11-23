@@ -25,6 +25,7 @@ import PerformanceSection from "./components/PerformanceSection";
 import OptionsStrategyTable from "./components/OptionsStrategyTable";
 import TradeHistoryTable from "./components/TradeHistoryTable";
 import ModalShell from "./components/ModalShell";
+import { MODAL_CARD } from "./components/modalLayout";
 import type { OptionRow } from "./components/OptionsStrategyTable";
 import { useNotification } from "../contexts/NotificationContext";
 import Button from "./components/Button";
@@ -586,9 +587,10 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       )}
 
       <ModalShell open={showStrategyModal} onClose={() => setShowStrategyModal(false)} title="Option legs">
-        <div style={{ width: 620, maxWidth: "92vw" }}>
+        <div className={`${MODAL_CARD} bg-canvas border border-hairline w-full max-w-[620px] mx-4 rounded-xl overflow-hidden`}>
           <OptionsStrategyTable
             visible
+            modal
             onClose={() => setShowStrategyModal(false)}
             onRowsChange={setStrategyRows}
           />

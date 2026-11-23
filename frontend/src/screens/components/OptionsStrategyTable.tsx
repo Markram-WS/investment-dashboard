@@ -5,6 +5,7 @@ import {
   CONTROL_INPUT,
   CONTROL_INPUT_TEXT,
 } from "./controlStyles";
+import { MODAL_BODY, MODAL_FOOTER, MODAL_HEADER } from "./modalLayout";
 
 /** Section caption: 11px/500 slate, sentence case. */
 const CAPTION: React.CSSProperties = { fontWeight: 500, color: "var(--color-slate)", margin: 0 };
@@ -55,9 +56,15 @@ interface OptionsStrategyTableProps {
   visible: boolean;
   onClose: () => void;
   onRowsChange?: (rows: OptionRow[]) => void;
+  /**
+   * Compose as the body of a ModalShell card: header/footer pinned, the table
+   * region is the only scroll surface. Default false keeps the embedded
+   * (payoff pane) rendering unchanged.
+   */
+  modal?: boolean;
 }
 
-const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, onClose, onRowsChange }) => {
+const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, onClose, onRowsChange, modal = false }) => {
   const [rows, setRows] = useState<OptionRow[]>(() => {
     try { return JSON.parse(localStorage.getItem('payoff_strategy_rows') || '[]'); }
     catch { return []; }
@@ -89,19 +96,22 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
 
   if (!visible) return null;
 
-  return (
-    <div className="h-full">
-      <div className="flex items-center justify-between px-4 py-2 bg-surface border-b border-hairline">
-        <span className="text-[length:var(--fs-label)]" style={CAPTION}>Options strategy</span>
-        <button
-          onClick={onClose}
-          className="h-8 w-8 rounded-full bg-canvas text-slate border border-hairline hover:bg-surface transition-all flex items-center justify-center"
-          title="Hide Options Strategy"
-        >
-          <IconX className="w-5 h-5" />
-        </button>
-      </div>
-      <div className="table-responsive">
+  const header = (
+    <div
+      className={`${modal ? `${MODAL_HEADER} ` : ""}flex items-center justify-between px-4 py-2 bg-surface border-b border-hairline`}
+    >
+      <span className="text-[length:var(--fs-label)]" style={CAPTION}>Options strategy</span>
+      <button
+        onClick={onClose}
+        className="h-8 w-8 rounded-full bg-canvas text-slate border border-hairline hover:bg-surface transition-all flex items-center justify-center"
+        title="Hide Options Strategy"
+      >
+        <IconX className="w-5 h-5" />
+      </button>
+    </div>
+  );
+
+  const table = (
       <table className="w-full text-[length:var(--fs-content)]">
         <thead className="text-[length:var(--fs-label)]">
           <tr className="bg-surface">
@@ -228,17 +238,40 @@ const OptionsStrategyTable: React.FC<OptionsStrategyTableProps> = ({ visible, on
           )}
         </tbody>
       </table>
-      <div className="flex justify-center px-4 py-1.5 border-t border-hairline bg-surface">
-        <button
-          onClick={addRow}
-          className="flex items-center gap-1 text-ink hover:bg-surface-soft transition-colors"
-          style={CONTROL_BUTTON_SECONDARY}
-        >
-          <IconPlus className="w-4 h-4" />
-          Add leg
-        </button>
+  );
+
+  const addLeg = (
+    <div
+      className={`${modal ? `${MODAL_FOOTER} ` : ""}flex justify-center px-4 py-1.5 border-t border-hairline bg-surface`}
+    >
+      <button
+        onClick={addRow}
+        className="flex items-center gap-1 text-ink hover:bg-surface-soft transition-colors"
+        style={CONTROL_BUTTON_SECONDARY}
+      >
+        <IconPlus className="w-4 h-4" />
+        Add leg
+      </button>
+    </div>
+  );
+
+  if (!modal) {
+    return (
+      <div className="h-full">
+        {header}
+        <div className="table-responsive">
+          {table}
+          {addLeg}
+        </div>
       </div>
-      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {header}
+      <div className={`${MODAL_BODY} table-responsive`}>{table}</div>
+      {addLeg}
     </div>
   );
 };
