@@ -307,12 +307,12 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
         <svg ref={svgRef} className="absolute inset-0 w-full h-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
           <defs>
             <linearGradient id="gradAbove" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#22C55E" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="#22C55E" stopOpacity="0" />
+              <stop offset="0%" stopColor="#00b473" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#00b473" stopOpacity="0" />
             </linearGradient>
             <linearGradient id="gradBelow" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#EF4444" stopOpacity="0" />
-              <stop offset="100%" stopColor="#EF4444" stopOpacity="0.8" />
+              <stop offset="0%" stopColor="#e74c3c" stopOpacity="0" />
+              <stop offset="100%" stopColor="#e74c3c" stopOpacity="0.22" />
             </linearGradient>
             <clipPath id="clipAbove">
               <rect x={MARGIN.left} y={MARGIN.top} width={CHART_W} height={baselineY - MARGIN.top} />
@@ -328,45 +328,77 @@ const PayoffChart: React.FC<PayoffChartProps> = ({ activeOrders, strategyRows, i
             return (
               <g key={`yt-${tick}`}>
                 <line x1={MARGIN.left} y1={y} x2={MARGIN.left + CHART_W} y2={y} stroke="var(--color-hairline)" strokeWidth="1" />
-                <text x={MARGIN.left - 6} y={y + 3.5} textAnchor="end" fontSize={10} fill="var(--color-slate)">{tick}</text>
+                <text x={MARGIN.left - 6} y={y + 3.5} textAnchor="end" fontSize={10.5} fill="var(--color-slate)">{tick}</text>
               </g>
             );
           })}
 
-          {/* X-axis grid + labels */}
+          {/* X-axis labels (horizontal gridlines only, like the equity chart) */}
           {xTicks.map((tick) => {
             const x = toX(tick);
             return (
               <g key={`xt-${tick}`}>
-                <line x1={x} y1={MARGIN.top} x2={x} y2={MARGIN.top + CHART_H} stroke="var(--color-hairline-soft)" strokeWidth="1" />
-                <text x={x} y={MARGIN.top + CHART_H + 15} textAnchor="middle" fontSize={10} fill="var(--color-slate)">{tick}</text>
+                <text x={x} y={MARGIN.top + CHART_H + 15} textAnchor="middle" fontSize={10.5} fill="var(--color-slate)">{tick}</text>
               </g>
             );
           })}
 
           {/* Area fill */}
-          <path d={fillPath} fill="url(#gradAbove)" clipPath="url(#clipAbove)" />
-          <path d={fillPath} fill="url(#gradBelow)" clipPath="url(#clipBelow)" />
+          <path className="payoff-area-in" d={fillPath} fill="url(#gradAbove)" clipPath="url(#clipAbove)" />
+          <path className="payoff-area-in" d={fillPath} fill="url(#gradBelow)" clipPath="url(#clipBelow)" />
 
           {/* Baseline */}
           <line x1={MARGIN.left} y1={baselineY} x2={MARGIN.left + CHART_W} y2={baselineY} stroke="var(--color-hairline)" strokeWidth="1.5" strokeDasharray="6,4" />
 
           {/* IV line */}
           {ivMode && ivLinePath && (
-            <path d={ivLinePath} fill="none" stroke="var(--color-brand-teal)" strokeWidth="1.5" strokeDasharray="6,3" strokeLinejoin="round" strokeLinecap="round" />
+            <path className="payoff-iv-in" d={ivLinePath} fill="none" stroke="var(--color-brand-teal)" strokeWidth="1.5" strokeDasharray="6,3" strokeLinejoin="round" strokeLinecap="round" opacity="0.9" />
           )}
 
-          {/* Intrinsic P/L line */}
-          <path d={linePath} fill="none" stroke="var(--color-brand-blue)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          {/* Intrinsic P/L line — signed meaning, not a brand hue: green above
+              break-even, red below. Two clipped halves of the same path draw as
+              one line. pathLength 1 keeps the dash units viewBox-independent. */}
+          <path
+            className="payoff-line-draw"
+            d={linePath}
+            fill="none"
+            stroke="#00b473"
+            strokeWidth={2.6}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            clipPath="url(#clipAbove)"
+            pathLength={1}
+            style={{ strokeDasharray: "1" }}
+          />
+          <path
+            className="payoff-line-draw"
+            d={linePath}
+            fill="none"
+            stroke="#e74c3c"
+            strokeWidth={2.6}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            clipPath="url(#clipBelow)"
+            pathLength={1}
+            style={{ strokeDasharray: "1" }}
+          />
 
-          {/* Break-even vertical lines */}
-          {(ivMode ? ivBePoints : bePoints).map((be, i) => {
-            const x = toX(be);
-            if (x < MARGIN.left || x > MARGIN.left + CHART_W) return null;
-            return (
-              <line key={`be-v-${i}`} x1={x} y1={MARGIN.top} x2={x} y2={MARGIN.top + CHART_H} stroke="#FCD34D" strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
-            );
-          })}
+          {/* First plotted point, as on the equity curve */}
+          {prices.length > 0 && (
+            <circle cx={toX(prices[0])} cy={toY(plValues[0])} r={3.5} fill={plValues[0] >= 0 ? "#00b473" : "#e74c3c"} />
+          )}
+
+          {/* Break-even vertical lines — one stable group so the quiet fade
+              runs at mount and never replays when the range changes. */}
+          <g className="payoff-be-in">
+            {(ivMode ? ivBePoints : bePoints).map((be, i) => {
+              const x = toX(be);
+              if (x < MARGIN.left || x > MARGIN.left + CHART_W) return null;
+              return (
+                <line key={`be-v-${i}`} x1={x} y1={MARGIN.top} x2={x} y2={MARGIN.top + CHART_H} stroke="var(--color-slate)" strokeWidth="1" strokeDasharray="4,3" opacity="0.35" />
+              );
+            })}
+          </g>
 
           {/* Crosshair */}
           {tooltip && (
