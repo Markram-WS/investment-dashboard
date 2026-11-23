@@ -170,15 +170,10 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
 
   return (
     <tr ref={dragRef} className={`transition-colors hover:bg-surface ${isDragging ? 'opacity-40' : ''}`} style={{ height: 32 }}>
-      <td style={cell} title={asset.name ? `${asset.name} (${asset.ticker})` : asset.ticker}>
+      <td style={cell} title={asset.ticker}>
         <div className="truncate" style={{ fontSize: "var(--fs-label)", fontWeight: 600, color: 'var(--color-ink)', lineHeight: 1.05 }}>
-          {asset.name || asset.ticker}
+          {asset.ticker}
         </div>
-        {asset.name && asset.name !== asset.ticker && (
-          <div className="truncate" style={{ fontSize: "var(--fs-micro)", color: 'var(--color-slate)', lineHeight: 1.05 }}>
-            {asset.ticker}
-          </div>
-        )}
       </td>
       <td className={COL_PRICE_SYMBOL} style={{ ...cell, color: 'var(--color-slate)' }} title="symbol used to fetch prices from yfinance/TFEX">
         {asset.price_symbol || '—'}
@@ -563,15 +558,15 @@ export default function AllAssets() {
           <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
             <thead>
               <tr>
-                <th style={headTh}>Asset</th>
-                <th className={`w-[120px] ${COL_PRICE_SYMBOL}`} style={headTh} title="symbol used to fetch prices from yfinance/TFEX">Price symbol</th>
-                <th className="w-[108px] text-right" style={{ ...headTh, textAlign: 'right' }}>Price</th>
-                <th className="w-[96px] text-right" style={{ ...headTh, textAlign: 'right' }}>Change</th>
-                <th className={`w-[76px] ${COL_SPEC}`} style={headTh}>Broker</th>
-                <th className={`w-[88px] text-right ${COL_SPEC}`} style={{ ...headTh, textAlign: 'right' }} title="multiplier">Multiplier</th>
-                <th className={`w-[76px] text-right ${COL_SPEC}`} style={{ ...headTh, textAlign: 'right' }} title="rate of notional, 0.10 = 10%">Margin</th>
-                <th className={`w-[88px] ${COL_SOURCE}`} style={headTh}>Source</th>
-                <th className="w-[56px]" style={{ ...headTh, paddingInline: 8 }}>
+                <th style={{ ...headTh, width: '18%' }}>Ticker</th>
+                <th className={COL_PRICE_SYMBOL} style={{ ...headTh, width: '16%' }} title="symbol used to fetch prices from yfinance/TFEX">Price symbol</th>
+                <th className="text-right" style={{ ...headTh, width: '12%', textAlign: 'right' }}>Price</th>
+                <th className="text-right" style={{ ...headTh, width: '9%', textAlign: 'right' }}>Change</th>
+                <th className={COL_SPEC} style={{ ...headTh, width: '8%' }}>Broker</th>
+                <th className={`text-right ${COL_SPEC}`} style={{ ...headTh, width: '10%', textAlign: 'right' }} title="multiplier">Multiplier</th>
+                <th className={`text-right ${COL_SPEC}`} style={{ ...headTh, width: '8%', textAlign: 'right' }} title="rate of notional, 0.10 = 10%">Margin</th>
+                <th className={COL_SOURCE} style={{ ...headTh, width: '11%' }}>Source</th>
+                <th style={{ ...headTh, width: '8%', paddingInline: 8 }}>
                   <span className="sr-only">Actions</span>
                 </th>
               </tr>

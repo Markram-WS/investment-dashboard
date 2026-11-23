@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from typing import Optional, List
@@ -11,13 +11,15 @@ from app.database import (
 )
 from app.models import (
     WhitelistAssets, AssetGroup, ActiveOrder, Broker,
-    CustomPortfolioConnection, Portfolio,
+    CustomPortfolioConnection, Portfolio, TradeHistory, Transaction,
 )
-from app.custom_models import CustomActiveOrder, CustomWhitelistAssets
+from app.custom_models import CustomActiveOrder, CustomTransaction, CustomWhitelistAssets
 from app.custom_mapping import (
     fetch_mapped_orders, is_mapped_portfolio, raise_if_mapped_readonly,
 )
-from app.managed_fund_models import ManagedFundHolding
+from app.managed_fund_models import (
+    ManagedFundHolding, ManagedFundOrder, ManagedFundOrderHistory,
+)
 from app.services import tfex_service
 from app.services.yfinance_service import fetch_price
 
@@ -56,6 +58,7 @@ class AssetCreate(BaseModel):
     margin_rate: Optional[float] = 0
 
 class AssetUpdate(BaseModel):
+    ticker: Optional[str] = None
     name: Optional[str] = None
     price_symbol: Optional[str] = None
     asset_type: Optional[str] = None
@@ -111,6 +114,38 @@ def _normalise_ticker(value) -> str | None:
         return None
     ticker = value.strip().upper()
     return ticker or None
+
+
+async def _rename_asset_references(
+    session: AsyncSession, old_ticker: str, new_ticker: str, is_custom: bool,
+) -> None:
+    """Follow a registry ticker rename in the asset's own database.
+
+    The ticker is the editable registry key; the local ledger tables carry their
+    own copy of it (``asset_type`` on orders, ``asset`` on history and
+    transactions, ``product_ticker`` on portfolios) and must move with it in the
+    same transaction. Mapped portfolios keep their orders in the foreign broker
+    database, so those rows are never touched here and keep their own symbol.
+    """
+    if is_custom:
+        references = (
+            (CustomActiveOrder, CustomActiveOrder.asset_type),
+            (CustomTransaction, CustomTransaction.asset),
+        )
+    else:
+        references = (
+            (ActiveOrder, ActiveOrder.asset_type),
+            (TradeHistory, TradeHistory.asset),
+            (Transaction, Transaction.asset),
+            (ManagedFundHolding, ManagedFundHolding.asset),
+            (ManagedFundOrder, ManagedFundOrder.asset),
+            (ManagedFundOrderHistory, ManagedFundOrderHistory.asset),
+            (Portfolio, Portfolio.product_ticker),
+        )
+    for model, column in references:
+        await session.execute(
+            update(model).where(column == old_ticker).values({column: new_ticker})
+        )
 
 
 def _normalise_price_symbol(value, fallback: str | None = None) -> str | None:
@@ -291,6 +326,26 @@ async def update_asset(
             raise HTTPException(400, "multiplier must be greater than 0")
         if data.margin_rate is not None and not (0 <= data.margin_rate <= 1):
             raise HTTPException(400, "margin_rate must be between 0 and 1")
+        if data.ticker is not None:
+            new_ticker = (data.ticker or "").strip().upper()
+            if not new_ticker:
+                raise HTTPException(400, "Ticker is required")
+            old_ticker = asset.ticker
+            if new_ticker != (old_ticker or "").upper():
+                duplicate = select(ModelClass).where(
+                    ModelClass.ticker == new_ticker,
+                    ModelClass.asset_id != asset.asset_id,
+                )
+                if not is_custom:
+                    duplicate = duplicate.where(ModelClass.broker_id == asset.broker_id)
+                if (await session.execute(duplicate)).scalars().first():
+                    raise HTTPException(400, "An asset with this ticker already exists")
+                await _rename_asset_references(session, old_ticker, new_ticker, is_custom)
+                asset.ticker = new_ticker
+                # The display name is legacy; keep it as a label only while it
+                # never diverged from the old registry key.
+                if not asset.name or asset.name == old_ticker:
+                    asset.name = new_ticker
         # Blank (or explicit null) clears the override: NULL means "use the ticker".
         if "price_symbol" in data.model_fields_set:
             asset.price_symbol = _normalise_price_symbol(data.price_symbol)

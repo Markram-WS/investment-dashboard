@@ -46,6 +46,8 @@ const errorText = {
 
 const modalPanel = 'bg-canvas border border-hairline rounded-xl p-4 w-full max-w-[560px]';
 
+/** Two equal short columns; collapses to one as the card narrows. */
+const rowTwo = 'grid gap-2.5 grid-cols-1 min-[420px]:grid-cols-2';
 /** Three equal short columns; collapses to two (then one) as the card narrows. */
 const rowThree = 'grid gap-2.5 grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3';
 /** Wide broker cell plus two numeric cells; broker takes a full row when narrow. */
@@ -54,7 +56,6 @@ const rowBroker = 'grid gap-2.5 grid-cols-2 sm:grid-cols-[2fr_1fr_1fr]';
 const emptyForm = {
   ticker: '',
   price_symbol: '',
-  name: '',
   asset_type: 'stock',
   source: 'manual',
   group_id: '',
@@ -109,7 +110,6 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({ open, onClose, onSaved, g
       await api.createAsset({
         ticker: form.ticker.trim(),
         price_symbol: form.price_symbol.trim() || undefined,
-        name: form.name.trim() || form.ticker.trim(),
         asset_type: form.asset_type,
         source: form.source,
         group_id: form.group_id ? parseInt(form.group_id) : undefined,
@@ -138,14 +138,10 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({ open, onClose, onSaved, g
 
         <div className="space-y-2.5">
           <div>
-            <div className={rowThree}>
+            <div className={rowTwo}>
               <Field className="min-w-0" label="Ticker" htmlFor="add-asset-ticker" required>
                 <TextInput id="add-asset-ticker" value={form.ticker} onChange={e => setForm(p => ({ ...p, ticker: e.target.value }))}
                   placeholder="e.g. AAPL" />
-              </Field>
-              <Field className="min-w-0" label="Name" htmlFor="add-asset-name">
-                <TextInput id="add-asset-name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                  placeholder="Optional" />
               </Field>
               <Field className="min-w-0" label="Price symbol" htmlFor="add-asset-price-symbol">
                 <TextInput id="add-asset-price-symbol" value={form.price_symbol} onChange={e => setForm(p => ({ ...p, price_symbol: e.target.value }))}

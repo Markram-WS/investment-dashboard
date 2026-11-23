@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
+import type { AssetUpdatePayload } from '../lib/api';
 import ModalShell from './components/ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
 import { Field, NumberInput, SelectInput, TextInput } from './components/Field';
@@ -15,7 +16,6 @@ interface EditableAsset {
   asset_id: number;
   ticker: string;
   price_symbol?: string | null;
-  name?: string | null;
   asset_type?: string | null;
   source?: string | null;
   group_id?: number | null;
@@ -58,6 +58,14 @@ const errorText = {
   marginBottom: 12,
 } as const;
 
+const warningText = {
+  color: 'var(--color-warning-text)',
+  background: 'color-mix(in srgb, var(--color-status-warning) 12%, transparent)',
+  borderRadius: 8,
+  padding: '6px 8px',
+  marginBottom: 8,
+} as const;
+
 const actionButtonClass = 'transition-opacity disabled:opacity-50 disabled:cursor-not-allowed';
 const modalPanel = 'bg-canvas border border-hairline w-full max-w-[560px]';
 const modalPanelStyle = {
@@ -71,7 +79,7 @@ const rowTwo = 'grid gap-2.5 grid-cols-1 min-[420px]:grid-cols-2';
 const rowThree = 'grid gap-2.5 grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3';
 
 const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, onSaved, groups }) => {
-  const [form, setForm] = useState({ name: '', price_symbol: '', asset_type: 'stock', source: 'manual', group_id: '', multiplier: '1', margin_rate: '0' });
+  const [form, setForm] = useState({ ticker: '', price_symbol: '', asset_type: 'stock', source: 'manual', group_id: '', multiplier: '1', margin_rate: '0' });
   const [priceStr, setPriceStr] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -79,7 +87,7 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
   useEffect(() => {
     if (asset) {
       setForm({
-        name: asset.name || '',
+        ticker: asset.ticker,
         price_symbol: asset.price_symbol ?? '',
         asset_type: asset.asset_type || 'stock',
         source: asset.source || 'manual',
@@ -94,6 +102,11 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
   if (!open || !asset) return null;
 
   const handleSave = async () => {
+    const ticker = form.ticker.trim().toUpperCase();
+    if (!ticker) {
+      setError('Ticker is required');
+      return;
+    }
     const multiplier = parseFloat(form.multiplier);
     const marginRate = parseFloat(form.margin_rate);
     if (form.multiplier.trim() === '' || isNaN(multiplier) || multiplier <= 0) {
@@ -104,22 +117,34 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
       setError('Margin rate must be between 0 and 1');
       return;
     }
+    const tickerChanged = ticker !== asset.ticker.toUpperCase();
     setLoading(true);
     setError('');
     try {
-      await api.updateAsset(asset.asset_id, {
-        name: form.name || asset.ticker,
+      const payload: AssetUpdatePayload = {
         price_symbol: form.price_symbol.trim() || null,
         asset_type: form.asset_type,
         source: form.source,
         group_id: form.group_id ? parseInt(form.group_id) : null,
         multiplier,
         margin_rate: marginRate,
-      });
+      };
+      if (tickerChanged) payload.ticker = ticker;
+      await api.updateAsset(asset.asset_id, payload);
+      if (tickerChanged) {
+        // The per-ticker price caches follow the rename.
+        for (const prefix of ['asset_price_', 'cached_price_']) {
+          const cached = localStorage.getItem(`${prefix}${asset.ticker}`);
+          if (cached != null) {
+            localStorage.setItem(`${prefix}${ticker}`, cached);
+            localStorage.removeItem(`${prefix}${asset.ticker}`);
+          }
+        }
+      }
       if (form.source === 'manual' && priceStr) {
         const priceNum = parseFloat(priceStr);
         if (!isNaN(priceNum)) {
-          localStorage.setItem(`asset_price_${asset.ticker}`, String(priceNum));
+          localStorage.setItem(`asset_price_${ticker}`, String(priceNum));
           await api.updateAsset(asset.asset_id, { price: priceNum });
         }
       }
@@ -150,6 +175,8 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
   };
 
   const canDelete = !asset.sync_protected;
+  const nextTicker = form.ticker.trim().toUpperCase();
+  const tickerChanged = !!nextTicker && nextTicker !== asset.ticker.toUpperCase();
 
   return (
     <ModalShell open={open} onClose={onClose} title={"Edit Asset " + (asset?.ticker || '')} zIndex={9999}>
@@ -160,19 +187,20 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
         {error && <div style={errorText} className="text-[length:var(--fs-label)]">{error}</div>}
 
         <p style={contextLine}>
-          Ticker {asset.ticker} · Broker {asset.broker_code ?? '—'} — ticker and broker are fixed after creation.
+          Broker {asset.broker_code ?? '—'} — renaming the ticker updates local orders, holdings and history; mapped broker orders keep their own symbol.
         </p>
 
         <div className="space-y-2.5">
           <div>
             <div className={rowTwo}>
-              <Field className="min-w-0" label="Name" htmlFor="edit-asset-name">
-                <TextInput id="edit-asset-name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+              <Field className="min-w-0" label="Ticker" htmlFor="edit-asset-ticker" required>
+                <TextInput id="edit-asset-ticker" value={form.ticker}
+                  onChange={e => setForm(p => ({ ...p, ticker: e.target.value }))} />
               </Field>
               <Field className="min-w-0" label="Price symbol" htmlFor="edit-asset-price-symbol">
                 <TextInput id="edit-asset-price-symbol" value={form.price_symbol}
                   onChange={e => setForm(p => ({ ...p, price_symbol: e.target.value }))}
-                  placeholder={asset.ticker} />
+                  placeholder={form.ticker.trim() || asset.ticker} />
               </Field>
             </div>
             <p style={CONTROL_HELPER}>Symbol used to fetch prices (yfinance / TFEX; TFEX accepts the series symbol like S50Z26 or the product-page URL — expired series return no quote); leave blank to use the Ticker</p>
@@ -219,6 +247,12 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
           </div>
         </div>
         </div>
+
+        {tickerChanged && (
+          <div style={warningText} className="text-[length:var(--fs-label)]" role="status">
+            Renaming the ticker updates local orders, holdings and history; mapped broker orders keep their own symbol.
+          </div>
+        )}
 
         <div className={`${MODAL_FOOTER} flex justify-between items-center`} style={{ marginTop: 12 }}>
           <div>

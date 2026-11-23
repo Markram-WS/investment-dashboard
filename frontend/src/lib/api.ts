@@ -311,6 +311,7 @@ export interface AssetPayload {
 }
 
 export interface AssetUpdatePayload {
+  ticker?: string;
   name?: string;
   price_symbol?: string | null;
   asset_type?: string;

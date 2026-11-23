@@ -81,12 +81,12 @@ CREATE TABLE custom_portfolio_connections (
 
 ### Updated columns on `whitelist_assets`
 
-**Semantics:** `ticker` = internal key (fixed after creation), `name` = display label, `price_symbol` = provider symbol sent to the price feed.
+**Semantics:** `ticker` = the editable registry key. Renaming it cascades in the same transaction to the local references — `active_orders.asset_type`, `trade_history.asset`, `transactions.asset`, `managed_fund_holdings.asset`, `managed_fund_orders.asset`, `managed_fund_order_history.asset`, and `portfolios.product_ticker`; legacy custom databases cascade their own `active_orders` and `transactions`. Orders held by a mapped (foreign-schema) portfolio live in the broker database, keep their own symbol, and are never renamed here. `name` = legacy display label, no longer shown in the UI; it only follows the ticker while it was empty or identical to it. `price_symbol` = provider symbol sent to the price feed.
 
 - `asset_id` SERIAL PK
-- `ticker` TEXT NOT NULL — symbol (e.g., AAPL, BTC-USD, PTT.BK)
+- `ticker` TEXT NOT NULL — symbol (e.g., AAPL, BTC-USD, PTT.BK); editable after creation
 - `asset_type` TEXT — stock, future, option, crypto
-- `name` TEXT — human-readable name
+- `name` TEXT — legacy display label (not rendered; kept for API compatibility)
 - `source` TEXT — `'yfinance'`, `'tfex'`, or `'manual'`; only the first two are fetched by the price-refresh endpoints
 - `price_symbol` TEXT — provider symbol used for the price feed (same as `ticker` by default); may differ from the dashboard ticker and is stored as entered, never uppercased (e.g. `PTT.BK`)
 - `group_id` INTEGER FK → `asset_groups(id)` — nullable

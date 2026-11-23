@@ -580,7 +580,7 @@ States ship per component, not per token. A state that the code does not impleme
 | Commit | Enter or blur saves through `PUT /assets/{id}`; `multiplier > 0` and `0 <= margin <= 1` are enforced, and an invalid or empty entry leaves the stored value untouched | `AllAssets.tsx` `commitSpec` |
 | Cancel | Escape closes the input without saving | same |
 | Failure | a warning toast names the ticker and the API message; the old value stays | `AllAssets.tsx` `handleSaveSpec` |
-| Heads | never wrap: explicit widths per column, the Name column alone takes the slack | `AllAssets.tsx` thead |
+| Heads | never wrap: explicit widths per column, the Ticker column alone takes the slack | `AllAssets.tsx` thead |
 
 ### Nav Links
 

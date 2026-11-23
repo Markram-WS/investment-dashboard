@@ -182,7 +182,7 @@ open http://localhost:8000/docs
 |--------|-----------|-------------|
 | `GET` | `/api/v1/assets` | List assets (optional `?asset_type=`, `?portfolio_id=`); each row carries `source`, `price_symbol`, `price`, `change_24h` |
 | `POST` | `/api/v1/assets` | Create a new asset; accepts `price_symbol` (defaults to the ticker) |
-| `PUT` | `/api/v1/assets/{id}` | Update asset fields, including `source` and `price_symbol` (cleared only when explicitly sent blank/null) |
+| `PUT` | `/api/v1/assets/{id}` | Update asset fields, including `ticker`, `source` and `price_symbol` (cleared only when explicitly sent blank/null). `ticker` is trimmed/uppercased; empty is a 400 and a duplicate `(broker_id, ticker)` — ticker only for legacy custom assets — is a 400. A rename cascades in the same transaction to `active_orders.asset_type`, `trade_history.asset`, `transactions.asset`, `managed_fund_holdings.asset`, `managed_fund_orders.asset`, `managed_fund_order_history.asset` and `portfolios.product_ticker`, plus the custom database's own `active_orders`/`transactions`; mapped broker orders keep their own symbol |
 | `DELETE` | `/api/v1/assets/{id}` | Delete asset |
 | `POST` | `/api/v1/assets/sync-from-orders` | Sync active-order tickers as new assets — main DB plus every custom portfolio (owned or mapped); mapped tickers are inserted as `asset_type = 'future'` with `source = 'tfex'` |
 | `POST` | `/api/v1/assets/sync-from-all` | Sync asset symbols from ALL sources (all order tickers incl. custom/mapped + managed_fund_holdings; Managed Fund order history is not a source) |
