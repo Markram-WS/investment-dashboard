@@ -17,8 +17,15 @@ interface OrderDetailLadderProps {
   onAssignGroup?: (orderIds: string[], groupId: number | null) => void;
   onLinkOrder?: (sourceOrderId: string, targetOrderId: string) => void;
   onUpdateRemark?: (order: SpreadOrder, remark: string | null) => void | Promise<void>;
-  /** Mapped external data: no drag, link, edit, close, zone or remark writes. */
-  readOnly?: boolean;
+  /** Mapped foreign data: the Mark column shows the broker mark and no local zones exist. */
+  mapped?: boolean;
+  canAdd?: boolean;
+  canEdit?: boolean;
+  canClose?: boolean;
+  canGroup?: boolean;
+  canLink?: boolean;
+  canZone?: boolean;
+  canRemark?: boolean;
 }
 
 /** One visual ladder line: a price level, or one leg when a level holds several. */
@@ -302,7 +309,14 @@ const RemarkCell = ({ order, onSave, readOnly }: {
 const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
   activeOrders, zones, onShowZoneGroupModal, onAddOrder,
   onEditOrder, onCloseOrder, onAssignGroup, onLinkOrder, onUpdateRemark,
-  readOnly = false,
+  mapped = false,
+  canAdd = !mapped,
+  canEdit = !mapped,
+  canClose = !mapped,
+  canGroup = !mapped,
+  canLink = !mapped,
+  canZone = !mapped,
+  canRemark = !mapped,
 }) => {
   const [view, setView] = useState<LadderView>("all");
   const [linkSource, setLinkSource] = useState<string | null>(null);
@@ -332,7 +346,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
   };
 
   const rowDropProps = (line: LadderLine) => {
-    if (readOnly) return {};
+    if (!canGroup) return {};
     return {
       onDragOver: (e: React.DragEvent) => {
         if (!Array.from(e.dataTransfer.types).includes("text/plain")) return;
@@ -347,10 +361,11 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
 
   /** Drag / link / edit / close for one leg, shown over that leg's Net cell. */
   const legActions = (o: SpreadOrder) => {
-    if (readOnly) return null;
-    return (
-      <div className="at-actions">
+    const actions: React.ReactNode[] = [];
+    if (canGroup) {
+      actions.push(
         <span
+          key="drag"
           className="icon-btn"
           draggable
           role="button"
@@ -367,8 +382,13 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
             <circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" />
             <circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" />
           </svg>
-        </span>
+        </span>,
+      );
+    }
+    if (canLink) {
+      actions.push(
         <IconButton
+          key="link"
           label={`Link ${legLabel(o)}`}
           pressed={linkSource === o.order_id}
           onClick={() => handleLink(o.order_id)}
@@ -377,20 +397,30 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
           </svg>
-        </IconButton>
-        <IconButton label={`Edit ${legLabel(o)}`} onClick={() => onEditOrder(o)}>
+        </IconButton>,
+      );
+    }
+    if (canEdit) {
+      actions.push(
+        <IconButton key="edit" label={`Edit ${legLabel(o)}`} onClick={() => onEditOrder(o)}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 11.5 8 16l4.5-7.5z" />
           </svg>
-        </IconButton>
-        <IconButton label={`Close ${legLabel(o)}`} danger onClick={() => onCloseOrder(o)}>
+        </IconButton>,
+      );
+    }
+    if (canClose) {
+      actions.push(
+        <IconButton key="close" label={`Close ${legLabel(o)}`} danger onClick={() => onCloseOrder(o)}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
             <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
           </svg>
-        </IconButton>
-      </div>
-    );
+        </IconButton>,
+      );
+    }
+    if (actions.length === 0) return null;
+    return <div className="at-actions">{actions}</div>;
   };
 
   /** A leg's Net cell carries its own actions, so each block owns its cluster. */
@@ -403,7 +433,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
 
   /** Rows with no leg offer the one thing left to do at that level. */
   const emptyRowAction = (line: LadderLine) => {
-    if (readOnly) return null;
+    if (!canAdd) return null;
     if (line.eq || line.opt || line.zoneId == null) return null;
     const price = levelPrice(line);
     return (
@@ -429,7 +459,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
     const markLeg = eq ?? opt;
     const mark = (
       <span className="at-mark">
-        {readOnly && markLeg?.mark_price != null
+        {mapped && markLeg?.mark_price != null
           ? money(markLeg.mark_price)
           : priceLabel(line.label)}
       </span>
@@ -475,10 +505,10 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
           </span>
           <span className="at-num">{money(eq.entry_price)}</span>
           <span className="at-num">
-            {money(readOnly ? (eq.tp_price ?? eq.current_price) : eq.current_price)}
+            {money(mapped ? (eq.tp_price ?? eq.current_price) : eq.current_price)}
           </span>
           {netCell(eq)}
-          <RemarkCell order={eq} onSave={onUpdateRemark} readOnly={readOnly} />
+          <RemarkCell order={eq} onSave={onUpdateRemark} readOnly={!canRemark} />
         </>
       );
     }
@@ -506,7 +536,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
           <span className="at-num">{money(opt.entry_price)}</span>
           <span className="at-num">{money(opt.current_price)}</span>
           {netCell(opt)}
-          <RemarkCell order={opt} onSave={onUpdateRemark} readOnly={readOnly} />
+          <RemarkCell order={opt} onSave={onUpdateRemark} readOnly={!canRemark} />
         </>
       );
     }
@@ -554,14 +584,18 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
     <section className="at-card at-detail" aria-label="Order detail">
       <div className="at-dh">
         <h2>Order detail</h2>
-        {!readOnly && (
+        {(canZone || canAdd) && (
           <div className="at-dh-new">
-            <button type="button" className="at-znew" onClick={onShowZoneGroupModal}>
-              + New zone
-            </button>
-            <button type="button" className="at-znew" onClick={() => onAddOrder()}>
-              + New order
-            </button>
+            {canZone && (
+              <button type="button" className="at-znew" onClick={onShowZoneGroupModal}>
+                + New zone
+              </button>
+            )}
+            {canAdd && (
+              <button type="button" className="at-znew" onClick={() => onAddOrder()}>
+                + New order
+              </button>
+            )}
           </div>
         )}
         <div className="at-dh-right">
@@ -581,15 +615,20 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
 
       {showEmptyState ? (
         <div className="at-empty">
-          <p className="at-empty-title">{readOnly ? "No orders yet" : "No zones yet"}</p>
+          <p className="at-empty-title">{mapped ? "No orders yet" : "No zones yet"}</p>
           <p className="at-empty-text">
-            {readOnly
-              ? "Orders are read from the external database."
+            {mapped
+              ? "No active orders in the external database."
               : "Create a zone to place orders on a price level."}
           </p>
-          {!readOnly && (
+          {canZone && (
             <button type="button" className="at-btn-ghost" onClick={onShowZoneGroupModal}>
               + New zone
+            </button>
+          )}
+          {mapped && canAdd && (
+            <button type="button" className="at-btn-ghost" onClick={() => onAddOrder()}>
+              + New order
             </button>
           )}
         </div>
@@ -643,7 +682,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
             </div>
           ))}
 
-          {zones.length === 0 && !readOnly && (
+          {zones.length === 0 && canZone && (
             <div className="at-invite">
               <span>No zones yet — grouping orders by price level makes the ladder</span>
               <button type="button" className="at-btn-ghost" onClick={onShowZoneGroupModal}>

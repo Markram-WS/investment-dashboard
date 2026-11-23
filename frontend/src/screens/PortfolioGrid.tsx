@@ -11,6 +11,7 @@ import { useAddOrder } from "../hooks/useAddOrder";
 import { usePortfolioManager } from "../hooks/usePortfolioManager";
 import { useMarkdownRenderer } from "../hooks/useMarkdownRenderer";
 import { SpreadOrder } from "../types";
+import type { MappedOrderFields } from "../types";
 import { api } from "../lib/api";
 import type { ZoneGroupRecord, TradeHistoryRecord, PerformanceResult } from "../lib/api";
 
@@ -61,6 +62,14 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
 
   const [viewMode, setViewMode] = useState<"equity" | "payoff">("payoff");
   const [performanceData, setPerformanceData] = useState<PerformanceResult | null>(null);
+
+  /** Mapped portfolios are read-only at the portfolio level, but their
+   * `order_writes` block may open per-entity capabilities. */
+  const isMapped = Boolean(selectedPortfolio?.read_only);
+  const mappedOrderFields = useMemo<MappedOrderFields | undefined>(() => {
+    const writes = selectedPortfolio?.order_writes;
+    return writes ? { fields: writes.fields, keyGenerated: writes.key_generated } : undefined;
+  }, [selectedPortfolio?.order_writes]);
 
   // Payoff state with per-portfolio localStorage
   const pid = selectedPortfolio?.portfolio_id ?? null;
@@ -167,7 +176,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     handleFormChange,
     handleSaveOrder,
     setOnRefresh,
-  } = useOrderEdit(selectedPortfolio?.portfolio_id);
+  } = useOrderEdit(selectedPortfolio?.portfolio_id, mappedOrderFields);
 
   const {
     formData: addFormData,
@@ -214,7 +223,9 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
 
   const handleCloseOrder = useCallback((order: SpreadOrder) => {
     const status = (order.order_status || "").toUpperCase();
-    if (status === "PENDING") {
+    // A mapped close always writes history then removes the open row; there is
+    // no local PENDING->CANCELED transition on the foreign schema.
+    if (!isMapped && status === "PENDING") {
       api.cancelOrder(order.order_id, selectedPortfolio?.portfolio_id).then(() => {
         fetchAnalyticsData();
         if (selectedPortfolio) {
@@ -225,7 +236,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       setClosingOrder(order);
       setShowCloseModal(true);
     }
-  }, [fetchAnalyticsData, selectedPortfolio]);
+  }, [fetchAnalyticsData, selectedPortfolio, isMapped]);
 
   const handleAssignGroup = useCallback(async (orderIds: string[], groupId: number | null) => {
     if (!selectedPortfolio || orderIds.length === 0) return;
@@ -269,12 +280,17 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   /** Inline remark edits save one field and refresh the ladder. */
   const handleUpdateRemark = useCallback(async (order: SpreadOrder, remark: string | null) => {
     try {
-      await api.updateOrder(order.order_id, { remark }, selectedPortfolio?.portfolio_id);
+      // Mapped updates skip nulls; an empty string is how a column is cleared.
+      await api.updateOrder(
+        order.order_id,
+        { remark: isMapped ? remark ?? '' : remark },
+        selectedPortfolio?.portfolio_id,
+      );
       await fetchAnalyticsData();
     } catch {
       notify('Remark not saved', 'warning');
     }
-  }, [selectedPortfolio?.portfolio_id, fetchAnalyticsData, notify]);
+  }, [selectedPortfolio?.portfolio_id, fetchAnalyticsData, notify, isMapped]);
 
   const handleDropOnTradeHistory = useCallback((orderId: string) => {
     const order = activeOrders.find(o => o.order_id === orderId);
@@ -286,10 +302,11 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   /** Header pill opens a blank form; a ladder row presets its zone and mark. */
   const handleAddOrder = useCallback((preset?: { groupId: number | null; entryPrice: number | null }) => {
     openModal({
-      group_id: preset?.groupId ?? null,
+      group_id: isMapped ? null : preset?.groupId ?? null,
       entry_price: preset?.entryPrice ?? '',
+      ...(isMapped ? { side: 'LONG' } : {}),
     });
-  }, [openModal]);
+  }, [openModal, isMapped]);
 
   const handleLinkOrder = useCallback(async (sourceOrderId: string, targetOrderId: string) => {
     try {
@@ -303,7 +320,17 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const handleConfirmClose = useCallback(
     async (orderId: string, closeOrderId: string, exitPrice: number | null, realizedPl: number | null, cost?: number) => {
       try {
-        const resp = await api.closeOrder(orderId, { close_order_id: closeOrderId, exit_price: exitPrice, realized_pl: realizedPl, cost }, selectedPortfolio?.portfolio_id);
+        const resp = isMapped
+          ? await api.closeOrder(
+              orderId,
+              { exit_price: exitPrice, realized_pl: realizedPl },
+              selectedPortfolio?.portfolio_id,
+            )
+          : await api.closeOrder(
+              orderId,
+              { close_order_id: closeOrderId, exit_price: exitPrice, realized_pl: realizedPl, cost },
+              selectedPortfolio?.portfolio_id,
+            );
         setShowCloseModal(false);
         setClosingOrder(null);
         fetchAnalyticsData();
@@ -324,7 +351,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         console.error("Failed to close order:", err);
       }
     },
-    [fetchAnalyticsData, selectedPortfolio, activeOrders],
+    [fetchAnalyticsData, selectedPortfolio, activeOrders, isMapped],
   );
 
   const { renderMarkdown } = useMarkdownRenderer();
@@ -419,7 +446,13 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   );
   if (!selectedPortfolio) return <PageLayout><p className="text-slate">No portfolio data available.</p></PageLayout>;
 
-  const readOnly = Boolean(selectedPortfolio.read_only);
+  const readOnly = isMapped;
+  const orderWrites = selectedPortfolio.order_writes ?? null;
+  const canInsert = !readOnly || Boolean(orderWrites?.insert);
+  const canUpdate = !readOnly || Boolean(orderWrites?.update);
+  const canDelete = !readOnly || Boolean(orderWrites?.delete);
+  // Grouping, linking and zones are local-only concepts.
+  const canGroup = !readOnly;
   const cumulativePl = performanceData?.total_pl || 0;
   const marginLocked = selectedPortfolio.margin_locked || 0;
   const cashBufferLimit = selectedPortfolio.cash_buffer_limit || 0;
@@ -482,13 +515,20 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
               onCloseOrder={handleCloseOrder}
               onAssignGroup={handleAssignGroup}
               onLinkOrder={handleLinkOrder}
-              onUpdateRemark={readOnly ? undefined : handleUpdateRemark}
-              readOnly={readOnly}
+              onUpdateRemark={canUpdate ? handleUpdateRemark : undefined}
+              mapped={isMapped}
+              canAdd={canInsert}
+              canEdit={canUpdate}
+              canClose={canDelete}
+              canGroup={canGroup}
+              canLink={canGroup}
+              canZone={canGroup}
+              canRemark={canUpdate}
             />
             <OrderHistoryCard
               tradeHistory={tradeHistory}
               onViewAll={() => setShowHistoryModal(true)}
-              onDropOrder={readOnly ? undefined : handleDropOnTradeHistory}
+              onDropOrder={canGroup ? handleDropOnTradeHistory : undefined}
             />
           </div>
 
@@ -530,60 +570,69 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         </div>
       </div>
 
-      {!readOnly && (
-        <>
-          <EditOrderModal
-            order={editingOrder}
-            formData={formData}
-            showModal={showEditModal}
-            onClose={closeModal}
-            onSave={async () => { await handleSaveOrder(); fetchAnalyticsData(); }}
-            onChange={handleFormChange}
-            groups={groups}
-            groupOrderCounts={groupOrderCounts}
-            assetTypeOptions={assetTypeOptions}
-            onRefresh={fetchAnalyticsData}
-            portfolioId={selectedPortfolio?.portfolio_id}
-          />
-          <ZoneGroupModal
-            showModal={showZoneGroupModal}
-            onClose={() => {
-              setShowZoneGroupModal(false);
-              refreshGroups();
-            }}
-            portfolioId={selectedPortfolio.portfolio_id}
-            onSaved={refreshGroups}
-          />
-          <CloseOrderModal
-            order={closingOrder}
-            showModal={showCloseModal}
-            onClose={() => { setShowCloseModal(false); setClosingOrder(null); }}
-            onConfirm={handleConfirmClose}
-            activeOrders={activeOrders}
-          />
-          <AddOrderModal
-            formData={addFormData}
-            showModal={showAddModal}
-            onClose={closeAddModal}
-            onSave={async () => {
+      {canUpdate && (
+        <EditOrderModal
+          order={editingOrder}
+          formData={formData}
+          showModal={showEditModal}
+          onClose={closeModal}
+          onSave={async () => { await handleSaveOrder(); fetchAnalyticsData(); }}
+          onChange={handleFormChange}
+          groups={groups}
+          groupOrderCounts={groupOrderCounts}
+          assetTypeOptions={assetTypeOptions}
+          onRefresh={fetchAnalyticsData}
+          portfolioId={selectedPortfolio?.portfolio_id}
+          mapped={mappedOrderFields}
+        />
+      )}
+      {canGroup && (
+        <ZoneGroupModal
+          showModal={showZoneGroupModal}
+          onClose={() => {
+            setShowZoneGroupModal(false);
+            refreshGroups();
+          }}
+          portfolioId={selectedPortfolio.portfolio_id}
+          onSaved={refreshGroups}
+        />
+      )}
+      {canDelete && (
+        <CloseOrderModal
+          order={closingOrder}
+          showModal={showCloseModal}
+          onClose={() => { setShowCloseModal(false); setClosingOrder(null); }}
+          onConfirm={handleConfirmClose}
+          activeOrders={activeOrders}
+          mapped={isMapped}
+        />
+      )}
+      {canInsert && (
+        <AddOrderModal
+          formData={addFormData}
+          showModal={showAddModal}
+          onClose={closeAddModal}
+          onSave={async () => {
+            if (!mappedOrderFields) {
               const id = String(addFormData.order_id ?? '').trim();
               if (id && activeOrders.some((o) => o.order_id === id)) {
                 notify('Order ID already exists', 'warning');
                 return;
               }
-              const result = await handleCreateOrder(selectedPortfolio.portfolio_id);
-              if (result.ok) {
-                fetchAnalyticsData();
-              } else {
-                notify(result.message ?? 'Create order failed', 'warning');
-              }
-            }}
-            onChange={handleAddFormChange}
-            groups={groups}
-            groupOrderCounts={groupOrderCounts}
-            assetTypeOptions={assetTypeOptions}
-          />
-        </>
+            }
+            const result = await handleCreateOrder(selectedPortfolio.portfolio_id, mappedOrderFields);
+            if (result.ok) {
+              fetchAnalyticsData();
+            } else {
+              notify(result.message ?? 'Create order failed', 'warning');
+            }
+          }}
+          onChange={handleAddFormChange}
+          groups={groups}
+          groupOrderCounts={groupOrderCounts}
+          assetTypeOptions={assetTypeOptions}
+          mapped={mappedOrderFields}
+        />
       )}
 
       <ModalShell open={showStrategyModal} onClose={() => setShowStrategyModal(false)} title="Option legs">

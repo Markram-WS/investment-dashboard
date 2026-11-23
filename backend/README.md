@@ -134,12 +134,12 @@ open http://localhost:8000/docs
 ### Active Orders
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
-| `POST` | `/api/v1/orders` | Place a new order |
-| `GET` | `/api/v1/orders` | List orders (optional `?portfolio_id=`) |
-| `GET` | `/api/v1/orders/{order_id}` | Get order details |
-| `PUT` | `/api/v1/orders/{order_id}` | Update order fields |
-| `PATCH` | `/api/v1/orders/{order_id}/status` | Change order status |
-| `POST` | `/api/v1/orders/{order_id}/close` | Close order with exit price/P&L |
+| `POST` | `/api/v1/orders` | Place a new order; for a mapped portfolio, inserts a foreign `opened_orders` row when the config declares `write.insert` |
+| `GET` | `/api/v1/orders` | List orders (optional `?portfolio_id=`); a mapped portfolio returns normalised foreign rows with `order_id` (uuid key) and `order_ref` (human order number) |
+| `GET` | `/api/v1/orders/{order_id}` | Get order details; mapped portfolios look the row up by the uuid key |
+| `PUT` | `/api/v1/orders/{order_id}` | Update order fields; mapped portfolios update only `write.columns` (unwritable field → 400) |
+| `PATCH` | `/api/v1/orders/{order_id}/status` | Change order status; a mapped order supports `CANCELED` only, as a history insert + open-row delete |
+| `POST` | `/api/v1/orders/{order_id}/close` | Close order with exit price/P&L; a mapped close inserts the `order_history` row, then deletes the open row in one transaction |
 | `POST` | `/api/v1/orders/{order_id}/link` | Link order to a target order |
 | `POST` | `/api/v1/orders/{order_id}/unlink` | Unlink order |
 
@@ -317,9 +317,9 @@ External DB (Data Plane) — ONE per Custom Portfolio
 
 6. **Security**: Passwords encrypted with Fernet, never stored in plaintext. `test-connection` endpoint validates credentials without persisting them.
 
-### Read-through mapping (read-only)
+### Read-through mapping (orders writable when mapped)
 
-A non-null `custom_portfolio_connections.mapping_config` (JSON) turns the same Custom Portfolio into a **read-only view over an existing broker schema**; `null` keeps the owned-tables behaviour above. The mapping lives in `investment_main` only.
+A non-null `custom_portfolio_connections.mapping_config` (JSON) turns the same Custom Portfolio into a view over an existing broker schema; `null` keeps the owned-tables behaviour above. The mapping lives in `investment_main` only. Active orders are writable only when `entities.orders.write` is present; everything else stays read-only.
 
 | Endpoint | Purpose |
 |----------|---------|
@@ -330,9 +330,11 @@ A non-null `custom_portfolio_connections.mapping_config` (JSON) turns the same C
 - **Validation**: `validate_mapping` refuses a `version` other than 1, a missing `orders`/`account` entity, and any schema/table/column that is not a plain SQL identifier — the config can only ever name a quoted identifier, never carry SQL.
 - **No DDL**: `get_custom_session` / `get_portfolio_db` skip `ensure_custom_tables()` when `mapping_config` is set, so our `active_orders`/`transactions` tables are never created in the foreign database.
 - **Reads**: the grid maps orders (`status` `M`/`MP`→`open`, `C*`→`cancelled`, `E*`→`expired`, `R*`→`rejected`; `tp` is the exit price; `remark` is the Mark note), the newest `account_history` row supplies `available_cash`←`excessequity`, `margin_locked`←`initialmargin`, `current_nav`←`equity`, and `GET /api/v1/trade-history` serves the mapped `history` rows (`remark.note` = `Close`/`Canceled`).
-- **Prices and P&L**: the mapped `orders` entity maps `mark_price` → a display-only `mark_price` that the read-only ladder's `Mark` column shows; `current_price` is not mapped. Net P&L and the risk card's Sum P/L use the local `investment_main.whitelist_assets.price` for the order ticker — the portfolio's `broker_id` row preferred, else the lowest `broker_id` — and a `NULL` price is missing (the order falls back to its entry price, so its Net P&L is 0; the foreign mark is never substituted). `tp` remains an exit price only and never enters P/L.
+- **Prices and P&L**: the mapped `orders` entity maps `mark_price` → a display-only `mark_price` that the mapped ladder's `Mark` column shows; `current_price` is not mapped. Net P&L and the risk card's Sum P/L use the local `investment_main.whitelist_assets.price` for the order ticker — the portfolio's `broker_id` row preferred, else the lowest `broker_id` — and a `NULL` price is missing (the order falls back to its entry price, so its Net P&L is 0; the foreign mark is never substituted). `tp` remains an exit price only and never enters P/L.
 - **Asset sync**: `POST /api/v1/assets/sync-from-orders` and `sync-from-all` share one collector over main-DB active orders plus every custom portfolio — legacy owned tables or the mapped adapter, never `ensure_custom_tables()` on a foreign database — so mapped tickers surface in All Assets as `asset_type = 'future'`; `sync-from-all` additionally adds Managed Fund holdings tickers and never reads Managed Fund order history; a custom database that cannot be reached is skipped with a warning instead of blocking the sync.
-- **Read-only rule**: grid responses carry `read_only: true` and `mapping_template`; every data-plane write route — active orders, assets, order groups, trade plans, trade history, ledger transactions — calls `raise_if_mapped_readonly` and answers `409 Portfolio is read-only (mapped external database)`. The frontend gates its write affordances on `read_only`, so none of them are reachable from a mapped portfolio.
+- **Order writes (optional `write` block)**: `entities.orders.write` declares `key` (`column`, `generated`), `insert`/`update`/`delete` flags, `columns` (canonical→foreign, unique, never the generated key), literal `defaults`, and `values` (canonical literal → foreign literal, e.g. `BUY`→`LONG`). Identifiers and shapes are validated by `validate_mapping`; every identifier is quoted and every value bound. The row key is the uuid `id` returned by `INSERT ... RETURNING`; the normalised order exposes it as `order_id` and maps `orderno` to `order_ref`. Update raises 400 for a non-null field outside `write.columns`; there is no plain delete path when a history spec exists.
+- **Close / cancel**: `POST /close` and `PATCH /status` (`CANCELED`) run in one transaction — read the open row, INSERT a copy into `write.history` (base values via `history.columns`, `defaults`, the `history.status` code, and `close_columns` for exit price / realized P/L), then DELETE the open row. Without a `write.history` block the operation is a plain delete. Response shape: `{order_id, order_status: CLOSE|CANCELED, history_id: null}`.
+- **Write refusal**: a mapped config without a `write` block keeps the old 409; an operation the block does not enable (missing `insert`/`update`/`delete`) is also `409 Portfolio is read-only (mapped external database)`. Link/unlink, assets, order groups, trade plans, trade history and ledger transactions still call `raise_if_mapped_readonly` and answer 409. The grid keeps `read_only: true` and `mapping_template`, and adds `order_writes: {insert, update, delete, fields, key_generated} | null`; the frontend gates mapped order affordances on `order_writes`.
 - **Diagnostics**: a test with a mapping returns `orders_rows`, `history_rows`, `account_rows`, one normalised `sample_order`, and per-entity `errors` — the row counts and the first broken entity, instead of a bare success.
 - **Dev fixture**: `database/mock/usd_pct_abc_dev_seed.sql` (idempotent; 6 open orders, 4 history rows, 3 account snapshots).
 

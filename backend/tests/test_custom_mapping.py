@@ -155,6 +155,7 @@ def test_normalise_status(raw, expected):
 def test_normalise_order_row_from_dict():
     entity = template()["entities"]["orders"]
     row = {
+        "id": "8f3a1c2e-order",
         "orderno": "O-1",
         "symbol": "S50Z25",
         "side": "LONG",
@@ -170,7 +171,8 @@ def test_normalise_order_row_from_dict():
     }
     order = normalise_order_row(row, entity)
 
-    assert order["order_id"] == "O-1"
+    assert order["order_id"] == "8f3a1c2e-order"
+    assert order["order_ref"] == "O-1"
     assert order["asset_type"] == "S50Z25"
     assert order["side"] == "LONG"
     assert order["qty"] == 2.0

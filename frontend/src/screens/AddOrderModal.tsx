@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { GroupOption } from '../types';
+import type { MappedOrderFields } from '../types';
 import { GroupCombobox } from './components/GroupCombobox';
 import type { AddOrderForm } from '../hooks/useAddOrder';
 import ModalShell from './components/ModalShell';
@@ -46,6 +47,8 @@ interface AddOrderModalProps {
   groups: GroupOption[];
   groupOrderCounts: Record<number, number>;
   assetTypeOptions: string[];
+  /** Present for a mapped portfolio: render only the foreign-writable fields. */
+  mapped?: MappedOrderFields;
 }
 
 const CONTRACT_TYPE_OPTS = [
@@ -62,6 +65,11 @@ const OPTION_TYPE_OPTS = [
 const STATUS_OPTS = [
   { value: 'FILLED', label: 'Filled' },
   { value: 'PENDING', label: 'Pending' },
+] as const;
+
+const MAPPED_SIDE_OPTS = [
+  { value: 'LONG', label: 'Long', tone: 'long' },
+  { value: 'SHORT', label: 'Short', tone: 'short' },
 ] as const;
 
 const ToggleBtn = React.memo(function ToggleBtn({ options, value, onChange, fullWidth = false }: {
@@ -101,6 +109,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   groups,
   groupOrderCounts,
   assetTypeOptions,
+  mapped,
 }) => {
   const entryPrice = parseFloat(formData.entry_price as string) || 0;
   const selectedGroup = groups.find(g => g.id === formData.group_id);
@@ -156,6 +165,139 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   }, [formData.asset_type, formData.side, formData.qty, formData.entry_price, selectedGroup, sideOptions]);
 
   if (!showModal) return null;
+
+  if (mapped) {
+    const mappedFields = new Set(mapped.fields);
+    const mappedSideValue = formData.side === 'BUY'
+      ? 'LONG'
+      : formData.side === 'SELL'
+        ? 'SHORT'
+        : formData.side || 'LONG';
+    return (
+      <ModalShell open={showModal} onClose={onClose} title="Add order" closeOnBackdrop={false} zIndex={110}>
+        <div className={`${MODAL_CARD} ${modalPanel}`} style={modalPanelStyle}>
+          <div className={`${MODAL_HEADER} flex items-baseline justify-between`} style={{ gap: 12, margin: '0 0 12px' }}>
+            <h3 style={CONTROL_TITLE}>Add order</h3>
+            {!mapped.keyGenerated && (
+              <Field label="Order ID" htmlFor="add-order-id" className="flex items-baseline gap-1.5">
+                <TextInput
+                  id="add-order-id"
+                  type="text"
+                  value={formData.order_id}
+                  onChange={(e) => onChange('order_id', e.target.value)}
+                  autoComplete="off"
+                  aria-label="Order ID"
+                  style={{ width: 132 }}
+                />
+              </Field>
+            )}
+          </div>
+
+          <div className={`${MODAL_BODY} space-y-3`}>
+            {mappedFields.has('asset_type') && (
+              <Field label="Asset symbol" htmlFor="add-order-asset-type">
+                <TextInput
+                  id="add-order-asset-type"
+                  type="text"
+                  value={formData.asset_type}
+                  onChange={(e) => onChange('asset_type', e.target.value)}
+                  list="asset-types-add"
+                  className="w-full"
+                />
+              </Field>
+            )}
+            <datalist id="asset-types-add">
+              {assetTypeOptions.map((t) => <option key={t} value={t} />)}
+            </datalist>
+            {mappedFields.has('side') && (
+              <div>
+                <label style={CONTROL_LABEL}>Side</label>
+                <ToggleBtn
+                  options={MAPPED_SIDE_OPTS}
+                  value={mappedSideValue}
+                  onChange={(v) => onChange('side', v)}
+                  fullWidth
+                />
+              </div>
+            )}
+            <div style={twoCol}>
+              {mappedFields.has('qty') && (
+                <Field label="Qty" htmlFor="add-order-qty">
+                  <NumberInput
+                    id="add-order-qty"
+                    step="any"
+                    value={formData.qty}
+                    onChange={(e) => onChange('qty', e.target.value)}
+                    className="w-full"
+                  />
+                </Field>
+              )}
+              {mappedFields.has('entry_price') && (
+                <Field label="Entry price" htmlFor="add-order-entry-price">
+                  <NumberInput
+                    id="add-order-entry-price"
+                    step="any"
+                    value={formData.entry_price}
+                    onChange={(e) => onChange('entry_price', e.target.value)}
+                    className="w-full"
+                  />
+                </Field>
+              )}
+            </div>
+            {mappedFields.has('tp_price') && (
+              <Field label="TP price" htmlFor="add-order-tp-price">
+                <NumberInput
+                  id="add-order-tp-price"
+                  step="any"
+                  value={formData.tp_price}
+                  onChange={(e) => onChange('tp_price', e.target.value)}
+                  className="w-full"
+                />
+              </Field>
+            )}
+            {mappedFields.has('fee') && (
+              <Field label="Fee" htmlFor="add-order-fee">
+                <NumberInput
+                  id="add-order-fee"
+                  step="any"
+                  value={formData.fee ?? ''}
+                  onChange={(e) => onChange('fee', e.target.value)}
+                  className="w-full"
+                />
+              </Field>
+            )}
+            {mappedFields.has('remark') && (
+              <Field label="Remark" htmlFor="add-order-remark">
+                <TextInput
+                  id="add-order-remark"
+                  type="text"
+                  value={formData.remark ?? ''}
+                  onChange={(e) => onChange('remark', e.target.value)}
+                  className="w-full"
+                />
+              </Field>
+            )}
+            {mappedFields.has('order_ref') && (
+              <Field label="Broker order no." htmlFor="add-order-ref">
+                <TextInput
+                  id="add-order-ref"
+                  type="text"
+                  value={formData.order_ref ?? ''}
+                  onChange={(e) => onChange('order_ref', e.target.value)}
+                  className="w-full"
+                />
+              </Field>
+            )}
+          </div>
+
+          <div className={`${MODAL_FOOTER} flex justify-end`} style={{ gap: 8, marginTop: 12 }}>
+            <button type="button" onClick={onClose} style={secondaryButton}>Cancel</button>
+            <button type="button" onClick={onSave} style={primaryButton}>Create order</button>
+          </div>
+        </div>
+      </ModalShell>
+    );
+  }
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Add order" closeOnBackdrop={false} zIndex={110}>

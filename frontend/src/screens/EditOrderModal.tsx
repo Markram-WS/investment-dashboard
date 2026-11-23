@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { SpreadOrder, GroupOption } from '../types';
+import type { MappedOrderFields } from '../types';
+import type { OrderEditForm } from '../hooks/useOrderEdit';
 import { GroupCombobox } from './components/GroupCombobox';
 import { api } from '../lib/api';
 import { formatMoney } from '../utils/format';
@@ -25,16 +27,18 @@ const modalPanelStyle = {
 
 interface EditOrderModalProps {
   order: SpreadOrder | null;
-  formData: Partial<SpreadOrder>;
+  formData: OrderEditForm;
   showModal: boolean;
   onClose: () => void;
   onSave: () => Promise<void>;
-  onChange: (field: keyof typeof formData, value: unknown) => void;
+  onChange: (field: keyof OrderEditForm, value: unknown) => void;
   groups: GroupOption[];
   groupOrderCounts: Record<number, number>;
   assetTypeOptions: string[];
   onRefresh?: () => void;
   portfolioId?: number;
+  /** Present for a mapped portfolio: render only the foreign-writable fields. */
+  mapped?: MappedOrderFields;
 }
 
 const EDIT_CONTRACT_OPTS = [
@@ -51,6 +55,11 @@ const EDIT_OPTION_TYPE_OPTS = [
 const EDIT_STATUS_OPTS = [
   { value: 'FILLED', label: 'Filled' },
   { value: 'PENDING', label: 'Pending' },
+] as const;
+
+const MAPPED_SIDE_OPTS = [
+  { value: 'LONG', label: 'Long' },
+  { value: 'SHORT', label: 'Short' },
 ] as const;
 
 const ToggleBtn = React.memo(function ToggleBtn({ options, value, onChange }: {
@@ -97,6 +106,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   groupOrderCounts,
   assetTypeOptions,
   portfolioId,
+  mapped,
 }) => {
   const entryPrice = parseFloat(formData.entry_price as string) || 0;
   const groupId = formData.group_id ?? null;
@@ -142,6 +152,122 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   );
 
   if (!showModal || !order) return null;
+
+  if (mapped) {
+    const writable = new Set(mapped.fields);
+    const titleRef = order.order_ref ?? order.order_id;
+    const mappedSideValue = formData.side === 'BUY'
+      ? 'LONG'
+      : formData.side === 'SELL'
+        ? 'SHORT'
+        : formData.side || 'LONG';
+    return (
+      <ModalShell open={showModal} onClose={onClose} title={`Edit order #${titleRef}`} closeOnBackdrop={false} zIndex={110}>
+        <div className={`${MODAL_CARD} ${modalPanel}`} style={modalPanelStyle}>
+          <h3 className={`${MODAL_HEADER} block`} style={{ ...CONTROL_TITLE, margin: '0 0 12px' }}>Edit order #{titleRef}</h3>
+          <div className={`${MODAL_BODY} space-y-3`}>
+            {writable.has('order_ref') && (
+              <Field label="Broker order no." htmlFor="edit-order-ref">
+                <TextInput
+                  id="edit-order-ref"
+                  type="text"
+                  value={formData.order_ref ?? ''}
+                  onChange={(e) => onChange('order_ref', e.target.value)}
+                  className="w-full"
+                />
+              </Field>
+            )}
+            {writable.has('asset_type') && (
+              <Field label="Asset symbol" htmlFor="edit-order-asset-type">
+                <TextInput
+                  id="edit-order-asset-type"
+                  type="text"
+                  value={formData.asset_type || ''}
+                  onChange={(e) => onChange('asset_type', e.target.value)}
+                  list="asset-types-edit"
+                  className="w-full"
+                />
+              </Field>
+            )}
+            <datalist id="asset-types-edit">
+              {assetTypeOptions.map((t) => <option key={t} value={t} />)}
+            </datalist>
+            {writable.has('side') && (
+              <div>
+                <label style={CONTROL_LABEL}>Side</label>
+                <ToggleBtn
+                  options={MAPPED_SIDE_OPTS}
+                  value={mappedSideValue}
+                  onChange={(v) => onChange('side', v)}
+                />
+              </div>
+            )}
+            <div className="flex gap-4">
+              {writable.has('qty') && (
+                <Field className="flex-1" label="Qty" htmlFor="edit-order-qty">
+                  <NumberInput
+                    id="edit-order-qty"
+                    step="any"
+                    value={formData.qty ?? ''}
+                    onChange={(e) => onChange('qty', parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                </Field>
+              )}
+              {writable.has('entry_price') && (
+                <Field className="flex-1" label="Entry Price" htmlFor="edit-order-entry-price">
+                  <NumberInput
+                    id="edit-order-entry-price"
+                    step="any"
+                    value={formData.entry_price ?? ''}
+                    onChange={(e) => onChange('entry_price', parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                </Field>
+              )}
+            </div>
+            {writable.has('tp_price') && (
+              <Field label="TP Price" htmlFor="edit-order-tp-price">
+                <NumberInput
+                  id="edit-order-tp-price"
+                  step="any"
+                  value={formData.tp_price ?? ''}
+                  onChange={(e) => onChange('tp_price', parseFloat(e.target.value))}
+                  className="w-full"
+                />
+              </Field>
+            )}
+            {writable.has('fee') && (
+              <Field label="Fee" htmlFor="edit-order-fee">
+                <NumberInput
+                  id="edit-order-fee"
+                  step="any"
+                  value={formData.fee ?? ''}
+                  onChange={(e) => onChange('fee', parseFloat(e.target.value))}
+                  className="w-full"
+                />
+              </Field>
+            )}
+            {writable.has('remark') && (
+              <Field label="Remark" htmlFor="edit-order-remark">
+                <TextInput
+                  id="edit-order-remark"
+                  type="text"
+                  value={formData.remark ?? ''}
+                  onChange={(e) => onChange('remark', e.target.value)}
+                  className="w-full"
+                />
+              </Field>
+            )}
+          </div>
+          <div className={`${MODAL_FOOTER} flex justify-end`} style={{ gap: 8, marginTop: 12 }}>
+            <button type="button" onClick={onClose} style={secondaryButton}>Cancel</button>
+            <button type="button" onClick={onSave} style={primaryButton}>Save Changes</button>
+          </div>
+        </div>
+      </ModalShell>
+    );
+  }
 
   return (
     <ModalShell open={showModal} onClose={onClose} title={"Edit Order #" + (order?.order_id || '')} closeOnBackdrop={false} zIndex={110}>

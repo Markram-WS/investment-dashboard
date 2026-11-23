@@ -24,8 +24,27 @@ export interface OverviewResponse {
 }
 
 // === Portfolio Analytics ===
+
+/** Write capabilities for a mapped portfolio's foreign active orders. */
+export interface OrderWrites {
+  insert: boolean;
+  update: boolean;
+  delete: boolean;
+  /** Canonical order fields writable on the foreign table. */
+  fields: string[];
+  key_generated: boolean;
+}
+
+/** Compact mapped-write descriptor handed to the order form modals. */
+export interface MappedOrderFields {
+  fields: string[];
+  keyGenerated: boolean;
+}
+
 export interface SpreadOrder {
   order_id: string;
+  /** Foreign broker's human order number for a mapped order. */
+  order_ref?: string | null;
   asset_type: string;
   side: string;
   qty: number | string;
@@ -50,6 +69,8 @@ export interface SpreadOrder {
   strike_price?: number | null;
   exercise_price?: number | null;
   cost?: number;
+  /** Foreign broker fee on a mapped order (display/edit only). */
+  fee?: number | null;
   link_type?: 'spread' | 'pending_close' | 'primary' | 'none';
   remark?: string | null;
 }
@@ -149,6 +170,8 @@ export interface PortfolioData {
   read_only?: boolean;
   /** Built-in mapping template name for a custom portfolio; null when unmapped. */
   mapping_template?: string | null;
+  /** Foreign-write capabilities; null/absent when the mapping has no write block. */
+  order_writes?: OrderWrites | null;
 }
 
 export interface ZoneGroup {
@@ -369,6 +392,9 @@ export interface PortfolioGridData {
   spread_pairs: SpreadPair[];
   active_orders: SpreadOrder[];
   recent_trades: RecentTrade[];
+  read_only?: boolean;
+  mapping_template?: string | null;
+  order_writes?: OrderWrites | null;
 }
 
 // === Link Order Grouping ===

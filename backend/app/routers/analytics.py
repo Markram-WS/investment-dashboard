@@ -10,6 +10,7 @@ from app.models import (
 from app.custom_models import CustomActiveOrder, CustomTransaction, CustomOrdersGroup
 from app.custom_mapping import (
     fetch_mapped_account, fetch_mapped_history, fetch_mapped_orders,
+    mapped_orders_write_capabilities,
 )
 from app.risk_calc import compute_margin_locked, compute_risk
 from pydantic import BaseModel
@@ -150,6 +151,7 @@ class PortfolioGridData(BaseModel):
     risk: Optional[dict] = None
     read_only: bool = False
     mapping_template: Optional[str] = None
+    order_writes: Optional[Dict[str, Any]] = None
 
 def _to_float(val):
     """Convert Decimal/None to float for JSON serialization."""
@@ -328,6 +330,7 @@ def _serialize_mapped_order(
 ) -> dict:
     return {
         "order_id": order.get("order_id"),
+        "order_ref": order.get("order_ref"),
         "plan_id": plan_id,
         "asset_type": order.get("asset_type"),
         "side": order.get("side"),
@@ -354,6 +357,7 @@ def _serialize_mapped_order(
         "strike_price": _to_float(order.get("strike_price")),
         "exercise_price": _to_float(order.get("exercise_price")),
         "cost": _to_float(order.get("cost")) or 0,
+        "fee": _to_float(order.get("fee")),
         "remark": order.get("remark"),
         "link_type": "none",
         "created_at": order.get("created_at"),
@@ -463,6 +467,7 @@ async def _build_mapped_grid_data(
         risk=risk,
         read_only=True,
         mapping_template=config.get("template"),
+        order_writes=mapped_orders_write_capabilities(config),
     )
 
 @router.get("/portfolio-grid", tags=["analytics"], response_model=List[PortfolioGridData])

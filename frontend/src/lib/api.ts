@@ -346,10 +346,12 @@ export interface ZoneGroupRecord extends GroupOption {
 
 export interface OrderPayload {
   order_id?: string;
+  /** Foreign broker order number; only sent on the mapped write path. */
+  order_ref?: string;
   plan_id?: number;
   portfolio_id: number;
-  asset_type: string;
-  side: string;
+  asset_type?: string;
+  side?: string;
   qty?: number | null;
   entry_price?: number | null;
   current_price?: number | null;
@@ -366,12 +368,17 @@ export interface OrderPayload {
   expiry_date?: string;
   strike_price?: number;
   cost?: number;
+  /** Foreign fee; only sent on the mapped write path. */
+  fee?: number | null;
+  remark?: string | null;
 }
 
 export interface OrderUpdatePayload extends Partial<SpreadOrder> {
   // Sent by the zone editor; the active-orders router currently has no `zone`
   // column, so this field is accepted by the caller but not persisted.
   zone?: string;
+  /** Foreign fee; only sent on the mapped write path. */
+  fee?: number | null;
 }
 
 export interface CancelOrderResult {

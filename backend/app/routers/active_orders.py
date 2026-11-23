@@ -5,7 +5,18 @@ from datetime import datetime
 from app.database import get_db, resolve_portfolio_db
 from app.models import ActiveOrder, TradePlan, TradeHistory, Portfolio, WhitelistAssets, Broker
 from app.custom_models import CustomActiveOrder, CustomTradePlan
-from app.custom_mapping import raise_if_mapped_readonly
+from app.custom_mapping import (
+    READ_ONLY_DETAIL,
+    fetch_mapped_order,
+    fetch_mapped_orders,
+    insert_mapped_order,
+    load_mapped_connection,
+    mapped_engine,
+    mapped_orders_write_capabilities,
+    move_mapped_order_to_history,
+    raise_if_mapped_readonly,
+    update_mapped_order,
+)
 from pydantic import BaseModel, field_validator
 from typing import Optional, Dict, Any, List
 
@@ -35,6 +46,8 @@ class ActiveOrderCreate(BaseModel):
     strike_price: Optional[float] = None
     cost: Optional[float] = 0.0
     remark: Optional[str] = None
+    order_ref: Optional[str] = None
+    fee: Optional[float] = None
 
     @field_validator('expiry_date', mode='after')
     @classmethod
@@ -64,6 +77,8 @@ class ActiveOrderUpdate(BaseModel):
     strike_price: Optional[float] = None
     cost: Optional[float] = None
     remark: Optional[str] = None
+    order_ref: Optional[str] = None
+    fee: Optional[float] = None
 
     @field_validator('expiry_date', mode='after')
     @classmethod
@@ -75,7 +90,7 @@ class ActiveOrderUpdate(BaseModel):
 
 class ActiveOrderResponse(BaseModel):
     order_id: str
-    plan_id: int
+    plan_id: Optional[int] = None
     portfolio_id: int
     asset_type: str
     side: str
@@ -96,11 +111,22 @@ class ActiveOrderResponse(BaseModel):
     strike_price: Optional[float] = None
     cost: Optional[float] = 0.0
     remark: Optional[str] = None
+    order_ref: Optional[str] = None
+    mark_price: Optional[float] = None
+    fee: Optional[float] = None
     created_at: Optional[datetime] = None
 
     class Config:
         orm_mode = True
         from_attributes = True
+
+
+def _mapped_response(order: dict, portfolio_id: int) -> dict:
+    """Shape a normalised mapped order for ActiveOrderResponse."""
+    shaped = dict(order)
+    shaped["portfolio_id"] = portfolio_id
+    shaped.setdefault("plan_id", None)
+    return shaped
 
 
 @router.get("/", tags=["orders"], response_model=List[ActiveOrderResponse])
@@ -109,6 +135,14 @@ async def list_orders(
     portfolio_id: Optional[int] = None,
 ):
     """List all active orders."""
+    connection = await load_mapped_connection(db, portfolio_id)
+    if connection is not None:
+        engine = await mapped_engine(connection)
+        orders = await fetch_mapped_orders(engine, connection.mapping_config)
+        return [
+            _mapped_response(order, portfolio_id or 0)
+            for order in orders
+        ]
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomActiveOrder if is_custom else ActiveOrder
@@ -123,6 +157,23 @@ async def list_orders(
 @router.post("/", tags=["orders"], status_code=status.HTTP_201_CREATED, response_model=ActiveOrderResponse)
 async def create_order(order: ActiveOrderCreate, db: AsyncSession = Depends(get_db)):
     """Create a new active order. If plan_id is omitted, auto-resolve or create a default trade plan."""
+    connection = await load_mapped_connection(db, order.portfolio_id)
+    if connection is not None:
+        config = connection.mapping_config
+        caps = mapped_orders_write_capabilities(config)
+        if not caps or not caps.get("insert"):
+            raise HTTPException(status_code=409, detail=READ_ONLY_DETAIL)
+        data = order.dict(exclude_unset=True, exclude_none=True)
+        data.pop("portfolio_id", None)
+        data.pop("plan_id", None)
+        engine = await mapped_engine(connection)
+        try:
+            created = await insert_mapped_order(engine, config, data)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        stored = await fetch_mapped_order(engine, config, created["order_id"])
+        payload = stored or {**created, "order_status": "open", "asset_type": order.asset_type, "side": order.side}
+        return _mapped_response(payload, order.portfolio_id)
     await raise_if_mapped_readonly(db, order.portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, order.portfolio_id)
     try:
@@ -164,6 +215,8 @@ async def create_order(order: ActiveOrderCreate, db: AsyncSession = Depends(get_
                     ),
                 )
         data = order.dict(exclude_none=True)
+        data.pop("order_ref", None)
+        data.pop("fee", None)
         if data.get("plan_id") is None:
             if is_custom:
                 result = await session.execute(
@@ -206,6 +259,15 @@ async def get_order(
     portfolio_id: Optional[int] = None,
 ):
     """Get a single active order by ID."""
+    connection = await load_mapped_connection(db, portfolio_id)
+    if connection is not None:
+        engine = await mapped_engine(connection)
+        order = await fetch_mapped_order(
+            engine, connection.mapping_config, order_id
+        )
+        if order is None:
+            raise HTTPException(status_code=404, detail="Order not found")
+        return _mapped_response(order, portfolio_id or 0)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomActiveOrder if is_custom else ActiveOrder
@@ -227,6 +289,30 @@ async def update_order_status(
     portfolio_id: Optional[int] = None,
 ):
     """Update order status. If CANCELED, delete from active_orders and create trade history."""
+    connection = await load_mapped_connection(db, portfolio_id)
+    if connection is not None:
+        config = connection.mapping_config
+        caps = mapped_orders_write_capabilities(config) or {}
+        engine = await mapped_engine(connection)
+        current = await fetch_mapped_order(engine, config, order_id)
+        if current is None:
+            raise HTTPException(status_code=404, detail="Order not found")
+        new_status = payload.get("new_status")
+        if not new_status:
+            return {"order_id": order_id, "order_status": current.get("order_status")}
+        if new_status.upper() != "CANCELED":
+            raise HTTPException(status_code=409, detail=READ_ONLY_DETAIL)
+        if not caps.get("delete"):
+            raise HTTPException(status_code=409, detail=READ_ONLY_DETAIL)
+        try:
+            result = await move_mapped_order_to_history(
+                engine, config, order_id, mode="cancel"
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if result is None:
+            raise HTTPException(status_code=404, detail="Order not found")
+        return result
     await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
@@ -282,6 +368,21 @@ async def update_order(
     portfolio_id: Optional[int] = None,
 ):
     """Update an active order with new values."""
+    connection = await load_mapped_connection(db, portfolio_id)
+    if connection is not None:
+        config = connection.mapping_config
+        caps = mapped_orders_write_capabilities(config) or {}
+        if not caps.get("update"):
+            raise HTTPException(status_code=409, detail=READ_ONLY_DETAIL)
+        engine = await mapped_engine(connection)
+        changes = order_update.dict(exclude_unset=True)
+        try:
+            updated = await update_mapped_order(engine, config, order_id, changes)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if updated is None:
+            raise HTTPException(status_code=404, detail="Order not found")
+        return _mapped_response(updated, portfolio_id or 0)
     await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
@@ -292,6 +393,8 @@ async def update_order(
             raise HTTPException(status_code=404, detail="Order not found")
 
         update_data = order_update.dict(exclude_unset=True)
+        update_data.pop("order_ref", None)
+        update_data.pop("fee", None)
         for field, value in update_data.items():
             setattr(order, field, value)
 
@@ -353,6 +456,27 @@ async def close_order(
     """Close an active order: delete from active_orders and create trade history record(s).
     Auto-closes all sub-orders that one-way link to this order (linked_order_id == this order_id).
     If this order is cross-linked (spread pair), signals frontend for the paired order."""
+    connection = await load_mapped_connection(db, portfolio_id)
+    if connection is not None:
+        config = connection.mapping_config
+        caps = mapped_orders_write_capabilities(config) or {}
+        if not caps.get("delete"):
+            raise HTTPException(status_code=409, detail=READ_ONLY_DETAIL)
+        engine = await mapped_engine(connection)
+        try:
+            result = await move_mapped_order_to_history(
+                engine,
+                config,
+                order_id,
+                mode="close",
+                exit_price=req.exit_price,
+                realized_pl=req.realized_pl,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if result is None:
+            raise HTTPException(status_code=404, detail="Order not found")
+        return result
     await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:

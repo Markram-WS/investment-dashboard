@@ -47,9 +47,9 @@ A Custom Portfolio runs in one of two modes:
 | Mode | Storage | Writes |
 |------|---------|--------|
 | **Owned tables** (default) | The backend creates and migrates its own FK-free tables (`active_orders`, `transactions`, `trade_plans`, …) in the external DB | Full CRUD |
-| **Read-through mapping** | `custom_portfolio_connections.mapping_config` (JSON) maps an existing broker schema onto our entities; no DDL, no tables created | Data-plane writes rejected with `409 Portfolio is read-only (mapped external database)`; the UI renders no write affordance |
+| **Read-through mapping** | `custom_portfolio_connections.mapping_config` (JSON) maps an existing broker schema onto our entities; no DDL, no tables created | Order insert/update/close/cancel allowed only when the config declares `entities.orders.write` (close/cancel inserts the `order_history` row, then deletes the open row); every other data-plane write is rejected with `409 Portfolio is read-only (mapped external database)` |
 
-The read-through mode ships with the `tfex-settrade-v1` template (`usd_pct_abc.opened_orders` / `order_history` / `account_history`); the JSON config is the contract between the two schemas, and the frontend hides every write affordance when the grid response carries `read_only`.
+The read-through mode ships with the `tfex-settrade-v1` template (`usd_pct_abc.opened_orders` / `order_history` / `account_history`); the JSON config is the contract between the two schemas. The frontend gates mapped order write affordances on `order_writes` and hides every other mutation for a mapped portfolio.
 
 ## Key Features
 
@@ -64,7 +64,7 @@ The read-through mode ships with the `tfex-settrade-v1` template (`usd_pct_abc.o
 - **Transaction Ledger** — Deposit, withdraw, transfer between portfolios with full history; global aggregation across all custom DBs, with 11px (`--fs-label`) data cells
 - **Risk Analytics** — Pool health, money reserve status, Sharpe/VaR/Drawdown, risk score gauge
 - **AI Agents** — Automated scan/plan/execute/adjust cycles per portfolio
-- **Custom Portfolio** — User-configured external PostgreSQL databases for isolated data storage, with Test Connection diagnostics. Either the backend owns the tables, or a JSON mapping config (`mapping_config`, template `tfex-settrade-v1`) turns the portfolio into a **read-only read-through view** over a foreign broker schema: mapped orders/history/account balances, no DDL, every write answered with 409, and row-level diagnostics on the connection test; the ladder's `Mark` column shows the broker's `mark_price` while Net P&L uses the local All Assets current price. Mapped order tickers sync into All Assets as `future`/`tfex` rows
+- **Custom Portfolio** — User-configured external PostgreSQL databases for isolated data storage, with Test Connection diagnostics. Either the backend owns the tables, or a JSON mapping config (`mapping_config`, template `tfex-settrade-v1`) turns the portfolio into a read-through view over a foreign broker schema: mapped orders/history/account balances, no DDL, row-level diagnostics on the connection test. Active orders are **writable only when the config declares `entities.orders.write`** — insert/update, plus close/cancel as a history insert followed by the open-row delete in one transaction (the row key is the broker `id`, exposed as `order_id` with the human order number as `order_ref`); every other mutation is answered with 409. The ladder's `Mark` column shows the broker's `mark_price` while Net P&L uses the local All Assets current price. Mapped order tickers sync into All Assets as `future`/`tfex` rows
 - **Drag & Drop** — Transfer cash between portfolios, assign orders to groups, move assets between groups
 - **Encrypted Credentials** — DB passwords encrypted with Fernet symmetric key (`FERNET_KEY`), never stored in plaintext
 

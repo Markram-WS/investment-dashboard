@@ -21,6 +21,7 @@ from fastapi import HTTPException
 from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+from app.database import get_or_create_custom_engine
 from app.models import CustomPortfolioConnection, Portfolio
 
 IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -42,6 +43,211 @@ READ_ONLY_DETAIL = "Portfolio is read-only (mapped external database)"
 
 def _valid_identifier(value: Any) -> bool:
     return isinstance(value, str) and bool(IDENTIFIER_RE.match(value))
+
+
+def _is_scalar(value: Any) -> bool:
+    return isinstance(value, (str, int, float, bool))
+
+
+def _validate_write_block(
+    prefix: str,
+    write: Any,
+    read_columns: dict,
+    errors: list[str],
+) -> None:
+    """Validate ``entities.orders.write`` (and its optional ``history`` block)."""
+    if not isinstance(write, dict):
+        errors.append(f"{prefix} field 'write' must be an object")
+        return
+
+    key = write.get("key")
+    key_column: str | None = None
+    key_generated = False
+    if not isinstance(key, dict):
+        errors.append(f"{prefix} field 'write.key' must be an object")
+    else:
+        if not _valid_identifier(key.get("column")):
+            errors.append(
+                f"{prefix} field 'write.key.column' must be a valid SQL identifier"
+            )
+        else:
+            key_column = key["column"]
+        if not isinstance(key.get("generated", False), bool):
+            errors.append(f"{prefix} field 'write.key.generated' must be a boolean")
+        key_generated = key.get("generated") is True
+
+    for flag in ("insert", "update", "delete"):
+        if flag in write and not isinstance(write[flag], bool):
+            errors.append(f"{prefix} field 'write.{flag}' must be a boolean")
+
+    write_columns: dict[str, str] = {}
+    spec = write.get("columns")
+    if not isinstance(spec, dict) or not spec:
+        errors.append(f"{prefix} must define a non-empty 'write.columns' object")
+    else:
+        targets: list[str] = []
+        for canonical, target in spec.items():
+            if not isinstance(canonical, str) or not canonical.strip():
+                errors.append(
+                    f"{prefix} 'write.columns' keys must be non-empty strings"
+                )
+                continue
+            if not _valid_identifier(target):
+                errors.append(
+                    f"{prefix} 'write.columns.{canonical}' must be a valid SQL identifier"
+                )
+                continue
+            if target in targets:
+                errors.append(
+                    f"{prefix} 'write.columns' maps two fields to the same column "
+                    f"'{target}'"
+                )
+            targets.append(target)
+            write_columns[canonical] = target
+        if key_generated and key_column and key_column in targets:
+            errors.append(
+                f"{prefix} 'write.columns' must not include the generated key "
+                f"column '{key_column}'"
+            )
+
+    defaults = write.get("defaults")
+    if defaults is not None:
+        if not isinstance(defaults, dict):
+            errors.append(f"{prefix} field 'write.defaults' must be an object")
+        else:
+            for target, value in defaults.items():
+                if not _valid_identifier(target):
+                    errors.append(
+                        f"{prefix} 'write.defaults.{target}' must be a valid SQL identifier"
+                    )
+                if not _is_scalar(value):
+                    errors.append(
+                        f"{prefix} 'write.defaults.{target}' must be a JSON scalar"
+                    )
+                if key_generated and key_column and target == key_column:
+                    errors.append(
+                        f"{prefix} 'write.defaults' must not set the generated key "
+                        f"column '{key_column}'"
+                    )
+
+    value_maps = write.get("values")
+    if value_maps is not None:
+        if not isinstance(value_maps, dict):
+            errors.append(f"{prefix} field 'write.values' must be an object")
+        else:
+            for canonical, mapping in value_maps.items():
+                if not isinstance(mapping, dict):
+                    errors.append(
+                        f"{prefix} 'write.values.{canonical}' must be an object"
+                    )
+                    continue
+                if write_columns and canonical not in write_columns:
+                    errors.append(
+                        f"{prefix} 'write.values.{canonical}' must reference a "
+                        "writable column"
+                    )
+                for source, target_value in mapping.items():
+                    if not isinstance(source, str):
+                        errors.append(
+                            f"{prefix} 'write.values.{canonical}' keys must be strings"
+                        )
+                    if not _is_scalar(target_value):
+                        errors.append(
+                            f"{prefix} 'write.values.{canonical}.{source}' must be "
+                            "a JSON scalar"
+                        )
+
+    history = write.get("history")
+    if history is not None:
+        _validate_history_block(prefix, history, write_columns, read_columns, errors)
+
+
+def _validate_history_block(
+    prefix: str,
+    history: Any,
+    write_columns: dict[str, str],
+    read_columns: dict,
+    errors: list[str],
+) -> None:
+    if not isinstance(history, dict):
+        errors.append(f"{prefix} field 'write.history' must be an object")
+        return
+
+    if history.get("schema") is not None and not _valid_identifier(history["schema"]):
+        errors.append(
+            f"{prefix} field 'write.history.schema' must be a valid SQL identifier"
+        )
+    if not _valid_identifier(history.get("table")):
+        errors.append(f"{prefix} field 'write.history.table' must be a valid SQL identifier")
+
+    columns = history.get("columns")
+    if not isinstance(columns, dict) or not columns:
+        errors.append(
+            f"{prefix} must define a non-empty 'write.history.columns' object"
+        )
+    else:
+        for canonical, target in columns.items():
+            if not _valid_identifier(target):
+                errors.append(
+                    f"{prefix} 'write.history.columns.{canonical}' must be a valid "
+                    "SQL identifier"
+                )
+            elif canonical not in write_columns and canonical not in read_columns:
+                errors.append(
+                    f"{prefix} 'write.history.columns.{canonical}' has no writable "
+                    "or readable source column"
+                )
+
+    defaults = history.get("defaults")
+    if defaults is not None:
+        if not isinstance(defaults, dict):
+            errors.append(f"{prefix} field 'write.history.defaults' must be an object")
+        else:
+            for target, value in defaults.items():
+                if not _valid_identifier(target):
+                    errors.append(
+                        f"{prefix} 'write.history.defaults.{target}' must be a valid "
+                        "SQL identifier"
+                    )
+                if not _is_scalar(value):
+                    errors.append(
+                        f"{prefix} 'write.history.defaults.{target}' must be a JSON scalar"
+                    )
+
+    status = history.get("status")
+    if status is not None:
+        if not isinstance(status, dict):
+            errors.append(f"{prefix} field 'write.history.status' must be an object")
+        else:
+            if not _valid_identifier(status.get("column")):
+                errors.append(
+                    f"{prefix} 'write.history.status.column' must be a valid "
+                    "SQL identifier"
+                )
+            for name in ("close", "cancel"):
+                if not _is_scalar(status.get(name)):
+                    errors.append(
+                        f"{prefix} 'write.history.status.{name}' must be a JSON scalar"
+                    )
+
+    close_columns = history.get("close_columns")
+    if close_columns is not None:
+        if not isinstance(close_columns, dict):
+            errors.append(
+                f"{prefix} field 'write.history.close_columns' must be an object"
+            )
+        else:
+            for canonical, target in close_columns.items():
+                if not isinstance(canonical, str) or not canonical.strip():
+                    errors.append(
+                        f"{prefix} 'write.history.close_columns' keys must be "
+                        "non-empty strings"
+                    )
+                if not _valid_identifier(target):
+                    errors.append(
+                        f"{prefix} 'write.history.close_columns.{canonical}' must be "
+                        "a valid SQL identifier"
+                    )
 
 
 def validate_mapping(config: dict) -> list[str]:
@@ -127,6 +333,9 @@ def validate_mapping(config: dict) -> list[str]:
 
         if entity.get("defaults") is not None and not isinstance(entity["defaults"], dict):
             errors.append(f"{prefix} field 'defaults' must be an object")
+
+        if entity.get("write") is not None:
+            _validate_write_block(prefix, entity["write"], columns, errors)
 
     return errors
 
@@ -347,6 +556,7 @@ def normalise_order_row(row: Any, entity: dict) -> dict:
 
     return {
         "order_id": _to_text(_mapped_value(entity, row, "order_id")[0]),
+        "order_ref": _to_text(_mapped_value(entity, row, "order_ref")[0]),
         "asset_type": _to_text(_mapped_value(entity, row, "asset_type")[0]),
         "side": _to_text(side),
         "qty": _to_float(_mapped_value(entity, row, "qty")[0]),
@@ -562,6 +772,348 @@ async def mapped_diagnostics(engine: AsyncEngine, config: dict) -> dict:
         except Exception as exc:  # surfaced to the caller, never swallowed
             diagnostics["errors"].append(f"{name}: {exc}")
     return diagnostics
+
+
+# ---------------------------------------------------------------------------
+# Mapped order writes (insert / update / close / cancel)
+# ---------------------------------------------------------------------------
+
+def _orders_entity(config: dict) -> dict:
+    return config["entities"]["orders"]
+
+
+def _write_block(entity: dict) -> dict:
+    write = entity.get("write")
+    if not isinstance(write, dict):
+        raise ValueError("mapped orders do not allow writes")
+    return write
+
+
+def _key_column(entity: dict) -> str | None:
+    """The unique row key: ``write.key.column`` or the read ``order_id`` column."""
+    write = entity.get("write") if isinstance(entity.get("write"), dict) else {}
+    key = write.get("key") if isinstance(write.get("key"), dict) else {}
+    column = key.get("column")
+    if _valid_identifier(column):
+        return column
+    return _column_name((entity.get("columns") or {}).get("order_id"))
+
+
+def _translate_value(write: dict, canonical: str, value: Any) -> Any:
+    """Apply ``write.values`` (canonical literal -> foreign literal)."""
+    mapping = (write.get("values") or {}).get(canonical)
+    if not isinstance(mapping, dict) or value is None:
+        return value
+    if isinstance(value, str) and value in mapping:
+        return mapping[value]
+    normalized = str(value).strip().upper()
+    for source, target in mapping.items():
+        if str(source).strip().upper() == normalized:
+            return target
+    return value
+
+
+def mapped_orders_write_capabilities(config: dict) -> dict | None:
+    """Public write capabilities of a mapped config; None when read-only."""
+    if not isinstance(config, dict):
+        return None
+    entity = (config.get("entities") or {}).get("orders") or {}
+    if not isinstance(entity, dict):
+        return None
+    write = entity.get("write")
+    if not isinstance(write, dict):
+        return None
+    key = write.get("key") if isinstance(write.get("key"), dict) else {}
+    return {
+        "insert": bool(write.get("insert")),
+        "update": bool(write.get("update")),
+        "delete": bool(write.get("delete")),
+        "fields": sorted((write.get("columns") or {}).keys()),
+        "key_generated": bool(key.get("generated")),
+    }
+
+
+async def load_mapped_connection(
+    db: AsyncSession, portfolio_id: int | None
+) -> CustomPortfolioConnection | None:
+    """The mapped connection row for a custom portfolio, or None."""
+    if portfolio_id is None:
+        return None
+    result = await db.execute(
+        select(CustomPortfolioConnection)
+        .join(
+            Portfolio,
+            Portfolio.portfolio_id == CustomPortfolioConnection.portfolio_id,
+        )
+        .where(
+            CustomPortfolioConnection.portfolio_id == portfolio_id,
+            Portfolio.is_custom.is_(True),
+            CustomPortfolioConnection.mapping_config.isnot(None),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def mapped_engine(connection: CustomPortfolioConnection) -> AsyncEngine:
+    """Thin wrapper so tests can substitute the foreign engine."""
+    return await get_or_create_custom_engine(connection)
+
+
+async def fetch_mapped_order(
+    engine: AsyncEngine, config: dict, key: Any
+) -> dict | None:
+    """One normalised mapped order by its unique key, or None."""
+    _ensure_valid(config)
+    entity = _orders_entity(config)
+    key_column = _key_column(entity)
+    if key_column is None:
+        raise ValueError("mapped orders config has no order key column")
+    columns = _source_columns(entity)
+    if key_column not in columns:
+        columns.append(key_column)
+    sql = (
+        f"SELECT {', '.join(_quote_identifier(c) for c in columns)} "
+        f"FROM {_table_ref(entity)}"
+    )
+    where, binds = _filter_clause(entity)
+    key_sql = f'{_quote_identifier(key_column)} = :key'
+    sql += f"{where} AND {key_sql}" if where else f" WHERE {key_sql}"
+    stmt = text(sql)
+    if binds:
+        stmt = stmt.bindparams(*binds)
+    async with engine.connect() as conn:
+        result = await conn.execute(stmt, {"key": key})
+        row = result.mappings().first()
+    if row is None:
+        return None
+    return normalise_order_row(dict(row), entity)
+
+
+def _writable_values(
+    entity: dict, write: dict, data: dict, *, allow_key: bool
+) -> tuple[dict[str, Any], str | None, bool]:
+    """Collect bound column values from canonical input; validate the rest."""
+    columns = write.get("columns") or {}
+    key = write.get("key") if isinstance(write.get("key"), dict) else {}
+    key_column = _key_column(entity)
+    generated = bool(key.get("generated"))
+
+    values: dict[str, Any] = {}
+    for canonical, target in columns.items():
+        if canonical in data and data[canonical] is not None:
+            values[target] = _translate_value(write, canonical, data[canonical])
+
+    for field, value in data.items():
+        if value is None or field in columns:
+            continue
+        if field == "order_id" and allow_key:
+            if generated:
+                raise ValueError(
+                    "order_id is generated by the mapped table and cannot be supplied"
+                )
+            continue
+        if field == "order_id" and not allow_key:
+            raise ValueError("order_id cannot be changed")
+        raise ValueError(
+            f"field '{field}' cannot be written to the mapped orders table"
+        )
+    return values, key_column, generated
+
+
+async def insert_mapped_order(
+    engine: AsyncEngine, config: dict, data: dict
+) -> dict:
+    """Insert one mapped order; returns ``{order_id, order_ref, ...}``."""
+    _ensure_valid(config)
+    entity = _orders_entity(config)
+    write = _write_block(entity)
+    if not write.get("insert"):
+        raise ValueError("mapped orders do not allow insert")
+    values, key_column, generated = _writable_values(
+        entity, write, data, allow_key=True
+    )
+    if key_column is None:
+        raise ValueError("mapped orders write config is missing a key column")
+    if not generated and key_column not in values:
+        if data.get("order_id") is None:
+            raise ValueError("order_id is required")
+        values[key_column] = data["order_id"]
+    for target, literal in (write.get("defaults") or {}).items():
+        values.setdefault(target, literal)
+
+    table = _table_ref(entity)
+    returning = _quote_identifier(key_column)
+    if values:
+        targets = ", ".join(_quote_identifier(t) for t in values)
+        params = {f"v{i}": value for i, value in enumerate(values.values())}
+        placeholders = ", ".join(f":v{i}" for i in range(len(values)))
+        sql = (
+            f"INSERT INTO {table} ({targets}) VALUES ({placeholders}) "
+            f"RETURNING {returning}"
+        )
+        stmt = text(sql)
+    else:
+        sql = f"INSERT INTO {table} DEFAULT VALUES RETURNING {returning}"
+        stmt = text(sql)
+        params = {}
+
+    async with engine.begin() as conn:
+        result = await conn.execute(stmt, params)
+        row = result.first()
+    if row is None:
+        raise ValueError("mapped orders insert did not return a key")
+
+    submitted = {
+        canonical: data[canonical]
+        for canonical in (write.get("columns") or {})
+        if data.get(canonical) is not None
+    }
+    submitted["order_id"] = str(row[0])
+    submitted["order_ref"] = _to_text(data.get("order_ref"))
+    return submitted
+
+
+async def update_mapped_order(
+    engine: AsyncEngine, config: dict, key: Any, changes: dict
+) -> dict | None:
+    """Update one mapped order by key; None when the row does not exist."""
+    _ensure_valid(config)
+    entity = _orders_entity(config)
+    write = _write_block(entity)
+    if not write.get("update"):
+        raise ValueError("mapped orders do not allow update")
+    values, key_column, _generated = _writable_values(
+        entity, write, changes, allow_key=False
+    )
+    if key_column is None:
+        raise ValueError("mapped orders write config is missing a key column")
+    if key_column in values:
+        raise ValueError("order_id cannot be updated")
+
+    if values:
+        assignments = ", ".join(
+            f"{_quote_identifier(target)} = :v{i}"
+            for i, target in enumerate(values)
+        )
+        params = {f"v{i}": value for i, value in enumerate(values.values())}
+        params["key"] = key
+        sql = (
+            f"UPDATE {_table_ref(entity)} SET {assignments} "
+            f"WHERE {_quote_identifier(key_column)} = :key "
+            f"RETURNING {_quote_identifier(key_column)}"
+        )
+        async with engine.begin() as conn:
+            result = await conn.execute(text(sql), params)
+            if result.first() is None:
+                return None
+    elif await fetch_mapped_order(engine, config, key) is None:
+        return None
+    return await fetch_mapped_order(engine, config, key)
+
+
+async def move_mapped_order_to_history(
+    engine: AsyncEngine,
+    config: dict,
+    key: Any,
+    *,
+    mode: str = "close",
+    exit_price: float | None = None,
+    realized_pl: float | None = None,
+) -> dict | None:
+    """Close/cancel: insert the history row, then delete the open row.
+
+    Both statements share one transaction. Without a ``write.history`` block
+    this is a plain delete. Returns None when the open row does not exist.
+    """
+    _ensure_valid(config)
+    if mode not in ("close", "cancel"):
+        raise ValueError(f"unsupported close mode: {mode!r}")
+    entity = _orders_entity(config)
+    write = _write_block(entity)
+    if not write.get("delete"):
+        raise ValueError("mapped orders do not allow delete")
+    key_column = _key_column(entity)
+    if key_column is None:
+        raise ValueError("mapped orders write config is missing a key column")
+
+    read_columns = entity.get("columns") or {}
+    write_columns = write.get("columns") or {}
+    history = write.get("history")
+    select_columns = _source_columns(entity)
+    if key_column not in select_columns:
+        select_columns.append(key_column)
+    select_sql = (
+        f"SELECT {', '.join(_quote_identifier(c) for c in select_columns)} "
+        f"FROM {_table_ref(entity)} "
+        f"WHERE {_quote_identifier(key_column)} = :key"
+    )
+
+    async with engine.begin() as conn:
+        result = await conn.execute(text(select_sql), {"key": key})
+        row = result.mappings().first()
+        if row is None:
+            return None
+        raw = dict(row)
+
+        if isinstance(history, dict):
+            values: dict[str, Any] = {}
+            for canonical, target in (history.get("columns") or {}).items():
+                source = write_columns.get(canonical)
+                if source is None:
+                    source = _column_name(read_columns.get(canonical))
+                if source is None or source not in raw:
+                    continue
+                if raw[source] is not None:
+                    values[target] = raw[source]
+            for target, literal in (history.get("defaults") or {}).items():
+                values.setdefault(target, literal)
+            status = history.get("status") or {}
+            status_column = status.get("column")
+            status_value = (
+                status.get("close") if mode == "close" else status.get("cancel")
+            )
+            if _valid_identifier(status_column) and status_value is not None:
+                values[status_column] = status_value
+            close_columns = history.get("close_columns") or {}
+            if exit_price is not None and "exit_price" in close_columns:
+                values[close_columns["exit_price"]] = exit_price
+            if realized_pl is not None and "realized_pl" in close_columns:
+                values[close_columns["realized_pl"]] = realized_pl
+
+            schema = history.get("schema") or entity.get("schema")
+            table = _quote_identifier(history.get("table"))
+            if schema:
+                table = f"{_quote_identifier(schema)}.{table}"
+            if values:
+                targets = ", ".join(_quote_identifier(t) for t in values)
+                placeholders = ", ".join(
+                    f":h{i}" for i in range(len(values))
+                )
+                params = {
+                    f"h{i}": value for i, value in enumerate(values.values())
+                }
+                await conn.execute(
+                    text(
+                        f"INSERT INTO {table} ({targets}) VALUES ({placeholders})"
+                    ),
+                    params,
+                )
+            else:
+                await conn.execute(text(f"INSERT INTO {table} DEFAULT VALUES"))
+
+        await conn.execute(
+            text(
+                f"DELETE FROM {_table_ref(entity)} "
+                f"WHERE {_quote_identifier(key_column)} = :key"
+            ),
+            {"key": key},
+        )
+
+    return {
+        "order_id": str(key),
+        "order_status": "CLOSE" if mode == "close" else "CANCELED",
+        "history_id": None,
+    }
 
 
 # ---------------------------------------------------------------------------

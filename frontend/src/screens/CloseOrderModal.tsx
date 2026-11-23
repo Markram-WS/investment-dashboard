@@ -39,6 +39,8 @@ interface CloseOrderModalProps {
     cost: number,
   ) => Promise<void>;
   activeOrders: SpreadOrder[];
+  /** Mapped close writes only exit price and realised P/L to the history row. */
+  mapped?: boolean;
 }
 
 type LastEdited = "exitPrice" | "pl" | null;
@@ -49,6 +51,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
   onClose,
   onConfirm,
   activeOrders,
+  mapped = false,
 }) => {
   const [closeId, setCloseId] = useState("");
   const [exitPrice, setExitPrice] = useState("");
@@ -88,7 +91,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
     lastEdited.current = "exitPrice";
     if (val !== "" && qty > 0) {
       const ep = parseFloat(val);
-      const c = parseFloat(cost) || 0;
+      const c = mapped ? 0 : parseFloat(cost) || 0;
       setRealizedPl(((ep - entryPrice) * qty - c).toFixed(2));
     }
   };
@@ -98,7 +101,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
     lastEdited.current = "pl";
     if (val !== "" && qty > 0) {
       const pl = parseFloat(val);
-      const c = parseFloat(cost) || 0;
+      const c = mapped ? 0 : parseFloat(cost) || 0;
       setExitPrice((entryPrice + (pl + c) / qty).toFixed(2));
     }
   };
@@ -107,11 +110,11 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
     setCost(val);
     if (lastEdited.current === "exitPrice" && exitPrice !== "" && qty > 0) {
       const ep = parseFloat(exitPrice);
-      const c = parseFloat(val) || 0;
+      const c = mapped ? 0 : parseFloat(val) || 0;
       setRealizedPl(((ep - entryPrice) * qty - c).toFixed(2));
     } else if (lastEdited.current === "pl" && realizedPl !== "" && qty > 0) {
       const pl = parseFloat(realizedPl);
-      const c = parseFloat(val) || 0;
+      const c = mapped ? 0 : parseFloat(val) || 0;
       setExitPrice((entryPrice + (pl + c) / qty).toFixed(2));
     }
   };
@@ -124,7 +127,7 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
         closeId || String(order.order_id),
         exitPrice !== "" ? parseFloat(exitPrice) : null,
         realizedPl !== "" ? parseFloat(realizedPl) : null,
-        parseFloat(cost) || 0,
+        mapped ? 0 : parseFloat(cost) || 0,
       );
     } finally {
       setSaving(false);
@@ -139,16 +142,18 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
         </h3>
 
         <div className={`${MODAL_BODY} space-y-3`}>
-          <Field label="Close ID" htmlFor="close-order-id">
-            <TextInput
-              id="close-order-id"
-              type="text"
-              value={closeId}
-              onChange={(e) => setCloseId(e.target.value)}
-              placeholder="CLS-XXXXXXXX"
-              className="w-full"
-            />
-          </Field>
+          {!mapped && (
+            <Field label="Close ID" htmlFor="close-order-id">
+              <TextInput
+                id="close-order-id"
+                type="text"
+                value={closeId}
+                onChange={(e) => setCloseId(e.target.value)}
+                placeholder="CLS-XXXXXXXX"
+                className="w-full"
+              />
+            </Field>
+          )}
 
           <div className="space-y-1.5">
             <div className="flex justify-between">
@@ -178,15 +183,17 @@ export const CloseOrderModal: React.FC<CloseOrderModalProps> = ({
           </div>
 
           <div className="pt-3 space-y-3" style={{ borderTop: '1px solid var(--color-hairline)' }}>
-            <Field label="Cost (spread/commission)" htmlFor="close-order-cost">
-              <NumberInput
-                id="close-order-cost"
-                step="any"
-                value={cost}
-                onChange={(e) => handleCostChange(e.target.value)}
-                className="w-full"
-              />
-            </Field>
+            {!mapped && (
+              <Field label="Cost (spread/commission)" htmlFor="close-order-cost">
+                <NumberInput
+                  id="close-order-cost"
+                  step="any"
+                  value={cost}
+                  onChange={(e) => handleCostChange(e.target.value)}
+                  className="w-full"
+                />
+              </Field>
+            )}
             <Field label="Exit price" htmlFor="close-order-exit-price">
               <NumberInput
                 id="close-order-exit-price"
