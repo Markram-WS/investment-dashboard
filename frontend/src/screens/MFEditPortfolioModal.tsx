@@ -36,8 +36,46 @@ const secondaryButton = CONTROL_BUTTON_SECONDARY;
 const dangerButton = {
   ...CONTROL_BUTTON_SECONDARY, color: "var(--color-danger-text)",
 } as const;
-const SEPARATOR: CSSProperties = {
-  border: 0, borderTop: "1px solid var(--color-hairline)", margin: "24px 0",
+
+/**
+ * Two-column canvas: identity + cash on the left, allocation + thresholds on
+ * the right. `auto-fit` collapses to one column below ~656px of card width, so
+ * the same DOM stays in visual order at every size.
+ */
+const COLUMNS: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+  gap: 24,
+  alignItems: "start",
+};
+/** Between groups inside a column. */
+const GROUP_STACK: CSSProperties = { display: "flex", flexDirection: "column", gap: 16 };
+/** Between fields inside a group. */
+const FIELD_STACK: CSSProperties = { display: "flex", flexDirection: "column", gap: 8 };
+/** Two fields side by side, stacking on very narrow cards. */
+const FIELD_PAIR: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  gap: 8,
+  alignItems: "start",
+};
+const ROW: CSSProperties = { display: "flex", alignItems: "center", gap: 6 };
+const SECTION_HEAD: CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6,
+};
+const SECTION_LABEL: CSSProperties = { ...CONTROL_LABEL, margin: 0 };
+const ADD_ASSET_BUTTON: CSSProperties = {
+  ...ADD_LINK, fontSize: "var(--fs-label)", whiteSpace: "nowrap",
+};
+const GROW_INPUT: CSSProperties = { flex: "1 1 auto", width: "auto", minWidth: 0 };
+const PERCENT_INPUT: CSSProperties = { width: 56 };
+const ASSET_NAME: CSSProperties = {
+  width: 40, flex: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+  fontSize: "var(--fs-label)",
+  fontWeight: 500, color: "var(--color-ink)",
+};
+const DANGER_RULE: CSSProperties = {
+  borderTop: "1px solid var(--color-hairline)", marginTop: 12, paddingTop: 12,
 };
 
 interface MFEditPortfolioModalProps {
@@ -223,8 +261,8 @@ export default function MFEditPortfolioModal({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Edit managed fund">
-      <div className={`${MODAL_CARD} bg-canvas border border-hairline w-full max-w-xl mx-4 relative`} style={modalPanelStyle}>
-        <div className={`${MODAL_HEADER} flex justify-between items-center`} style={{ marginBottom: 16 }}>
+      <div className={`${MODAL_CARD} bg-canvas border border-hairline w-full max-w-3xl mx-4 relative`} style={modalPanelStyle}>
+        <div className={`${MODAL_HEADER} flex justify-between items-center`} style={{ marginBottom: 12 }}>
           <h3 style={CONTROL_TITLE}>Edit managed fund</h3>
           <button onClick={onClose} className="p-1 hover:bg-surface-soft rounded-full transition-colors">
             <svg className="w-5 h-5 text-slate" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -234,124 +272,127 @@ export default function MFEditPortfolioModal({
         </div>
 
         <div className={MODAL_BODY}>
-        {/* Basic Info */}
-        <div className="flex flex-col" style={{ gap: 16 }}>
-          <Field label="Portfolio name" htmlFor="mf-portfolio-name">
-            <TextInput id="mf-portfolio-name" value={name} onChange={e => setName(e.target.value)} />
-          </Field>
-          <Field label="Available cash">
-            <div style={readonlyValue}>{formatMoney(availableDisplay)}</div>
-          </Field>
-          <div className="grid grid-cols-2 gap-4 items-start">
-            <Field label="Margin locked (computed)" hint="Computed as Σ mark × multiplier × qty × margin rate">
-              <div style={readonlyValue}>{formatMoney(portfolio.margin_locked || 0)}</div>
-            </Field>
-            <Field label="Cash buffer limit" htmlFor="mf-portfolio-cash-buffer">
-              <NumberInput id="mf-portfolio-cash-buffer" value={cashBuffer} onChange={e => setCashBuffer(e.target.value)} />
-            </Field>
-            <Field label="Tags (comma separated)" htmlFor="mf-portfolio-tags">
-              <TextInput id="mf-portfolio-tags" value={tagsStr} onChange={e => setTagsStr(e.target.value)} placeholder="crypto, fund, long-term" />
-            </Field>
-          </div>
-        </div>
+          <div style={COLUMNS}>
+            {/* Left: identity + cash */}
+            <div style={GROUP_STACK}>
+              <div style={FIELD_STACK}>
+                <Field label="Portfolio name" htmlFor="mf-portfolio-name">
+                  <TextInput id="mf-portfolio-name" value={name} onChange={e => setName(e.target.value)} />
+                </Field>
+                <div style={FIELD_PAIR}>
+                  <Field label="Available cash">
+                    <div style={readonlyValue}>{formatMoney(availableDisplay)}</div>
+                  </Field>
+                  <Field label="Cash buffer limit" htmlFor="mf-portfolio-cash-buffer">
+                    <NumberInput id="mf-portfolio-cash-buffer" value={cashBuffer} onChange={e => setCashBuffer(e.target.value)} />
+                  </Field>
+                </div>
+                <div style={FIELD_PAIR}>
+                  <Field label="Margin locked (computed)" hint="Computed as Σ mark × multiplier × qty × margin rate">
+                    <div style={readonlyValue}>{formatMoney(portfolio.margin_locked || 0)}</div>
+                  </Field>
+                  <Field label="Tags (comma separated)" htmlFor="mf-portfolio-tags">
+                    <TextInput id="mf-portfolio-tags" value={tagsStr} onChange={e => setTagsStr(e.target.value)} placeholder="crypto, fund, long-term" />
+                  </Field>
+                </div>
+              </div>
 
-        <hr style={SEPARATOR} />
+              {/* Deposit/Withdraw */}
+              <Field label="Adjust cash balance" error={dwError}>
+                <div className="flex" style={{ gap: 8 }}>
+                  <NumberInput step={100} placeholder="0" value={dwAmount} onChange={e => setDwAmount(e.target.value)} style={GROW_INPUT} />
+                  <button onClick={handleDeposit} disabled={dwProcessing}
+                    className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={primaryButton}>
+                    Deposit
+                  </button>
+                  <button onClick={handleWithdraw} disabled={dwProcessing}
+                    className="transition-colors hover:bg-surface-soft disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={dangerButton}>
+                    Withdraw
+                  </button>
+                </div>
+              </Field>
+            </div>
 
-        {/* Target Ratios */}
-        <div>
-          <p style={{ ...CONTROL_LABEL, marginBottom: 12 }}>Target allocation ratios</p>
-          <div className="flex flex-col" style={{ gap: 8 }}>
-            {ratioEntries.map((e, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <TextInput type="text" value={e.asset} onChange={v => {
-                  const copy = [...ratioEntries]; copy[i] = { ...copy[i], asset: v.target.value.toUpperCase() }; setRatioEntries(copy);
-                }} placeholder="Asset" style={{ width: 96 }} />
-                <NumberInput step="0.1" value={e.pct} onChange={v => {
-                  const copy = [...ratioEntries]; copy[i] = { ...copy[i], pct: v.target.value }; setRatioEntries(copy);
-                }} placeholder="%" style={{ width: 80 }} />
-                <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
-                {ratioEntries.length > 1 && (
-                  <button onClick={() => setRatioEntries(ratioEntries.filter((_, idx) => idx !== i))}
-                    className="px-1 opacity-70 hover:opacity-100 transition-opacity text-[length:var(--fs-content)]"
-                    style={{ fontWeight: 600, color: "var(--color-danger-text)", background: "transparent", border: 0, cursor: "pointer" }}>×</button>
+            {/* Right: allocation + thresholds */}
+            <div style={GROUP_STACK}>
+              {/* Target Ratios */}
+              <div>
+                <div style={SECTION_HEAD}>
+                  <p style={SECTION_LABEL}>Target allocation ratios</p>
+                  <button onClick={() => setRatioEntries([...ratioEntries, { asset: "", pct: "0" }])}
+                    className="hover:underline" style={ADD_ASSET_BUTTON}>+ Add asset</button>
+                </div>
+                <div className="flex flex-col" style={{ gap: 6 }}>
+                  {ratioEntries.map((e, i) => (
+                    <div key={i} className="flex items-center" style={ROW}>
+                      <TextInput type="text" value={e.asset} onChange={v => {
+                        const copy = [...ratioEntries]; copy[i] = { ...copy[i], asset: v.target.value.toUpperCase() }; setRatioEntries(copy);
+                      }} placeholder="Asset" style={GROW_INPUT} />
+                      <NumberInput step="0.1" value={e.pct} onChange={v => {
+                        const copy = [...ratioEntries]; copy[i] = { ...copy[i], pct: v.target.value }; setRatioEntries(copy);
+                      }} placeholder="%" style={PERCENT_INPUT} />
+                      <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
+                      {ratioEntries.length > 1 && (
+                        <button onClick={() => setRatioEntries(ratioEntries.filter((_, idx) => idx !== i))}
+                          className="px-1 opacity-70 hover:opacity-100 transition-opacity text-[length:var(--fs-content)]"
+                          style={{ fontWeight: 600, color: "var(--color-danger-text)", background: "transparent", border: 0, cursor: "pointer" }}>×</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Profit Thresholds */}
+              <div>
+                <p style={{ ...SECTION_LABEL, marginBottom: 6 }}>Profit thresholds</p>
+                <Field label="Global threshold (%)" htmlFor="mf-global-threshold">
+                  <NumberInput id="mf-global-threshold" step="0.1" value={globalThreshold} onChange={e => setGlobalThreshold(e.target.value)} />
+                </Field>
+                {holdings.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <label style={{ ...SECTION_LABEL, marginBottom: 6 }}>Per-asset (%)</label>
+                    <div className="flex flex-col" style={{ gap: 6 }}>
+                      {holdings.map(h => (
+                        <div key={h.holding_id} className="flex items-center" style={ROW}>
+                          <span style={ASSET_NAME}>{h.asset}</span>
+                          <NumberInput step="0.1" value={perAssetThreshold[h.holding_id] || "0"}
+                            onChange={e => setPerAssetThreshold({ ...perAssetThreshold, [h.holding_id]: e.target.value })}
+                            style={PERCENT_INPUT} />
+                          <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
-            ))}
-          </div>
-          <button onClick={() => setRatioEntries([...ratioEntries, { asset: "", pct: "0" }])}
-            className="hover:underline text-[length:var(--fs-label)]" style={{ ...ADD_LINK, marginTop: 8 }}>+ Add asset</button>
-        </div>
-
-        <hr style={SEPARATOR} />
-
-        {/* Profit Thresholds */}
-        <div>
-          <p style={{ ...CONTROL_LABEL, marginBottom: 12 }}>Profit thresholds</p>
-          <div style={{ marginBottom: 12 }}>
-            <Field label="Global threshold (%)" htmlFor="mf-global-threshold">
-              <NumberInput id="mf-global-threshold" step="0.1" value={globalThreshold} onChange={e => setGlobalThreshold(e.target.value)} />
-            </Field>
-          </div>
-          {holdings.length > 0 && (
-            <div>
-              <label style={{ ...CONTROL_LABEL, marginBottom: 8 }}>Per-asset (%)</label>
-              <div className="flex flex-col" style={{ gap: 6 }}>
-                {holdings.map(h => (
-                  <div key={h.holding_id} className="flex items-center gap-2">
-                    <span className="w-16 text-[length:var(--fs-content)]" style={{ fontWeight: 500, color: "var(--color-ink)" }}>{h.asset}</span>
-                    <NumberInput step="0.1" value={perAssetThreshold[h.holding_id] || "0"}
-                      onChange={e => setPerAssetThreshold({ ...perAssetThreshold, [h.holding_id]: e.target.value })}
-                      style={{ width: 80 }} />
-                    <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
-                  </div>
-                ))}
-              </div>
             </div>
-          )}
-        </div>
-
-        <hr style={SEPARATOR} />
-
-        {/* Deposit/Withdraw */}
-        <Field label="Adjust cash balance" error={dwError}>
-          <div className="flex gap-2">
-            <NumberInput step={100} placeholder="0" value={dwAmount} onChange={e => setDwAmount(e.target.value)} className="flex-1" />
-            <button onClick={handleDeposit} disabled={dwProcessing}
-              className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={primaryButton}>
-              Deposit
-            </button>
-            <button onClick={handleWithdraw} disabled={dwProcessing}
-              className="transition-colors hover:bg-surface-soft disabled:opacity-50 disabled:cursor-not-allowed"
-              style={dangerButton}>
-              Withdraw
-            </button>
           </div>
-        </Field>
 
-        <hr style={SEPARATOR} />
+          {/* Save Error */}
+          {saveErr && <p style={{ ...CONTROL_HELPER, color: "var(--color-danger-text)", marginTop: 12 }}>{saveErr}</p>}
 
-        {/* Save Error */}
-        {saveErr && <p style={{ ...CONTROL_HELPER, color: "var(--color-danger-text)", marginBottom: 16 }}>{saveErr}</p>}
-
-        {/* Danger Zone */}
-        <div className="flex items-center justify-between">
-          <div>
-            <p style={CONTROL_TITLE}>Danger zone</p>
-            <p style={{ ...CONTROL_HELPER, marginTop: 4 }}>Permanently delete this portfolio and all related data</p>
+          {/* Danger Zone */}
+          <div style={DANGER_RULE}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p style={CONTROL_TITLE}>Danger zone</p>
+                <p style={{ ...CONTROL_HELPER, marginTop: 4 }}>Permanently delete this portfolio and all related data</p>
+              </div>
+              <button onClick={() => setShowConfirmDelete(true)}
+                className="inline-flex items-center gap-1.5 transition-colors hover:bg-surface-soft"
+                style={dangerButton}>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6" /><path d="M14 11v6" />
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                </svg>
+                Delete
+              </button>
+            </div>
           </div>
-          <button onClick={() => setShowConfirmDelete(true)}
-            className="inline-flex items-center gap-1.5 transition-colors hover:bg-surface-soft"
-            style={dangerButton}>
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-              <path d="M10 11v6" /><path d="M14 11v6" />
-              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-            </svg>
-            Delete
-          </button>
-        </div>
         </div>
 
         {/* Action buttons */}
