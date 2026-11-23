@@ -182,10 +182,10 @@ open http://localhost:8000/docs
 |--------|-----------|-------------|
 | `GET` | `/api/v1/assets` | List assets (optional `?asset_type=`, `?portfolio_id=`); each row carries `source`, `price_symbol`, `price`, `change_24h` |
 | `POST` | `/api/v1/assets` | Create a new asset; accepts `price_symbol` (defaults to the ticker) |
-| `PUT` | `/api/v1/assets/{id}` | Update asset fields, including `ticker`, `source` and `price_symbol` (cleared only when explicitly sent blank/null). `ticker` is trimmed/uppercased; empty is a 400 and a duplicate `(broker_id, ticker)` — ticker only for legacy custom assets — is a 400. A rename cascades in the same transaction to `active_orders.asset_type`, `trade_history.asset`, `transactions.asset`, `managed_fund_holdings.asset`, `managed_fund_orders.asset`, `managed_fund_order_history.asset` and `portfolios.product_ticker`, plus the custom database's own `active_orders`/`transactions`; mapped broker orders keep their own symbol |
+| `PUT` | `/api/v1/assets/{id}` | Update asset fields, including `ticker`, `source` and `price_symbol` (cleared only when explicitly sent blank/null). `ticker` is trimmed/uppercased; empty is a 400 and a duplicate `(broker_id, ticker)` — ticker only for legacy custom assets — is a 400. A rename cascades in the same transaction to `active_orders.asset_type`, `trade_history.asset`, `transactions.asset`, `managed_fund_holdings.asset`, `managed_fund_orders.asset`, `managed_fund_order_history.asset` and `portfolios.product_ticker`, plus the custom database's own `active_orders`/`transactions` (those tables carry no `broker_id`, so the cascade is by ticker across brokers); mapped broker orders keep their own symbol. `name` remains in the API for compatibility but is neither shown nor edited by the UI; the two fixed `400`s are `Ticker is required` and `An asset with this ticker already exists` |
 | `DELETE` | `/api/v1/assets/{id}` | Delete asset |
-| `POST` | `/api/v1/assets/sync-from-orders` | Sync active-order tickers as new assets — main DB plus every custom portfolio (owned or mapped); mapped tickers are inserted as `asset_type = 'future'` with `source = 'tfex'` |
-| `POST` | `/api/v1/assets/sync-from-all` | Sync asset symbols from ALL sources (all order tickers incl. custom/mapped + managed_fund_holdings; Managed Fund order history is not a source) |
+| `POST` | `/api/v1/assets/sync-from-orders` | Sync active-order tickers as new assets — main DB plus every custom portfolio (owned or mapped); mapped tickers are inserted as `asset_type = 'future'` with `source = 'tfex'`, other tickers as `stock`/`yfinance` |
+| `POST` | `/api/v1/assets/sync-from-all` | Sync asset symbols from ALL sources (all order tickers incl. custom/mapped + managed_fund_holdings; Managed Fund order history is not a source); mapped tickers are `future`/`tfex`, other new tickers `crypto`/`manual` |
 | `POST` | `/api/v1/assets/{id}/update-price` | Fetch the price from the asset's own source (`yfinance` or `tfex`) using `price_symbol`, falling back to `ticker`; `manual` assets only refresh `updated_at`; a TFEX failure is a 502 with a fixed message |
 | `POST` | `/api/v1/assets/batch-update-prices` | Batch update every asset whose `source` is `yfinance` or `tfex` (failed tickers are skipped) |
 
@@ -200,7 +200,7 @@ open http://localhost:8000/docs
 |--------|-----------|-------------|
 | `GET` | `/api/v1/asset-groups` | List asset groups (seeds Ungrouped/Watchlist on first query) |
 | `POST` | `/api/v1/asset-groups` | Create a new group |
-| `PUT` | `/api/v1/asset-groups/{id}` | Update group name |
+| `PUT` | `/api/v1/asset-groups/{id}` | Update group name (default groups cannot be edited; duplicate name is a 400) |
 | `DELETE` | `/api/v1/asset-groups/{id}` | Delete group (default groups cannot be deleted) |
 
 ### Orders Groups
@@ -245,7 +245,7 @@ backend/
 │   ├── database.py              # Async engine + session factories + custom engine manager
 │   ├── models.py                # SQLAlchemy ORM models (18 tables incl. CustomPortfolioConnection)
 │   ├── custom_models.py         # FK-free models for custom DB tables (active_orders, transactions, trade_plans, etc.)
-│   ├── managed_fund_models.py   # 4 SQLAlchemy models for Managed Fund: ManagedFundHolding, ManagedFundOrder, ManagedFundOrderHistory, ManagedFundSetting
+│   ├── managed_fund_models.py   # 4 SQLAlchemy models for Managed Fund (holdings, orders, order history, settings)
 │   ├── utils/
 │   │   ├── crypto.py            # Fernet encrypt/decrypt for DB passwords
 │   │   └── __init__.py
@@ -446,7 +446,7 @@ The yfinance service uses direct HTTP to Yahoo Finance. If prices return 0.0, th
 `POST /api/v1/assets/{id}/update-price` returns `502 Failed to fetch price: <fixed message>` for a `source = 'tfex'` asset:
 
 - *unknown or expired symbol* — the series API answered 404. Check `price_symbol` (e.g. `CPALLZ25`) against a live TFEX series; expired contracts have no quote.
-- *no usable quote* — the payload carried no numeric `last` field (series not trading yet).
+- *no usable quote* — the payload had no positive `last`, bid/offer pair, `settlementPrice`, or `priorSettlementPrice` (the series is not trading yet).
 - *blocked* — the request came back as an anti-bot HTML page twice (initial call plus one forced cookie re-warm). Wait and retry; a long block usually means the quotation endpoint is rate-limiting the host.
 
 TFEX quotes are delayed by roughly 15 minutes, so the fetched value will not match a live trading screen.
@@ -469,4 +469,4 @@ kubectl -n investment-dashboard logs statefulset/postgres-ai
 
 ---
 
-*Last updated: 23 November 2026 (read-through Custom Portfolios: mapping-template / connection / stored test-connection endpoints, `mapping_config` validation, read-only 409 rule, mapped trade-history reads; `price_symbol` + TFEX delayed price source)*
+*Last updated: 23 November 2026 (editable asset ticker with the local rename cascade and legacy `name`; TFEX product-page URL/quote fallbacks and `price_symbol`; read-through Custom Portfolios: mapping-template / connection / stored test-connection endpoints, `mapping_config` validation, read-only 409 rule, mapped trade-history reads)*

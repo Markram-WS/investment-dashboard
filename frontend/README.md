@@ -55,7 +55,7 @@ frontend/
 │   ├── pages/              # Top-level route components
 │   │   ├── PortfolioOverview.tsx    # Hero Card + Pool Health + Portfolio Grid with DnD transfer
 │   │   ├── TransactionsPage.tsx     # Transaction table + unified inline form (From/To dropdowns, no modals)
-│   │   ├── AllAssets.tsx           # Zone-based asset groups with inline price editing, yfinance cache
+│   │   ├── AllAssets.tsx           # One grouped asset registry: editable ticker, collapsible group rows, inline price/spec editing, yfinance/TFEX refresh
 │   │   ├── RiskAnalytics.tsx       # Sharpe, VaR, Drawdown charts
 │   │   ├── CreateNewPortfolio.tsx  # Portfolio creation form (Managed Fund / Active Trading / Custom Portfolio with external DB connection)
 │   │   ├── TradePlanManager.tsx    # Trade plan management
@@ -70,9 +70,9 @@ frontend/
 │   │   ├── MFSellHoldingModal.tsx # Managed Fund: sell holding with manual price entry
 │   │   ├── MFRebalanceRecommendModal.tsx # Managed Fund: rebalance recommendations table
 │   │   ├── MFEditPortfolioModal.tsx # Managed Fund: unified edit modal (name, cash fields, target ratios, profit thresholds, deposit/withdraw, Danger Zone delete + navbar query invalidation)
-│   │   ├── AddAssetModal.tsx      # Create asset form with group/type/source selection
-│   │   ├── EditAssetModal.tsx     # Edit/delete asset + manual price input
-│   │   ├── AssetGroupModal.tsx    # Asset group CRUD (table layout, inline add/edit/delete)
+│   │   ├── AddAssetModal.tsx      # Create asset: ticker, price symbol, type/source/group, broker/multiplier/margin (560px, no Name)
+│   │   ├── EditAssetModal.tsx     # Edit/delete asset incl. editable ticker + rename cascade warning; manual price input
+│   │   ├── AssetGroupModal.tsx    # Asset group list: inline rename, footer add, fixed error sentences
 │   │   ├── AddOrderModal.tsx      # Add order form with contract_type toggle
 │   │   ├── CloseOrderModal.tsx    # Close order form with exit price/P&L
 │   │   ├── EditOrderModal.tsx     # Order edit modal with unlink-on-save
@@ -81,12 +81,15 @@ frontend/
 │   │   ├── ZoneGroupModal.tsx     # Orders Group CRUD
 │   │   └── components/
 │   │       ├── Button.tsx              # 5 variants (primary/secondary/outline/danger/ghost), 3 sizes
+│   │       ├── Field.tsx               # Field + TextInput/NumberInput/SelectInput (in-page combobox, not native)
+│   │       ├── controlStyles.ts        # Shared control label/input/helper/button tokens
+│   │       ├── LiquidityStack.tsx      # Margin/buffer/available bar; labelled 28px overview bar reveals on mount
 │   │       ├── PortfolioHeader.tsx     # Breadcrumb, title, refresh
 │   │       ├── SummaryCard.tsx         # 3-col values + formula tooltips + risk gauge
 │   │       ├── StrategyNotes.tsx       # Trade Plan + Internal Notes (inline-editable)
 │   │       ├── TagsSection.tsx         # Metadata tag pills
 │   │       ├── PerformanceSection.tsx  # Equity/Payoff toggle + PayoffChart
-│   │       ├── PerformanceChart.tsx    # SVG equity line + payoff bar chart
+│   │       ├── PerformanceChart.tsx    # Equity LineChart via ztd-charts; payoff view lives in PayoffChart
 │   │       ├── PayoffChart.tsx         # Pure SVG: intrinsic + BS IV lines, crosshair, tooltip
 │   │       ├── OrderManagement.tsx     # Active orders + Controls panel (BS IV toggle, price range, IV%)
 │   │       ├── OptionsStrategyTable.tsx # Options sandbox; uses buttonTheme; per-portfolio localStorage
@@ -180,17 +183,17 @@ Centralized via `NotificationContext` (wraps entire app in App.tsx):
 
 ## 📊 Asset Page (AllAssets.tsx)
 
-Zone-based group sections with auto-sync from all portfolios:
+One 44px header band, a type-filter toolbar, and one grouped registry table — no per-group cards:
 
-- **Group sections** — collapsible, droppable (drag assets between groups)
-- **Type filter tabs** — All / Stock / Future / Option / Crypto
-- **Inline price editing** — click price cell → input → save to localStorage + API
-- **Yfinance price cache** — `localStorage('cached_price_{ticker}')` persists last known price
-- **Per-asset refresh** button for yfinance sources
-- **Batch refresh** with success/warning toast
-- **Auto-sync on page load** — calls `POST /api/v1/assets/sync-from-all` to pull symbols from Active Trading orders, Managed Fund holdings, and Managed Fund order history
-- **Manual Sync button** — same endpoint, visible feedback
-- **Symbol tips** — collapsible `<details>` showing yfinance patterns (`.BK`, `-USD`, `.T`, etc.)
+- **Header** — `Assets`, the counts summary (`N assets · N priced · N groups`), the Auto toggle and the manual refresh button only.
+- **Type filter tabs** — All / Stock / Future / Option / Crypto; `+ New group`, `+ New asset` and `Sync from Orders` sit on the right.
+- **One table** — a single sticky head; group rows (32px, collapse, count, drag-and-drop target) live inside the same `tbody`; an empty group is one `No assets` row. Asset rows are 32px at 11px; the ticker is the identity, and Name is no longer rendered.
+- **Editable ticker** — Edit changes the registry key; the backend cascades it to local orders, history and Managed Fund holdings, while mapped broker orders keep their own symbol (the modal warns).
+- **Inline price and spec editing** — click Price/Multiplier/Margin → 26px input → save through the API; the per-row refresh icon appears only for `PRICE_SOURCES` (`yfinance`, `tfex`).
+- **Price cache** — `localStorage('cached_price_{ticker}')` persists the last known price and follows a rename.
+- **Batch / Auto refresh** — `batch-update-prices`; Auto repeats it every 10 minutes.
+- **Sync on load + manual button** — `POST /api/v1/assets/sync-from-all` pulls symbols from Active Trading orders, every custom portfolio's orders, and Managed Fund holdings; Managed Fund order history is deliberately not a source.
+- **Selects** — source/type/group/broker use the shared in-page `SelectInput` combobox (`Field.tsx`), not a native `<select>`.
 
 ## 🎨 UI Architecture
 
@@ -223,6 +226,9 @@ Portfolio Grid (xl:grid-cols-2)
 | `pulse-available` | `scale(1 → 1.02)` | Available card highlight |
 | `shimmer-bar` | `linear-gradient` sweep | Visual interest |
 | `#health-gauge-path` | `stroke-dashoffset` transition | Gauge fill animation |
+| `liquidity-reveal` | `clip-path: inset(0 100% 0 0)` → `inset(0)`, 650ms | Labelled cash-allocation bar enters once on mount; segment widths use a 450ms `flex-grow` transition |
+| `payoff-line-draw` | `stroke-dashoffset: 1` → `0`, 700ms | Payoff line entry; area/IV/break-even fade in at 220–250ms with 120–180ms delays |
+| reduced motion | `animation: none` / `transition: none` | Disables the liquidity reveal, segment glide and payoff entry |
 
 ## 📱 Pages & Routes
 
@@ -230,7 +236,7 @@ Portfolio Grid (xl:grid-cols-2)
 |-------|-----------|-------------|
 | `/` | PortfolioOverview | Cash breakdown + portfolio grid |
 | `/transactions` | TransactionsPage | Transaction table + unified inline form (From/To dropdowns, no modals) |
-| `/all-assets` | AllAssets | Zone-based asset groups + inline price editing |
+| `/all-assets` | AllAssets | One grouped registry: editable ticker, collapsible group rows, inline price/spec editing |
 | `/risk-analytics` | RiskAnalytics | Risk metrics (Sharpe, VaR, Drawdown) |
 | `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | Dynamic layout per port_type (Managed Fund → PortfolioMutualFund with 4-card summary; all others → PortfolioGrid) |
 | `/analytics/detail` | PortfolioGrid | Grid view |
@@ -289,10 +295,11 @@ In the cluster no frontend env vars are needed: the browser calls `/api/v1/...` 
 9. **Dark mode**: `.dark` class toggle, localStorage persistence, anti-flash script
 10. **Tailwind CSS npm**: v3.4.19 with `darkMode: 'class'`, custom color variables
 11. **Inline styles minimized**: 254 → 35 (only dynamic runtime values)
-12. **Asset groups**: Zone-based collapsible sections, drag-drop between groups, yfinance price sync
-13. **Inline price editing**: Click price → edit → save to localStorage + optional API
-14. **Custom Portfolio**: New portfolio type with external database connection form (host, port, DB name, user, password) + Test Connection button
-15. **Portfolio-aware API calls**: All order operations (create, update, close, link, unlink), asset CRUD, asset/orders group CRUD accept optional `portfolioId` and append `?portfolio_id=` query param for custom portfolio routing
+12. **Asset groups**: collapsible, droppable group section rows inside the one registry table; yfinance + TFEX price sync
+13. **Inline price and spec editing**: click Price/Multiplier/Margin → 26px input → API; the ticker is editable and its rename cascades through local orders/history/holdings
+14. **Transaction ledger**: data cells at 11px (`--fs-label`) in the shared table shell
+15. **Custom Portfolio**: New portfolio type with external database connection form (host, port, DB name, user, password) + Test Connection button
+16. **Portfolio-aware API calls**: All order operations (create, update, close, link, unlink), asset CRUD, asset/orders group CRUD accept optional `portfolioId` and append `?portfolio_id=` query param for custom portfolio routing
 
 ### Key Business Logic
 
