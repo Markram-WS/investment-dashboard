@@ -127,9 +127,9 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
 
   return (
     <tr ref={dragRef} className={`border-t border-hairline hover:bg-surface transition-colors ${isDragging ? 'opacity-40' : ''}`}>
-      <td className="px-4 py-3 text-[length:var(--fs-content)] font-semibold text-ink">{asset.ticker}</td>
-      <td className="px-4 py-3 text-[length:var(--fs-content)] text-slate">{asset.name || '—'}</td>
-      <td className="px-4 py-3 text-[length:var(--fs-content)] text-right text-ink font-medium cursor-pointer" style={{ fontVariantNumeric: 'tabular-nums' }} onClick={startEdit}>
+      <td className="px-4 py-3 text-[length:var(--fs-label)] font-semibold text-ink">{asset.ticker}</td>
+      <td className="px-4 py-3 text-[length:var(--fs-label)] text-slate">{asset.name || '—'}</td>
+      <td className="px-4 py-3 text-[length:var(--fs-label)] text-right text-ink font-medium cursor-pointer" style={{ fontVariantNumeric: 'tabular-nums' }} onClick={startEdit}>
         {editing ? (
           <input type="number" step="any" value={editVal} autoFocus
             onChange={e => setEditVal(e.target.value)}
@@ -142,7 +142,7 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
           displayPrice != null ? formatMoney(Number(displayPrice), 'USD') : '—'
         )}
       </td>
-      <td className="px-4 py-3 text-[length:var(--fs-content)] text-right font-medium"
+      <td className="px-4 py-3 text-[length:var(--fs-label)] text-right font-medium"
         style={{
           fontVariantNumeric: 'tabular-nums',
           color: change != null
@@ -151,24 +151,24 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
         }}>
         {change != null ? formatPct(change) : '—'}
       </td>
-      <td className="px-3 py-3 text-[length:var(--fs-content)] text-slate" title={asset.broker_name || asset.broker_code || undefined}>
+      <td className="px-3 py-3 text-[length:var(--fs-label)] text-slate" title={asset.broker_name || asset.broker_code || undefined}>
         {asset.broker_code ?? '—'}
       </td>
-      <td className="px-3 py-3 text-[length:var(--fs-content)] text-right text-ink cursor-pointer"
+      <td className="px-3 py-3 text-[length:var(--fs-label)] text-right text-ink cursor-pointer"
         style={{ fontVariantNumeric: 'tabular-nums' }}
         title={asset.updated_at ? `updated ${asset.updated_at}` : undefined}
         onClick={() => startSpecEdit('multiplier')}>
         {specField === 'multiplier' ? specInput('multiplier')
           : asset.multiplier != null ? String(asset.multiplier) : '—'}
       </td>
-      <td className="px-3 py-3 text-[length:var(--fs-content)] text-right text-ink cursor-pointer"
+      <td className="px-3 py-3 text-[length:var(--fs-label)] text-right text-ink cursor-pointer"
         style={{ fontVariantNumeric: 'tabular-nums' }}
         title={`rate of notional, 0.10 = 10%${asset.updated_at ? ` · updated ${asset.updated_at}` : ''}`}
         onClick={() => startSpecEdit('margin_rate')}>
         {specField === 'margin_rate' ? specInput('margin_rate')
           : asset.margin_rate != null ? Number(asset.margin_rate).toFixed(2) : '—'}
       </td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 text-[length:var(--fs-label)]">
         <span style={badgeStyle}>{asset.source}</span>
       </td>
       <td className="px-4 py-3 text-center">

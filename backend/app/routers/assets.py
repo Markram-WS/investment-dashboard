@@ -4,13 +4,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
+import logging
 
-from app.database import get_db, resolve_portfolio_db
-from app.models import WhitelistAssets, AssetGroup, ActiveOrder, Broker
-from app.custom_models import CustomWhitelistAssets
-from app.custom_mapping import is_mapped_portfolio, raise_if_mapped_readonly
+from app.database import (
+    get_db, get_custom_session, get_or_create_custom_engine, resolve_portfolio_db,
+)
+from app.models import (
+    WhitelistAssets, AssetGroup, ActiveOrder, Broker,
+    CustomPortfolioConnection, Portfolio,
+)
+from app.custom_models import CustomActiveOrder, CustomWhitelistAssets
+from app.custom_mapping import (
+    fetch_mapped_orders, is_mapped_portfolio, raise_if_mapped_readonly,
+)
 from app.managed_fund_models import ManagedFundHolding, ManagedFundOrderHistory
 from app.services.yfinance_service import fetch_price
+
+logger = logging.getLogger(__name__)
 
 class AssetResponse(BaseModel):
     asset_id: int
@@ -86,6 +96,74 @@ async def _ensure_default_group(db: AsyncSession):
         await db.commit()
         await db.refresh(group)
     return group
+
+
+def _normalise_ticker(value) -> str | None:
+    """Asset ticker in the dashboard's stored form, or None when blank."""
+    if not isinstance(value, str):
+        return None
+    ticker = value.strip().upper()
+    return ticker or None
+
+
+async def _collect_order_tickers(db: AsyncSession) -> tuple[set[str], set[str]]:
+    """Order tickers across the main DB and every custom portfolio.
+
+    Returns ``(tickers, mapped_tickers)``. Mapped portfolios are read through
+    the foreign-schema adapter (never ``ensure_custom_tables`` on a foreign
+    database); legacy custom portfolios use their own session. A portfolio
+    whose external database is unreachable is skipped so one broken
+    connection cannot block local asset sync.
+    """
+    tickers: set[str] = set()
+    mapped_tickers: set[str] = set()
+
+    result = await db.execute(select(ActiveOrder.asset_type).distinct())
+    for row in result:
+        ticker = _normalise_ticker(row[0])
+        if ticker:
+            tickers.add(ticker)
+
+    portfolios_result = await db.execute(
+        select(Portfolio).where(Portfolio.is_custom.is_(True))
+    )
+    for portfolio in portfolios_result.scalars().all():
+        conn_result = await db.execute(
+            select(CustomPortfolioConnection).where(
+                CustomPortfolioConnection.portfolio_id == portfolio.portfolio_id
+            )
+        )
+        connection = conn_result.scalar_one_or_none()
+        if connection is None:
+            continue
+        try:
+            if connection.mapping_config:
+                engine = await get_or_create_custom_engine(connection)
+                orders = await fetch_mapped_orders(engine, connection.mapping_config)
+                portfolio_tickers = {_normalise_ticker(o.get("asset_type")) for o in orders}
+                portfolio_tickers.discard(None)
+                mapped_tickers.update(portfolio_tickers)
+                tickers.update(portfolio_tickers)
+            else:
+                session = await get_custom_session(connection)
+                try:
+                    custom_result = await session.execute(
+                        select(CustomActiveOrder.asset_type).distinct()
+                    )
+                    for row in custom_result:
+                        ticker = _normalise_ticker(row[0])
+                        if ticker:
+                            tickers.add(ticker)
+                finally:
+                    await session.close()
+        except Exception:
+            logger.warning(
+                "Skipping custom portfolio %s while collecting order tickers",
+                portfolio.portfolio_id,
+                exc_info=True,
+            )
+
+    return tickers, mapped_tickers
 
 @router.get("", response_model=List[AssetResponse], tags=["assets"])
 async def list_assets(
@@ -221,8 +299,7 @@ async def delete_asset(
 
 @router.post("/sync-from-orders", response_model=List[AssetResponse], tags=["assets"])
 async def sync_from_orders(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ActiveOrder.asset_type).distinct())
-    tickers = {row[0].strip().upper() for row in result if row[0] and row[0].strip()}
+    tickers, mapped_tickers = await _collect_order_tickers(db)
     existing = await db.execute(select(WhitelistAssets.ticker))
     existing_tickers = {row[0].upper() for row in existing if row[0]}
     missing = tickers - existing_tickers
@@ -230,10 +307,10 @@ async def sync_from_orders(db: AsyncSession = Depends(get_db)):
         return []
     ung_group = await _ensure_default_group(db)
     new_assets = []
-    for ticker in missing:
+    for ticker in sorted(missing):
         asset = WhitelistAssets(
             ticker=ticker,
-            asset_type='stock',
+            asset_type='future' if ticker in mapped_tickers else 'stock',
             name=ticker,
             source='yfinance',
             group_id=ung_group.id,
@@ -256,25 +333,21 @@ async def sync_from_orders(db: AsyncSession = Depends(get_db)):
 
 @router.post("/sync-from-all", response_model=List[AssetResponse], tags=["assets"])
 async def sync_from_all(db: AsyncSession = Depends(get_db)):
-    tickers: set[str] = set()
-
-    # From Active Trading orders
-    active_result = await db.execute(select(ActiveOrder.asset_type).distinct())
-    for row in active_result:
-        if row[0] and row[0].strip():
-            tickers.add(row[0].strip().upper())
+    tickers, mapped_tickers = await _collect_order_tickers(db)
 
     # From Managed Fund holdings
     mf_hold_result = await db.execute(select(ManagedFundHolding.asset).distinct())
     for row in mf_hold_result:
-        if row[0] and row[0].strip():
-            tickers.add(row[0].strip().upper())
+        ticker = _normalise_ticker(row[0])
+        if ticker:
+            tickers.add(ticker)
 
     # From Managed Fund order history
     mf_hist_result = await db.execute(select(ManagedFundOrderHistory.asset).distinct())
     for row in mf_hist_result:
-        if row[0] and row[0].strip():
-            tickers.add(row[0].strip().upper())
+        ticker = _normalise_ticker(row[0])
+        if ticker:
+            tickers.add(ticker)
 
     existing = await db.execute(select(WhitelistAssets.ticker))
     existing_tickers = {row[0].upper() for row in existing if row[0]}
@@ -288,7 +361,7 @@ async def sync_from_all(db: AsyncSession = Depends(get_db)):
     for ticker in sorted(missing):
         asset = WhitelistAssets(
             ticker=ticker,
-            asset_type='crypto',
+            asset_type='future' if ticker in mapped_tickers else 'crypto',
             name=ticker,
             source='manual',
             group_id=ung_group.id,

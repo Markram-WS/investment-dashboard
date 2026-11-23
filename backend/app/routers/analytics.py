@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, resolve_portfolio_db, get_or_create_custom_engine
 from app.models import (
     Portfolio, Broker, ActiveOrder, TradePlan, AiActionLog, TradeHistory,
-    AiAgent, CustomPortfolioConnection,
+    AiAgent, CustomPortfolioConnection, WhitelistAssets,
 )
 from app.custom_models import CustomActiveOrder, CustomTransaction, CustomOrdersGroup
 from app.custom_mapping import (
@@ -246,16 +246,74 @@ async def _load_portfolio_context(db: AsyncSession, portfolio: Portfolio):
     return trade_plan, ai_reasoning, ai_risk_insight, broker_code
 
 
-def _risk_order_proxy(order: dict) -> SimpleNamespace:
+def _order_ticker(order: dict) -> str:
+    """The local asset ticker a mapped order prices against."""
+    raw = order.get("asset_type")
+    if not isinstance(raw, str):
+        return ""
+    return raw.strip().upper()
+
+
+def _asset_row_rank(row_broker_id, portfolio_broker_id) -> tuple[int, int]:
+    """Prefer the portfolio's broker, then the lowest broker id."""
+    preferred = (
+        portfolio_broker_id is not None
+        and row_broker_id == portfolio_broker_id
+    )
+    fallback = row_broker_id if row_broker_id is not None else 1_000_000_000
+    return (0 if preferred else 1, fallback)
+
+
+def _pick_asset_prices(rows, portfolio_broker_id) -> dict[str, float]:
+    """ticker -> local price from ``(ticker, broker_id, price)`` rows.
+
+    One row per ticker wins: the portfolio's broker when it has one, else the
+    lowest broker id, else the first row seen. A ``NULL`` price is missing — it
+    is never replaced by the foreign mark price.
+    """
+    best: dict[str, tuple[tuple[int, int], float | None]] = {}
+    for ticker, row_broker_id, price in rows:
+        key = _order_ticker({"asset_type": ticker})
+        if not key:
+            continue
+        rank = _asset_row_rank(row_broker_id, portfolio_broker_id)
+        current = best.get(key)
+        if current is None or rank < current[0]:
+            best[key] = (rank, price)
+    return {
+        ticker: float(price)
+        for ticker, (_, price) in best.items()
+        if price is not None
+    }
+
+
+async def _resolve_asset_prices(
+    db: AsyncSession, orders: list[dict], portfolio_broker_id
+) -> dict[str, float]:
+    """Current prices for the mapped order tickers, from the local asset table."""
+    tickers = {ticker for ticker in map(_order_ticker, orders) if ticker}
+    if not tickers:
+        return {}
+    result = await db.execute(
+        select(WhitelistAssets.ticker, WhitelistAssets.broker_id, WhitelistAssets.price)
+        .where(WhitelistAssets.ticker.in_(tickers))
+        .order_by(WhitelistAssets.broker_id, WhitelistAssets.ticker)
+    )
+    return _pick_asset_prices(result.all(), portfolio_broker_id)
+
+
+def _risk_order_proxy(order: dict, current_price: float | None) -> SimpleNamespace:
     """Order-shaped view of a mapped order dict for ``compute_risk``.
 
-    Only the attributes the risk model reads are projected. The foreign schema
-    has no mark price, so ``current_price`` stays ``None`` and the risk model
-    falls back to ``entry_price`` (counts/size are right, mark P/L is 0).
+    Only the attributes the risk model reads are projected. ``current_price``
+    is the local asset price resolved by the caller (``None`` when the ticker
+    has no priced asset row); the risk model then falls back to ``entry_price``
+    so counts/size stay right and mark P/L is 0. The foreign mark is display
+    only and never feeds P/L.
     """
     return SimpleNamespace(
         qty=order.get("qty"),
-        current_price=order.get("current_price"),
+        current_price=current_price,
         entry_price=order.get("entry_price"),
         contract_type=order.get("contract_type"),
         side=order.get("side"),
@@ -265,7 +323,9 @@ def _risk_order_proxy(order: dict) -> SimpleNamespace:
     )
 
 
-def _serialize_mapped_order(order: dict, plan_id: Optional[int]) -> dict:
+def _serialize_mapped_order(
+    order: dict, plan_id: Optional[int], current_price: Optional[float] = None
+) -> dict:
     return {
         "order_id": order.get("order_id"),
         "plan_id": plan_id,
@@ -273,7 +333,9 @@ def _serialize_mapped_order(order: dict, plan_id: Optional[int]) -> dict:
         "side": order.get("side"),
         "qty": _to_float(order.get("qty")),
         "entry_price": _to_float(order.get("entry_price")),
-        "current_price": _to_float(order.get("current_price")),
+        # Net P&L reads the local asset price; the foreign mark is display only.
+        "current_price": _to_float(current_price),
+        "mark_price": _to_float(order.get("mark_price")),
         # The foreign schema's "Price out" lives in the mapped exit_price; fall
         # back to it when the plan itself carries no tp_price.
         "tp_price": _to_float(order.get("tp_price") or order.get("exit_price")),
@@ -325,8 +387,12 @@ async def _build_mapped_grid_data(
     engine = await get_or_create_custom_engine(connection)
 
     orders = await fetch_mapped_orders(engine, config)
+    asset_prices = await _resolve_asset_prices(db, orders, portfolio.broker_id)
     history = await fetch_mapped_history(engine, config)
     account = await fetch_mapped_account(engine, config)
+
+    def order_price(order: dict) -> Optional[float]:
+        return asset_prices.get(_order_ticker(order))
 
     def money(key: str, fallback) -> Optional[float]:
         if account and account.get(key) is not None:
@@ -358,7 +424,7 @@ async def _build_mapped_grid_data(
             margin_locked=margin_locked or 0,
         )
         risk = await compute_risk(
-            db, proxy, [_risk_order_proxy(order) for order in orders]
+            db, proxy, [_risk_order_proxy(order, order_price(order)) for order in orders]
         )
         # Money comes from the foreign account row, not from local orders.
         risk["margin_locked"] = round(margin_locked or 0.0, 2)
@@ -390,7 +456,8 @@ async def _build_mapped_grid_data(
         ai_risk_insight=ai_risk_insight,
         spread_pairs=[],
         active_orders=[
-            _serialize_mapped_order(order, plan_id) for order in orders
+            _serialize_mapped_order(order, plan_id, order_price(order))
+            for order in orders
         ],
         recent_trades=recent_trades,
         risk=risk,

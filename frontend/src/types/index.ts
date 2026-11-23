@@ -31,6 +31,8 @@ export interface SpreadOrder {
   qty: number | string;
   entry_price: number | null;
   current_price: number | null;
+  /** Foreign broker mark (display only; Net P&L uses current_price). */
+  mark_price?: number | null;
   tp_price: number | null;
   sl_price: number | null;
   leverage: number | null;

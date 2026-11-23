@@ -183,8 +183,8 @@ open http://localhost:8000/docs
 | `POST` | `/api/v1/assets` | Create a new asset |
 | `PUT` | `/api/v1/assets/{id}` | Update asset fields |
 | `DELETE` | `/api/v1/assets/{id}` | Delete asset |
-| `POST` | `/api/v1/assets/sync-from-orders` | Sync active order tickers as new assets |
-| `POST` | `/api/v1/assets/sync-from-all` | Sync asset symbols from ALL sources (active_orders + managed_fund_holdings + managed_fund_order_history) |
+| `POST` | `/api/v1/assets/sync-from-orders` | Sync active-order tickers as new assets — main DB plus every custom portfolio (owned or mapped); mapped tickers are inserted as `asset_type = 'future'` |
+| `POST` | `/api/v1/assets/sync-from-all` | Sync asset symbols from ALL sources (all order tickers incl. custom/mapped + managed_fund_holdings + managed_fund_order_history) |
 | `POST` | `/api/v1/assets/{id}/update-price` | Fetch live price from Yahoo Finance |
 | `POST` | `/api/v1/assets/batch-update-prices` | Batch update all yfinance asset prices |
 
@@ -322,6 +322,8 @@ A non-null `custom_portfolio_connections.mapping_config` (JSON) turns the same C
 - **Validation**: `validate_mapping` refuses a `version` other than 1, a missing `orders`/`account` entity, and any schema/table/column that is not a plain SQL identifier — the config can only ever name a quoted identifier, never carry SQL.
 - **No DDL**: `get_custom_session` / `get_portfolio_db` skip `ensure_custom_tables()` when `mapping_config` is set, so our `active_orders`/`transactions` tables are never created in the foreign database.
 - **Reads**: the grid maps orders (`status` `M`/`MP`→`open`, `C*`→`cancelled`, `E*`→`expired`, `R*`→`rejected`; `tp` is the exit price; `remark` is the Mark note), the newest `account_history` row supplies `available_cash`←`excessequity`, `margin_locked`←`initialmargin`, `current_nav`←`equity`, and `GET /api/v1/trade-history` serves the mapped `history` rows (`remark.note` = `Close`/`Canceled`).
+- **Prices and P&L**: the mapped `orders` entity maps `mark_price` → a display-only `mark_price` that the read-only ladder's `Mark` column shows; `current_price` is not mapped. Net P&L and the risk card's Sum P/L use the local `investment_main.whitelist_assets.price` for the order ticker — the portfolio's `broker_id` row preferred, else the lowest `broker_id` — and a `NULL` price is missing (the order falls back to its entry price, so its Net P&L is 0; the foreign mark is never substituted). `tp` remains an exit price only and never enters P/L.
+- **Asset sync**: `POST /api/v1/assets/sync-from-orders` and `sync-from-all` share one collector over main-DB active orders plus every custom portfolio — legacy owned tables or the mapped adapter, never `ensure_custom_tables()` on a foreign database — so mapped tickers surface in All Assets as `asset_type = 'future'`; a custom database that cannot be reached is skipped with a warning instead of blocking the sync.
 - **Read-only rule**: grid responses carry `read_only: true` and `mapping_template`; every data-plane write route — active orders, assets, order groups, trade plans, trade history, ledger transactions — calls `raise_if_mapped_readonly` and answers `409 Portfolio is read-only (mapped external database)`. The frontend gates its write affordances on `read_only`, so none of them are reachable from a mapped portfolio.
 - **Diagnostics**: a test with a mapping returns `orders_rows`, `history_rows`, `account_rows`, one normalised `sample_order`, and per-entity `errors` — the row counts and the first broken entity, instead of a bare success.
 - **Dev fixture**: `database/mock/usd_pct_abc_dev_seed.sql` (idempotent; 6 open orders, 4 history rows, 3 account snapshots).

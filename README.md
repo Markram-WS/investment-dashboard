@@ -64,7 +64,7 @@ The read-through mode ships with the `tfex-settrade-v1` template (`usd_pct_abc.o
 - **Transaction Ledger** — Deposit, withdraw, transfer between portfolios with full history; global aggregation across all custom DBs
 - **Risk Analytics** — Pool health, money reserve status, Sharpe/VaR/Drawdown, risk score gauge
 - **AI Agents** — Automated scan/plan/execute/adjust cycles per portfolio
-- **Custom Portfolio** — User-configured external PostgreSQL databases for isolated data storage, with Test Connection diagnostics. Either the backend owns the tables, or a JSON mapping config (`mapping_config`, template `tfex-settrade-v1`) turns the portfolio into a **read-only read-through view** over a foreign broker schema: mapped orders/history/account balances, no DDL, every write answered with 409, and row-level diagnostics on the connection test
+- **Custom Portfolio** — User-configured external PostgreSQL databases for isolated data storage, with Test Connection diagnostics. Either the backend owns the tables, or a JSON mapping config (`mapping_config`, template `tfex-settrade-v1`) turns the portfolio into a **read-only read-through view** over a foreign broker schema: mapped orders/history/account balances, no DDL, every write answered with 409, and row-level diagnostics on the connection test; the ladder's `Mark` column shows the broker's `mark_price` while Net P&L uses the local All Assets current price
 - **Drag & Drop** — Transfer cash between portfolios, assign orders to groups, move assets between groups
 - **Encrypted Credentials** — DB passwords encrypted with Fernet symmetric key (`FERNET_KEY`), never stored in plaintext
 

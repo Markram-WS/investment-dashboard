@@ -24,7 +24,8 @@ def mapped_order(**overrides) -> dict:
         "order_id": "S50Z25-1",
         "qty": 5.0,
         "entry_price": 700.0,
-        "current_price": None,  # None on purpose: no mark_price here -> entry-price fallback
+        "current_price": None,  # local asset price is resolved by the grid builder
+        "mark_price": 991.2,  # foreign broker mark: display only, never P&L
         "contract_type": "futures",
         "side": "long",
         "option_type": None,
@@ -58,32 +59,48 @@ def test_proxy_exposes_every_attribute_risk_reads():
         strike_price=680.0,
         expiry_date="2025-12-30",
     )
-    proxy = _risk_order_proxy(order)
+    proxy = _risk_order_proxy(order, 995.0)
 
     for attr in RISK_ATTRS:
+        if attr == "current_price":
+            continue
         assert hasattr(proxy, attr), attr
         assert getattr(proxy, attr) == order[attr]
+    # The proxy's mark is the local asset price, never the foreign mark_price.
+    assert proxy.current_price == 995.0
+    assert proxy.current_price != order["mark_price"]
 
 
 def test_proxy_preserves_missing_current_price():
-    proxy = _risk_order_proxy(mapped_order())
+    proxy = _risk_order_proxy(mapped_order(), None)
     assert proxy.current_price is None
     assert proxy.entry_price == 700.0
 
 
 async def test_six_mapped_rows_become_six_equity_orders():
     orders = [mapped_order(qty=qty) for qty in (5.0, 5.0, 5.0, 5.0, 5.0, 4.0)]
-    proxies = [_risk_order_proxy(order) for order in orders]
+    proxies = [_risk_order_proxy(order, 705.0) for order in orders]
     assert len(proxies) == 6
 
     risk = await compute_risk(None, proxy_portfolio(), proxies)
 
-    # Counts/size come from the mapped rows; mark falls back to entry_price,
-    # so mark P/L stays 0 (the foreign schema has no mark price).
+    # The local asset price drives the mark: (705 - 700) * 29 lots.
     assert risk["eq"]["orders"] == 6
     assert risk["eq"]["lots"] == 29.0
-    assert risk["eq"]["avg_price"] == 700.0
-    assert risk["eq"]["size0"] == 700.0 * 29.0
+    assert risk["eq"]["avg_price"] == 705.0
+    assert risk["eq"]["size0"] == 705.0 * 29.0
+    assert risk["eq"]["pl"] == 145.0
+    assert risk["pl_total"] == 145.0
+
+
+async def test_missing_asset_price_falls_back_to_entry_with_zero_pl():
+    orders = [mapped_order(qty=5.0)]
+    proxies = [_risk_order_proxy(order, None) for order in orders]
+
+    risk = await compute_risk(None, proxy_portfolio(), proxies)
+
+    # No local price means no P&L, even though the foreign mark_price is 991.2.
+    assert risk["eq"]["orders"] == 1
     assert risk["eq"]["pl"] == 0.0
     assert risk["pl_total"] == 0.0
 
@@ -95,12 +112,13 @@ async def test_mapped_option_rows_bucket_from_side_and_option_type():
                      expiry_date="2025-12-30"),
     ]
     risk = await compute_risk(
-        None, proxy_portfolio(), [_risk_order_proxy(order) for order in orders]
+        None, proxy_portfolio(), [_risk_order_proxy(order, 12.0) for order in orders]
     )
 
     assert risk["eq"]["orders"] == 0
     assert risk["options"]["buckets"]["short_call"]["orders"] == 1
     assert risk["options"]["buckets"]["short_call"]["lots"] == 2.0
+    assert risk["options"]["buckets"]["short_call"]["pl"] == -4.0
     assert risk["options"]["unclassified"] == 0
     assert risk["net_premium"] == 20.0
 

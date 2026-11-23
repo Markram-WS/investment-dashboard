@@ -26,7 +26,7 @@ TFEX_SETTRADE_V1 = {
                 "entry_price": "price",
                 "exit_price": "tp",
                 "tp_price": "tp",
-                "current_price": "mark_price",
+                "mark_price": "mark_price",
                 "order_status": "status",
                 "remark": "remark",
                 "fee": "fee",

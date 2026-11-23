@@ -424,12 +424,13 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
   const renderCells = (line: LadderLine) => {
     const { eq, opt } = line;
     // A mapped (read-only) portfolio has no internal price levels: the Mark cell
-    // shows the broker's live mark for the leg when there is one.
+    // shows the foreign broker's mark for the leg when there is one. Net P&L
+    // still reads the local asset price in current_price.
     const markLeg = eq ?? opt;
     const mark = (
       <span className="at-mark">
-        {readOnly && markLeg?.current_price != null
-          ? money(markLeg.current_price)
+        {readOnly && markLeg?.mark_price != null
+          ? money(markLeg.mark_price)
           : priceLabel(line.label)}
       </span>
     );

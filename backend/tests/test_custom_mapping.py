@@ -161,6 +161,7 @@ def test_normalise_order_row_from_dict():
         "volume": 2,
         "price": Decimal("1000.5"),
         "tp": Decimal("1010.5"),
+        "mark_price": Decimal("1004.25"),
         "status": "MP",
         "remark": "entry note",
         "fee": 20.0,
@@ -176,6 +177,7 @@ def test_normalise_order_row_from_dict():
     assert order["entry_price"] == 1000.5
     assert order["exit_price"] == 1010.5
     assert order["current_price"] is None
+    assert order["mark_price"] == 1004.25
     assert order["tp_price"] == row["tp"]
     assert order["sl_price"] is None
     assert order["order_status"] == "open"
