@@ -1,6 +1,6 @@
 # Investment Dashboard – Backend
 
-A FastAPI-powered backend for professional investment management, including portfolio tracking, trade plans, active orders, AI agent integration, whitelist asset management with yfinance price sync, and **dynamic multi-database custom portfolios**.
+A FastAPI-powered backend for professional investment management, including portfolio tracking, trade plans, active orders, AI agent integration, whitelist asset management with Yahoo Finance and TFEX price sync, and **dynamic multi-database custom portfolios**.
 
 ---
 
@@ -38,6 +38,7 @@ This backend is built with:
 - **`CustomTradePlan` model** — FK-free replica of `TradePlan` for custom DBs, resolves FK constraint errors when creating orders against custom portfolio trade plans
 - **`ensure_custom_tables` auto-migration** — compares model columns vs `information_schema.columns`; runs `ALTER TABLE ADD COLUMN IF NOT EXISTS` for missing columns; drops all FK constraints to match FK-free model design
 - **Targeted schema sync** — custom DBs receive FK-free replicas of `active_orders`, `transactions`, `trade_plans`, `whitelist_assets`, `asset_groups`, `orders_groups` on first access
+- **Two price sources** — `whitelist_assets.source` selects the feed: `yfinance` (Yahoo Finance, direct HTTP) or `tfex` (TFEX public quotation API, delayed quotes). `price_symbol` is the provider symbol used for the fetch and defaults to the ticker, so a dashboard ticker can differ from the feed symbol (`PTT.BK`). `update-price`, `batch-update-prices`, and both sync endpoints all resolve the symbol through it
 - **`resolve_portfolio_db(db, portfolio_id)`** — per-request session routing helper; replaces `get_custom_session_maker`
 - **All order endpoints refactored** — `POST`, `PUT`, `PATCH status`, `close`, `link`, `unlink` accept `?portfolio_id=` query param and route to correct DB
 - **All CRUD endpoints refactored** — `assets.py`, `asset_groups.py`, `orders_groups.py` POST/PUT/DELETE accept `?portfolio_id=` for custom portfolio support
@@ -179,14 +180,20 @@ open http://localhost:8000/docs
 ### Assets
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
-| `GET` | `/api/v1/assets` | List assets (optional `?asset_type=`, `?portfolio_id=`) |
-| `POST` | `/api/v1/assets` | Create a new asset |
-| `PUT` | `/api/v1/assets/{id}` | Update asset fields |
+| `GET` | `/api/v1/assets` | List assets (optional `?asset_type=`, `?portfolio_id=`); each row carries `source`, `price_symbol`, `price`, `change_24h` |
+| `POST` | `/api/v1/assets` | Create a new asset; accepts `price_symbol` (defaults to the ticker) |
+| `PUT` | `/api/v1/assets/{id}` | Update asset fields, including `source` and `price_symbol` (cleared only when explicitly sent blank/null) |
 | `DELETE` | `/api/v1/assets/{id}` | Delete asset |
-| `POST` | `/api/v1/assets/sync-from-orders` | Sync active-order tickers as new assets — main DB plus every custom portfolio (owned or mapped); mapped tickers are inserted as `asset_type = 'future'` |
+| `POST` | `/api/v1/assets/sync-from-orders` | Sync active-order tickers as new assets — main DB plus every custom portfolio (owned or mapped); mapped tickers are inserted as `asset_type = 'future'` with `source = 'tfex'` |
 | `POST` | `/api/v1/assets/sync-from-all` | Sync asset symbols from ALL sources (all order tickers incl. custom/mapped + managed_fund_holdings + managed_fund_order_history) |
-| `POST` | `/api/v1/assets/{id}/update-price` | Fetch live price from Yahoo Finance |
-| `POST` | `/api/v1/assets/batch-update-prices` | Batch update all yfinance asset prices |
+| `POST` | `/api/v1/assets/{id}/update-price` | Fetch the price from the asset's own source (`yfinance` or `tfex`) using `price_symbol`, falling back to `ticker`; `manual` assets only refresh `updated_at`; a TFEX failure is a 502 with a fixed message |
+| `POST` | `/api/v1/assets/batch-update-prices` | Batch update every asset whose `source` is `yfinance` or `tfex` (failed tickers are skipped) |
+
+**Price sources.** `source` picks the feed; `price_symbol` picks the provider symbol (defaults to `ticker`, stored as entered, never uppercased). Both refresh endpoints dispatch on `source` and never fetch `manual` rows.
+
+- `yfinance` — Yahoo Finance over direct HTTP (`services/yfinance_service.py`, no `yfinance` library) to avoid rate limiting; returns `(price, change_24h)`.
+- `tfex` — TFEX public quotation API (`services/tfex_service.py`). The quotation page is fetched once so Incapsula issues its anti-bot cookies, then `GET https://www.tfex.co.th/api/set/tfex/series/{symbol}/info` is called with JSON `Accept`/`Referer`/`X-Requested-With` headers. A blocked or non-JSON answer is retried once after a forced cookie re-warm. Values are the **delayed** last traded price (roughly 15 minutes behind the exchange), not a live tick. Failures raise fixed messages — unknown or expired series, no usable quote, or blocked request — which `update-price` surfaces as HTTP 502; `batch-update-prices` skips the ticker.
+- `manual` — never fetched; `update-price` only refreshes `updated_at`.
 
 ### Asset Groups
 | Method | Endpoint | Description |
@@ -243,7 +250,8 @@ backend/
 │   │   ├── crypto.py            # Fernet encrypt/decrypt for DB passwords
 │   │   └── __init__.py
 │   ├── services/
-│   │   └── yfinance_service.py  # Direct HTTP to Yahoo Finance (no yfinance library)
+│   │   ├── yfinance_service.py  # Direct HTTP to Yahoo Finance (no yfinance library)
+│   │   └── tfex_service.py      # TFEX quotation API: cookie warm-up, one retry, delayed quote
 │   └── routers/
 │       ├── portfolios.py        # Portfolio CRUD + test-connection + connection management
 │       ├── active_orders.py     # Order management (create, update, close, link, unlink)
@@ -433,6 +441,16 @@ curl http://localhost:8000/health
 
 The yfinance service uses direct HTTP to Yahoo Finance. If prices return 0.0, the API has likely been rate-limited. Wait a few minutes and retry. The frontend caches the last known price in `localStorage('cached_price_{ticker}')`.
 
+### TFEX Quote Fails
+
+`POST /api/v1/assets/{id}/update-price` returns `502 Failed to fetch price: <fixed message>` for a `source = 'tfex'` asset:
+
+- *unknown or expired symbol* — the series API answered 404. Check `price_symbol` (e.g. `CPALLZ25`) against a live TFEX series; expired contracts have no quote.
+- *no usable quote* — the payload carried no numeric `last` field (series not trading yet).
+- *blocked* — the request came back as an anti-bot HTML page twice (initial call plus one forced cookie re-warm). Wait and retry; a long block usually means the quotation endpoint is rate-limiting the host.
+
+TFEX quotes are delayed by roughly 15 minutes, so the fetched value will not match a live trading screen.
+
 ### Custom Portfolio Connection Fails
 
 - Verify `FERNET_KEY` is set in the environment
@@ -451,4 +469,4 @@ kubectl -n investment-dashboard logs statefulset/postgres-ai
 
 ---
 
-*Last updated: 23 November 2026 (read-through Custom Portfolios: mapping-template / connection / stored test-connection endpoints, `mapping_config` validation, read-only 409 rule, mapped trade-history reads)*
+*Last updated: 23 November 2026 (read-through Custom Portfolios: mapping-template / connection / stored test-connection endpoints, `mapping_config` validation, read-only 409 rule, mapped trade-history reads; `price_symbol` + TFEX delayed price source)*

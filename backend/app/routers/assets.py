@@ -18,13 +18,17 @@ from app.custom_mapping import (
     fetch_mapped_orders, is_mapped_portfolio, raise_if_mapped_readonly,
 )
 from app.managed_fund_models import ManagedFundHolding, ManagedFundOrderHistory
+from app.services import tfex_service
 from app.services.yfinance_service import fetch_price
 
 logger = logging.getLogger(__name__)
 
+PRICE_SOURCES = ('yfinance', 'tfex')
+
 class AssetResponse(BaseModel):
     asset_id: int
     ticker: str
+    price_symbol: Optional[str] = None
     asset_type: str
     name: Optional[str] = None
     source: str = 'manual'
@@ -42,6 +46,7 @@ class AssetResponse(BaseModel):
 
 class AssetCreate(BaseModel):
     ticker: str
+    price_symbol: Optional[str] = None
     asset_type: str = 'stock'
     name: Optional[str] = None
     source: str = 'manual'
@@ -52,6 +57,7 @@ class AssetCreate(BaseModel):
 
 class AssetUpdate(BaseModel):
     name: Optional[str] = None
+    price_symbol: Optional[str] = None
     asset_type: Optional[str] = None
     source: Optional[str] = None
     group_id: Optional[int] = None
@@ -73,6 +79,7 @@ def _asset_payload(asset, broker_codes: dict) -> dict:
     return {
         "asset_id": asset.asset_id,
         "ticker": asset.ticker,
+        "price_symbol": getattr(asset, "price_symbol", None),
         "asset_type": asset.asset_type,
         "name": asset.name,
         "source": asset.source,
@@ -104,6 +111,28 @@ def _normalise_ticker(value) -> str | None:
         return None
     ticker = value.strip().upper()
     return ticker or None
+
+
+def _normalise_price_symbol(value, fallback: str | None = None) -> str | None:
+    """Provider symbol for the price feed, or ``fallback`` when blank.
+
+    Unlike the dashboard ticker it is only stripped, never uppercased: Yahoo
+    Finance symbols are case-sensitive (``PTT.BK``).
+    """
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return fallback
+
+
+def _fetch_source_price(asset) -> tuple[float, float]:
+    """Fetch ``(price, change_24h)`` for an asset from its configured source.
+
+    Manual assets are never fetched; callers only pass yfinance/tfex sources.
+    """
+    symbol = asset.price_symbol or asset.ticker
+    if asset.source == 'tfex':
+        return tfex_service.fetch_price(symbol)
+    return fetch_price(symbol)
 
 
 async def _collect_order_tickers(db: AsyncSession) -> tuple[set[str], set[str]]:
@@ -224,6 +253,7 @@ async def create_asset(
             raise HTTPException(400, "Asset with this ticker already exists")
         asset = ModelClass(
             ticker=data.ticker.upper(),
+            price_symbol=_normalise_price_symbol(data.price_symbol, data.ticker.upper()),
             asset_type=data.asset_type,
             name=data.name or data.ticker.upper(),
             source=data.source,
@@ -261,6 +291,9 @@ async def update_asset(
             raise HTTPException(400, "multiplier must be greater than 0")
         if data.margin_rate is not None and not (0 <= data.margin_rate <= 1):
             raise HTTPException(400, "margin_rate must be between 0 and 1")
+        # Blank (or explicit null) clears the override: NULL means "use the ticker".
+        if "price_symbol" in data.model_fields_set:
+            asset.price_symbol = _normalise_price_symbol(data.price_symbol)
         for field in ("name", "asset_type", "source", "group_id", "price", "change_24h", "multiplier", "margin_rate"):
             val = getattr(data, field, None)
             if val is None:
@@ -310,9 +343,10 @@ async def sync_from_orders(db: AsyncSession = Depends(get_db)):
     for ticker in sorted(missing):
         asset = WhitelistAssets(
             ticker=ticker,
+            price_symbol=ticker,
             asset_type='future' if ticker in mapped_tickers else 'stock',
             name=ticker,
-            source='yfinance',
+            source='tfex' if ticker in mapped_tickers else 'yfinance',
             group_id=ung_group.id,
         )
         db.add(asset)
@@ -321,7 +355,7 @@ async def sync_from_orders(db: AsyncSession = Depends(get_db)):
     for a in new_assets:
         await db.refresh(a)
         try:
-            price, change = fetch_price(a.ticker)
+            price, change = _fetch_source_price(a)
             a.price = price
             a.change_24h = change
         except Exception:
@@ -361,9 +395,10 @@ async def sync_from_all(db: AsyncSession = Depends(get_db)):
     for ticker in sorted(missing):
         asset = WhitelistAssets(
             ticker=ticker,
+            price_symbol=ticker,
             asset_type='future' if ticker in mapped_tickers else 'crypto',
             name=ticker,
-            source='manual',
+            source='tfex' if ticker in mapped_tickers else 'manual',
             group_id=ung_group.id,
         )
         db.add(asset)
@@ -380,9 +415,9 @@ async def update_asset_price(asset_id: int, db: AsyncSession = Depends(get_db)):
     asset = result.scalars().first()
     if not asset:
         raise HTTPException(404, "Asset not found")
-    if asset.source == 'yfinance':
+    if asset.source in PRICE_SOURCES:
         try:
-            price, change = fetch_price(asset.ticker)
+            price, change = _fetch_source_price(asset)
             asset.price = price
             asset.change_24h = change
         except Exception as e:
@@ -395,13 +430,13 @@ async def update_asset_price(asset_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/batch-update-prices", tags=["assets"])
 async def batch_update_prices(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(WhitelistAssets).where(WhitelistAssets.source == 'yfinance')
+        select(WhitelistAssets).where(WhitelistAssets.source.in_(PRICE_SOURCES))
     )
     assets = result.scalars().all()
     updated = []
     for asset in assets:
         try:
-            price, change = fetch_price(asset.ticker)
+            price, change = _fetch_source_price(asset)
             asset.price = price
             asset.change_24h = change
             asset.updated_at = datetime.utcnow()

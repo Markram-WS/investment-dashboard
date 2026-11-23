@@ -38,6 +38,17 @@ async def lifespan(app: FastAPI):
             )
             if not result.scalar():
                 await conn.execute(text(f"ALTER TABLE whitelist_assets ADD COLUMN {col}"))
+        # 2026-11-23: provider symbol used to fetch prices (may differ from the
+        # dashboard ticker, e.g. PTT.BK). Backfill existing rows with the ticker.
+        try:
+            await conn.execute(text(
+                "ALTER TABLE whitelist_assets ADD COLUMN IF NOT EXISTS price_symbol VARCHAR"
+            ))
+            await conn.execute(text(
+                "UPDATE whitelist_assets SET price_symbol = ticker WHERE price_symbol IS NULL"
+            ))
+        except Exception:
+            pass
         # Migrate portfolios table with is_custom column
         result = await conn.execute(
             text("SELECT column_name FROM information_schema.columns WHERE table_name='portfolios' AND column_name='is_custom'")

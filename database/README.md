@@ -44,7 +44,7 @@ Create Order (pending) → Confirm Done → Update Holdings + Adjust available_c
 | `simulation_models` | Draft rebalance/simulation data per portfolio |
 | `trade_history` | Closed/canceled order records: `order_id`, `close_order_id`, `group_id`, `realized_pl`, `exit_price` |
 | `orders_groups` | Group definitions: `name`, `max_orders`, `min_price`, `max_price`, `range` (was Zone Groups) |
-| `whitelist_assets` | Approved asset tickers — extended with: `name`, `source` (yfinance/manual), `group_id` FK→`asset_groups`, `price` NUMERIC, `change_24h` NUMERIC, `updated_at` TIMESTAMP |
+| `whitelist_assets` | Approved asset tickers — extended with: `name`, `source` (yfinance/tfex/manual), `price_symbol` (provider symbol), `group_id` FK→`asset_groups`, `price` NUMERIC, `change_24h` NUMERIC, `updated_at` TIMESTAMP |
 | `watchlist` | Price alerts per ticker |
 | `transactions` | Consolidated ledger: deposits, withdrawals, transfers |
 | `decision_journals` | Mini post-it notes per portfolio, linked to trade history |
@@ -85,12 +85,21 @@ CREATE TABLE custom_portfolio_connections (
 - `ticker` TEXT NOT NULL — symbol (e.g., AAPL, BTC-USD, PTT.BK)
 - `asset_type` TEXT — stock, future, option, crypto
 - `name` TEXT — human-readable name
-- `source` TEXT — `'yfinance'` or `'manual'`
+- `source` TEXT — `'yfinance'`, `'tfex'`, or `'manual'`; only the first two are fetched by the price-refresh endpoints
+- `price_symbol` TEXT — provider symbol used for the price feed (same as `ticker` by default); may differ from the dashboard ticker and is stored as entered, never uppercased (e.g. `PTT.BK`)
 - `group_id` INTEGER FK → `asset_groups(id)` — nullable
 - `price` NUMERIC(20,8) — latest known price
 - `change_24h` NUMERIC(20,8) — 24h change percentage
 - `updated_at` TIMESTAMP — last price fetch time
 - `added_at` TIMESTAMP — creation time
+
+### Price sources and refresh
+
+- `POST /api/v1/assets/{id}/update-price` and `POST /api/v1/assets/batch-update-prices` request the quote symbol as `price_symbol`, falling back to `ticker` when it is `NULL`/blank.
+- `source = 'yfinance'` fetches from Yahoo Finance (direct HTTP, no `yfinance` library); `source = 'tfex'` fetches from the TFEX quotation API. `source = 'manual'` rows are never fetched and `update-price` only refreshes `updated_at`.
+- **TFEX quotes are delayed** — the public quotation series endpoint (`/api/set/tfex/series/{symbol}/info`) returns the last traded price, not a live tick, so values lag the exchange by roughly 15 minutes. The client warms up the quotation page once for its anti-bot cookies and retries once before reporting failure.
+- A TFEX fetch failure is returned as HTTP 502 with a fixed message: unknown/expired series symbol, no usable quote, or a blocked request. `batch-update-prices` skips individual failures and reports only the tickers it updated.
+- Tickers created by `sync-from-orders` from a mapped (foreign-schema) portfolio are inserted with `source = 'tfex'` and `price_symbol = ticker`; non-mapped tickers get `source = 'yfinance'` there, while `sync-from-all` uses `source = 'manual'` for them.
 
 ### New table: `asset_groups`
 
@@ -155,7 +164,7 @@ A non-null `custom_portfolio_connections.mapping_config` switches the same portf
 - **Entities** — `orders` → `usd_pct_abc.opened_orders`, `history` → `usd_pct_abc.order_history`, `account` → `usd_pct_abc.account_history` (newest row by `ts`). Each entity declares `schema`, `table`, optional `filter`/`order_by`, and a `columns` map from our field to a foreign column or `{column, map}` value map.
 - **Value maps** — `side` is a plain column spec (`side` ← `side`, no value map; the raw LONG/SHORT passes through); `order_status` maps `M`/`MP` → `open`, `C*` → `cancelled`, `E*` → `expired`, `R*` → `rejected`. `mark_price` ← `mark_price` on the `orders` entity (display only: it feeds the read-only EQ · Future ladder's `Mark` column and nothing else; both foreign tables carry the column, but `history` does not map it); `current_price` is not mapped from the foreign schema — the backend resolves it per order ticker from the local `investment_main.whitelist_assets.price`, preferring the portfolio's `broker_id` row and otherwise the lowest `broker_id`, and a `NULL` price is missing (the order falls back to its entry price, so its Net P&L is 0; the foreign mark is never substituted), so Net P&L and the risk card's Sum P/L read that local asset price maintained in All Assets. `tp` is an exit-only price (falling back to `tp_price`, then `exit_price`) surfaced as the ladder's `Price out` for mapped orders and never read as P/L; `remark` carries the Mark note (`remark.note` is `Close` or `Canceled` on history rows). Money comes from the account row: `available_cash` ← `excessequity`, `margin_locked` ← `initialmargin`, `current_nav` ← `equity`; cash buffer and initial capital stay manual.
 - **No DDL** — every path that opens a custom session checks `mapping_config` and skips `ensure_custom_tables()`, so `active_orders`/`transactions`/… are never created inside the foreign database.
-- **Asset sync** — `POST /api/v1/assets/sync-from-orders` and `sync-from-all` collect tickers through one collector: main-DB `active_orders` plus every custom portfolio (legacy owned tables in their own session, mapped portfolios through the foreign-schema adapter, never `ensure_custom_tables` on a foreign database). Mapped tickers are inserted as `asset_type = 'future'` and priced by the normal manual/yfinance path; an unreachable custom database is skipped with a warning. All Assets data cells render at `var(--fs-label)` (11px), the same size as the order-detail numeric cells.
+- **Asset sync** — `POST /api/v1/assets/sync-from-orders` and `sync-from-all` collect tickers through one collector: main-DB `active_orders` plus every custom portfolio (legacy owned tables in their own session, mapped portfolios through the foreign-schema adapter, never `ensure_custom_tables` on a foreign database). Mapped tickers are inserted as `asset_type = 'future'` with `source = 'tfex'` and priced through the TFEX quote source; an unreachable custom database is skipped with a warning. All Assets data cells render at `var(--fs-label)` (11px), the same size as the order-detail numeric cells.
 - **Read-only** — every data-plane write against a mapped portfolio — orders, assets, order groups, trade plans, trade history, ledger transactions — is refused by `raise_if_mapped_readonly` with `409 Portfolio is read-only (mapped external database)`. The analytics grid response carries `read_only: true` plus `mapping_template`, and the frontend hides every write affordance.
 
 `mock/usd_pct_abc_dev_seed.sql` is the reference fixture for this mode: it creates `usd_pct_abc` with the three tables and loads 6 open orders, 4 history rows, and 3 account snapshots (dev only; idempotent).
@@ -166,8 +175,9 @@ A non-null `custom_portfolio_connections.mapping_config` switches the same portf
 
 - `portfolios.available_cash` is auto-adjusted when Margin Locked/Cash Buffer Limit change
 - `AssetGroup` seeds Ungrouped + Watchlist on first query via the `asset_groups` router
-- `WhitelistAssets` extended to include price tracking columns; `source` distinguishes yfinance vs manual
+- `WhitelistAssets` extended to include price tracking columns; `source` distinguishes the live feeds (`yfinance`, `tfex`) from `manual`, and `price_symbol` holds the provider symbol (backfilled to `ticker` for existing rows)
 - Yfinance prices fetched via direct HTTP (not yfinance library) to avoid rate limiting
+- TFEX prices fetched from the public quotation series API; quotes are delayed (~15 min), the quotation page is warmed up once for its anti-bot cookies, one retry is attempted, and unknown/expired/blocked series are reported as fixed HTTP 502 messages
 - Frontend caches last known price in `localStorage('cached_price_{ticker}')`
 - `link_type` is NOT stored — computed server-side by `analytics.py._link_type()`
 - Order status: `PENDING`, `FILLED` (non-terminal), `CLOSE`, `CANCELED` (terminal)
@@ -180,4 +190,4 @@ A non-null `custom_portfolio_connections.mapping_config` switches the same portf
 
 ---
 
-*Last updated: 23 November 2026 (`custom_portfolio_connections.mapping_config` + mapped read-only mode; dev fixture `mock/usd_pct_abc_dev_seed.sql`)*
+*Last updated: 23 November 2026 (`custom_portfolio_connections.mapping_config` + mapped read-only mode; dev fixture `mock/usd_pct_abc_dev_seed.sql`; `whitelist_assets.price_symbol` + yfinance/TFEX price sources)*

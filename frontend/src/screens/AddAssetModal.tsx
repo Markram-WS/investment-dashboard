@@ -13,7 +13,7 @@ interface AddAssetModalProps {
   groups: { id: number; name: string }[];
 }
 
-const SOURCES = ['manual', 'yfinance'];
+const SOURCES = ['manual', 'yfinance', 'tfex'];
 const TYPES = ['stock', 'future', 'option', 'crypto'];
 
 const primaryButton = {
@@ -48,6 +48,7 @@ const modalPanel = 'bg-canvas border border-hairline rounded-xl p-4 w-[400px] ma
 
 const emptyForm = {
   ticker: '',
+  price_symbol: '',
   name: '',
   asset_type: 'stock',
   source: 'manual',
@@ -102,6 +103,7 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({ open, onClose, onSaved, g
     try {
       await api.createAsset({
         ticker: form.ticker.trim(),
+        price_symbol: form.price_symbol.trim() || undefined,
         name: form.name.trim() || form.ticker.trim(),
         asset_type: form.asset_type,
         source: form.source,
@@ -134,6 +136,13 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({ open, onClose, onSaved, g
             <TextInput id="add-asset-ticker" value={form.ticker} onChange={e => setForm(p => ({ ...p, ticker: e.target.value }))}
               placeholder="e.g. AAPL" />
           </Field>
+          <div>
+            <Field label="Price symbol" htmlFor="add-asset-price-symbol">
+              <TextInput id="add-asset-price-symbol" value={form.price_symbol} onChange={e => setForm(p => ({ ...p, price_symbol: e.target.value }))}
+                placeholder={form.ticker.trim() || 'Optional'} />
+            </Field>
+            <p style={CONTROL_HELPER}>Symbol used to fetch prices (yfinance / TFEX); leave blank to use the Symbol</p>
+          </div>
           <Field label="Name" htmlFor="add-asset-name">
             <TextInput id="add-asset-name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
               placeholder="Optional" />

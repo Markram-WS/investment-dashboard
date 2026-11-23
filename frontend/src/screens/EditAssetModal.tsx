@@ -14,6 +14,7 @@ import {
 interface EditableAsset {
   asset_id: number;
   ticker: string;
+  price_symbol?: string | null;
   name?: string | null;
   asset_type?: string | null;
   source?: string | null;
@@ -33,7 +34,7 @@ interface EditAssetModalProps {
   groups: { id: number; name: string }[];
 }
 
-const SOURCES = ['manual', 'yfinance'];
+const SOURCES = ['manual', 'yfinance', 'tfex'];
 const TYPES = ['stock', 'future', 'option', 'crypto'];
 
 const contextLine = {
@@ -65,7 +66,7 @@ const modalPanelStyle = {
 } as const;
 
 const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, onSaved, groups }) => {
-  const [form, setForm] = useState({ name: '', asset_type: 'stock', source: 'manual', group_id: '', multiplier: '1', margin_rate: '0' });
+  const [form, setForm] = useState({ name: '', price_symbol: '', asset_type: 'stock', source: 'manual', group_id: '', multiplier: '1', margin_rate: '0' });
   const [priceStr, setPriceStr] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -74,6 +75,7 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
     if (asset) {
       setForm({
         name: asset.name || '',
+        price_symbol: asset.price_symbol ?? '',
         asset_type: asset.asset_type || 'stock',
         source: asset.source || 'manual',
         group_id: asset.group_id != null ? String(asset.group_id) : '',
@@ -102,6 +104,7 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
     try {
       await api.updateAsset(asset.asset_id, {
         name: form.name || asset.ticker,
+        price_symbol: form.price_symbol.trim() || null,
         asset_type: form.asset_type,
         source: form.source,
         group_id: form.group_id ? parseInt(form.group_id) : null,
@@ -170,6 +173,14 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
                 {SOURCES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
               </SelectInput>
             </Field>
+          </div>
+          <div>
+            <Field label="Price symbol" htmlFor="edit-asset-price-symbol">
+              <TextInput id="edit-asset-price-symbol" value={form.price_symbol}
+                onChange={e => setForm(p => ({ ...p, price_symbol: e.target.value }))}
+                placeholder={asset.ticker} />
+            </Field>
+            <p style={CONTROL_HELPER}>Symbol used to fetch prices (yfinance / TFEX); leave blank to use the Symbol</p>
           </div>
           <Field label="Group" htmlFor="edit-asset-group">
             <SelectInput id="edit-asset-group" value={form.group_id} onChange={e => setForm(p => ({ ...p, group_id: e.target.value }))}>

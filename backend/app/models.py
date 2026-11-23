@@ -262,6 +262,9 @@ class WhitelistAssets(Base):
     # multiplier/margin_rate row (contract_type is not part of the key yet).
     broker_id = Column(Integer, ForeignKey('brokers.id'), nullable=False, default=1)
     ticker = Column(String, nullable=False)
+    # Provider symbol used by the price feed (e.g. PTT.BK). NULL/blank falls
+    # back to ticker; it is never uppercased because providers are case-sensitive.
+    price_symbol = Column(String, nullable=True)
     asset_type = Column(String, nullable=False)
     multiplier = Column(Numeric(20, 8), nullable=False, default=1)
     margin_rate = Column(Numeric(10, 6), nullable=False, default=0)

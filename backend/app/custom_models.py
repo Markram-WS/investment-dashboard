@@ -60,6 +60,7 @@ class CustomWhitelistAssets(CustomBase):
 
     asset_id = Column(Integer, primary_key=True)
     ticker = Column(String, nullable=False)
+    price_symbol = Column(String, nullable=True)
     asset_type = Column(String, nullable=False)
     name = Column(String, nullable=True)
     source = Column(String, default='manual')

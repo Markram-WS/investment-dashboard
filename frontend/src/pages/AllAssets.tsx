@@ -24,6 +24,9 @@ const TYPE_TABS = [
 
 const ITEM_TYPE = 'ASSET_ROW';
 
+/** Sources the backend can fetch a quote for (POST /assets/{id}/update-price). */
+const PRICE_SOURCES = ['yfinance', 'tfex'];
+
 /** Ledger column head: 11px/500 slate, sentence case. */
 const headCell = { fontSize: "var(--fs-label)", fontWeight: 500, color: "var(--color-slate)", whiteSpace: "nowrap" } as const;
 
@@ -129,7 +132,9 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
     <tr ref={dragRef} className={`border-t border-hairline hover:bg-surface transition-colors ${isDragging ? 'opacity-40' : ''}`}>
       <td className="px-4 py-3 text-[length:var(--fs-label)] font-semibold text-ink">{asset.ticker}</td>
       <td className="px-4 py-3 text-[length:var(--fs-label)] text-slate">{asset.name || '—'}</td>
-      <td className="px-4 py-3 text-[length:var(--fs-label)] text-right text-ink font-medium cursor-pointer" style={{ fontVariantNumeric: 'tabular-nums' }} onClick={startEdit}>
+      <td className="px-4 py-3 text-[length:var(--fs-label)] text-right text-ink font-medium cursor-pointer" style={{ fontVariantNumeric: 'tabular-nums' }}
+        title={asset.price_symbol && asset.price_symbol !== asset.ticker ? `via ${asset.price_symbol}` : undefined}
+        onClick={startEdit}>
         {editing ? (
           <input type="number" step="any" value={editVal} autoFocus
             onChange={e => setEditVal(e.target.value)}
@@ -173,7 +178,7 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
       </td>
       <td className="px-4 py-3 text-center">
         <div className="flex items-center justify-center gap-1">
-          {asset.source === 'yfinance' && (
+          {PRICE_SOURCES.includes(asset.source) && (
             <IconButton label="Refresh price" onClick={handleRefresh} disabled={refreshing}>
               <svg className={refreshing ? 'animate-spin' : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="23 4 23 10 17 10" />

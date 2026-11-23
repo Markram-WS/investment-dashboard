@@ -58,7 +58,7 @@ The read-through mode ships with the `tfex-settrade-v1` template (`usd_pct_abc.o
 - **Portfolio Grid** — Zone-grouped orders, drag-drop assignment, contract type filters, order link system
 - **Payoff Chart** — Pure SVG: intrinsic + BS IV overlay, crosshair, tooltip, area fill, break-even markers
 - **Options Strategy Sandbox** — Frontend-only scratchpad with per-portfolio localStorage persistence
-- **Asset Management** — Zone-based group sections, inline price editing, yfinance price cache (`cached_price_{ticker}`)
+- **Asset Management** — Zone-based group sections, inline price editing, and a per-row refresh icon for every asset whose `source` is a live feed. Prices come from two sources: Yahoo Finance (`source = 'yfinance'`) and the TFEX quotation API (`source = 'tfex'`, quotes are **delayed**, roughly 15 minutes). Each asset stores the provider symbol in `price_symbol` (defaults to the dashboard ticker) so a display ticker can differ from the feed symbol; the last known price is cached in `localStorage('cached_price_{ticker}')`
 - **Notification System** — Centralized context with navbar bell icon, unread badge, history dropdown, 3s auto-dismiss
 - **Dark Mode** — Class-based toggle with localStorage persistence and anti-flash protection
 - **Transaction Ledger** — Deposit, withdraw, transfer between portfolios with full history; global aggregation across all custom DBs
@@ -95,7 +95,7 @@ InvestmentDashboard/
 │   │   ├── utils/
 │   │   │   └── crypto.py       # Fernet password encryption
 │   │   ├── routers/            # 20+ route files (incl. managed_funds.py)
-│   │   └── services/           # yfinance_service.py
+│   │   └── services/           # yfinance_service.py, tfex_service.py
 │   ├── tests/
 │   ├── requirements.txt
 │   ├── requirements-dev.txt
@@ -131,4 +131,4 @@ Uses CSS variables for theming with automatic dark mode switching:
 | `--color-brand-yellow` | `#ffd02f` | `#ffd02f` |
 | `--color-brand-coral` | `#ff9999` | `#ff9999` |
 
-*Last updated: 23 November 2026 (Read-through Custom Portfolios: JSON `mapping_config` + `tfex-settrade-v1` template map a foreign broker schema read-only, `database/mock/usd_pct_abc_dev_seed.sql` dev fixture, mapping endpoints and 409 write guard, mapping/connection UI on the grid)*
+*Last updated: 23 November 2026 (Read-through Custom Portfolios: JSON `mapping_config` + `tfex-settrade-v1` template map a foreign broker schema read-only, `database/mock/usd_pct_abc_dev_seed.sql` dev fixture, mapping endpoints and 409 write guard, mapping/connection UI on the grid; per-asset `price_symbol` and the TFEX delayed price source)*

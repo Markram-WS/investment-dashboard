@@ -277,6 +277,7 @@ export interface TransferRecord {
 export interface AssetRecord {
   asset_id: number;
   ticker: string;
+  price_symbol?: string | null;
   asset_type: string;
   name: string | null;
   source: string;
@@ -299,6 +300,7 @@ export interface AssetQuery {
 
 export interface AssetPayload {
   ticker: string;
+  price_symbol?: string;
   asset_type?: string;
   name?: string;
   source?: string;
@@ -310,6 +312,7 @@ export interface AssetPayload {
 
 export interface AssetUpdatePayload {
   name?: string;
+  price_symbol?: string | null;
   asset_type?: string;
   source?: string;
   group_id?: number | null;
