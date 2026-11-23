@@ -326,7 +326,7 @@ export default function TransactionsPage() {
                   return (
                     <tr key={tx.history_id ?? tx.transaction_id ?? index}
                       className="border-t border-hairline hover:bg-surface transition-colors">
-                      <td className="px-5 py-3.5 text-[length:var(--fs-content)] text-ink">
+                      <td className="px-5 py-3.5 text-[length:var(--fs-label)] text-ink">
                         {formatDateTime(tx.entry_date)}
                       </td>
                       <td className="px-5 py-3.5">
@@ -341,9 +341,9 @@ export default function TransactionsPage() {
                           {tx.type}
                         </span>
                       </td>
-                      <td className="hidden md:table-cell px-5 py-3.5 text-[length:var(--fs-content)] text-ink">{from}</td>
-                      <td className="hidden md:table-cell px-5 py-3.5 text-[length:var(--fs-content)] text-ink">{to}</td>
-                      <td className="px-5 py-3.5 text-[length:var(--fs-content)] text-ink font-medium" style={{ fontVariantNumeric: "tabular-nums" }}>
+                      <td className="hidden md:table-cell px-5 py-3.5 text-[length:var(--fs-label)] text-ink">{from}</td>
+                      <td className="hidden md:table-cell px-5 py-3.5 text-[length:var(--fs-label)] text-ink">{to}</td>
+                      <td className="px-5 py-3.5 text-[length:var(--fs-label)] text-ink font-medium" style={{ fontVariantNumeric: "tabular-nums" }}>
                         {tx.amount != null ? fmtCurrency(tx.amount) : "-"}
                       </td>
                       <td className="hidden lg:table-cell px-5 py-3.5">
@@ -351,10 +351,10 @@ export default function TransactionsPage() {
                           <span className="w-2 h-2 rounded-full" style={{
                             background: tx.executed_by === "AI" ? 'var(--color-brand-teal)' : tx.executed_by === "Bot" ? 'var(--color-brand-yellow)' : 'var(--color-ink)',
                           }} />
-                          <span className="text-[length:var(--fs-content)] text-ink">{tx.executed_by || "-"}</span>
+                          <span className="text-[length:var(--fs-label)] text-ink">{tx.executed_by || "-"}</span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-[length:var(--fs-content)] text-ink">
+                      <td className="px-5 py-3.5 text-[length:var(--fs-label)] text-ink">
                         {tx.executed_by === "AI" ? (
                           <span className="text-brand-teal">Completed</span>
                         ) : tx.type === "Transfer" ? (
