@@ -176,7 +176,7 @@ def test_normalise_order_row_from_dict():
     assert order["entry_price"] == 1000.5
     assert order["exit_price"] == 1010.5
     assert order["current_price"] is None
-    assert order["tp_price"] is None
+    assert order["tp_price"] == row["tp"]
     assert order["sl_price"] is None
     assert order["order_status"] == "open"
     assert order["contract_type"] == "future"
@@ -188,6 +188,32 @@ def test_normalise_order_row_from_dict():
     assert order["fee"] == 20.0
     assert order["realized_pl"] == 200.0
     assert order["created_at"] == "2026-11-20T10:30:00"
+
+
+def test_normalise_order_row_without_tp_price_mapping():
+    entity = {
+        "columns": {
+            "order_id": "orderno",
+            "asset_type": "symbol",
+            "side": "side",
+            "qty": "volume",
+            "entry_price": "price",
+            "exit_price": "tp",
+        },
+    }
+    order = normalise_order_row(
+        {
+            "orderno": "O-4",
+            "symbol": "S50",
+            "side": "LONG",
+            "volume": 1,
+            "price": 1,
+            "tp": 2,
+        },
+        entity,
+    )
+    assert order["exit_price"] == 2.0
+    assert order["tp_price"] is None
 
 
 def test_normalise_order_row_row_like_and_side_map():

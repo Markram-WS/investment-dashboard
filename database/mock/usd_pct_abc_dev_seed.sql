@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS usd_pct_abc.opened_orders (
     c_price double precision,
     c_status varchar(10),
     tp double precision,
+    mark_price double precision,
     fee double precision,
     pl double precision,
     remark varchar(512)
@@ -46,10 +47,16 @@ CREATE TABLE IF NOT EXISTS usd_pct_abc.order_history (
     c_price double precision,
     c_status varchar(10),
     tp double precision,
+    mark_price double precision,
     fee double precision,
     pl double precision,
     remark varchar(512)
 );
+
+-- Existing dev databases predate mark_price: CREATE TABLE IF NOT EXISTS is a
+-- no-op there, so add the column explicitly (idempotent).
+ALTER TABLE usd_pct_abc.opened_orders ADD COLUMN IF NOT EXISTS mark_price double precision;
+ALTER TABLE usd_pct_abc.order_history ADD COLUMN IF NOT EXISTS mark_price double precision;
 
 CREATE TABLE IF NOT EXISTS usd_pct_abc.account_history (
     creditline double precision,
@@ -76,22 +83,22 @@ DELETE FROM usd_pct_abc.order_history;
 DELETE FROM usd_pct_abc.account_history;
 
 INSERT INTO usd_pct_abc.opened_orders
-    (tm, symbol, orderno, position, side, volume, price, status, tp, fee, remark)
+    (tm, symbol, orderno, position, side, volume, price, status, tp, mark_price, fee, remark)
 VALUES
-    (now() - interval '5 day',  'S50Z25',  'T26-0001', 'OPEN', 'LONG',  5,  982.40, 'M', 995.00, 50, 'Mark: breakout retest'),
-    (now() - interval '4 day',  'S50Z25',  'T26-0002', 'OPEN', 'SHORT', 2, 1004.60, 'M', 990.00, 20, 'Mark: fade at resistance'),
-    (now() - interval '3 day',  'S50H26',  'T26-0003', 'OPEN', 'LONG',  3,  975.20, 'M', 988.00, 30, NULL),
-    (now() - interval '2 day',  'PTTZ25',  'T26-0004', 'OPEN', 'LONG', 10,   34.75, 'M',  36.50, 40, 'Mark: dividend play'),
-    (now() - interval '1 day',  'CPALLZ25','T26-0005', 'OPEN', 'SHORT', 8,   61.25, 'M',  58.00, 32, 'Mark: overbought'),
-    (now() - interval '3 hour', 'S50Z25',  'T26-0006', 'OPEN', 'LONG',  1, 1010.00, 'M', 1020.00, 10, 'Mark: late add');
+    (now() - interval '5 day',  'S50Z25',  'T26-0001', 'OPEN', 'LONG',  5,  982.40, 'M', 995.00,  991.20, 50, 'Mark: breakout retest'),
+    (now() - interval '4 day',  'S50Z25',  'T26-0002', 'OPEN', 'SHORT', 2, 1004.60, 'M', 990.00, 1001.50, 20, 'Mark: fade at resistance'),
+    (now() - interval '3 day',  'S50H26',  'T26-0003', 'OPEN', 'LONG',  3,  975.20, 'M', 988.00,  969.80, 30, NULL),
+    (now() - interval '2 day',  'PTTZ25',  'T26-0004', 'OPEN', 'LONG', 10,   34.75, 'M',  36.50,   35.60, 40, 'Mark: dividend play'),
+    (now() - interval '1 day',  'CPALLZ25','T26-0005', 'OPEN', 'SHORT', 8,   61.25, 'M',  58.00,   62.10, 32, 'Mark: overbought'),
+    (now() - interval '3 hour', 'S50Z25',  'T26-0006', 'OPEN', 'LONG',  1, 1010.00, 'M', 1020.00, 1008.40, 10, 'Mark: late add');
 
 INSERT INTO usd_pct_abc.order_history
-    (tm, symbol, orderno, position, side, volume, price, status, c_tm, c_symbol, c_price, c_status, tp, fee, pl, remark)
+    (tm, symbol, orderno, position, side, volume, price, status, c_tm, c_symbol, c_price, c_status, tp, mark_price, fee, pl, remark)
 VALUES
-    (now() - interval '6 day', 'S50Z25',  'T26-0011', 'OPEN', 'LONG',  1,  960.00, 'M', now() - interval '1 day',  'S50Z25',  972.00, 'M', 972.00, 40, 12000.00, 'Mark: target hit'),
-    (now() - interval '7 day', 'S50H26',  'T26-0012', 'OPEN', 'SHORT', 3, 1002.50, 'M', now() - interval '2 day',  'S50H26',  995.50, 'M', 995.50, 30, 21000.00, 'Mark: rolled'),
-    (now() - interval '8 day', 'PTTZ25',  'T26-0013', 'OPEN', 'LONG',  6,   33.50, 'M', now() - interval '3 day',  'PTTZ25',   32.75, 'M',  32.75, 24, -1500.00, 'Mark: stopped'),
-    (now() - interval '9 day', 'S50Z25',  'T26-0014', 'OPEN', 'LONG',  2, 1008.00, 'C', now() - interval '1 day',  'S50Z25',  NULL,    'CX', NULL,   0,     0.00, 'Mark: cancelled');
+    (now() - interval '6 day', 'S50Z25',  'T26-0011', 'OPEN', 'LONG',  1,  960.00, 'M', now() - interval '1 day',  'S50Z25',  972.00, 'M', 972.00,  972.00, 40, 12000.00, 'Mark: target hit'),
+    (now() - interval '7 day', 'S50H26',  'T26-0012', 'OPEN', 'SHORT', 3, 1002.50, 'M', now() - interval '2 day',  'S50H26',  995.50, 'M', 995.50,  995.50, 30, 21000.00, 'Mark: rolled'),
+    (now() - interval '8 day', 'PTTZ25',  'T26-0013', 'OPEN', 'LONG',  6,   33.50, 'M', now() - interval '3 day',  'PTTZ25',   32.75, 'M',  32.75,   32.75, 24, -1500.00, 'Mark: stopped'),
+    (now() - interval '9 day', 'S50Z25',  'T26-0014', 'OPEN', 'LONG',  2, 1008.00, 'C', now() - interval '1 day',  'S50Z25',  NULL,    'CX', NULL,   1008.00,  0,     0.00, 'Mark: cancelled');
 
 INSERT INTO usd_pct_abc.account_history
     (creditline, excessequity, cashbalance, equity, totalmr, totalmm, totalfm, callforceflag,

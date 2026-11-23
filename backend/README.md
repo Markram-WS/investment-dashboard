@@ -107,7 +107,7 @@ open http://localhost:8000/docs
 | `GET` | `/api/v1/portfolios/{id}` | Retrieve portfolio by ID (includes connection metadata for custom) |
 | `PUT` | `/api/v1/portfolios/{id}` | Update portfolio fields |
 | `GET` | `/api/v1/portfolios/{id}/connection` | Custom connection metadata — host, port, db_name, user, `mapping_config`; the password is never returned |
-| `PATCH` | `/api/v1/portfolios/{id}/connection` | Update custom portfolio DB connection details and/or `mapping_config` (validated; `mapping_config: null` returns to owned-tables mode) |
+| `PATCH` | `/api/v1/portfolios/{id}/connection` | Edit `db_host`/`db_port`/`db_name`/`db_user` and optionally `db_password` (blank keeps the current one), plus `mapping_config` (validated; `null` returns to owned-tables mode). `db_port` must be 1–65535; a real credential change evicts the cached engine |
 | `DELETE` | `/api/v1/portfolios/{id}` | Delete portfolio with cascade (also cleans managed_fund_* tables) |
 | `POST` | `/api/v1/portfolios/test-connection` | Test external DB connectivity (host, port, db_name, user, password); optional `mapping_config` adds `diagnostics` |
 | `POST` | `/api/v1/portfolios/{id}/test-connection` | Test the **stored** connection with the saved password (must be declared after the literal route); optional `mapping_config` override — omitted uses the stored mapping, explicit `null` means connect-only — returns `diagnostics` |
@@ -301,7 +301,7 @@ External DB (Data Plane) — ONE per Custom Portfolio
 
 2. **First access**: Backend lazy-connects to the external DB on the first API request for that portfolio. Creates FK-free table replicas via `custom_models.metadata.create_all()`.
 
-3. **Routing**: `resolve_portfolio_db(db, portfolio_id)` in `database.py` detects `is_custom=True` and returns a session bound to the external DB engine. Engines are cached 30 minutes (`CUSTOM_ENGINES` dict). Replaces the removed `get_custom_session_maker`.
+3. **Routing**: `resolve_portfolio_db(db, portfolio_id)` in `database.py` detects `is_custom=True` and returns a session bound to the external DB engine. Engines are cached 30 minutes (`CUSTOM_ENGINES` dict); a credential change through `PATCH /{id}/connection` evicts that cache entry (`evict_custom_engine`) so the next request rebuilds it. Replaces the removed `get_custom_session_maker`.
 
 4. **Auto-migration**: `ensure_custom_tables()` is called on first access for each custom portfolio. It queries `information_schema.columns` for each custom table, runs `ALTER TABLE ADD COLUMN IF NOT EXISTS` for any columns missing from the external DB, and drops all FK constraints via `ALTER TABLE ... DROP CONSTRAINT` to match the FK-free model design (required because main-DB IDs don't exist in external DBs).
 

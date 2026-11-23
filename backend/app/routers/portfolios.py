@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.database import get_db
+from app.database import evict_custom_engine, get_db
 from app.models import (
     Portfolio, CustomPortfolioConnection,
     ActiveOrder, TradeHistory, TradePlan, OptionDetails,
@@ -472,14 +472,38 @@ async def update_portfolio_connection(
         errors = validate_mapping(mapping_config)
         if errors:
             raise HTTPException(status_code=400, detail="; ".join(errors))
+
+    requested_port = update_data.get("db_port")
+    if requested_port is not None and not 1 <= requested_port <= 65535:
+        raise HTTPException(status_code=400, detail="Port must be between 1 and 65535.")
+
+    credentials_changed = any(
+        update_data[field] != getattr(connection, field)
+        for field in ("db_host", "db_port", "db_name", "db_user")
+        if field in update_data
+    )
     if "db_password" in update_data:
-        update_data["encrypted_password"] = encrypt_password(update_data.pop("db_password"))
+        # Compare with the stored plaintext so re-saving the same password does
+        # not needlessly replace the ciphertext; an undecryptable stored value
+        # (e.g. rotated FERNET_KEY) counts as a change and re-encrypts.
+        new_password = update_data.pop("db_password")
+        try:
+            stored_password = decrypt_password(connection.encrypted_password)
+        except Exception:
+            stored_password = None
+        if new_password != stored_password:
+            credentials_changed = True
+            update_data["encrypted_password"] = encrypt_password(new_password)
+
     for field, value in update_data.items():
         setattr(connection, field, value)
     if mapping_provided:
         # Explicit null clears the mapping and returns to legacy behaviour.
         connection.mapping_config = mapping_config
     await db.commit()
+    if credentials_changed:
+        # The cached engine is keyed by portfolio id, not by credentials.
+        await evict_custom_engine(portfolio_id)
     return {"detail": "Connection updated"}
 
 

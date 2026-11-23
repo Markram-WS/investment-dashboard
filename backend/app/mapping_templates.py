@@ -21,14 +21,12 @@ TFEX_SETTRADE_V1 = {
             "columns": {
                 "order_id": "orderno",
                 "asset_type": "symbol",
-                "side": {
-                    "column": "side",
-                    "map": {"LONG": "LONG", "SHORT": "SHORT"},
-                },
+                "side": "side",
                 "qty": "volume",
                 "entry_price": "price",
                 "exit_price": "tp",
                 "tp_price": "tp",
+                "current_price": "mark_price",
                 "order_status": "status",
                 "remark": "remark",
                 "fee": "fee",

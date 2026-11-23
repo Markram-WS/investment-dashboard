@@ -46,7 +46,7 @@ const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
         </button>
       )}
       <button type="button" className="at-btn-ghost" onClick={onEditPortfolio}>
-        Edit pool
+        Edit portfolio
       </button>
       <button type="button" className="at-btn" onClick={onRefresh}>
         Refresh

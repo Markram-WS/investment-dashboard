@@ -1,12 +1,14 @@
 import { useEffect, useState, type CSSProperties, type FC } from 'react';
 import { api } from '../lib/api';
 import type {
+  ConnectionTestResult,
+  ConnectionUpdatePayload,
   MappingTemplate,
   PortfolioConnection,
 } from '../lib/api';
 import ModalShell from './components/ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
-import { Field, SelectInput } from './components/Field';
+import { Field, SelectInput, TextInput } from './components/Field';
 import {
   CONTROL_BUTTON_PRIMARY,
   CONTROL_BUTTON_SECONDARY,
@@ -24,21 +26,30 @@ import {
 /** One sentence for a portfolio without any mapping config. */
 const MAPPING_REQUIRED = 'Choose a mapping template or paste a mapping config.';
 
+/** One sentence for a port outside the valid TCP range. */
+const PORT_INVALID = 'Port must be between 1 and 65535.';
+
+/** One sentence for testing edited credentials without the password. */
+const TEST_PASSWORD_REQUIRED = 'Enter the password to test the new connection.';
+
+/** Parse the port field; null when it is not an integer in 1..65535. */
+const parsePort = (value: string): number | null => {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const port = Number(trimmed);
+  return port >= 1 && port <= 65535 ? port : null;
+};
+
 const modalPanelStyle = {
   padding: 'var(--space-md)',
   borderRadius: 'var(--rounded-xl)',
-} as const;
-
-const readonlyValue = {
-  ...CONTROL_INPUT,
-  background: 'var(--color-surface)',
-  fontWeight: 600,
-  borderColor: 'transparent',
+  background: 'var(--color-canvas)',
+  border: '1px solid var(--color-hairline)',
 } as const;
 
 const jsonInput: CSSProperties = {
   ...CONTROL_INPUT,
-  minHeight: 240,
+  height: 'clamp(140px, 30vh, 240px)',
   resize: 'vertical',
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
   lineHeight: 1.45,
@@ -61,6 +72,11 @@ const MappingModal: FC<MappingModalProps> = ({
   portfolioId, portfolioName, currentTemplate, showModal, onClose, onSaved,
 }) => {
   const [connection, setConnection] = useState<PortfolioConnection | null>(null);
+  const [host, setHost] = useState('');
+  const [port, setPort] = useState('');
+  const [dbName, setDbName] = useState('');
+  const [dbUser, setDbUser] = useState('');
+  const [password, setPassword] = useState('');
   const [templates, setTemplates] = useState<MappingTemplate[]>([]);
   const [templateName, setTemplateName] = useState('');
   const [mappingConfigStr, setMappingConfigStr] = useState('');
@@ -90,6 +106,11 @@ const MappingModal: FC<MappingModalProps> = ({
       .then((row) => {
         if (cancelled) return;
         setConnection(row);
+        setHost(row.db_host ?? '');
+        setPort(row.db_port == null ? '' : String(row.db_port));
+        setDbName(row.db_name ?? '');
+        setDbUser(row.db_user ?? '');
+        setPassword('');
         setMappingConfigStr(row.mapping_config != null ? JSON.stringify(row.mapping_config, null, 2) : '');
       })
       .catch((err) => {
@@ -118,21 +139,21 @@ const MappingModal: FC<MappingModalProps> = ({
     setTestStatus(null);
   };
 
-  const handleTest = async () => {
-    const parsed = parseMappingConfig(mappingConfigStr);
-    if (!parsed.ok) {
-      setJsonError(MAPPING_JSON_INVALID);
-      setTestStatus(null);
-      return;
-    }
-    if (!connection) return;
-    setJsonError('');
+  const connectionEdited = () => {
+    if (!connection) return false;
+    return (
+      host !== (connection.db_host ?? '') ||
+      port !== (connection.db_port == null ? '' : String(connection.db_port)) ||
+      dbName !== (connection.db_name ?? '') ||
+      dbUser !== (connection.db_user ?? '')
+    );
+  };
+
+  const runConnectionTest = async (request: () => Promise<ConnectionTestResult>) => {
     setTesting(true);
     setTestStatus(null);
     try {
-      const result = await api.testStoredConnection(portfolioId, {
-        mapping_config: parsed.value,
-      });
+      const result = await request();
       const mappingIssues = Boolean(result.diagnostics?.errors?.length);
       if (mappingIssues) console.error('Mapping diagnostics reported problems:', result.diagnostics?.errors);
       setTestStatus({
@@ -148,6 +169,44 @@ const MappingModal: FC<MappingModalProps> = ({
     }
   };
 
+  const handleTest = async () => {
+    const parsed = parseMappingConfig(mappingConfigStr);
+    if (!parsed.ok) {
+      setJsonError(MAPPING_JSON_INVALID);
+      setTestStatus(null);
+      return;
+    }
+    if (!connection) return;
+    setJsonError('');
+
+    if (!password) {
+      if (connectionEdited()) {
+        setTestStatus({ ok: false, message: TEST_PASSWORD_REQUIRED, mappingIssues: false });
+        return;
+      }
+      await runConnectionTest(() => api.testStoredConnection(portfolioId, {
+        mapping_config: parsed.value,
+      }));
+      return;
+    }
+
+    const portValue = parsePort(port);
+    if (portValue === null) {
+      setTestStatus({ ok: false, message: PORT_INVALID, mappingIssues: false });
+      return;
+    }
+
+    // A typed password lets the edited credentials be tested before saving.
+    await runConnectionTest(() => api.testConnection({
+      db_host: host,
+      db_port: portValue,
+      db_name: dbName,
+      db_user: dbUser,
+      db_password: password,
+      mapping_config: parsed.value,
+    }));
+  };
+
   const handleSave = async () => {
     if (!mappingConfigStr.trim()) {
       setJsonError(MAPPING_REQUIRED);
@@ -159,10 +218,23 @@ const MappingModal: FC<MappingModalProps> = ({
       return;
     }
     setJsonError('');
+    const portValue = parsePort(port);
+    if (portValue === null) {
+      setSaveError(PORT_INVALID);
+      return;
+    }
     setSaving(true);
     setSaveError('');
+    const payload: ConnectionUpdatePayload = {
+      db_host: host,
+      db_port: portValue,
+      db_name: dbName,
+      db_user: dbUser,
+      mapping_config: parsed.value,
+    };
+    if (password) payload.db_password = password;
     try {
-      await api.updateConnection(portfolioId, { mapping_config: parsed.value });
+      await api.updateConnection(portfolioId, payload);
       onSaved();
       onClose();
     } catch (err) {
@@ -179,7 +251,7 @@ const MappingModal: FC<MappingModalProps> = ({
   return (
     <ModalShell open={showModal} onClose={onClose} title="Database connection">
       <div className={`${MODAL_CARD} w-full max-w-2xl mx-4`} style={modalPanelStyle}>
-        <div className={`${MODAL_HEADER} flex justify-between items-center`} style={{ marginBottom: 16 }}>
+        <div className={`${MODAL_HEADER} flex justify-between items-center`} style={{ marginBottom: 12 }}>
           <div>
             <h3 style={CONTROL_TITLE}>Database connection</h3>
             <p style={{ ...CONTROL_HELPER, margin: '3px 0 0' }}>{portfolioName}</p>
@@ -204,17 +276,53 @@ const MappingModal: FC<MappingModalProps> = ({
           ) : connection ? (
             <div className="flex flex-col" style={{ gap: 12 }}>
               <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 12 }}>
-                <Field label="Host">
-                  <div style={readonlyValue}>{connection.db_host || '—'}</div>
+                <Field label="Host" htmlFor="connection-host">
+                  <TextInput
+                    id="connection-host"
+                    value={host}
+                    onChange={(e) => setHost(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
                 </Field>
-                <Field label="Port">
-                  <div style={readonlyValue}>{connection.db_port ?? '—'}</div>
+                <Field label="Port" htmlFor="connection-port">
+                  <TextInput
+                    id="connection-port"
+                    value={port}
+                    onChange={(e) => setPort(e.target.value)}
+                    style={CONTROL_INPUT}
+                    inputMode="numeric"
+                    autoComplete="off"
+                  />
                 </Field>
-                <Field label="Database">
-                  <div style={readonlyValue}>{connection.db_name || '—'}</div>
+                <Field label="Database" htmlFor="connection-db-name">
+                  <TextInput
+                    id="connection-db-name"
+                    value={dbName}
+                    onChange={(e) => setDbName(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
                 </Field>
-                <Field label="Username">
-                  <div style={readonlyValue}>{connection.db_user || '—'}</div>
+                <Field label="Username" htmlFor="connection-db-user">
+                  <TextInput
+                    id="connection-db-user"
+                    value={dbUser}
+                    onChange={(e) => setDbUser(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </Field>
+                <Field label="Password" htmlFor="connection-password" className="md:col-span-2">
+                  <TextInput
+                    id="connection-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="leave blank to keep the current password"
+                    autoComplete="new-password"
+                    spellCheck={false}
+                  />
                 </Field>
               </div>
 
@@ -298,7 +406,10 @@ const MappingModal: FC<MappingModalProps> = ({
           ) : null}
         </div>
 
-        <div className={`${MODAL_FOOTER} flex justify-end gap-3`} style={{ marginTop: 12 }}>
+        <div
+          className={`${MODAL_FOOTER} flex justify-end gap-3`}
+          style={{ marginTop: 12, borderTop: '1px solid var(--color-hairline)', paddingTop: 12 }}
+        >
           <button
             type="button"
             onClick={onClose}

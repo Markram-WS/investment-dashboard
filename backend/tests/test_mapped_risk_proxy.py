@@ -24,7 +24,7 @@ def mapped_order(**overrides) -> dict:
         "order_id": "S50Z25-1",
         "qty": 5.0,
         "entry_price": 700.0,
-        "current_price": None,  # the foreign schema has no mark price
+        "current_price": None,  # None on purpose: no mark_price here -> entry-price fallback
         "contract_type": "futures",
         "side": "long",
         "option_type": None,

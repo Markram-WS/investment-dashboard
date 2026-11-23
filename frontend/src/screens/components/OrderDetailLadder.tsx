@@ -423,7 +423,16 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
 
   const renderCells = (line: LadderLine) => {
     const { eq, opt } = line;
-    const mark = <span className="at-mark">{priceLabel(line.label)}</span>;
+    // A mapped (read-only) portfolio has no internal price levels: the Mark cell
+    // shows the broker's live mark for the leg when there is one.
+    const markLeg = eq ?? opt;
+    const mark = (
+      <span className="at-mark">
+        {readOnly && markLeg?.current_price != null
+          ? money(markLeg.current_price)
+          : priceLabel(line.label)}
+      </span>
+    );
 
     if (narrow) {
       const leg = eq ?? opt;

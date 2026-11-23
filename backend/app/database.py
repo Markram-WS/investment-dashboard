@@ -73,6 +73,18 @@ async def get_or_create_custom_engine(connection: CustomPortfolioConnection) -> 
     return custom_engine
 
 
+async def evict_custom_engine(portfolio_id: int) -> None:
+    """Forget a cached custom engine so changed credentials take effect.
+
+    ``CUSTOM_ENGINES`` caches by portfolio id for 30 minutes, so a PATCHed
+    host/port/database/user/password would otherwise keep using the old pool.
+    """
+    entry = CUSTOM_ENGINES.pop(portfolio_id, None)
+    CUSTOM_INITIALIZED.discard(portfolio_id)
+    if entry is not None:
+        await entry[0].dispose()
+
+
 async def ensure_custom_tables(engine: AsyncEngine, portfolio_id: int) -> None:
     if portfolio_id in CUSTOM_INITIALIZED:
         return
