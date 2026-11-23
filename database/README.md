@@ -81,6 +81,8 @@ CREATE TABLE custom_portfolio_connections (
 
 ### Updated columns on `whitelist_assets`
 
+**Semantics:** `ticker` = internal key (fixed after creation), `name` = display label, `price_symbol` = provider symbol sent to the price feed.
+
 - `asset_id` SERIAL PK
 - `ticker` TEXT NOT NULL — symbol (e.g., AAPL, BTC-USD, PTT.BK)
 - `asset_type` TEXT — stock, future, option, crypto

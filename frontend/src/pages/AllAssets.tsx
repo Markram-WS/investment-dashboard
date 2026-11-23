@@ -5,8 +5,6 @@ import { api } from '../lib/api';
 import type { AssetRecord } from '../lib/api';
 import { useNotification } from '../contexts/NotificationContext';
 import PageLayout from '../components/PageLayout';
-import PageHeader from '../components/PageHeader';
-import Button from '../screens/components/Button';
 import IconButton from '../components/IconButton';
 import AddAssetModal from '../screens/AddAssetModal';
 import EditAssetModal from '../screens/EditAssetModal';
@@ -27,6 +25,9 @@ const ITEM_TYPE = 'ASSET_ROW';
 /** Sources the backend can fetch a quote for (POST /assets/{id}/update-price). */
 const PRICE_SOURCES = ['yfinance', 'tfex'];
 
+/** The app nav is 60px; the registry head sticks directly under it. */
+const NAV_H = 60;
+
 /** Backend `detail` from a failed request, without the update-price prefix. */
 function refreshErrorDetail(error: unknown): string | null {
   const body = (error as { body?: unknown } | null)?.body;
@@ -43,6 +44,24 @@ function refreshErrorDetail(error: unknown): string | null {
 /** Ledger column head: 11px/500 slate, sentence case. */
 const headCell = { fontSize: "var(--fs-label)", fontWeight: 500, color: "var(--color-slate)", whiteSpace: "nowrap" } as const;
 
+/** The one sticky column head: canvas fill, hairline foot, under the 60px nav. */
+const headTh = {
+  ...headCell,
+  position: 'sticky',
+  top: NAV_H,
+  zIndex: 5,
+  background: 'var(--color-canvas)',
+  padding: '6px 12px',
+  borderBottom: '1px solid var(--color-hairline)',
+} as const;
+
+/** Compact registry cell: 32px row, 12px inline padding, one hairline foot. */
+const cell = {
+  fontSize: "var(--fs-label)",
+  padding: "4px 12px",
+  borderBottom: "1px solid var(--color-hairline)",
+} as const;
+
 /** Badge: 11px/500 slate on surface-soft, pill radius. */
 const badgeStyle = {
   fontSize: "var(--fs-label)",
@@ -50,9 +69,17 @@ const badgeStyle = {
   color: "var(--color-slate)",
   background: "var(--color-surface-soft)",
   borderRadius: "var(--rounded-full)",
-  padding: "calc(var(--control-pad-y) / 2) var(--control-btn-pad-x)",
+  padding: "1px 8px",
   whiteSpace: "nowrap",
 } as const;
+
+/**
+ * Columns collapse outright below their breakpoint instead of scrolling the
+ * page sideways; auto table layout simply drops them from the track.
+ */
+const COL_PRICE_SYMBOL = 'hidden md:table-cell';
+const COL_SPEC = 'hidden md:table-cell';
+const COL_SOURCE = 'hidden sm:table-cell';
 
 type SpecPatch = { multiplier?: number; margin_rate?: number };
 
@@ -142,10 +169,21 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
   );
 
   return (
-    <tr ref={dragRef} className={`border-t border-hairline hover:bg-surface transition-colors ${isDragging ? 'opacity-40' : ''}`}>
-      <td className="px-4 py-3 text-[length:var(--fs-label)] font-semibold text-ink">{asset.ticker}</td>
-      <td className="px-4 py-3 text-[length:var(--fs-label)] text-slate">{asset.name || '—'}</td>
-      <td className="px-4 py-3 text-[length:var(--fs-label)] text-right text-ink font-medium cursor-pointer" style={{ fontVariantNumeric: 'tabular-nums' }}
+    <tr ref={dragRef} className={`transition-colors hover:bg-surface ${isDragging ? 'opacity-40' : ''}`} style={{ height: 32 }}>
+      <td style={cell} title={asset.name ? `${asset.name} (${asset.ticker})` : asset.ticker}>
+        <div className="truncate" style={{ fontSize: "var(--fs-label)", fontWeight: 600, color: 'var(--color-ink)', lineHeight: 1.05 }}>
+          {asset.name || asset.ticker}
+        </div>
+        {asset.name && asset.name !== asset.ticker && (
+          <div className="truncate" style={{ fontSize: "var(--fs-micro)", color: 'var(--color-slate)', lineHeight: 1.05 }}>
+            {asset.ticker}
+          </div>
+        )}
+      </td>
+      <td className={COL_PRICE_SYMBOL} style={{ ...cell, color: 'var(--color-slate)' }} title="symbol used to fetch prices from yfinance/TFEX">
+        {asset.price_symbol || '—'}
+      </td>
+      <td className="text-right" style={{ ...cell, color: 'var(--color-ink)', fontWeight: 500, cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}
         title={asset.price_symbol && asset.price_symbol !== asset.ticker ? `via ${asset.price_symbol}` : undefined}
         onClick={startEdit}>
         {editing ? (
@@ -154,43 +192,42 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
             onBlur={commitPrice}
             onKeyDown={handleKeyDown}
             className="text-right"
-            style={{ ...CONTROL_INPUT, width: 112 }}
+            style={{ ...CONTROL_INPUT, width: 84 }}
             onClick={e => e.stopPropagation()} />
         ) : (
           displayPrice != null ? formatMoney(Number(displayPrice), 'USD') : '—'
         )}
       </td>
-      <td className="px-4 py-3 text-[length:var(--fs-label)] text-right font-medium"
-        style={{
-          fontVariantNumeric: 'tabular-nums',
-          color: change != null
-            ? (change >= 0 ? 'var(--color-positive-text)' : 'var(--color-danger-text)')
-            : 'var(--color-slate)',
-        }}>
+      <td className="text-right" style={{
+        ...cell,
+        fontWeight: 500,
+        fontVariantNumeric: 'tabular-nums',
+        color: change != null
+          ? (change >= 0 ? 'var(--color-positive-text)' : 'var(--color-danger-text)')
+          : 'var(--color-slate)',
+      }}>
         {change != null ? formatPct(change) : '—'}
       </td>
-      <td className="px-3 py-3 text-[length:var(--fs-label)] text-slate" title={asset.broker_name || asset.broker_code || undefined}>
+      <td className={COL_SPEC} style={{ ...cell, color: 'var(--color-slate)' }} title={asset.broker_name || asset.broker_code || undefined}>
         {asset.broker_code ?? '—'}
       </td>
-      <td className="px-3 py-3 text-[length:var(--fs-label)] text-right text-ink cursor-pointer"
-        style={{ fontVariantNumeric: 'tabular-nums' }}
+      <td className={`${COL_SPEC} text-right`} style={{ ...cell, color: 'var(--color-ink)', cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}
         title={asset.updated_at ? `updated ${asset.updated_at}` : undefined}
         onClick={() => startSpecEdit('multiplier')}>
         {specField === 'multiplier' ? specInput('multiplier')
           : asset.multiplier != null ? String(asset.multiplier) : '—'}
       </td>
-      <td className="px-3 py-3 text-[length:var(--fs-label)] text-right text-ink cursor-pointer"
-        style={{ fontVariantNumeric: 'tabular-nums' }}
+      <td className={`${COL_SPEC} text-right`} style={{ ...cell, color: 'var(--color-ink)', cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}
         title={`rate of notional, 0.10 = 10%${asset.updated_at ? ` · updated ${asset.updated_at}` : ''}`}
         onClick={() => startSpecEdit('margin_rate')}>
         {specField === 'margin_rate' ? specInput('margin_rate')
           : asset.margin_rate != null ? Number(asset.margin_rate).toFixed(2) : '—'}
       </td>
-      <td className="px-4 py-3 text-[length:var(--fs-label)]">
+      <td className={COL_SOURCE} style={cell}>
         <span style={badgeStyle}>{asset.source}</span>
       </td>
-      <td className="px-4 py-3 text-center">
-        <div className="flex items-center justify-center gap-1">
+      <td style={{ ...cell, paddingInline: 8 }}>
+        <div className="flex items-center justify-end" style={{ gap: 4 }}>
           {PRICE_SOURCES.includes(asset.source) && (
             <IconButton label="Refresh price" onClick={handleRefresh} disabled={refreshing}>
               <svg className={refreshing ? 'animate-spin' : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -212,7 +249,11 @@ function DraggableRow({ asset, onEdit, onRefreshPrice, onSavePrice, onSaveSpec }
   );
 }
 
-function GroupSection({ groupId, groupName, assets, onEdit, onDrop, onRefreshPrice, onSavePrice, onSaveSpec }: {
+/**
+ * One group inside the single table: a 32px section row (the drop target) and
+ * its asset rows, or one compact "No assets" row when the group is empty.
+ */
+function GroupRows({ groupId, groupName, assets, onEdit, onDrop, onRefreshPrice, onSavePrice, onSaveSpec }: {
   groupId: number | null;
   groupName: string;
   assets: AssetRecord[];
@@ -229,61 +270,58 @@ function GroupSection({ groupId, groupName, assets, onEdit, onDrop, onRefreshPri
       onDrop(item.assetId);
     },
     collect: (m) => ({ isOver: m.isOver() }),
-  }), [groupId]);
+  }), [groupId, onDrop]);
 
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <section ref={dropRef} className="overflow-hidden transition-colors"
-      style={{
-        background: 'var(--color-canvas)',
-        borderRadius: "var(--rounded-xl)",
-        padding: "var(--space-lg) var(--space-lg) var(--space-sm)",
-        outline: isOver ? '2px solid var(--color-brand-teal)' : undefined,
-        outlineOffset: isOver ? -2 : undefined,
-      }}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <button onClick={() => setCollapsed(c => !c)} className="text-slate hover:text-ink transition-colors">
-            <svg className={`w-4 h-4 transition-transform ${collapsed ? '-rotate-90' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </button>
-          <h3 className="m-0 text-ink" style={{ fontSize: "var(--fs-body)", fontWeight: 600 }}>{groupName}</h3>
-          <span style={badgeStyle}>{assets.length}</span>
-        </div>
-      </div>
-      {!collapsed && (
-        <div className="table-responsive">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-hairline">
-                <th className="px-4 py-2.5 w-[96px]" style={headCell}>Symbol</th>
-                <th className="px-4 py-2.5 min-w-[180px]" style={headCell}>Name</th>
-                <th className="px-4 py-2.5 w-[112px] text-right" style={{ ...headCell, textAlign: 'right' }}>Price</th>
-                <th className="px-4 py-2.5 w-[108px] text-right" style={{ ...headCell, textAlign: 'right' }}>Change 24h</th>
-                <th className="px-4 py-2.5 w-[80px]" style={headCell}>Broker</th>
-                <th className="px-4 py-2.5 w-[68px] text-right" style={{ ...headCell, textAlign: 'right' }} title="multiplier">Mult</th>
-                <th className="px-4 py-2.5 w-[76px] text-right" style={{ ...headCell, textAlign: 'right' }} title="rate of notional, 0.10 = 10%">Margin</th>
-                <th className="px-4 py-2.5 w-[88px]" style={headCell}>Source</th>
-                <th className="px-4 py-2.5 w-10" />
-              </tr>
-            </thead>
-            <tbody>
-              {assets.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-4 py-6 text-center text-slate" style={{ fontSize: "var(--fs-body)" }}>No assets in this group</td>
-                </tr>
-              ) : (
-                assets.map((asset) => (
-                  <DraggableRow key={asset.asset_id} asset={asset} onEdit={onEdit} onRefreshPrice={onRefreshPrice} onSavePrice={onSavePrice} onSaveSpec={onSaveSpec} />
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
+    <>
+      <tr
+        ref={dropRef}
+        onClick={() => setCollapsed(c => !c)}
+        className="cursor-pointer select-none transition-colors"
+        style={{
+          height: 32,
+          background: isOver
+            ? 'color-mix(in srgb, var(--color-brand-teal) 10%, var(--color-surface))'
+            : 'var(--color-surface)',
+        }}
+      >
+        <td colSpan={9} style={{
+          padding: '4px 12px',
+          borderBottom: '1px solid var(--color-hairline)',
+          boxShadow: isOver ? 'inset 0 0 0 1px var(--color-brand-teal)' : undefined,
+        }}>
+          <div className="flex items-center" style={{ gap: 6 }}>
+            <button
+              type="button"
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? `Expand ${groupName}` : `Collapse ${groupName}`}
+              onClick={e => { e.stopPropagation(); setCollapsed(c => !c); }}
+              className="flex items-center justify-center"
+              style={{ width: 14, height: 14, color: 'var(--color-slate)', padding: 0, border: 0, background: 'transparent' }}
+            >
+              <svg className="transition-transform" style={{ width: 12, height: 12, transform: collapsed ? 'rotate(-90deg)' : 'none' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            <span style={{ fontSize: "var(--fs-label)", fontWeight: 600, color: 'var(--color-ink)' }}>{groupName}</span>
+            <span style={{ fontSize: "var(--fs-micro)", fontWeight: 500, color: 'var(--color-slate)', fontVariantNumeric: 'tabular-nums' }}>
+              {assets.length}
+            </span>
+          </div>
+        </td>
+      </tr>
+      {!collapsed && (assets.length === 0 ? (
+        <tr style={{ height: 32 }}>
+          <td colSpan={9} style={{ ...cell, color: 'var(--color-slate)', paddingLeft: 30 }}>No assets</td>
+        </tr>
+      ) : (
+        assets.map((asset) => (
+          <DraggableRow key={asset.asset_id} asset={asset} onEdit={onEdit} onRefreshPrice={onRefreshPrice} onSavePrice={onSavePrice} onSaveSpec={onSaveSpec} />
+        ))
+      ))}
+    </>
   );
 }
 
@@ -299,12 +337,12 @@ export default function AllAssets() {
   const { notify } = useNotification();
   const autoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const { data: groups = [], refetch: refetchGroups } = useQuery({
+  const { data: groups = [], refetch: refetchGroups, isLoading: groupsLoading } = useQuery({
     queryKey: ['asset-groups'],
     queryFn: () => api.getAssetGroups(),
   });
 
-  const { data: assets = [], refetch: refetchAssets } = useQuery({
+  const { data: assets = [], refetch: refetchAssets, isLoading: assetsLoading } = useQuery({
     queryKey: ['assets', typeFilter],
     queryFn: () => api.getAssets({ asset_type: typeFilter || undefined }),
   });
@@ -371,7 +409,7 @@ export default function AllAssets() {
     localStorage.setItem('asset_refresh_mode', refreshMode);
     if (refreshMode === 'auto') {
       autoTimerRef.current = setInterval(refetchAll, 600000);
-      return () => { if (autoTimerRef.current) clearInterval(autoTimerRef.current); };
+      return () => { clearInterval(autoTimerRef.current ?? undefined); };
     } else {
       if (autoTimerRef.current) { clearInterval(autoTimerRef.current); autoTimerRef.current = null; }
     }
@@ -448,6 +486,18 @@ export default function AllAssets() {
     return result;
   }, [assets, groups]);
 
+  const pricedCount = useMemo(
+    () => assets.filter(a => a.price != null && a.price > 0).length,
+    [assets],
+  );
+
+  const loading = assetsLoading || groupsLoading;
+  const summary = [
+    `${assets.length} ${assets.length === 1 ? 'asset' : 'assets'}`,
+    `${pricedCount} priced`,
+    `${sections.length} ${sections.length === 1 ? 'group' : 'groups'}`,
+  ].join(' · ');
+
   return (
       <PageLayout>
 
@@ -455,89 +505,105 @@ export default function AllAssets() {
         <EditAssetModal open={!!editAsset} asset={editAsset} onClose={() => setEditAsset(null)} onSaved={() => { refetchAssets(); refetchGroups(); }} groups={groups} />
         <AssetGroupModal open={showGroupModal} onClose={() => { setShowGroupModal(false); refetchAssets(); refetchGroups(); }} />
 
-        {/* Header */}
-        <PageHeader
-          title="Asset"
-          meta={
-            <>
-              {refreshMode === 'manual' ? (
-                <button onClick={refetchAll}
-                  className="w-9 h-9 rounded-full border border-hairline flex items-center justify-center text-slate hover:text-ink hover:bg-surface transition-all"
-                  title="Refresh prices">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="23 4 23 10 17 10" />
-                    <polyline points="1 20 1 14 7 14" />
-                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                  </svg>
-                </button>
-              ) : (
-                <span style={{ fontSize: "var(--fs-label)", fontWeight: 500, color: 'var(--color-slate)' }}>Auto-refreshing every 10m</span>
-              )}
-              <div className="flex items-center gap-2">
-                <span style={{ fontSize: "var(--fs-label)", fontWeight: 500, color: 'var(--color-slate)' }}>Auto</span>
-                <button
-                  onClick={() => setRefreshMode(prev => prev === 'manual' ? 'auto' : 'manual')}
-                  className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors"
-                  style={{ background: refreshMode === 'auto' ? 'var(--color-brand-teal)' : 'var(--color-hairline)' }}>
-                  <span className={`inline-block h-3 w-3 transform rounded-full bg-canvas transition-transform ${refreshMode === 'auto' ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                </button>
-              </div>
-            </>
-          }
-        />
+        {/* Header band: title + registry counts left, data-feed controls right */}
+        <header className="at-head">
+          <h1 className="at-h1">Assets</h1>
+          <span className="truncate" style={{ fontSize: "var(--fs-label)", fontWeight: 500, color: 'var(--color-slate)', whiteSpace: 'nowrap' }}>
+            {summary}
+          </span>
+          <div className="at-head-meta flex-wrap" style={{ gap: 8 }}>
+            <div className="flex items-center" style={{ gap: 6 }}>
+              <span style={{ fontSize: "var(--fs-label)", fontWeight: 500, color: 'var(--color-slate)' }}>Auto</span>
+              <button
+                onClick={() => setRefreshMode(prev => prev === 'manual' ? 'auto' : 'manual')}
+                className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors"
+                style={{ background: refreshMode === 'auto' ? 'var(--color-brand-teal)' : 'var(--color-hairline)' }}>
+                <span className={`inline-block h-3 w-3 transform rounded-full bg-canvas transition-transform ${refreshMode === 'auto' ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+            {refreshMode === 'manual' && (
+              <button onClick={refetchAll}
+                className="w-6 h-6 rounded-full border border-hairline flex items-center justify-center text-slate hover:text-ink hover:bg-surface transition-all"
+                title="Refresh prices">
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="23 4 23 10 17 10" />
+                  <polyline points="1 20 1 14 7 14" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </header>
 
-        {/* Type tabs + action buttons */}
-        <div className="flex flex-wrap items-center justify-between" style={{ gap: 12, marginBottom: 24 }}>
-          <div className="flex items-center gap-1 overflow-x-auto" style={{ maxWidth: '100%', minWidth: 0 }}>
+        {/* Toolbar: type filter left, registry-editing actions right */}
+        <div className="flex flex-wrap items-center justify-between" style={{ gap: 8, marginTop: 8, marginBottom: 10 }}>
+          <div className="flex items-center overflow-x-auto" style={{ gap: 6, maxWidth: '100%', minWidth: 0 }}>
             {TYPE_TABS.map(tab => {
               const active = typeFilter === tab.value;
               return (
                 <button key={tab.value} onClick={() => setTypeFilter(tab.value)}
-                  className={`px-3 py-1.5 rounded-full border transition-all ${active ? 'border-ink' : 'border-hairline hover:text-ink'}`}
-                  style={{
-                    fontSize: "var(--fs-label)",
-                    fontWeight: 500,
-                    color: active ? 'var(--color-canvas)' : 'var(--color-slate)',
-                    background: active ? 'var(--color-ink)' : 'var(--color-canvas)',
-                  }}>
+                  className="at-tab" aria-pressed={active}>
                   {tab.label}
                 </button>
               );
             })}
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setShowGroupModal(true)}
-              className="h-8 w-8 rounded-full bg-canvas text-slate border border-hairline hover:bg-surface transition-all flex items-center justify-center"
-              title="Asset Groups">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-            </button>
-            <Button variant="secondary" onClick={handleSync} disabled={syncLoading}>
+          <div className="flex items-center" style={{ gap: 6, marginLeft: 'auto' }}>
+            <button type="button" className="at-znew" onClick={() => setShowGroupModal(true)}>+ New group</button>
+            <button type="button" className="at-znew" onClick={() => setShowAddModal(true)}>+ New asset</button>
+            <button type="button" className="at-znew disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleSync} disabled={syncLoading}>
               {syncLoading ? 'Syncing...' : 'Sync from Orders'}
-            </Button>
-            <Button variant="primary" onClick={() => setShowAddModal(true)}>+ Add Asset</Button>
+            </button>
           </div>
         </div>
 
-        {/* Group sections */}
-        <div className="space-y-4">
-          {sections.map(s => (
-            <GroupSection
-              key={s.groupId ?? 'ungrouped'}
-              groupId={s.groupId}
-              groupName={s.groupName}
-              assets={s.assets}
-              onEdit={setEditAsset}
-              onDrop={(assetId) => handleDrop(assetId, s.groupId)}
-              onRefreshPrice={handleRefreshPrice}
-              onSavePrice={handleSavePrice}
-              onSaveSpec={handleSaveSpec}
-            />
-          ))}
+        {/* The registry: one surface, one column head, group section rows */}
+        <div className="at-card" style={{ overflow: 'clip' }}>
+          <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+            <thead>
+              <tr>
+                <th style={headTh}>Asset</th>
+                <th className={`w-[120px] ${COL_PRICE_SYMBOL}`} style={headTh} title="symbol used to fetch prices from yfinance/TFEX">Price symbol</th>
+                <th className="w-[108px] text-right" style={{ ...headTh, textAlign: 'right' }}>Price</th>
+                <th className="w-[96px] text-right" style={{ ...headTh, textAlign: 'right' }}>Change</th>
+                <th className={`w-[76px] ${COL_SPEC}`} style={headTh}>Broker</th>
+                <th className={`w-[88px] text-right ${COL_SPEC}`} style={{ ...headTh, textAlign: 'right' }} title="multiplier">Multiplier</th>
+                <th className={`w-[76px] text-right ${COL_SPEC}`} style={{ ...headTh, textAlign: 'right' }} title="rate of notional, 0.10 = 10%">Margin</th>
+                <th className={`w-[88px] ${COL_SOURCE}`} style={headTh}>Source</th>
+                <th className="w-[56px]" style={{ ...headTh, paddingInline: 8 }}>
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i} style={{ height: 32 }} className="animate-pulse">
+                    <td colSpan={9} style={cell}>
+                      <div style={{ height: 8, width: `${62 - i * 9}%`, borderRadius: 999, background: 'var(--color-hairline-soft)' }} />
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                sections.map(s => (
+                  <GroupRows
+                    key={s.groupId ?? 'ungrouped'}
+                    groupId={s.groupId}
+                    groupName={s.groupName}
+                    assets={s.assets}
+                   
+                    onEdit={setEditAsset}
+                    onDrop={(assetId) => handleDrop(assetId, s.groupId)}
+                    onRefreshPrice={handleRefreshPrice}
+                    onSavePrice={handleSavePrice}
+                    onSaveSpec={handleSaveSpec}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-
 
       </PageLayout>
   );

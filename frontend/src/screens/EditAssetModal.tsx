@@ -160,7 +160,7 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
         {error && <div style={errorText} className="text-[length:var(--fs-label)]">{error}</div>}
 
         <p style={contextLine}>
-          Symbol {asset.ticker} · Broker {asset.broker_code ?? '—'} — symbol and broker are fixed after creation.
+          Ticker {asset.ticker} · Broker {asset.broker_code ?? '—'} — ticker and broker are fixed after creation.
         </p>
 
         <div className="space-y-2.5">
@@ -175,7 +175,7 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
                   placeholder={asset.ticker} />
               </Field>
             </div>
-            <p style={CONTROL_HELPER}>Symbol used to fetch prices (yfinance / TFEX; TFEX accepts the series symbol like S50Z26 or the product-page URL — expired series return no quote); leave blank to use the Symbol</p>
+            <p style={CONTROL_HELPER}>Symbol used to fetch prices (yfinance / TFEX; TFEX accepts the series symbol like S50Z26 or the product-page URL — expired series return no quote); leave blank to use the Ticker</p>
           </div>
           <div className={rowThree}>
             <Field className="min-w-0" label="Type" htmlFor="edit-asset-type">

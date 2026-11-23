@@ -17,7 +17,7 @@ from app.custom_models import CustomActiveOrder, CustomWhitelistAssets
 from app.custom_mapping import (
     fetch_mapped_orders, is_mapped_portfolio, raise_if_mapped_readonly,
 )
-from app.managed_fund_models import ManagedFundHolding, ManagedFundOrderHistory
+from app.managed_fund_models import ManagedFundHolding
 from app.services import tfex_service
 from app.services.yfinance_service import fetch_price
 
@@ -372,13 +372,6 @@ async def sync_from_all(db: AsyncSession = Depends(get_db)):
     # From Managed Fund holdings
     mf_hold_result = await db.execute(select(ManagedFundHolding.asset).distinct())
     for row in mf_hold_result:
-        ticker = _normalise_ticker(row[0])
-        if ticker:
-            tickers.add(ticker)
-
-    # From Managed Fund order history
-    mf_hist_result = await db.execute(select(ManagedFundOrderHistory.asset).distinct())
-    for row in mf_hist_result:
         ticker = _normalise_ticker(row[0])
         if ticker:
             tickers.add(ticker)
