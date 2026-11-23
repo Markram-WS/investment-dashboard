@@ -27,6 +27,19 @@ const ITEM_TYPE = 'ASSET_ROW';
 /** Sources the backend can fetch a quote for (POST /assets/{id}/update-price). */
 const PRICE_SOURCES = ['yfinance', 'tfex'];
 
+/** Backend `detail` from a failed request, without the update-price prefix. */
+function refreshErrorDetail(error: unknown): string | null {
+  const body = (error as { body?: unknown } | null)?.body;
+  if (typeof body !== 'string' || !body) return null;
+  try {
+    const { detail } = JSON.parse(body) as { detail?: unknown };
+    if (typeof detail !== 'string') return null;
+    return detail.replace(/^Failed to fetch price:\s*/, '').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Ledger column head: 11px/500 slate, sentence case. */
 const headCell = { fontSize: "var(--fs-label)", fontWeight: 500, color: "var(--color-slate)", whiteSpace: "nowrap" } as const;
 
@@ -327,7 +340,7 @@ export default function AllAssets() {
       await refetchAssets();
     } catch (e) {
       console.error(`Failed to refresh ${asset.ticker}`, e);
-      notify(`Couldn't refresh ${asset.ticker}`, 'warning');
+      notify(refreshErrorDetail(e) ?? `Couldn't refresh ${asset.ticker}`, 'warning');
     }
   };
 

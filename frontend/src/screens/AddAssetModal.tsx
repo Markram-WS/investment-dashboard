@@ -44,7 +44,12 @@ const errorText = {
   marginBottom: 12,
 } as const;
 
-const modalPanel = 'bg-canvas border border-hairline rounded-xl p-4 w-[400px] max-w-[90vw]';
+const modalPanel = 'bg-canvas border border-hairline rounded-xl p-4 w-full max-w-[560px]';
+
+/** Three equal short columns; collapses to two (then one) as the card narrows. */
+const rowThree = 'grid gap-2.5 grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3';
+/** Wide broker cell plus two numeric cells; broker takes a full row when narrow. */
+const rowBroker = 'grid gap-2.5 grid-cols-2 sm:grid-cols-[2fr_1fr_1fr]';
 
 const emptyForm = {
   ticker: '',
@@ -132,52 +137,54 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({ open, onClose, onSaved, g
         {error && <div style={errorText} className="text-[length:var(--fs-label)]">{error}</div>}
 
         <div className="space-y-2.5">
-          <Field label="Symbol" htmlFor="add-asset-ticker" required>
-            <TextInput id="add-asset-ticker" value={form.ticker} onChange={e => setForm(p => ({ ...p, ticker: e.target.value }))}
-              placeholder="e.g. AAPL" />
-          </Field>
           <div>
-            <Field label="Price symbol" htmlFor="add-asset-price-symbol">
-              <TextInput id="add-asset-price-symbol" value={form.price_symbol} onChange={e => setForm(p => ({ ...p, price_symbol: e.target.value }))}
-                placeholder={form.ticker.trim() || 'Optional'} />
-            </Field>
-            <p style={CONTROL_HELPER}>Symbol used to fetch prices (yfinance / TFEX); leave blank to use the Symbol</p>
+            <div className={rowThree}>
+              <Field className="min-w-0" label="Symbol" htmlFor="add-asset-ticker" required>
+                <TextInput id="add-asset-ticker" value={form.ticker} onChange={e => setForm(p => ({ ...p, ticker: e.target.value }))}
+                  placeholder="e.g. AAPL" />
+              </Field>
+              <Field className="min-w-0" label="Name" htmlFor="add-asset-name">
+                <TextInput id="add-asset-name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                  placeholder="Optional" />
+              </Field>
+              <Field className="min-w-0" label="Price symbol" htmlFor="add-asset-price-symbol">
+                <TextInput id="add-asset-price-symbol" value={form.price_symbol} onChange={e => setForm(p => ({ ...p, price_symbol: e.target.value }))}
+                  placeholder={form.ticker.trim() || 'Optional'} />
+              </Field>
+            </div>
+            <p style={CONTROL_HELPER}>Symbol used to fetch prices (yfinance / TFEX; TFEX accepts the series symbol like S50Z26 or the product-page URL — expired series return no quote); leave blank to use the Symbol</p>
           </div>
-          <Field label="Name" htmlFor="add-asset-name">
-            <TextInput id="add-asset-name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-              placeholder="Optional" />
-          </Field>
-          <div className="flex gap-2.5">
-            <Field className="flex-1" label="Type" htmlFor="add-asset-type">
+          <div className={rowThree}>
+            <Field className="min-w-0" label="Type" htmlFor="add-asset-type">
               <SelectInput id="add-asset-type" value={form.asset_type} onChange={e => setForm(p => ({ ...p, asset_type: e.target.value }))}>
                 {TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
               </SelectInput>
             </Field>
-            <Field className="flex-1" label="Source" htmlFor="add-asset-source">
+            <Field className="min-w-0" label="Source" htmlFor="add-asset-source">
               <SelectInput id="add-asset-source" value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))}>
                 {SOURCES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
               </SelectInput>
             </Field>
+            <Field className="min-w-0" label="Group" htmlFor="add-asset-group">
+              <SelectInput id="add-asset-group" value={form.group_id} onChange={e => setForm(p => ({ ...p, group_id: e.target.value }))}>
+                {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </SelectInput>
+            </Field>
           </div>
-          <Field label="Group" htmlFor="add-asset-group">
-            <SelectInput id="add-asset-group" value={form.group_id} onChange={e => setForm(p => ({ ...p, group_id: e.target.value }))}>
-              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </SelectInput>
-          </Field>
-          <Field label="Broker" htmlFor="add-asset-broker">
-            <SelectInput id="add-asset-broker" value={form.broker_id} onChange={e => setForm(p => ({ ...p, broker_id: e.target.value }))}>
-              <option value="">—</option>
-              {brokers.map(b => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
-            </SelectInput>
-          </Field>
           <div>
-            <div className="flex gap-2.5">
-              <Field className="flex-1" label="Multiplier" htmlFor="add-asset-multiplier">
+            <div className={rowBroker}>
+              <Field className="min-w-0 col-span-2 sm:col-span-1" label="Broker" htmlFor="add-asset-broker">
+                <SelectInput id="add-asset-broker" value={form.broker_id} onChange={e => setForm(p => ({ ...p, broker_id: e.target.value }))}>
+                  <option value="">—</option>
+                  {brokers.map(b => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
+                </SelectInput>
+              </Field>
+              <Field className="min-w-0" label="Multiplier" htmlFor="add-asset-multiplier">
                 <NumberInput id="add-asset-multiplier" step="any" value={form.multiplier}
                   onChange={e => setForm(p => ({ ...p, multiplier: e.target.value }))}
                   placeholder="1" />
               </Field>
-              <Field className="flex-1" label="Margin rate" htmlFor="add-asset-margin-rate">
+              <Field className="min-w-0" label="Margin rate" htmlFor="add-asset-margin-rate">
                 <NumberInput id="add-asset-margin-rate" step="any" value={form.margin_rate}
                   onChange={e => setForm(p => ({ ...p, margin_rate: e.target.value }))}
                   placeholder="0" />

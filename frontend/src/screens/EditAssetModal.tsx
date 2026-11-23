@@ -59,11 +59,16 @@ const errorText = {
 } as const;
 
 const actionButtonClass = 'transition-opacity disabled:opacity-50 disabled:cursor-not-allowed';
-const modalPanel = 'bg-canvas border border-hairline w-[400px] max-w-[90vw]';
+const modalPanel = 'bg-canvas border border-hairline w-full max-w-[560px]';
 const modalPanelStyle = {
   padding: 'var(--space-md)',
   borderRadius: 'var(--rounded-xl)',
 } as const;
+
+/** Two equal short columns; collapses to one as the card narrows. */
+const rowTwo = 'grid gap-2.5 grid-cols-1 min-[420px]:grid-cols-2';
+/** Three equal short columns; collapses to two (then one) as the card narrows. */
+const rowThree = 'grid gap-2.5 grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3';
 
 const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, onSaved, groups }) => {
   const [form, setForm] = useState({ name: '', price_symbol: '', asset_type: 'stock', source: 'manual', group_id: '', multiplier: '1', margin_rate: '0' });
@@ -159,57 +164,59 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, o
         </p>
 
         <div className="space-y-2.5">
-          <Field label="Name" htmlFor="edit-asset-name">
-            <TextInput id="edit-asset-name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
-          </Field>
-          <div className="flex gap-2.5">
-            <Field className="flex-1" label="Type" htmlFor="edit-asset-type">
+          <div>
+            <div className={rowTwo}>
+              <Field className="min-w-0" label="Name" htmlFor="edit-asset-name">
+                <TextInput id="edit-asset-name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+              </Field>
+              <Field className="min-w-0" label="Price symbol" htmlFor="edit-asset-price-symbol">
+                <TextInput id="edit-asset-price-symbol" value={form.price_symbol}
+                  onChange={e => setForm(p => ({ ...p, price_symbol: e.target.value }))}
+                  placeholder={asset.ticker} />
+              </Field>
+            </div>
+            <p style={CONTROL_HELPER}>Symbol used to fetch prices (yfinance / TFEX; TFEX accepts the series symbol like S50Z26 or the product-page URL — expired series return no quote); leave blank to use the Symbol</p>
+          </div>
+          <div className={rowThree}>
+            <Field className="min-w-0" label="Type" htmlFor="edit-asset-type">
               <SelectInput id="edit-asset-type" value={form.asset_type} onChange={e => setForm(p => ({ ...p, asset_type: e.target.value }))}>
                 {TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
               </SelectInput>
             </Field>
-            <Field className="flex-1" label="Source" htmlFor="edit-asset-source">
+            <Field className="min-w-0" label="Source" htmlFor="edit-asset-source">
               <SelectInput id="edit-asset-source" value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))}>
                 {SOURCES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
               </SelectInput>
             </Field>
-          </div>
-          <div>
-            <Field label="Price symbol" htmlFor="edit-asset-price-symbol">
-              <TextInput id="edit-asset-price-symbol" value={form.price_symbol}
-                onChange={e => setForm(p => ({ ...p, price_symbol: e.target.value }))}
-                placeholder={asset.ticker} />
+            <Field className="min-w-0" label="Group" htmlFor="edit-asset-group">
+              <SelectInput id="edit-asset-group" value={form.group_id} onChange={e => setForm(p => ({ ...p, group_id: e.target.value }))}>
+                <option value="">None</option>
+                {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </SelectInput>
             </Field>
-            <p style={CONTROL_HELPER}>Symbol used to fetch prices (yfinance / TFEX); leave blank to use the Symbol</p>
           </div>
-          <Field label="Group" htmlFor="edit-asset-group">
-            <SelectInput id="edit-asset-group" value={form.group_id} onChange={e => setForm(p => ({ ...p, group_id: e.target.value }))}>
-              <option value="">None</option>
-              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </SelectInput>
-          </Field>
           <div>
-            <div className="flex gap-2.5">
-              <Field className="flex-1" label="Multiplier" htmlFor="edit-asset-multiplier">
+            <div className={form.source === 'manual' ? rowThree : rowTwo}>
+              <Field className="min-w-0" label="Multiplier" htmlFor="edit-asset-multiplier">
                 <NumberInput id="edit-asset-multiplier" step="any" value={form.multiplier}
                   onChange={e => setForm(p => ({ ...p, multiplier: e.target.value }))}
                   placeholder="1" />
               </Field>
-              <Field className="flex-1" label="Margin rate" htmlFor="edit-asset-margin-rate">
+              <Field className="min-w-0" label="Margin rate" htmlFor="edit-asset-margin-rate">
                 <NumberInput id="edit-asset-margin-rate" step="any" value={form.margin_rate}
                   onChange={e => setForm(p => ({ ...p, margin_rate: e.target.value }))}
                   placeholder="0" />
               </Field>
+              {form.source === 'manual' && (
+                <Field className="min-w-0" label="Price (manual)" htmlFor="edit-asset-price">
+                  <NumberInput id="edit-asset-price" step="any" value={priceStr}
+                    onChange={e => setPriceStr(e.target.value)}
+                    placeholder="0.00" />
+                </Field>
+              )}
             </div>
             <p style={CONTROL_HELPER}>Margin 0.10 = 10% of notional</p>
           </div>
-          {form.source === 'manual' && (
-            <Field label="Price (manual)" htmlFor="edit-asset-price">
-              <NumberInput id="edit-asset-price" step="any" value={priceStr}
-                onChange={e => setPriceStr(e.target.value)}
-                placeholder="0.00" />
-            </Field>
-          )}
         </div>
         </div>
 
