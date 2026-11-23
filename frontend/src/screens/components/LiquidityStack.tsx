@@ -37,7 +37,7 @@ export default function LiquidityStack({
 
   return (
     <div
-      className={`flex w-full overflow-hidden ${className}`}
+      className={`flex w-full overflow-hidden ${showLabels ? "liquidity-reveal" : ""} ${className}`}
       style={{
         height,
         gap: 2,
