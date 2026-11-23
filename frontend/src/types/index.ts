@@ -143,6 +143,10 @@ export interface PortfolioData {
   spread_pairs: SpreadPair[];
   active_orders: SpreadOrder[];
   recent_trades: RecentTrade[];
+  /** Mapped external databases are read-through: every write is refused. */
+  read_only?: boolean;
+  /** Built-in mapping template name for a custom portfolio; null when unmapped. */
+  mapping_template?: string | null;
 }
 
 export interface ZoneGroup {

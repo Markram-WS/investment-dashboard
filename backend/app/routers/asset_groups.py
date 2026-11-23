@@ -8,6 +8,7 @@ from datetime import datetime
 from app.database import get_db, resolve_portfolio_db
 from app.models import AssetGroup, WhitelistAssets
 from app.custom_models import CustomAssetGroup, CustomWhitelistAssets
+from app.custom_mapping import is_mapped_portfolio, raise_if_mapped_readonly
 
 class AssetGroupResponse(BaseModel):
     id: int
@@ -40,6 +41,8 @@ async def list_groups(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
 ):
+    if await is_mapped_portfolio(db, portfolio_id):
+        return []
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomAssetGroup if is_custom else AssetGroup
@@ -57,6 +60,7 @@ async def create_group(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
 ):
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomAssetGroup if is_custom else AssetGroup
@@ -79,6 +83,7 @@ async def update_group(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
 ):
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomAssetGroup if is_custom else AssetGroup
@@ -108,6 +113,7 @@ async def delete_group(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
 ):
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomAssetGroup if is_custom else AssetGroup

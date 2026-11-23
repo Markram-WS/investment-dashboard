@@ -8,11 +8,15 @@ interface PortfolioHeaderProps {
   lastUpdated: Date;
   onRefresh: () => void;
   onEditPortfolio: () => void;
+  /** Custom portfolios only: opens the mapping admin modal. */
+  showConnection?: boolean;
+  onOpenConnection?: () => void;
 }
 
 /** 44px header band: breadcrumb + title on the left, pool actions on the right. */
 const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
   portfolioName, portType, tags, lastUpdated, onRefresh, onEditPortfolio,
+  showConnection = false, onOpenConnection,
 }) => (
   <header className="at-head">
     <div style={{ minWidth: 0 }}>
@@ -36,6 +40,11 @@ const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
           </span>
         ))}
       <span className="at-num">Updated {lastUpdated.toLocaleTimeString()}</span>
+      {showConnection && onOpenConnection && (
+        <button type="button" className="at-btn-ghost" onClick={onOpenConnection}>
+          Connection
+        </button>
+      )}
       <button type="button" className="at-btn-ghost" onClick={onEditPortfolio}>
         Edit pool
       </button>

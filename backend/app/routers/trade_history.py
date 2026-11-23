@@ -1,9 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.database import get_db, resolve_portfolio_db
-from app.models import TradeHistory, Portfolio
+from app.database import get_db, get_or_create_custom_engine, resolve_portfolio_db
+from app.models import TradeHistory, Portfolio, CustomPortfolioConnection
 from app.custom_models import CustomTransaction
+from app.custom_mapping import (
+    fetch_mapped_history,
+    mapped_history_records,
+    raise_if_mapped_readonly,
+)
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
@@ -63,6 +68,34 @@ async def get_trade_history(
     Get all trade history records for TransactionsPage display.
     Returns TradeHistory data formatted to match frontend Transaction interface.
     """
+    if portfolio_id is not None:
+        portfolio = (
+            await db.execute(
+                select(Portfolio).where(Portfolio.portfolio_id == portfolio_id)
+            )
+        ).scalar_one_or_none()
+        if portfolio is not None and portfolio.is_custom:
+            connection = (
+                await db.execute(
+                    select(CustomPortfolioConnection).where(
+                        CustomPortfolioConnection.portfolio_id == portfolio_id
+                    )
+                )
+            ).scalar_one_or_none()
+            if connection is not None and connection.mapping_config:
+                engine = await get_or_create_custom_engine(connection)
+                history = await fetch_mapped_history(engine, connection.mapping_config)
+                return [
+                    TransactionResponse(**record)
+                    for record in mapped_history_records(
+                        history,
+                        portfolio.portfolio_id,
+                        portfolio.portfolio_name,
+                        offset=offset,
+                        limit=limit,
+                    )
+                ]
+
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         # Trade history is always written to main DB (TradeHistory), even for custom portfolios.
@@ -115,6 +148,7 @@ async def create_trade_history(
     db: AsyncSession = Depends(get_db)
 ):
     """Create a trade history record (for manual entry or bot sync)."""
+    await raise_if_mapped_readonly(db, history.portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, history.portfolio_id)
     try:
         # Validate portfolio exists

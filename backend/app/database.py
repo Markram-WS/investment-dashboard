@@ -145,7 +145,8 @@ async def get_portfolio_db(portfolio_id: int) -> AsyncGenerator[AsyncSession, No
             raise RuntimeError(f"Custom connection not found for portfolio {portfolio_id}")
 
         custom_engine = await get_or_create_custom_engine(connection)
-        await ensure_custom_tables(custom_engine, portfolio_id)
+        if not connection.mapping_config:
+            await ensure_custom_tables(custom_engine, portfolio_id)
 
         CustomSessionLocal = sessionmaker(
             bind=custom_engine, class_=AsyncSession, expire_on_commit=False
@@ -156,7 +157,10 @@ async def get_portfolio_db(portfolio_id: int) -> AsyncGenerator[AsyncSession, No
 
 async def get_custom_session(conn: CustomPortfolioConnection) -> AsyncSession:
     engine = await get_or_create_custom_engine(conn)
-    await ensure_custom_tables(engine, conn.portfolio_id)
+    # A mapped connection points at a foreign broker schema: never create or
+    # alter tables there.
+    if not conn.mapping_config:
+        await ensure_custom_tables(engine, conn.portfolio_id)
     maker = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
     return maker()
 

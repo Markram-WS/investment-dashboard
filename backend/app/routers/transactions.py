@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, get_custom_session
 from app.models import Transaction, Portfolio, CustomPortfolioConnection
 from app.custom_models import CustomTransaction
+from app.custom_mapping import raise_if_mapped_readonly
 from pydantic import BaseModel, field_validator
 from typing import List, Optional, Literal
 from datetime import datetime
@@ -226,6 +227,7 @@ async def create_transaction(
     - If portfolio_id is provided and portfolio is custom, write to custom DB
     - Otherwise, write to investment_main
     """
+    await raise_if_mapped_readonly(db, portfolio_id)
     if portfolio_id is not None:
         result = await db.execute(
             select(Portfolio).where(Portfolio.portfolio_id == portfolio_id)

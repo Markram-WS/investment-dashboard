@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import Transaction, Portfolio
+from app.custom_mapping import raise_if_mapped_readonly
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
@@ -105,6 +106,11 @@ async def initiate_transfer(transfer_data: TransferCreate, db: AsyncSession = De
             detail=f"Destination portfolio {transfer_data.destination_portfolio_id} not found"
         )
 
+    # Mapped portfolios read cash from the foreign account view; a local
+    # transfer would move the main-DB balance and diverge from that truth.
+    await raise_if_mapped_readonly(db, transfer_data.source_portfolio_id)
+    await raise_if_mapped_readonly(db, transfer_data.destination_portfolio_id)
+
     # Calculate available balance
     source_available = source_portfolio.available_cash or 0
     
@@ -181,6 +187,11 @@ async def confirm_transfer(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Transfer transaction not found"
         )
+
+    # A transfer created while both sides were local must not execute once
+    # either side becomes a mapped read-only view.
+    await raise_if_mapped_readonly(db, transaction.source_portfolio_id)
+    await raise_if_mapped_readonly(db, transaction.destination_portfolio_id)
 
     if transaction.status != "pending_confirmation":
         raise HTTPException(

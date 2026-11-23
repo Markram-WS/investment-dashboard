@@ -4,12 +4,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import TradePlan, Portfolio
+from app.custom_mapping import raise_if_mapped_readonly
 from app.schemas.trade_plan import TradePlanCreate, TradePlanResponse, TradePlanUpdate
 
 router = APIRouter()
 
 @router.post("/", response_model=TradePlanResponse, status_code=status.HTTP_201_CREATED, tags=["trade-plans"])
 async def create_trade_plan(plan: TradePlanCreate, db: AsyncSession = Depends(get_db)):
+    await raise_if_mapped_readonly(db, plan.portfolio_id)
     # Check if portfolio exists
     result = await db.execute(
         select(Portfolio).where(Portfolio.portfolio_id == plan.portfolio_id)
@@ -50,7 +52,8 @@ async def update_trade_plan(plan_id: int, plan_update: TradePlanUpdate, db: Asyn
     plan = result.scalar_one_or_none()
     if plan is None:
         raise HTTPException(status_code=404, detail="Trade plan not found")
-    
+
+    await raise_if_mapped_readonly(db, plan.portfolio_id)
     plan.trade_plan_md = plan_update.trade_plan_md
     await db.commit()
     await db.refresh(plan)
@@ -64,6 +67,7 @@ async def delete_trade_plan(plan_id: int, db: AsyncSession = Depends(get_db)):
     plan = result.scalar_one_or_none()
     if plan is None:
         raise HTTPException(status_code=404, detail="Trade plan not found")
+    await raise_if_mapped_readonly(db, plan.portfolio_id)
     await db.delete(plan)
     await db.commit()
     return None

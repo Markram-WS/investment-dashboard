@@ -5,6 +5,7 @@ from datetime import datetime
 from app.database import get_db, resolve_portfolio_db
 from app.models import ActiveOrder, TradePlan, TradeHistory, Portfolio, WhitelistAssets, Broker
 from app.custom_models import CustomActiveOrder, CustomTradePlan
+from app.custom_mapping import raise_if_mapped_readonly
 from pydantic import BaseModel, field_validator
 from typing import Optional, Dict, Any, List
 
@@ -122,6 +123,7 @@ async def list_orders(
 @router.post("/", tags=["orders"], status_code=status.HTTP_201_CREATED, response_model=ActiveOrderResponse)
 async def create_order(order: ActiveOrderCreate, db: AsyncSession = Depends(get_db)):
     """Create a new active order. If plan_id is omitted, auto-resolve or create a default trade plan."""
+    await raise_if_mapped_readonly(db, order.portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, order.portfolio_id)
     try:
         ModelClass = CustomActiveOrder if is_custom else ActiveOrder
@@ -225,6 +227,7 @@ async def update_order_status(
     portfolio_id: Optional[int] = None,
 ):
     """Update order status. If CANCELED, delete from active_orders and create trade history."""
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomActiveOrder if is_custom else ActiveOrder
@@ -279,6 +282,7 @@ async def update_order(
     portfolio_id: Optional[int] = None,
 ):
     """Update an active order with new values."""
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomActiveOrder if is_custom else ActiveOrder
@@ -314,6 +318,7 @@ async def unlink_order(
     portfolio_id: Optional[int] = None,
 ):
     """Unlink an order from its linked partner. Clears linked_order_id on both sides."""
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomActiveOrder if is_custom else ActiveOrder
@@ -348,6 +353,7 @@ async def close_order(
     """Close an active order: delete from active_orders and create trade history record(s).
     Auto-closes all sub-orders that one-way link to this order (linked_order_id == this order_id).
     If this order is cross-linked (spread pair), signals frontend for the paired order."""
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomActiveOrder if is_custom else ActiveOrder
@@ -441,6 +447,7 @@ async def link_order(
 ):
     """Link order to a target order by setting linked_order_id (one-way = pending close).
     For two-way (spread), the target order must also link back."""
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomActiveOrder if is_custom else ActiveOrder

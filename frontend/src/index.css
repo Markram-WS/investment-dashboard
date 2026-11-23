@@ -1041,6 +1041,8 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
   cursor: text;
 }
 .at-remark:hover { color: var(--color-brand-teal); }
+.at-remark.is-static { cursor: default; }
+.at-remark.is-static:hover { color: var(--color-ink); }
 .at-remark.is-saving { opacity: 0.6; }
 .at-remark-input {
   width: 100%;

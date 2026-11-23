@@ -101,13 +101,16 @@ open http://localhost:8000/docs
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
 | `GET` | `/api/v1/portfolios` | List all portfolios |
-| `POST` | `/api/v1/portfolios` | Create a new portfolio (supports connection fields for Custom Portfolio; target_ratio auto-normalized from decimal→percentage) |
+| `POST` | `/api/v1/portfolios` | Create a new portfolio (supports connection fields for Custom Portfolio; `mapping_config` JSON switches it to read-only read-through; target_ratio auto-normalized from decimal→percentage) |
 | `GET` | `/api/v1/portfolios/types` | List available portfolio types (Managed Fund, Active Trading, Custom Portfolio) |
+| `GET` | `/api/v1/portfolios/mapping-templates` | Built-in mapping templates (`tfex-settrade-v1`); the returned `config` is exactly what `mapping_config` stores |
 | `GET` | `/api/v1/portfolios/{id}` | Retrieve portfolio by ID (includes connection metadata for custom) |
 | `PUT` | `/api/v1/portfolios/{id}` | Update portfolio fields |
-| `PATCH` | `/api/v1/portfolios/{id}/connection` | Update custom portfolio DB connection details |
+| `GET` | `/api/v1/portfolios/{id}/connection` | Custom connection metadata — host, port, db_name, user, `mapping_config`; the password is never returned |
+| `PATCH` | `/api/v1/portfolios/{id}/connection` | Update custom portfolio DB connection details and/or `mapping_config` (validated; `mapping_config: null` returns to owned-tables mode) |
 | `DELETE` | `/api/v1/portfolios/{id}` | Delete portfolio with cascade (also cleans managed_fund_* tables) |
-| `POST` | `/api/v1/portfolios/test-connection` | Test external DB connectivity (host, port, db_name, user, password) |
+| `POST` | `/api/v1/portfolios/test-connection` | Test external DB connectivity (host, port, db_name, user, password); optional `mapping_config` adds `diagnostics` |
+| `POST` | `/api/v1/portfolios/{id}/test-connection` | Test the **stored** connection with the saved password (must be declared after the literal route); optional `mapping_config` override — omitted uses the stored mapping, explicit `null` means connect-only — returns `diagnostics` |
 
 ### Managed Fund
 | Method | Endpoint | Description |
@@ -213,8 +216,8 @@ open http://localhost:8000/docs
 ### Trade History
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
-| `GET` | `/api/v1/trade-history` | List records (optional `?portfolio_id=`) |
-| `POST` | `/api/v1/trade-history` | Create record |
+| `GET` | `/api/v1/trade-history` | List records (optional `?portfolio_id=`). For a mapped portfolio the rows come from the foreign `history` entity; `remark.note` is `Close` or `Canceled` |
+| `POST` | `/api/v1/trade-history` | Create record (409 for a mapped portfolio — read-only) |
 
 ### Other
 | Method | Endpoint | Description |
@@ -282,12 +285,14 @@ investment_main (Control Plane)
   └── ... (core tables)
 
 External DB (Data Plane) — ONE per Custom Portfolio
+  either OWNED (the backend creates these) …
   ├── active_orders                 ← FK-free (portfolio_id as plain Integer)
   ├── transactions
   ├── trade_plans                   ← FK-free replica (avoids plan_id FK errors)
   ├── whitelist_assets
   ├── asset_groups
   └── orders_groups
+  … or MAPPED (read-only over an existing broker schema; no DDL)
 ```
 
 ### How it works
@@ -302,7 +307,24 @@ External DB (Data Plane) — ONE per Custom Portfolio
 
 5. **Global queries**: `GET /api/v1/transactions` without `portfolio_id` aggregates from `investment_main` + all custom DBs via `asyncio.gather(return_exceptions=True)`. Failed nodes are skipped and reported as `failed_portfolios` in response.
 
-5. **Security**: Passwords encrypted with Fernet, never stored in plaintext. `test-connection` endpoint validates credentials without persisting them.
+6. **Security**: Passwords encrypted with Fernet, never stored in plaintext. `test-connection` endpoint validates credentials without persisting them.
+
+### Read-through mapping (read-only)
+
+A non-null `custom_portfolio_connections.mapping_config` (JSON) turns the same Custom Portfolio into a **read-only view over an existing broker schema**; `null` keeps the owned-tables behaviour above. The mapping lives in `investment_main` only.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v1/portfolios/mapping-templates` | Built-in templates; `tfex-settrade-v1` maps `usd_pct_abc.opened_orders` / `order_history` / `account_history`. The returned `config` is stored verbatim |
+| `GET /api/v1/portfolios/{id}/connection` | Connection metadata + `mapping_config`; never the password |
+| `POST /api/v1/portfolios/{id}/test-connection` | Stored credentials, optional `mapping_config` override, `diagnostics` in the response |
+
+- **Validation**: `validate_mapping` refuses a `version` other than 1, a missing `orders`/`account` entity, and any schema/table/column that is not a plain SQL identifier — the config can only ever name a quoted identifier, never carry SQL.
+- **No DDL**: `get_custom_session` / `get_portfolio_db` skip `ensure_custom_tables()` when `mapping_config` is set, so our `active_orders`/`transactions` tables are never created in the foreign database.
+- **Reads**: the grid maps orders (`status` `M`/`MP`→`open`, `C*`→`cancelled`, `E*`→`expired`, `R*`→`rejected`; `tp` is the exit price; `remark` is the Mark note), the newest `account_history` row supplies `available_cash`←`excessequity`, `margin_locked`←`initialmargin`, `current_nav`←`equity`, and `GET /api/v1/trade-history` serves the mapped `history` rows (`remark.note` = `Close`/`Canceled`).
+- **Read-only rule**: grid responses carry `read_only: true` and `mapping_template`; every data-plane write route — active orders, assets, order groups, trade plans, trade history, ledger transactions — calls `raise_if_mapped_readonly` and answers `409 Portfolio is read-only (mapped external database)`. The frontend gates its write affordances on `read_only`, so none of them are reachable from a mapped portfolio.
+- **Diagnostics**: a test with a mapping returns `orders_rows`, `history_rows`, `account_rows`, one normalised `sample_order`, and per-entity `errors` — the row counts and the first broken entity, instead of a bare success.
+- **Dev fixture**: `database/mock/usd_pct_abc_dev_seed.sql` (idempotent; 6 open orders, 4 history rows, 3 account snapshots).
 
 ---
 
@@ -413,6 +435,7 @@ The yfinance service uses direct HTTP to Yahoo Finance. If prices return 0.0, th
 
 - Verify `FERNET_KEY` is set in the environment
 - Check `test-connection` endpoint with the same credentials
+- For a mapped portfolio, `POST /api/v1/portfolios/{id}/test-connection` names the broken entity in `diagnostics.errors` (e.g. `orders: ...`) and reports `orders_rows`/`history_rows`/`account_rows`
 - Ensure the external PostgreSQL accepts connections from the cluster pod network
 - Check logs: `kubectl -n investment-dashboard logs deploy/backend`
 
@@ -426,4 +449,4 @@ kubectl -n investment-dashboard logs statefulset/postgres-ai
 
 ---
 
-*Last updated: 10 November 2026 (docs aligned with the kind/podman local cluster; router list matches `backend/app/routers/`; pytest scope documented)*
+*Last updated: 23 November 2026 (read-through Custom Portfolios: mapping-template / connection / stored test-connection endpoints, `mapping_config` validation, read-only 409 rule, mapped trade-history reads)*

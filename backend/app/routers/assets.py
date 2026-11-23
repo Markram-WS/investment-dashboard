@@ -8,6 +8,7 @@ from datetime import datetime
 from app.database import get_db, resolve_portfolio_db
 from app.models import WhitelistAssets, AssetGroup, ActiveOrder, Broker
 from app.custom_models import CustomWhitelistAssets
+from app.custom_mapping import is_mapped_portfolio, raise_if_mapped_readonly
 from app.managed_fund_models import ManagedFundHolding, ManagedFundOrderHistory
 from app.services.yfinance_service import fetch_price
 
@@ -94,6 +95,8 @@ async def list_assets(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
 ):
+    if await is_mapped_portfolio(db, portfolio_id):
+        return []
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomWhitelistAssets if is_custom else WhitelistAssets
@@ -119,6 +122,7 @@ async def create_asset(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
 ):
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomWhitelistAssets if is_custom else WhitelistAssets
@@ -167,6 +171,7 @@ async def update_asset(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
 ):
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomWhitelistAssets if is_custom else WhitelistAssets
@@ -200,6 +205,7 @@ async def delete_asset(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
 ):
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomWhitelistAssets if is_custom else WhitelistAssets

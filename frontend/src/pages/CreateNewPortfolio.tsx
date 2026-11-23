@@ -1,13 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
-import type { BrokerRecord, PortfolioPayload } from '../lib/api';
+import type { BrokerRecord, MappingTemplate, PortfolioPayload } from '../lib/api';
 import PageLayout from '../components/PageLayout';
 import PageHeader from '../components/PageHeader';
 import {
   CONTROL_LABEL, CONTROL_INPUT, CONTROL_HELPER, CONTROL_VALUE,
   CONTROL_BUTTON_PRIMARY, CONTROL_BUTTON_SECONDARY,
 } from '../screens/components/controlStyles';
+import {
+  MAPPING_JSON_INVALID,
+  formatDiagnostics,
+  parseMappingConfig,
+} from '../utils/mapping';
 
 const panelStyle = {
   background: "var(--color-canvas)",
@@ -54,6 +59,9 @@ const eyebrowStyle = {
 } as const;
 
 const PORT_TYPES = ['Managed Fund', 'Active Trading', 'Custom Portfolio'] as const;
+
+/** One sentence for a custom portfolio without any mapping config. */
+const MAPPING_REQUIRED = 'Choose a mapping template or paste a mapping config.';
 
 const PORT_TYPE_DESCRIPTIONS: Record<string, string> = {
   'Managed Fund': 'Focus on portfolio rebalancing according to target ratios.',
@@ -230,8 +238,16 @@ const CreateNewPortfolio: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<boolean>(false);
-  const [connectionStatus, setConnectionStatus] = useState<{ok: boolean; message: string} | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<{
+    ok: boolean;
+    message: string;
+    mappingIssues?: boolean;
+  } | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
+  const [mappingTemplates, setMappingTemplates] = useState<MappingTemplate[]>([]);
+  const [mappingTemplate, setMappingTemplate] = useState('');
+  const [mappingConfigStr, setMappingConfigStr] = useState('');
+  const [mappingError, setMappingError] = useState<string | null>(null);
   const [targetRatioStr, setTargetRatioStr] = useState<string>('');
   const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
   const [tickers, setTickers] = useState<string[]>([]);
@@ -250,6 +266,15 @@ const CreateNewPortfolio: React.FC = () => {
       .catch((err) => console.error('Failed to load asset tickers:', err));
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (formData.port_type !== 'Custom Portfolio') return;
+    let cancelled = false;
+    api.getMappingTemplates()
+      .then((rows) => { if (!cancelled) setMappingTemplates(rows); })
+      .catch((err) => console.error('Failed to load mapping templates:', err));
+    return () => { cancelled = true; };
+  }, [formData.port_type]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -275,7 +300,31 @@ const CreateNewPortfolio: React.FC = () => {
     }));
   };
 
+  const handleMappingTemplateChange = (name: string) => {
+    setMappingTemplate(name);
+    const template = mappingTemplates.find((row) => row.name === name);
+    if (!template) return;
+    setMappingConfigStr(JSON.stringify(template.config, null, 2));
+    setMappingError(null);
+    setConnectionStatus(null);
+  };
+
+  const mappingRequired =
+    formData.port_type === 'Custom Portfolio' && !mappingConfigStr.trim();
+
   const handleTestConnection = async () => {
+    if (mappingRequired) {
+      setMappingError(MAPPING_REQUIRED);
+      setConnectionStatus(null);
+      return;
+    }
+    const parsed = parseMappingConfig(mappingConfigStr);
+    if (!parsed.ok) {
+      setMappingError(MAPPING_JSON_INVALID);
+      setConnectionStatus(null);
+      return;
+    }
+    setMappingError(null);
     setTestingConnection(true);
     setConnectionStatus(null);
     try {
@@ -285,8 +334,15 @@ const CreateNewPortfolio: React.FC = () => {
         db_name: formData.db_name,
         db_user: formData.db_user,
         db_password: formData.db_password,
+        mapping_config: parsed.value,
       });
-      setConnectionStatus({ ok: true, message: result.message || 'Connection successful' });
+      const mappingIssues = Boolean(result.diagnostics?.errors?.length);
+      if (mappingIssues) console.error('Mapping diagnostics reported problems:', result.diagnostics?.errors);
+      setConnectionStatus({
+        ok: true,
+        message: formatDiagnostics(result.diagnostics) ?? result.message ?? 'Connection successful',
+        mappingIssues,
+      });
     } catch (err) {
       console.error('Connection test failed:', err);
       setConnectionStatus({ ok: false, message: "Couldn't test the connection. Try again." });
@@ -297,6 +353,17 @@ const CreateNewPortfolio: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const isCustom = formData.port_type === 'Custom Portfolio';
+    if (mappingRequired) {
+      setMappingError(MAPPING_REQUIRED);
+      return;
+    }
+    const mapping = isCustom ? parseMappingConfig(mappingConfigStr) : null;
+    if (mapping && !mapping.ok) {
+      setMappingError(MAPPING_JSON_INVALID);
+      return;
+    }
+    setMappingError(null);
     setLoading(true);
     setError(null);
     setSuccess(false);
@@ -316,6 +383,7 @@ const CreateNewPortfolio: React.FC = () => {
         db_name: formData.db_name,
         db_user: formData.db_user,
         db_password: formData.db_password,
+        mapping_config: mapping && mapping.ok ? mapping.value : null,
       };
       const cashBufferLimit = toOptionalNumber(formData.cash_buffer_limit);
       if (cashBufferLimit !== undefined) payload.cash_buffer_limit = cashBufferLimit;
@@ -344,6 +412,7 @@ const CreateNewPortfolio: React.FC = () => {
         delete payload.db_name;
         delete payload.db_user;
         delete payload.db_password;
+        delete payload.mapping_config;
       }
       await api.createPortfolio(payload);
       setSuccess(true);
@@ -386,9 +455,15 @@ const CreateNewPortfolio: React.FC = () => {
     );
   }
 
-  const submitDisabled = loading || !formData.portfolio_name || !formData.port_type;
+  const submitDisabled =
+    loading || !formData.portfolio_name || !formData.port_type || mappingRequired;
   const testDisabled =
-    testingConnection || !formData.db_host || !formData.db_name || !formData.db_user || !formData.db_password;
+    testingConnection ||
+    mappingRequired ||
+    !formData.db_host ||
+    !formData.db_name ||
+    !formData.db_user ||
+    !formData.db_password;
 
   const submitStyle: React.CSSProperties = submitDisabled
     ? {
@@ -862,8 +937,62 @@ const CreateNewPortfolio: React.FC = () => {
                     </button>
                   </div>
                 </div>
+                <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+                  <div>
+                    <label style={CONTROL_LABEL} htmlFor="mapping_template">Mapping template</label>
+                    <select
+                      id="mapping_template"
+                      value={mappingTemplate}
+                      onChange={(e) => handleMappingTemplateChange(e.target.value)}
+                      style={CONTROL_INPUT}
+                    >
+                      <option value="">Choose a template</option>
+                      {mappingTemplates.map((template) => (
+                        <option key={template.name} value={template.name}>
+                          {template.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p style={CONTROL_HELPER}>
+                      Choosing a template fills the JSON below. The JSON is what gets saved.
+                    </p>
+                  </div>
+                  <div>
+                    <label style={CONTROL_LABEL} htmlFor="mapping_config">Mapping config (JSON)</label>
+                    <textarea
+                      id="mapping_config"
+                      name="mapping_config"
+                      value={mappingConfigStr}
+                      onChange={(e) => {
+                        setMappingConfigStr(e.target.value);
+                        setMappingError(null);
+                      }}
+                      style={{
+                        ...CONTROL_INPUT,
+                        minHeight: 200,
+                        resize: "vertical",
+                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                        lineHeight: 1.45,
+                        whiteSpace: "pre",
+                        overflow: "auto",
+                      }}
+                      placeholder='{"version": 1, "template": "tfex-settrade-v1", "entities": {…}}'
+                      spellCheck={false}
+                    />
+                    {mappingError ? (
+                      <p style={{ ...CONTROL_HELPER, color: "var(--color-danger-text)" }}>{mappingError}</p>
+                    ) : mappingRequired ? (
+                      <p style={{ ...CONTROL_HELPER, color: "var(--color-danger-text)" }}>{MAPPING_REQUIRED}</p>
+                    ) : (
+                      <p style={CONTROL_HELPER}>
+                        Identifiers are validated on the server.
+                      </p>
+                    )}
+                  </div>
+                </div>
                 {connectionStatus && (
                   <div
+                    role="status"
                     style={{
                       marginTop: 10,
                       padding: "var(--space-xs) var(--space-sm)",
@@ -877,8 +1006,15 @@ const CreateNewPortfolio: React.FC = () => {
                         : "var(--color-danger-text)",
                     }}
                   >
-                    {connectionStatus.ok ? '✓ ' : '✗ '}
-                    {connectionStatus.message}
+                    <div>
+                      {connectionStatus.ok ? '✓ ' : '✗ '}
+                      {connectionStatus.message}
+                    </div>
+                    {connectionStatus.mappingIssues && (
+                      <div style={{ marginTop: 2 }}>
+                        The mapping config has problems. Check the JSON and test again.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

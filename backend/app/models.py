@@ -63,6 +63,10 @@ class CustomPortfolioConnection(Base):
     db_name = Column(String, nullable=False)
     db_user = Column(String, nullable=False)
     encrypted_password = Column(String, nullable=False)
+    # Null keeps the legacy custom-portfolio behaviour (our own tables in the
+    # external DB). A JSON mapping makes the portfolio a read-only view over a
+    # foreign broker schema.
+    mapping_config = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     portfolio = relationship("Portfolio", backref="custom_connection", uselist=False)

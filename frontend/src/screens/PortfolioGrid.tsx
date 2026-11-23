@@ -5,6 +5,7 @@ import { AddOrderModal } from "./AddOrderModal";
 import { ZoneGroupModal } from "./ZoneGroupModal";
 import { CloseOrderModal } from "./CloseOrderModal";
 import EditPortfolioModal from "./EditPortfolioModal";
+import MappingModal from "./MappingModal";
 import { useOrderEdit } from "../hooks/useOrderEdit";
 import { useAddOrder } from "../hooks/useAddOrder";
 import { usePortfolioManager } from "../hooks/usePortfolioManager";
@@ -52,6 +53,8 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const [closingOrder, setClosingOrder] = useState<SpreadOrder | null>(null);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showEditPortfolioModal, setShowEditPortfolioModal] = useState(false);
+  const [showMappingModal, setShowMappingModal] = useState(false);
+  const [isCustom, setIsCustom] = useState(false);
   const { notify } = useNotification();
   const navigate = useNavigate();
 
@@ -137,6 +140,21 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       api.getPerformance(pid).then(setPerformanceData).catch(() => {});
       api.getZoneGroups(pid).then(setGroups).catch(() => {});
     }
+  }, [pid]);
+
+  React.useEffect(() => {
+    if (pid == null) {
+      setIsCustom(false);
+      return;
+    }
+    let cancelled = false;
+    api.getPortfolio(pid)
+      .then((record) => { if (!cancelled) setIsCustom(Boolean(record.is_custom)); })
+      .catch((err) => {
+        console.error('Failed to load portfolio connection flags:', err);
+        if (!cancelled) setIsCustom(false);
+      });
+    return () => { cancelled = true; };
   }, [pid]);
 
   const {
@@ -400,6 +418,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   );
   if (!selectedPortfolio) return <PageLayout><p className="text-slate">No portfolio data available.</p></PageLayout>;
 
+  const readOnly = Boolean(selectedPortfolio.read_only);
   const cumulativePl = performanceData?.total_pl || 0;
   const marginLocked = selectedPortfolio.margin_locked || 0;
   const cashBufferLimit = selectedPortfolio.cash_buffer_limit || 0;
@@ -434,6 +453,8 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           lastUpdated={lastUpdated}
           onRefresh={handleRefresh}
           onEditPortfolio={() => setShowEditPortfolioModal(true)}
+          showConnection={isCustom}
+          onOpenConnection={() => setShowMappingModal(true)}
         />
 
         <PoolRail
@@ -460,12 +481,13 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
               onCloseOrder={handleCloseOrder}
               onAssignGroup={handleAssignGroup}
               onLinkOrder={handleLinkOrder}
-              onUpdateRemark={handleUpdateRemark}
+              onUpdateRemark={readOnly ? undefined : handleUpdateRemark}
+              readOnly={readOnly}
             />
             <OrderHistoryCard
               tradeHistory={tradeHistory}
               onViewAll={() => setShowHistoryModal(true)}
-              onDropOrder={handleDropOnTradeHistory}
+              onDropOrder={readOnly ? undefined : handleDropOnTradeHistory}
             />
           </div>
 
@@ -507,57 +529,61 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         </div>
       </div>
 
-      <EditOrderModal
-        order={editingOrder}
-        formData={formData}
-        showModal={showEditModal}
-        onClose={closeModal}
-        onSave={async () => { await handleSaveOrder(); fetchAnalyticsData(); }}
-        onChange={handleFormChange}
-        groups={groups}
-        groupOrderCounts={groupOrderCounts}
-        assetTypeOptions={assetTypeOptions}
-        onRefresh={fetchAnalyticsData}
-        portfolioId={selectedPortfolio?.portfolio_id}
-      />
-      <ZoneGroupModal
-        showModal={showZoneGroupModal}
-        onClose={() => {
-          setShowZoneGroupModal(false);
-          refreshGroups();
-        }}
-        portfolioId={selectedPortfolio.portfolio_id}
-        onSaved={refreshGroups}
-      />
-      <CloseOrderModal
-        order={closingOrder}
-        showModal={showCloseModal}
-        onClose={() => { setShowCloseModal(false); setClosingOrder(null); }}
-        onConfirm={handleConfirmClose}
-        activeOrders={activeOrders}
-      />
-      <AddOrderModal
-        formData={addFormData}
-        showModal={showAddModal}
-        onClose={closeAddModal}
-        onSave={async () => {
-          const id = String(addFormData.order_id ?? '').trim();
-          if (id && activeOrders.some((o) => o.order_id === id)) {
-            notify('Order ID already exists', 'warning');
-            return;
-          }
-          const result = await handleCreateOrder(selectedPortfolio.portfolio_id);
-          if (result.ok) {
-            fetchAnalyticsData();
-          } else {
-            notify(result.message ?? 'Create order failed', 'warning');
-          }
-        }}
-        onChange={handleAddFormChange}
-        groups={groups}
-        groupOrderCounts={groupOrderCounts}
-        assetTypeOptions={assetTypeOptions}
-      />
+      {!readOnly && (
+        <>
+          <EditOrderModal
+            order={editingOrder}
+            formData={formData}
+            showModal={showEditModal}
+            onClose={closeModal}
+            onSave={async () => { await handleSaveOrder(); fetchAnalyticsData(); }}
+            onChange={handleFormChange}
+            groups={groups}
+            groupOrderCounts={groupOrderCounts}
+            assetTypeOptions={assetTypeOptions}
+            onRefresh={fetchAnalyticsData}
+            portfolioId={selectedPortfolio?.portfolio_id}
+          />
+          <ZoneGroupModal
+            showModal={showZoneGroupModal}
+            onClose={() => {
+              setShowZoneGroupModal(false);
+              refreshGroups();
+            }}
+            portfolioId={selectedPortfolio.portfolio_id}
+            onSaved={refreshGroups}
+          />
+          <CloseOrderModal
+            order={closingOrder}
+            showModal={showCloseModal}
+            onClose={() => { setShowCloseModal(false); setClosingOrder(null); }}
+            onConfirm={handleConfirmClose}
+            activeOrders={activeOrders}
+          />
+          <AddOrderModal
+            formData={addFormData}
+            showModal={showAddModal}
+            onClose={closeAddModal}
+            onSave={async () => {
+              const id = String(addFormData.order_id ?? '').trim();
+              if (id && activeOrders.some((o) => o.order_id === id)) {
+                notify('Order ID already exists', 'warning');
+                return;
+              }
+              const result = await handleCreateOrder(selectedPortfolio.portfolio_id);
+              if (result.ok) {
+                fetchAnalyticsData();
+              } else {
+                notify(result.message ?? 'Create order failed', 'warning');
+              }
+            }}
+            onChange={handleAddFormChange}
+            groups={groups}
+            groupOrderCounts={groupOrderCounts}
+            assetTypeOptions={assetTypeOptions}
+          />
+        </>
+      )}
 
       <ModalShell open={showStrategyModal} onClose={() => setShowStrategyModal(false)} title="Option legs">
         <div style={{ width: 620, maxWidth: "92vw" }}>
@@ -609,6 +635,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         onSaved={() => { fetchAnalyticsData(); }}
         onDepositWithdraw={(msg) => notify(msg, 'success')}
         activeOrderCount={activeOrders.length}
+        readOnly={readOnly}
         onDeleted={() => {
           const deletedPid = selectedPortfolio?.portfolio_id;
           if (deletedPid) {
@@ -619,6 +646,20 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           navigate("/");
         }}
       />
+
+      {isCustom && (
+        <MappingModal
+          portfolioId={selectedPortfolio.portfolio_id}
+          portfolioName={selectedPortfolio.portfolio_name}
+          currentTemplate={selectedPortfolio.mapping_template}
+          showModal={showMappingModal}
+          onClose={() => setShowMappingModal(false)}
+          onSaved={() => {
+            fetchAnalyticsData();
+            notify('Connection saved', 'success');
+          }}
+        />
+      )}
     </PageLayout>
   );
 };

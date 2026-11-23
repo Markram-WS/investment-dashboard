@@ -78,6 +78,8 @@ export interface PortfolioPayload {
   db_name?: string;
   db_user?: string;
   db_password?: string;
+  /** Mapping JSON for a custom portfolio; null keeps the legacy table layout. */
+  mapping_config?: unknown;
 }
 
 export interface PortfolioUpdatePayload {
@@ -111,11 +113,47 @@ export interface ConnectionTestPayload {
   db_name: string;
   db_user: string;
   db_password: string;
+  mapping_config?: unknown;
+}
+
+/** Row counts and a sample mapped order from a mapped test connection. */
+export interface MappingDiagnostics {
+  orders_rows?: number | null;
+  history_rows?: number | null;
+  account_rows?: number | null;
+  sample_order?: unknown;
+  errors?: string[];
 }
 
 export interface ConnectionTestResult {
   status: string;
   message: string;
+  diagnostics?: MappingDiagnostics;
+}
+
+/** One built-in foreign-schema mapping. */
+export interface MappingTemplate {
+  name: string;
+  label: string;
+  config: unknown;
+}
+
+/** Stored connection of a custom portfolio; the password is never returned. */
+export interface PortfolioConnection {
+  db_host: string | null;
+  db_port: number | null;
+  db_name: string | null;
+  db_user: string | null;
+  mapping_config: unknown | null;
+}
+
+export interface ConnectionUpdatePayload {
+  db_host?: string;
+  db_port?: number;
+  db_name?: string;
+  db_user?: string;
+  db_password?: string;
+  mapping_config?: unknown;
 }
 
 export interface PerformanceEquityPoint {
@@ -432,6 +470,23 @@ export const api = {
   testConnection: (payload: ConnectionTestPayload) =>
     request<ConnectionTestResult>('/portfolios/test-connection', {
       method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  /** Test a portfolio's stored (encrypted) credentials; never re-sends secrets. */
+  testStoredConnection: (
+    portfolioId: number,
+    payload?: { mapping_config?: unknown },
+  ) =>
+    request<ConnectionTestResult>(`/portfolios/${portfolioId}/test-connection`, {
+      method: 'POST',
+      body: JSON.stringify(payload ?? {}),
+    }),
+  getMappingTemplates: () => request<MappingTemplate[]>('/portfolios/mapping-templates'),
+  getConnection: (portfolioId: number) =>
+    request<PortfolioConnection>(`/portfolios/${portfolioId}/connection`),
+  updateConnection: (portfolioId: number, payload: ConnectionUpdatePayload) =>
+    request<unknown>(`/portfolios/${portfolioId}/connection`, {
+      method: 'PATCH',
       body: JSON.stringify(payload),
     }),
 

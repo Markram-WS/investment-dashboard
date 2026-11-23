@@ -13,11 +13,15 @@ from app.managed_fund_models import (
     ManagedFundOrderHistory, ManagedFundSetting
 )
 from app.risk_calc import compute_margin_locked
-from app.utils.crypto import encrypt_password
+from app.utils.crypto import encrypt_password, decrypt_password
+from app.custom_mapping import mapped_diagnostics, select_test_mapping, validate_mapping
+from app.mapping_templates import list_templates
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from datetime import date
 
+from sqlalchemy.engine import URL
+from sqlalchemy.ext.asyncio import create_async_engine
 import asyncpg
 
 
@@ -43,6 +47,7 @@ class PortfolioCreate(BaseModel):
     db_name: Optional[str] = None
     db_user: Optional[str] = None
     db_password: Optional[str] = None
+    mapping_config: Optional[Dict[str, Any]] = None
 
 
 class PortfolioResponse(BaseModel):
@@ -123,6 +128,82 @@ class TestConnectionRequest(BaseModel):
     db_name: str
     db_user: str
     db_password: str
+    mapping_config: Optional[Dict[str, Any]] = None
+
+
+class StoredConnectionTestRequest(BaseModel):
+    """Body for testing a saved connection; credentials are never accepted."""
+
+    mapping_config: Optional[Dict[str, Any]] = None
+
+
+async def _probe_mapped_connection(
+    *,
+    db_host: str,
+    db_port: Optional[int],
+    db_name: str,
+    db_user: str,
+    db_password: str,
+    mapping_config: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Connect once with the given credentials and optionally collect diagnostics.
+
+    Shared by both connection-test routes. The password is handed to the
+    drivers only: it is never returned, echoed, or logged. With a mapping the
+    response carries ``diagnostics``; without one it is a connect-only check.
+    """
+    if mapping_config is not None:
+        errors = validate_mapping(mapping_config)
+        if errors:
+            raise HTTPException(status_code=400, detail="; ".join(errors))
+
+    try:
+        conn = await asyncpg.connect(
+            host=db_host,
+            port=db_port,
+            database=db_name,
+            user=db_user,
+            password=db_password,
+            timeout=10,
+        )
+        await conn.close()
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Connection failed: {str(e)}"
+        )
+
+    if mapping_config is None:
+        return {"status": "ok", "message": "Connection successful"}
+
+    mapped_engine = create_async_engine(
+        URL.create(
+            "postgresql+asyncpg",
+            username=db_user,
+            password=db_password,
+            host=db_host,
+            port=db_port,
+            database=db_name,
+        ),
+        echo=False,
+        future=True,
+        pool_pre_ping=True,
+    )
+    try:
+        diagnostics = await mapped_diagnostics(mapped_engine, mapping_config)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Connection failed: {str(e)}"
+        )
+    finally:
+        await mapped_engine.dispose()
+
+    return {
+        "status": "ok",
+        "message": "Connection successful",
+        "diagnostics": diagnostics,
+    }
 
 
 router = APIRouter()
@@ -163,6 +244,10 @@ async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depend
                 status_code=400,
                 detail=f"Custom Portfolio requires: {', '.join(missing)}"
             )
+        if portfolio.mapping_config is not None:
+            errors = validate_mapping(portfolio.mapping_config)
+            if errors:
+                raise HTTPException(status_code=400, detail="; ".join(errors))
 
     db_portfolio = Portfolio(
         portfolio_name=portfolio.portfolio_name,
@@ -196,6 +281,7 @@ async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depend
             db_name=portfolio.db_name,
             db_user=portfolio.db_user,
             encrypted_password=encrypted_pw,
+            mapping_config=portfolio.mapping_config,
         )
         db.add(connection)
 
@@ -232,6 +318,32 @@ async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depend
 async def get_portfolio_types():
     """Get list of available portfolio types with their definitions."""
     return PORTFOLIO_TYPES
+
+
+@router.get("/mapping-templates", tags=["portfolios"])
+async def get_mapping_templates():
+    """Built-in foreign-schema mapping templates."""
+    return list_templates()
+
+
+@router.get("/{portfolio_id}/connection", tags=["portfolios"])
+async def get_portfolio_connection(portfolio_id: int, db: AsyncSession = Depends(get_db)):
+    """Connection details for a custom portfolio (never the password)."""
+    result = await db.execute(
+        select(CustomPortfolioConnection).where(
+            CustomPortfolioConnection.portfolio_id == portfolio_id
+        )
+    )
+    connection = result.scalar_one_or_none()
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    return {
+        "db_host": connection.db_host,
+        "db_port": connection.db_port,
+        "db_name": connection.db_name,
+        "db_user": connection.db_user,
+        "mapping_config": connection.mapping_config,
+    }
 
 
 @router.get("/{portfolio_id}", tags=["portfolios"], response_model=PortfolioResponse)
@@ -327,6 +439,7 @@ class ConnectionUpdate(BaseModel):
     db_name: Optional[str] = None
     db_user: Optional[str] = None
     db_password: Optional[str] = None
+    mapping_config: Optional[Dict[str, Any]] = None
 
 
 @router.patch("/{portfolio_id}/connection", tags=["portfolios"])
@@ -353,10 +466,19 @@ async def update_portfolio_connection(
         raise HTTPException(status_code=404, detail="Connection not found")
 
     update_data = update.dict(exclude_unset=True, exclude_none=True)
+    mapping_provided = "mapping_config" in update.model_fields_set
+    mapping_config = update_data.pop("mapping_config", None)
+    if mapping_provided and mapping_config is not None:
+        errors = validate_mapping(mapping_config)
+        if errors:
+            raise HTTPException(status_code=400, detail="; ".join(errors))
     if "db_password" in update_data:
         update_data["encrypted_password"] = encrypt_password(update_data.pop("db_password"))
     for field, value in update_data.items():
         setattr(connection, field, value)
+    if mapping_provided:
+        # Explicit null clears the mapping and returns to legacy behaviour.
+        connection.mapping_config = mapping_config
     await db.commit()
     return {"detail": "Connection updated"}
 
@@ -430,20 +552,60 @@ async def delete_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)
 
 @router.post("/test-connection", tags=["portfolios"])
 async def test_connection(req: TestConnectionRequest):
-    """Test a database connection with the given parameters."""
-    try:
-        conn = await asyncpg.connect(
-            host=req.db_host,
-            port=req.db_port,
-            database=req.db_name,
-            user=req.db_user,
-            password=req.db_password,
-            timeout=10,
+    """Test a database connection with the given parameters.
+
+    With a mapping config, also report how many order/history/account rows the
+    foreign schema exposes and one normalised sample order.
+    """
+    return await _probe_mapped_connection(
+        db_host=req.db_host,
+        db_port=req.db_port,
+        db_name=req.db_name,
+        db_user=req.db_user,
+        db_password=req.db_password,
+        mapping_config=req.mapping_config,
+    )
+
+
+@router.post("/{portfolio_id}/test-connection", tags=["portfolios"])
+async def test_stored_connection(
+    portfolio_id: int,
+    req: Optional[StoredConnectionTestRequest] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Test a saved custom portfolio connection, optionally with a new mapping.
+
+    Credentials are never accepted here: the stored host/port/database/user
+    are used and the saved password is decrypted server-side. Declared after
+    the literal ``/test-connection`` route, which stays the creation-flow
+    credential check.
+    """
+    portfolio_result = await db.execute(
+        select(Portfolio).where(Portfolio.portfolio_id == portfolio_id)
+    )
+    if portfolio_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    result = await db.execute(
+        select(CustomPortfolioConnection).where(
+            CustomPortfolioConnection.portfolio_id == portfolio_id
         )
-        await conn.close()
-        return {"status": "ok", "message": "Connection successful"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Connection failed: {str(e)}"
-        )
+    )
+    connection = result.scalar_one_or_none()
+    if connection is None:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    mapping_config = select_test_mapping(
+        req.mapping_config if req is not None else None,
+        req is not None and "mapping_config" in req.model_fields_set,
+        connection.mapping_config,
+    )
+
+    return await _probe_mapped_connection(
+        db_host=connection.db_host,
+        db_port=connection.db_port,
+        db_name=connection.db_name,
+        db_user=connection.db_user,
+        db_password=decrypt_password(connection.encrypted_password),
+        mapping_config=mapping_config,
+    )

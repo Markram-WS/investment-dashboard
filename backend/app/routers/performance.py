@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import Portfolio, TradeHistory
+from app.custom_mapping import is_mapped_portfolio
 from pydantic import BaseModel
 from typing import List, Dict
 from datetime import datetime
@@ -26,6 +27,11 @@ class PerformanceResponse(BaseModel):
     total_pl: float
 
 
+def empty_performance_response() -> PerformanceResponse:
+    """Mapped portfolios have no local trade history, so the series are empty."""
+    return PerformanceResponse(equity_curve=[], payoff_data=[], total_pl=0.0)
+
+
 @router.get("/{portfolio_id}", response_model=PerformanceResponse)
 async def get_performance(portfolio_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
@@ -34,6 +40,9 @@ async def get_performance(portfolio_id: int, db: AsyncSession = Depends(get_db))
     portfolio = result.scalar_one_or_none()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    if await is_mapped_portfolio(db, portfolio_id):
+        return empty_performance_response()
 
     trades_result = await db.execute(
         select(TradeHistory)

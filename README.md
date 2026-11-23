@@ -42,6 +42,15 @@ Browser → frontend Service (nginx, NodePort 30080 → localhost:8080)
 
 Custom Portfolios use **isolated external PostgreSQL databases** configured by the user. Metadata stays on `investment_main`; transactional data (orders, transactions, assets) routes to the external DB. Connections are lazy-initialized on first request. Passwords are encrypted with Fernet.
 
+A Custom Portfolio runs in one of two modes:
+
+| Mode | Storage | Writes |
+|------|---------|--------|
+| **Owned tables** (default) | The backend creates and migrates its own FK-free tables (`active_orders`, `transactions`, `trade_plans`, …) in the external DB | Full CRUD |
+| **Read-through mapping** | `custom_portfolio_connections.mapping_config` (JSON) maps an existing broker schema onto our entities; no DDL, no tables created | Data-plane writes rejected with `409 Portfolio is read-only (mapped external database)`; the UI renders no write affordance |
+
+The read-through mode ships with the `tfex-settrade-v1` template (`usd_pct_abc.opened_orders` / `order_history` / `account_history`); the JSON config is the contract between the two schemas, and the frontend hides every write affordance when the grid response carries `read_only`.
+
 ## Key Features
 
 - **Managed Fund** — Full portfolio rebalancing with separate order lifecycle (Create→Confirm→History), auto cash tracking, 4-card summary (NAV/Cash/Invested/P/L), target allocation ratios, rebalance recommendations, profit threshold alerts
@@ -55,7 +64,7 @@ Custom Portfolios use **isolated external PostgreSQL databases** configured by t
 - **Transaction Ledger** — Deposit, withdraw, transfer between portfolios with full history; global aggregation across all custom DBs
 - **Risk Analytics** — Pool health, money reserve status, Sharpe/VaR/Drawdown, risk score gauge
 - **AI Agents** — Automated scan/plan/execute/adjust cycles per portfolio
-- **Custom Portfolio** — User-configured external PostgreSQL databases for isolated data storage, with Test Connection diagnostics
+- **Custom Portfolio** — User-configured external PostgreSQL databases for isolated data storage, with Test Connection diagnostics. Either the backend owns the tables, or a JSON mapping config (`mapping_config`, template `tfex-settrade-v1`) turns the portfolio into a **read-only read-through view** over a foreign broker schema: mapped orders/history/account balances, no DDL, every write answered with 409, and row-level diagnostics on the connection test
 - **Drag & Drop** — Transfer cash between portfolios, assign orders to groups, move assets between groups
 - **Encrypted Credentials** — DB passwords encrypted with Fernet symmetric key (`FERNET_KEY`), never stored in plaintext
 
@@ -94,6 +103,7 @@ InvestmentDashboard/
 ├── database/           # SQL schemas
 │   ├── main_db_schema.sql
 │   ├── ai_db_schema.sql
+│   ├── mock/                   # Dev-only fixtures (usd_pct_abc_dev_seed.sql: foreign-schema seed)
 │   └── README.md               # Schema docs incl. custom_portfolio_connections
 ├── deploy/             # Kubernetes base + kind dev overlay
 │   ├── base/                   # Environment-agnostic resources
@@ -121,4 +131,4 @@ Uses CSS variables for theming with automatic dark mode switching:
 | `--color-brand-yellow` | `#ffd02f` | `#ffd02f` |
 | `--color-brand-coral` | `#ff9999` | `#ff9999` |
 
-*Last updated: 8 June 2026 (Managed Fund feature: 4 new DB tables, 15 API endpoints, 6 frontend components, auto cash tracking, NAV recalculation, target_ratio normalization, all-portfolio asset sync)*
+*Last updated: 23 November 2026 (Read-through Custom Portfolios: JSON `mapping_config` + `tfex-settrade-v1` template map a foreign broker schema read-only, `database/mock/usd_pct_abc_dev_seed.sql` dev fixture, mapping endpoints and 409 write guard, mapping/connection UI on the grid)*

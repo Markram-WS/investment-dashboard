@@ -49,13 +49,15 @@ interface EditPortfolioModalProps {
   onDepositWithdraw: (msg: string) => void;
   activeOrderCount: number;
   onDeleted: () => void;
+  /** Mapped portfolio: cash moves with the external database, so hide transfer. */
+  readOnly?: boolean;
 }
 
 const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
   portfolioId, portfolioName, marginLocked, cashBufferLimit,
   brokerId, productTicker, xAmount, initialCapital,
   rawAvailableCash, cumulativePl, tags, showModal, onClose, onSaved,
-  onDepositWithdraw, activeOrderCount, onDeleted,
+  onDepositWithdraw, activeOrderCount, onDeleted, readOnly = false,
 }) => {
   const [form, setForm] = useState({
     portfolio_name: portfolioName,
@@ -343,27 +345,35 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
 
           </div>
 
-          <hr style={SEPARATOR} />
+          {readOnly ? (
+            <p style={{ ...CONTROL_HELPER, marginTop: 16 }}>
+              Cash and margin are read from the external database.
+            </p>
+          ) : (
+            <>
+              <hr style={SEPARATOR} />
 
-          <Field label="Adjust cash balance" error={dwError}>
-            <div className="flex gap-2">
-              <NumberInput step={100} placeholder="0"
-                value={dwAmount} onChange={e => setDwAmount(e.target.value)}
-                className="flex-1" />
-              <button onClick={handleDeposit} disabled={dwProcessing}
-                className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={primaryButton}>
-                Deposit
-              </button>
-              <button onClick={handleWithdraw} disabled={dwProcessing}
-                className="transition-colors hover:bg-surface-soft disabled:opacity-50 disabled:cursor-not-allowed"
-                style={dangerButton}>
-                Withdraw
-              </button>
-            </div>
-          </Field>
+              <Field label="Adjust cash balance" error={dwError}>
+                <div className="flex gap-2">
+                  <NumberInput step={100} placeholder="0"
+                    value={dwAmount} onChange={e => setDwAmount(e.target.value)}
+                    className="flex-1" />
+                  <button onClick={handleDeposit} disabled={dwProcessing}
+                    className="transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={primaryButton}>
+                    Deposit
+                  </button>
+                  <button onClick={handleWithdraw} disabled={dwProcessing}
+                    className="transition-colors hover:bg-surface-soft disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={dangerButton}>
+                    Withdraw
+                  </button>
+                </div>
+              </Field>
 
-          <hr style={SEPARATOR} />
+              <hr style={SEPARATOR} />
+            </>
+          )}
 
           {saveErr && (
             <p style={{ ...CONTROL_HELPER, color: "var(--color-danger-text)", marginBottom: 16 }}>{saveErr}</p>

@@ -36,7 +36,7 @@ Create Order (pending) → Confirm Done → Update Holdings + Adjust available_c
 | Table | Purpose |
 |-------|---------|
 | `portfolios` | Portfolio config: name, type, `is_custom` flag, cash fields (`available_cash`, `margin_locked`, `cash_buffer_limit`), `risk_status`, `tags` (JSONB), `internal_notes`, `trade_plan_md` |
-| `custom_portfolio_connections` | Encrypted credentials for external DBs: `portfolio_id` FK, `db_host`, `db_port`, `db_name`, `db_user`, `encrypted_password` (Fernet) |
+| `custom_portfolio_connections` | Encrypted credentials for external DBs: `portfolio_id` FK, `db_host`, `db_port`, `db_name`, `db_user`, `encrypted_password` (Fernet), `mapping_config` (JSON, nullable — non-null makes the portfolio a read-only view over a foreign broker schema; null keeps the owned-tables mode) |
 | `portfolio_nav_history` | NAV time-series per portfolio |
 | `trade_plans` | Per-portfolio trade plan: entry/exit zones, leverage, margin rate, TP/SL levels |
 | `option_details` | Greeks & pricing: strike, premium, delta, IV, theta, gamma, vega, rho |
@@ -65,11 +65,13 @@ CREATE TABLE custom_portfolio_connections (
   db_name TEXT NOT NULL,
   db_user TEXT NOT NULL,
   encrypted_password TEXT NOT NULL,
+  mapping_config JSON,
   created_at TIMESTAMP DEFAULT NOW()
 );
 ```
 
 - `encrypted_password` is encrypted with Fernet (`FERNET_KEY` env var), never stored in plaintext
+- `mapping_config` is nullable: `NULL` means the legacy mode (the backend creates and owns its tables in the external DB); a JSON object is a read-through mapping over an existing broker schema — see *Mapped read-only mode* below
 - One record per custom portfolio (enforced by UNIQUE constraint)
 - Used by the dynamic engine manager to create on-demand `AsyncEngine` instances
 
@@ -129,7 +131,7 @@ CREATE TABLE asset_groups (
 
 ## Custom Portfolio – External DB (Data Plane)
 
-When a portfolio has `is_custom = True`, its transactional data is stored on a **separate PostgreSQL database** managed by the user. These tables are FK-free copies of the main DB tables:
+When a portfolio has `is_custom = True`, its transactional data is stored on a **separate PostgreSQL database** managed by the user. In the default (owned-tables) mode these tables are FK-free copies of the main DB tables:
 
 | Table | Purpose |
 |-------|---------|
@@ -143,6 +145,18 @@ When a portfolio has `is_custom = True`, its transactional data is stored on a *
 Tables are created **lazily** — only on the first API request for that portfolio. Schema sync is isolated per database (no `metadata.create_all()` globals).
 
 On first access, `ensure_custom_tables()` runs an auto-migration: it queries `information_schema.columns` for each table and runs `ALTER TABLE ADD COLUMN IF NOT EXISTS` for any columns missing from the external DB. It also **drops all existing FK constraints** via `ALTER TABLE ... DROP CONSTRAINT` to ensure the tables are FK-free (main-DB IDs like `plan_id`, `portfolio_id`, `group_id` don't exist in external DBs).
+
+### Mapped read-only mode (`mapping_config`)
+
+A non-null `custom_portfolio_connections.mapping_config` switches the same portfolio to a **read-through view** over a schema that already exists (a broker's database). The JSON is the contract; nothing about the foreign schema is assumed beyond what it declares.
+
+- **Template** — `tfex-settrade-v1` (`TFEX / Settrade`), exposed by `GET /api/v1/portfolios/mapping-templates`. Select it on create or PATCH it onto an existing connection (`PATCH /api/v1/portfolios/{id}/connection`); a stored config is a snapshot and does not follow later template edits.
+- **Entities** — `orders` → `usd_pct_abc.opened_orders`, `history` → `usd_pct_abc.order_history`, `account` → `usd_pct_abc.account_history` (newest row by `ts`). Each entity declares `schema`, `table`, optional `filter`/`order_by`, and a `columns` map from our field to a foreign column or `{column, map}` value map.
+- **Value maps** — `side` passes LONG/SHORT through; `order_status` maps `M`/`MP` → `open`, `C*` → `cancelled`, `E*` → `expired`, `R*` → `rejected`. `tp` is the exit price and `remark` carries the Mark note (`remark.note` is `Close` or `Canceled` on history rows). Money comes from the account row: `available_cash` ← `excessequity`, `margin_locked` ← `initialmargin`, `current_nav` ← `equity`; cash buffer and initial capital stay manual.
+- **No DDL** — every path that opens a custom session checks `mapping_config` and skips `ensure_custom_tables()`, so `active_orders`/`transactions`/… are never created inside the foreign database.
+- **Read-only** — every data-plane write against a mapped portfolio — orders, assets, order groups, trade plans, trade history, ledger transactions — is refused by `raise_if_mapped_readonly` with `409 Portfolio is read-only (mapped external database)`. The analytics grid response carries `read_only: true` plus `mapping_template`, and the frontend hides every write affordance.
+
+`mock/usd_pct_abc_dev_seed.sql` is the reference fixture for this mode: it creates `usd_pct_abc` with the three tables and loads 6 open orders, 4 history rows, and 3 account snapshots (dev only; idempotent).
 
 ---
 
@@ -160,7 +174,8 @@ On first access, `ensure_custom_tables()` runs an auto-migration: it queries `in
 - Custom portfolio passwords are encrypted with Fernet using `FERNET_KEY` env var
 - `is_custom` is migrated via `ALTER TABLE` in the FastAPI lifespan handler
 - `custom_portfolio_connections` is created by `Base.metadata.create_all` on startup
+- `custom_portfolio_connections.mapping_config` is added by `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in the FastAPI lifespan handler (existing rows stay `NULL`, i.e. owned-tables mode)
 
 ---
 
-*Last updated: 8 June 2026 (4 Managed Fund tables added: managed_fund_holdings, managed_fund_orders, managed_fund_order_history, managed_fund_settings)*
+*Last updated: 23 November 2026 (`custom_portfolio_connections.mapping_config` + mapped read-only mode; dev fixture `mock/usd_pct_abc_dev_seed.sql`)*

@@ -2,12 +2,19 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.database import get_db, resolve_portfolio_db
-from app.models import Portfolio, Broker, ActiveOrder, TradePlan, AiActionLog, TradeHistory, AiAgent
+from app.database import get_db, resolve_portfolio_db, get_or_create_custom_engine
+from app.models import (
+    Portfolio, Broker, ActiveOrder, TradePlan, AiActionLog, TradeHistory,
+    AiAgent, CustomPortfolioConnection,
+)
 from app.custom_models import CustomActiveOrder, CustomTransaction, CustomOrdersGroup
+from app.custom_mapping import (
+    fetch_mapped_account, fetch_mapped_history, fetch_mapped_orders,
+)
 from app.risk_calc import compute_margin_locked, compute_risk
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+from types import SimpleNamespace
 from datetime import datetime, timedelta
 router = APIRouter()
 
@@ -141,6 +148,8 @@ class PortfolioGridData(BaseModel):
     active_orders: List[Dict[str, Any]] = []
     recent_trades: List[Dict[str, Any]] = []
     risk: Optional[dict] = None
+    read_only: bool = False
+    mapping_template: Optional[str] = None
 
 def _to_float(val):
     """Convert Decimal/None to float for JSON serialization."""
@@ -185,6 +194,208 @@ def _calculate_zone(entry_price: float, entry_zone: Optional[str]) -> str:
     except Exception:
         return "ZONE A"
 
+
+async def _get_mapped_connection(db: AsyncSession, portfolio: Portfolio):
+    """The connection when this custom portfolio is mapped, else None."""
+    if not portfolio.is_custom:
+        return None
+    result = await db.execute(
+        select(CustomPortfolioConnection).where(
+            CustomPortfolioConnection.portfolio_id == portfolio.portfolio_id
+        )
+    )
+    connection = result.scalar_one_or_none()
+    if connection is None or not connection.mapping_config:
+        return None
+    return connection
+
+
+async def _load_portfolio_context(db: AsyncSession, portfolio: Portfolio):
+    """Main-DB metadata shared by the native and mapped grid builders."""
+    trade_plan_result = await db.execute(
+        select(TradePlan)
+        .where(TradePlan.portfolio_id == portfolio.portfolio_id)
+        .order_by(TradePlan.created_at.desc())
+        .limit(1)
+    )
+    trade_plan = trade_plan_result.scalar_one_or_none()
+
+    ai_reasoning = None
+    ai_risk_insight = None
+    ai_log_result = await db.execute(
+        select(AiActionLog)
+        .join(AiActionLog.agent)
+        .where(AiAgent.target_portfolio_id == portfolio.portfolio_id)
+        .order_by(AiActionLog.created_at.desc())
+        .limit(1)
+    )
+    ai_log = ai_log_result.scalar_one_or_none()
+    if ai_log:
+        ai_reasoning = ai_log.reasoning
+        ai_risk_insight = (
+            "Risk metrics based on recent AI analysis" if ai_log.reasoning else None
+        )
+
+    broker_code = None
+    if portfolio.broker_id is not None:
+        broker_code_result = await db.execute(
+            select(Broker.code).where(Broker.id == portfolio.broker_id)
+        )
+        broker_code = broker_code_result.scalar_one_or_none()
+
+    return trade_plan, ai_reasoning, ai_risk_insight, broker_code
+
+
+def _risk_order_proxy(order: dict) -> SimpleNamespace:
+    """Order-shaped view of a mapped order dict for ``compute_risk``.
+
+    Only the attributes the risk model reads are projected. The foreign schema
+    has no mark price, so ``current_price`` stays ``None`` and the risk model
+    falls back to ``entry_price`` (counts/size are right, mark P/L is 0).
+    """
+    return SimpleNamespace(
+        qty=order.get("qty"),
+        current_price=order.get("current_price"),
+        entry_price=order.get("entry_price"),
+        contract_type=order.get("contract_type"),
+        side=order.get("side"),
+        option_type=order.get("option_type"),
+        strike_price=order.get("strike_price"),
+        expiry_date=order.get("expiry_date"),
+    )
+
+
+def _serialize_mapped_order(order: dict, plan_id: Optional[int]) -> dict:
+    return {
+        "order_id": order.get("order_id"),
+        "plan_id": plan_id,
+        "asset_type": order.get("asset_type"),
+        "side": order.get("side"),
+        "qty": _to_float(order.get("qty")),
+        "entry_price": _to_float(order.get("entry_price")),
+        "current_price": _to_float(order.get("current_price")),
+        "tp_price": _to_float(order.get("tp_price")),
+        "sl_price": _to_float(order.get("sl_price")),
+        "leverage": _to_float(order.get("leverage")),
+        "margin_rate": _to_float(order.get("margin_rate")),
+        "order_status": order.get("order_status"),
+        "executed_by": order.get("executed_by"),
+        "group_id": None,
+        "group_name": None,
+        "linked_order_id": None,
+        "contract_type": order.get("contract_type"),
+        "direction": order.get("direction"),
+        "option_type": order.get("option_type"),
+        "expiry_date": order.get("expiry_date"),
+        "strike_price": _to_float(order.get("strike_price")),
+        "exercise_price": _to_float(order.get("exercise_price")),
+        "cost": _to_float(order.get("cost")) or 0,
+        "remark": order.get("remark"),
+        "link_type": "none",
+        "created_at": order.get("created_at"),
+    }
+
+
+def _serialize_mapped_trade(trade: dict) -> dict:
+    return {
+        "history_id": trade.get("history_id"),
+        "type": trade.get("type"),
+        "asset": trade.get("asset"),
+        "amount": _to_float(trade.get("amount")),
+        "exit_price": _to_float(trade.get("exit_price")),
+        "realized_pl": _to_float(trade.get("realized_pl")),
+        "executed_by": trade.get("executed_by"),
+        "decision_note": trade.get("decision_note"),
+        "remark": trade.get("remark"),
+        "entry_date": trade.get("entry_date"),
+        "exit_date": trade.get("exit_date"),
+    }
+
+
+async def _build_mapped_grid_data(
+    db: AsyncSession,
+    portfolio: Portfolio,
+    connection,
+    include_risk: bool,
+) -> PortfolioGridData:
+    """Read-through view over a foreign broker schema (never writes)."""
+    config = connection.mapping_config
+    engine = await get_or_create_custom_engine(connection)
+
+    orders = await fetch_mapped_orders(engine, config)
+    history = await fetch_mapped_history(engine, config)
+    account = await fetch_mapped_account(engine, config)
+
+    def money(key: str, fallback) -> Optional[float]:
+        if account and account.get(key) is not None:
+            return float(account[key])
+        return _to_float(fallback)
+
+    available_cash = money("available_cash", portfolio.available_cash)
+    margin_locked = money("margin_locked", portfolio.margin_locked)
+    cash_buffer_limit = _to_float(portfolio.cash_buffer_limit)
+
+    trade_plan, ai_reasoning, ai_risk_insight, broker_code = (
+        await _load_portfolio_context(db, portfolio)
+    )
+    plan_id = trade_plan.plan_id if trade_plan else None
+
+    history.sort(key=lambda row: row.get("exit_date") or "", reverse=True)
+    recent_trades = [
+        _serialize_mapped_trade(row) for row in history[:5]
+    ]
+
+    risk = None
+    if include_risk:
+        proxy = SimpleNamespace(
+            portfolio_id=portfolio.portfolio_id,
+            broker_id=portfolio.broker_id,
+            product_ticker=portfolio.product_ticker,
+            x_amount=portfolio.x_amount,
+            available_cash=available_cash or 0,
+            margin_locked=margin_locked or 0,
+        )
+        risk = await compute_risk(
+            db, proxy, [_risk_order_proxy(order) for order in orders]
+        )
+        # Money comes from the foreign account row, not from local orders.
+        risk["margin_locked"] = round(margin_locked or 0.0, 2)
+        risk["available_cash"] = round(available_cash or 0.0, 2)
+
+    return PortfolioGridData(
+        portfolio_id=portfolio.portfolio_id,
+        portfolio_name=portfolio.portfolio_name,
+        port_type=portfolio.port_type,
+        risk_status=portfolio.risk_status,
+        risk_score=_compute_risk_score(
+            available_cash, margin_locked, cash_buffer_limit
+        ),
+        trade_plan_md=(
+            portfolio.trade_plan_md
+            or (trade_plan.entry_reason if trade_plan else None)
+        ),
+        internal_notes=portfolio.internal_notes,
+        available_cash=available_cash,
+        margin_locked=margin_locked,
+        cash_buffer_limit=cash_buffer_limit,
+        broker_id=portfolio.broker_id,
+        broker_code=broker_code,
+        product_ticker=portfolio.product_ticker,
+        x_amount=_to_float(portfolio.x_amount) or 0,
+        initial_capital=_to_float(portfolio.initial_capital) or 0,
+        tags=portfolio.tags,
+        ai_reasoning=ai_reasoning,
+        ai_risk_insight=ai_risk_insight,
+        spread_pairs=[],
+        active_orders=[
+            _serialize_mapped_order(order, plan_id) for order in orders
+        ],
+        recent_trades=recent_trades,
+        risk=risk,
+        read_only=True,
+        mapping_template=config.get("template"),
+    )
+
 @router.get("/portfolio-grid", tags=["analytics"], response_model=List[PortfolioGridData])
 async def get_portfolio_grid_data(
     db: AsyncSession = Depends(get_db),
@@ -200,6 +411,17 @@ async def get_portfolio_grid_data(
         grid_data = []
 
         for portfolio in portfolios:
+            # A mapped custom portfolio is a read-through view over a foreign
+            # broker schema; bypass the local/custom ORM paths entirely.
+            mapped_connection = await _get_mapped_connection(db, portfolio)
+            if mapped_connection is not None:
+                grid_data.append(
+                    await _build_mapped_grid_data(
+                        db, portfolio, mapped_connection, include_risk=False
+                    )
+                )
+                continue
+
             # Determine if this portfolio should use custom session
             use_custom = is_custom and (portfolio_id is None or portfolio.portfolio_id == portfolio_id)
             query_session = session if use_custom else db
@@ -458,6 +680,12 @@ async def get_portfolio_detail(
     portfolio = portfolio_result.scalar_one_or_none()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    mapped_connection = await _get_mapped_connection(db, portfolio)
+    if mapped_connection is not None:
+        return await _build_mapped_grid_data(
+            db, portfolio, mapped_connection, include_risk=True
+        )
 
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:

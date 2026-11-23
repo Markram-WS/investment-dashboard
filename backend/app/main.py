@@ -58,6 +58,15 @@ async def lifespan(app: FastAPI):
             """))
         except Exception:
             pass
+        # 2026-11-23: custom portfolios may map a foreign broker schema instead
+        # of owning tables. Null keeps the legacy custom behaviour.
+        try:
+            await conn.execute(text(
+                "ALTER TABLE custom_portfolio_connections "
+                "ADD COLUMN IF NOT EXISTS mapping_config JSON"
+            ))
+        except Exception:
+            pass
         # 2026-11-18: closed/canceled orders keep their own free-text remark.
         try:
             await conn.execute(text("ALTER TABLE trade_history ADD COLUMN IF NOT EXISTS order_remark VARCHAR"))

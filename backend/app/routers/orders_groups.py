@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from app.database import get_db, resolve_portfolio_db
 from app.models import OrdersGroup, Portfolio
 from app.custom_models import CustomOrdersGroup
+from app.custom_mapping import is_mapped_portfolio, raise_if_mapped_readonly
 
 router = APIRouter()
 
@@ -44,6 +45,8 @@ async def list_orders_groups(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
 ):
+    if await is_mapped_portfolio(db, portfolio_id):
+        return []
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomOrdersGroup if is_custom else OrdersGroup
@@ -58,6 +61,7 @@ async def list_orders_groups(
 
 @router.post("/", response_model=OrdersGroupResponse, status_code=status.HTTP_201_CREATED, tags=["orders-groups"])
 async def create_orders_group(portfolio_id: int, data: OrdersGroupCreate, db: AsyncSession = Depends(get_db)):
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomOrdersGroup if is_custom else OrdersGroup
@@ -83,6 +87,7 @@ async def update_orders_group(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
 ):
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomOrdersGroup if is_custom else OrdersGroup
@@ -106,6 +111,7 @@ async def delete_orders_group(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
 ):
+    await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomOrdersGroup if is_custom else OrdersGroup
