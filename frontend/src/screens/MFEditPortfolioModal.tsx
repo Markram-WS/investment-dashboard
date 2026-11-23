@@ -223,7 +223,7 @@ export default function MFEditPortfolioModal({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Edit managed fund">
-      <div className={`${MODAL_CARD} w-full max-w-xl mx-4 relative`} style={modalPanelStyle}>
+      <div className={`${MODAL_CARD} bg-canvas border border-hairline w-full max-w-xl mx-4 relative`} style={modalPanelStyle}>
         <div className={`${MODAL_HEADER} flex justify-between items-center`} style={{ marginBottom: 16 }}>
           <h3 style={CONTROL_TITLE}>Edit managed fund</h3>
           <button onClick={onClose} className="p-1 hover:bg-surface-soft rounded-full transition-colors">

@@ -52,7 +52,7 @@ export default function MFEditOrderModal({ show, order, onClose, onSave }: MFEdi
 
   return (
     <ModalShell open={show} onClose={onClose} title="Edit order" closeOnBackdrop={false}>
-      <div className={`${MODAL_CARD} w-full max-w-sm mx-4`} style={modalPanelStyle}>
+      <div className={`${MODAL_CARD} bg-canvas border border-hairline w-full max-w-sm mx-4`} style={modalPanelStyle}>
         <h3 className={MODAL_HEADER} style={{ ...CONTROL_TITLE, marginBottom: 12 }}>Edit order</h3>
         <div className={`${MODAL_BODY} flex flex-col`} style={{ gap: 12 }}>
           <Field label="Asset" htmlFor="mf-edit-order-asset">

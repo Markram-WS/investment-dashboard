@@ -8,6 +8,8 @@ interface PortfolioHeaderProps {
   lastUpdated: Date;
   onRefresh: () => void;
   onEditPortfolio: () => void;
+  /** Screen-owned action rendered just before "Edit portfolio". */
+  extraActions?: React.ReactNode;
   /** Custom portfolios only: opens the mapping admin modal. */
   showConnection?: boolean;
   onOpenConnection?: () => void;
@@ -16,7 +18,7 @@ interface PortfolioHeaderProps {
 /** 44px header band: breadcrumb + title on the left, pool actions on the right. */
 const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
   portfolioName, portType, tags, lastUpdated, onRefresh, onEditPortfolio,
-  showConnection = false, onOpenConnection,
+  extraActions, showConnection = false, onOpenConnection,
 }) => (
   <header className="at-head">
     <div style={{ minWidth: 0 }}>
@@ -45,6 +47,7 @@ const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
           Connection
         </button>
       )}
+      {extraActions}
       <button type="button" className="at-btn-ghost" onClick={onEditPortfolio}>
         Edit portfolio
       </button>
