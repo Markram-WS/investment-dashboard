@@ -53,6 +53,14 @@ const PoolRail: React.FC<PoolRailProps> = ({
     ? availableLabel
     : `${availableLabel} (${formatPct(profitOfInitialPct)} of initial)`;
 
+  // A 0% share must not paint its padded chip; the amount stays in the label.
+  const segments = [
+    { kind: "margin", share: marginShare, label: "Margin", value: marginLocked },
+    { kind: "buffer", share: bufferShare, label: "Buffer", value: cashBufferLimit },
+    { kind: "available", share: availableShare, label: "Available", value: availableCash },
+  ];
+  const barLabel = `Cash allocation: ${segments.map((s) => `${s.label} ${formatMoney(s.value)}`).join(", ")}`;
+
   return (
     <section className="at-card at-rail" aria-label="Pool summary">
       <div>
@@ -82,16 +90,21 @@ const PoolRail: React.FC<PoolRailProps> = ({
           <span className="at-k">Cash allocation</span>
           <span className="at-k">{allocationLabel}</span>
         </div>
-        <div className="at-bar" role="img" aria-label="Cash allocation">
-          <div className="at-seg" data-kind="margin" style={{ width: `${marginShare}%` }}>
-            Margin {formatMoney(marginLocked)}
-          </div>
-          <div className="at-seg" data-kind="buffer" style={{ width: `${bufferShare}%` }}>
-            Buffer {formatMoney(cashBufferLimit)}
-          </div>
-          <div className="at-seg" data-kind="available" style={{ width: `${availableShare}%` }}>
-            Available {formatMoney(availableCash)}
-          </div>
+        <div className="at-bar" role="img" aria-label={barLabel}>
+          {segments.map(({ kind, share: segShare, label, value }) => {
+            const isEmpty = !(segShare > 0);
+            return (
+              <div
+                key={kind}
+                className="at-seg"
+                data-kind={kind}
+                style={isEmpty ? { width: 0, padding: 0 } : { width: `${segShare}%` }}
+                aria-label={`${label} ${formatMoney(value)}`}
+              >
+                {isEmpty ? null : `${label} ${formatMoney(value)}`}
+              </div>
+            );
+          })}
         </div>
       </div>
 

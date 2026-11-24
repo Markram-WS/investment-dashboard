@@ -35,6 +35,14 @@ interface PortfolioGridProps {
   portfolioId?: number | string;
 }
 
+/** The API already prefixes the message; the banner shows that prefix once. */
+const stripLoadErrorPrefix = (message?: string | null) => {
+  const raw = message?.trim();
+  if (!raw) return null;
+  const detail = raw.replace(/^mapped\s+database\s+unreachable\s*[:—-]?\s*/i, '').trim();
+  return detail || null;
+};
+
 const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const {
     selectedPortfolio,
@@ -446,6 +454,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   if (!selectedPortfolio) return <PageLayout><p className="text-slate">No portfolio data available.</p></PageLayout>;
 
   const readOnly = isMapped;
+  const loadErrorDetail = stripLoadErrorPrefix(selectedPortfolio.load_error);
   const orderWrites = selectedPortfolio.order_writes ?? null;
   const canInsert = !readOnly || Boolean(orderWrites?.insert);
   const canUpdate = !readOnly || Boolean(orderWrites?.update);
@@ -507,6 +516,46 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           initialCapital={selectedPortfolio.initial_capital || 0}
           risk={selectedPortfolio.risk}
         />
+
+        {selectedPortfolio.load_error && (
+          <div
+            className="at-load-error"
+            role="status"
+            style={{
+              background: 'color-mix(in srgb, var(--color-warning) 12%, var(--color-canvas))',
+              border: '1px solid color-mix(in srgb, var(--color-warning) 40%, var(--color-hairline))',
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'baseline',
+              flexWrap: 'wrap',
+              gap: '4px 10px',
+              padding: '9px 14px',
+            }}
+          >
+            <span
+              style={{
+                fontSize: 'var(--fs-label)',
+                fontWeight: 600,
+                color: 'var(--color-warning-text)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Mapped database unreachable
+            </span>
+            {loadErrorDetail && (
+              <span
+                style={{
+                  minWidth: 0,
+                  fontSize: 'var(--fs-micro)',
+                  color: 'var(--color-slate)',
+                  overflowWrap: 'anywhere',
+                }}
+              >
+                {loadErrorDetail}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="at-workspace">
           <div className="at-col">

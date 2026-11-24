@@ -170,6 +170,8 @@ export interface PortfolioData {
   mapping_template?: string | null;
   /** Foreign-write capabilities; null/absent when the mapping has no write block. */
   order_writes?: OrderWrites | null;
+  /** Set only when a mapped database was unreachable; the rest is metadata. */
+  load_error?: string | null;
 }
 
 export interface ZoneGroup {
@@ -391,6 +393,8 @@ export interface PortfolioGridData {
   read_only?: boolean;
   mapping_template?: string | null;
   order_writes?: OrderWrites | null;
+  /** Set only when a mapped database was unreachable; the row is still rendered. */
+  load_error?: string | null;
 }
 
 // === Link Order Grouping ===
