@@ -49,7 +49,7 @@ const modalPanelStyle = {
 
 const jsonInput: CSSProperties = {
   ...CONTROL_INPUT,
-  height: 'clamp(140px, 30vh, 240px)',
+  height: 'clamp(96px, 18vh, 150px)',
   resize: 'vertical',
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
   lineHeight: 1.45,
@@ -275,115 +275,82 @@ const MappingModal: FC<MappingModalProps> = ({
             <p style={{ ...CONTROL_HELPER, color: 'var(--color-danger-text)' }}>{loadError}</p>
           ) : connection ? (
             <div className="flex flex-col" style={{ gap: 12 }}>
-              <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 12 }}>
-                <Field label="Host" htmlFor="connection-host">
-                  <TextInput
-                    id="connection-host"
-                    value={host}
-                    onChange={(e) => setHost(e.target.value)}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                </Field>
-                <Field label="Port" htmlFor="connection-port">
-                  <TextInput
-                    id="connection-port"
-                    value={port}
-                    onChange={(e) => setPort(e.target.value)}
-                    style={CONTROL_INPUT}
-                    inputMode="numeric"
-                    autoComplete="off"
-                  />
-                </Field>
-                <Field label="Database" htmlFor="connection-db-name">
-                  <TextInput
-                    id="connection-db-name"
-                    value={dbName}
-                    onChange={(e) => setDbName(e.target.value)}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                </Field>
-                <Field label="Username" htmlFor="connection-db-user">
-                  <TextInput
-                    id="connection-db-user"
-                    value={dbUser}
-                    onChange={(e) => setDbUser(e.target.value)}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                </Field>
-                <Field label="Password" htmlFor="connection-password" className="md:col-span-2">
-                  <TextInput
-                    id="connection-password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="leave blank to keep the current password"
-                    autoComplete="new-password"
-                    spellCheck={false}
-                  />
-                </Field>
-              </div>
-
-              <Field
-                label="Mapping template"
-                htmlFor="mapping-template"
-                hint={`Current template: ${currentTemplate || 'none'}. Choosing a template replaces the JSON below; editing the JSON keeps the chosen template selected.`}
-              >
-                <SelectInput
-                  id="mapping-template"
-                  value={templateName}
-                  onChange={(e) => handleTemplateChange(e.target.value)}
-                >
-                  <option value="">Keep current mapping</option>
-                  {templates.map((template) => (
-                    <option key={template.name} value={template.name}>{template.label}</option>
-                  ))}
-                </SelectInput>
-              </Field>
-
               <div>
-                <label style={CONTROL_LABEL} htmlFor="mapping-config">Mapping config (JSON)</label>
-                <textarea
-                  id="mapping-config"
-                  value={mappingConfigStr}
-                  onChange={(e) => {
-                    setMappingConfigStr(e.target.value);
-                    setJsonError('');
-                  }}
-                  style={jsonInput}
-                  placeholder='{"version": 1, "template": "tfex-settrade-v1", "entities": {…}}'
-                  spellCheck={false}
-                />
-                {jsonError ? (
-                  <p style={{ ...CONTROL_HELPER, color: 'var(--color-danger-text)' }}>{jsonError}</p>
-                ) : (
-                  <p style={CONTROL_HELPER}>
-                    Mapping identifiers are validated on the server.
-                  </p>
-                )}
-              </div>
-
-              <div className="flex items-start gap-3 flex-wrap">
-                <button
-                  type="button"
-                  onClick={handleTest}
-                  disabled={testDisabled}
-                  className={`transition-opacity ${testDisabled ? 'opacity-50' : 'hover:opacity-90'}`}
-                  style={{
-                    ...CONTROL_BUTTON_SECONDARY,
-                    height: 'var(--control-h)',
-                    cursor: testDisabled ? 'not-allowed' : 'pointer',
-                  }}
+                <div
+                  className="grid"
+                  style={{ gridTemplateColumns: 'minmax(0, 1.7fr) minmax(0, 1fr)', gap: 10 }}
                 >
-                  {testing ? 'Testing...' : 'Test Connection'}
-                </button>
+                  <Field label="Host" htmlFor="connection-host">
+                    <TextInput
+                      id="connection-host"
+                      value={host}
+                      onChange={(e) => setHost(e.target.value)}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </Field>
+                  <Field label="Port" htmlFor="connection-port">
+                    <TextInput
+                      id="connection-port"
+                      value={port}
+                      onChange={(e) => setPort(e.target.value)}
+                      style={CONTROL_INPUT}
+                      inputMode="numeric"
+                      autoComplete="off"
+                    />
+                  </Field>
+                  <Field label="Database" htmlFor="connection-db-name">
+                    <TextInput
+                      id="connection-db-name"
+                      value={dbName}
+                      onChange={(e) => setDbName(e.target.value)}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </Field>
+                  <Field label="Username" htmlFor="connection-db-user">
+                    <TextInput
+                      id="connection-db-user"
+                      value={dbUser}
+                      onChange={(e) => setDbUser(e.target.value)}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </Field>
+                  <Field label="Password" htmlFor="connection-password">
+                    <TextInput
+                      id="connection-password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="leave blank to keep the current password"
+                      autoComplete="new-password"
+                      spellCheck={false}
+                    />
+                  </Field>
+                  <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={handleTest}
+                      disabled={testDisabled}
+                      className={`transition-opacity ${testDisabled ? 'opacity-50' : 'hover:opacity-90'}`}
+                      style={{
+                        ...CONTROL_BUTTON_SECONDARY,
+                        height: 'var(--control-h)',
+                        width: '100%',
+                        cursor: testDisabled ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {testing ? 'Testing...' : 'Test Connection'}
+                    </button>
+                  </div>
+                </div>
+
                 {testStatus && (
                   <div
                     role="status"
                     style={{
-                      flex: '1 1 260px',
+                      marginTop: 8,
                       padding: 'var(--space-xs) var(--space-sm)',
                       borderRadius: 'var(--rounded-md)',
                       fontSize: 'var(--fs-label)',
@@ -391,12 +358,57 @@ const MappingModal: FC<MappingModalProps> = ({
                       color: testStatus.ok ? 'var(--color-positive-text)' : 'var(--color-danger-text)',
                     }}
                   >
-                    <div>{testStatus.ok ? '✓ ' : '✗ '}{testStatus.message}</div>
-                    {testStatus.mappingIssues && (
-                      <div style={{ marginTop: 2 }}>The mapping config has problems. Check the JSON and test again.</div>
-                    )}
+                    {testStatus.ok ? '✓ ' : '✗ '}{testStatus.message}
+                    {testStatus.mappingIssues
+                      ? ' The mapping config has problems. Check the JSON and test again.'
+                      : null}
                   </div>
                 )}
+              </div>
+
+              <hr style={{ border: 0, borderTop: '1px solid var(--color-hairline)', margin: 0 }} />
+
+              <div className="flex flex-col" style={{ gap: 8 }}>
+                <div style={{ maxWidth: 360 }}>
+                  <Field
+                    label="Mapping template"
+                    htmlFor="mapping-template"
+                    hint={`Current: ${currentTemplate || 'none'}. A template replaces the JSON below.`}
+                  >
+                    <SelectInput
+                      id="mapping-template"
+                      value={templateName}
+                      onChange={(e) => handleTemplateChange(e.target.value)}
+                    >
+                      <option value="">Keep current mapping</option>
+                      {templates.map((template) => (
+                        <option key={template.name} value={template.name}>{template.label}</option>
+                      ))}
+                    </SelectInput>
+                  </Field>
+                </div>
+
+                <div>
+                  <label style={CONTROL_LABEL} htmlFor="mapping-config">Mapping config (JSON)</label>
+                  <textarea
+                    id="mapping-config"
+                    value={mappingConfigStr}
+                    onChange={(e) => {
+                      setMappingConfigStr(e.target.value);
+                      setJsonError('');
+                    }}
+                    style={jsonInput}
+                    placeholder='{"version": 1, "template": "tfex-settrade-v1", "entities": {…}}'
+                    spellCheck={false}
+                  />
+                  {jsonError ? (
+                    <p style={{ ...CONTROL_HELPER, color: 'var(--color-danger-text)' }}>{jsonError}</p>
+                  ) : (
+                    <p style={CONTROL_HELPER}>
+                      Mapping identifiers are validated on the server.
+                    </p>
+                  )}
+                </div>
               </div>
 
               {saveError && (
