@@ -15,7 +15,7 @@
       "slate": { "role": "neutral", "displayName": "Slate", "canonical": "#555a6a", "tonalRamp": ["#2d3038", "#393d47", "#464a56", "#555a6a", "#6f7382", "#898d99", "#a4a7b1", "#c0c2c9"] }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "Page titles only — 'Overview', 'Risk Analytics'." },
+      "display": { "displayName": "Display", "purpose": "Page titles only — 'Overview', 'Transactions', 'All Assets'." },
       "heading": { "displayName": "Heading", "purpose": "Section headings within pages." },
       "title": { "displayName": "Title", "purpose": "Card titles, dialog headings." },
       "body": { "displayName": "Body", "purpose": "Primary reading size for stats, descriptions, table cells. 15px." },
