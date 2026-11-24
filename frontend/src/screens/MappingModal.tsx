@@ -49,7 +49,7 @@ const modalPanelStyle = {
 
 const jsonInput: CSSProperties = {
   ...CONTROL_INPUT,
-  height: 'clamp(96px, 18vh, 150px)',
+  height: 'clamp(88px, 16vh, 128px)',
   resize: 'vertical',
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
   lineHeight: 1.45,
@@ -250,7 +250,7 @@ const MappingModal: FC<MappingModalProps> = ({
 
   return (
     <ModalShell open={showModal} onClose={onClose} title="Database connection">
-      <div className={`${MODAL_CARD} w-full max-w-2xl mx-4`} style={modalPanelStyle}>
+      <div className={`${MODAL_CARD} w-full max-w-[560px] mx-4`} style={modalPanelStyle}>
         <div className={`${MODAL_HEADER} flex justify-between items-center`} style={{ marginBottom: 12 }}>
           <div>
             <h3 style={CONTROL_TITLE}>Database connection</h3>
@@ -276,117 +276,132 @@ const MappingModal: FC<MappingModalProps> = ({
           ) : connection ? (
             <div className="flex flex-col" style={{ gap: 12 }}>
               <div>
-                <div
-                  className="grid"
-                  style={{ gridTemplateColumns: 'minmax(0, 1.7fr) minmax(0, 1fr)', gap: 10 }}
-                >
-                  <Field label="Host" htmlFor="connection-host">
-                    <TextInput
-                      id="connection-host"
-                      value={host}
-                      onChange={(e) => setHost(e.target.value)}
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </Field>
-                  <Field label="Port" htmlFor="connection-port">
-                    <TextInput
-                      id="connection-port"
-                      value={port}
-                      onChange={(e) => setPort(e.target.value)}
-                      style={CONTROL_INPUT}
-                      inputMode="numeric"
-                      autoComplete="off"
-                    />
-                  </Field>
-                  <Field label="Database" htmlFor="connection-db-name">
-                    <TextInput
-                      id="connection-db-name"
-                      value={dbName}
-                      onChange={(e) => setDbName(e.target.value)}
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </Field>
-                  <Field label="Username" htmlFor="connection-db-user">
-                    <TextInput
-                      id="connection-db-user"
-                      value={dbUser}
-                      onChange={(e) => setDbUser(e.target.value)}
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </Field>
-                  <Field label="Password" htmlFor="connection-password">
-                    <TextInput
-                      id="connection-password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="leave blank to keep the current password"
-                      autoComplete="new-password"
-                      spellCheck={false}
-                    />
-                  </Field>
-                  <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                    <button
-                      type="button"
-                      onClick={handleTest}
-                      disabled={testDisabled}
-                      className={`transition-opacity ${testDisabled ? 'opacity-50' : 'hover:opacity-90'}`}
-                      style={{
-                        ...CONTROL_BUTTON_SECONDARY,
-                        height: 'var(--control-h)',
-                        width: '100%',
-                        cursor: testDisabled ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      {testing ? 'Testing...' : 'Test Connection'}
-                    </button>
+                <div className="flex flex-col" style={{ gap: 10 }}>
+                  <div
+                    className="grid"
+                    style={{ gridTemplateColumns: 'minmax(0, 1fr) 112px', gap: 10 }}
+                  >
+                    <Field label="Host" htmlFor="connection-host">
+                      <TextInput
+                        id="connection-host"
+                        value={host}
+                        onChange={(e) => setHost(e.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                    </Field>
+                    <Field label="Port" htmlFor="connection-port">
+                      <TextInput
+                        id="connection-port"
+                        value={port}
+                        onChange={(e) => setPort(e.target.value)}
+                        style={CONTROL_INPUT}
+                        inputMode="numeric"
+                        autoComplete="off"
+                      />
+                    </Field>
+                  </div>
+
+                  <div
+                    className="grid"
+                    style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}
+                  >
+                    <Field label="Database" htmlFor="connection-db-name">
+                      <TextInput
+                        id="connection-db-name"
+                        value={dbName}
+                        onChange={(e) => setDbName(e.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                    </Field>
+                    <Field label="Username" htmlFor="connection-db-user">
+                      <TextInput
+                        id="connection-db-user"
+                        value={dbUser}
+                        onChange={(e) => setDbUser(e.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                    </Field>
+                  </div>
+
+                  <div
+                    className="grid"
+                    style={{ gridTemplateColumns: 'minmax(0, 1fr) 128px', gap: 10 }}
+                  >
+                    <Field label="Password" htmlFor="connection-password">
+                      <TextInput
+                        id="connection-password"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="leave blank to keep the current password"
+                        autoComplete="new-password"
+                        spellCheck={false}
+                      />
+                    </Field>
+                    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={handleTest}
+                        disabled={testDisabled}
+                        className={`transition-opacity ${testDisabled ? 'opacity-50' : 'hover:opacity-90'}`}
+                        style={{
+                          ...CONTROL_BUTTON_SECONDARY,
+                          height: 'var(--control-h)',
+                          width: '100%',
+                          cursor: testDisabled ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {testing ? 'Testing...' : 'Test Connection'}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                {testStatus && (
-                  <div
-                    role="status"
-                    style={{
-                      marginTop: 8,
-                      padding: 'var(--space-xs) var(--space-sm)',
-                      borderRadius: 'var(--rounded-md)',
-                      fontSize: 'var(--fs-label)',
-                      background: testStatus.ok ? 'var(--color-teal-light)' : 'var(--color-coral-light)',
-                      color: testStatus.ok ? 'var(--color-positive-text)' : 'var(--color-danger-text)',
-                    }}
-                  >
-                    {testStatus.ok ? '✓ ' : '✗ '}{testStatus.message}
-                    {testStatus.mappingIssues
-                      ? ' The mapping config has problems. Check the JSON and test again.'
-                      : null}
-                  </div>
-                )}
+                <div
+                  role="status"
+                  style={{
+                    marginTop: 6,
+                    minHeight: 18,
+                    fontSize: 'var(--fs-label)',
+                    lineHeight: '18px',
+                    color: testStatus
+                      ? (testStatus.ok ? 'var(--color-positive-text)' : 'var(--color-danger-text)')
+                      : undefined,
+                  }}
+                >
+                  {testStatus ? (
+                    <>
+                      {testStatus.ok ? '✓ ' : '✗ '}{testStatus.message}
+                      {testStatus.mappingIssues
+                        ? ' The mapping config has problems. Check the JSON and test again.'
+                        : null}
+                    </>
+                  ) : null}
+                </div>
               </div>
 
               <hr style={{ border: 0, borderTop: '1px solid var(--color-hairline)', margin: 0 }} />
 
               <div className="flex flex-col" style={{ gap: 8 }}>
-                <div style={{ maxWidth: 360 }}>
-                  <Field
-                    label="Mapping template"
-                    htmlFor="mapping-template"
-                    hint={`Current: ${currentTemplate || 'none'}. A template replaces the JSON below.`}
+                <Field
+                  label="Mapping template"
+                  htmlFor="mapping-template"
+                  hint={`Current: ${currentTemplate || 'none'}. A template replaces the JSON below.`}
+                >
+                  <SelectInput
+                    id="mapping-template"
+                    value={templateName}
+                    onChange={(e) => handleTemplateChange(e.target.value)}
                   >
-                    <SelectInput
-                      id="mapping-template"
-                      value={templateName}
-                      onChange={(e) => handleTemplateChange(e.target.value)}
-                    >
-                      <option value="">Keep current mapping</option>
-                      {templates.map((template) => (
-                        <option key={template.name} value={template.name}>{template.label}</option>
-                      ))}
-                    </SelectInput>
-                  </Field>
-                </div>
+                    <option value="">Keep current mapping</option>
+                    {templates.map((template) => (
+                      <option key={template.name} value={template.name}>{template.label}</option>
+                    ))}
+                  </SelectInput>
+                </Field>
 
                 <div>
                   <label style={CONTROL_LABEL} htmlFor="mapping-config">Mapping config (JSON)</label>
