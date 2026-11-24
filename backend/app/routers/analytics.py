@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, resolve_portfolio_db, get_or_create_custom_engine
 from app.models import (
     Portfolio, Broker, ActiveOrder, TradePlan, TradeHistory,
-    CustomPortfolioConnection, WhitelistAssets,
+    CustomPortfolioConnection, AssetProduct, AssetQuote, AssetSymbol,
 )
 from app.custom_models import CustomActiveOrder, CustomTransaction, CustomOrdersGroup
 from app.custom_mapping import (
@@ -41,8 +41,8 @@ async def get_overview_data(db: AsyncSession = Depends(get_db)):
         p.portfolio_id: await compute_margin_locked(db, p) for p in portfolios
     }
     total_margin = sum(margin_by_portfolio.values())
-    total_buffer = sum(p.cash_buffer_limit or 0 for p in portfolios)
-    total_available_cash = sum(p.available_cash or 0 for p in portfolios)
+    total_buffer = sum(float(p.cash_buffer_limit or 0) for p in portfolios)
+    total_available_cash = sum(float(p.available_cash or 0) for p in portfolios)
 
     global_cash = total_available_cash
 
@@ -140,6 +140,7 @@ class PortfolioGridData(BaseModel):
     broker_id: Optional[int] = None
     broker_code: Optional[str] = None
     product_ticker: Optional[str] = None
+    product_tickers: Optional[List[str]] = None
     x_amount: float = 0
     initial_capital: float = 0
     tags: Optional[Dict[str, Any]] = None
@@ -157,6 +158,15 @@ def _to_float(val):
     if val is None:
         return None
     return float(str(val))
+
+
+def _portfolio_product_tickers(portfolio: Portfolio) -> Optional[List[str]]:
+    """Stored list, else the legacy single ticker, else None."""
+    stored = portfolio.product_tickers
+    if stored:
+        return list(stored)
+    return [portfolio.product_ticker] if portfolio.product_ticker else None
+
 
 def _compute_risk_score(available_cash: Optional[float], margin_locked: Optional[float], cash_buffer_limit: Optional[float]) -> float:
     """Compute risk score (0-100) matching frontend logic."""
@@ -275,14 +285,32 @@ def _pick_asset_prices(rows, portfolio_broker_id) -> dict[str, float]:
 async def _resolve_asset_prices(
     db: AsyncSession, orders: list[dict], portfolio_broker_id
 ) -> dict[str, float]:
-    """Current prices for the mapped order tickers, from the local asset table."""
+    """Current prices for the mapped order tickers, from registry quotes."""
     tickers = {ticker for ticker in map(_order_ticker, orders) if ticker}
     if not tickers:
         return {}
+    quote_source = func.coalesce(
+        func.nullif(func.trim(AssetProduct.source), ""), "-"
+    )
     result = await db.execute(
-        select(WhitelistAssets.ticker, WhitelistAssets.broker_id, WhitelistAssets.price)
-        .where(WhitelistAssets.ticker.in_(tickers))
-        .order_by(WhitelistAssets.broker_id, WhitelistAssets.ticker)
+        select(
+            AssetSymbol.price_symbol,
+            AssetSymbol.broker_id,
+            AssetQuote.price,
+        )
+        .join(AssetProduct, AssetProduct.product_id == AssetSymbol.product_id)
+        .outerjoin(
+            AssetQuote,
+            and_(
+                AssetQuote.source == quote_source,
+                AssetQuote.sync_symbol == AssetSymbol.sync_symbol,
+            ),
+        )
+        .where(
+            AssetSymbol.price_symbol.isnot(None),
+            func.upper(func.trim(AssetSymbol.price_symbol)).in_(tickers),
+        )
+        .order_by(AssetSymbol.broker_id, AssetSymbol.price_symbol)
     )
     return _pick_asset_prices(result.all(), portfolio_broker_id)
 
@@ -414,6 +442,7 @@ async def _degraded_grid_data(
         broker_id=portfolio.broker_id,
         broker_code=broker_code,
         product_ticker=portfolio.product_ticker,
+        product_tickers=_portfolio_product_tickers(portfolio),
         x_amount=_to_float(portfolio.x_amount) or 0,
         initial_capital=_to_float(portfolio.initial_capital) or 0,
         tags=portfolio.tags,
@@ -481,6 +510,7 @@ async def _build_mapped_grid_data(
     if include_risk:
         proxy = SimpleNamespace(
             portfolio_id=portfolio.portfolio_id,
+            port_type="Mapped",
             broker_id=portfolio.broker_id,
             product_ticker=portfolio.product_ticker,
             x_amount=portfolio.x_amount,
@@ -513,6 +543,7 @@ async def _build_mapped_grid_data(
         broker_id=portfolio.broker_id,
         broker_code=broker_code,
         product_ticker=portfolio.product_ticker,
+        product_tickers=_portfolio_product_tickers(portfolio),
         x_amount=_to_float(portfolio.x_amount) or 0,
         initial_capital=_to_float(portfolio.initial_capital) or 0,
         tags=portfolio.tags,
@@ -748,6 +779,7 @@ async def _build_local_grid_data(
         cash_buffer_limit=_to_float(portfolio.cash_buffer_limit),
         broker_id=portfolio.broker_id,
         product_ticker=portfolio.product_ticker,
+        product_tickers=_portfolio_product_tickers(portfolio),
         x_amount=_to_float(portfolio.x_amount) or 0,
         initial_capital=_to_float(portfolio.initial_capital) or 0,
         tags=portfolio.tags,
@@ -1058,6 +1090,7 @@ async def get_portfolio_detail(
             broker_id=portfolio.broker_id,
             broker_code=broker_code,
             product_ticker=portfolio.product_ticker,
+            product_tickers=_portfolio_product_tickers(portfolio),
             x_amount=_to_float(portfolio.x_amount) or 0,
             initial_capital=_to_float(portfolio.initial_capital) or 0,
             tags=portfolio.tags,

@@ -1300,6 +1300,14 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
   padding: 10px 14px;
   overflow: hidden;
 }
+.at-notes-card {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.at-notes-mobile { display: none; }
 .at-risk {
   flex: 0 0 auto;
   display: flex;
@@ -1400,8 +1408,9 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 
 /* --- narrow: single column, no right column --- */
 @media (max-width: 899px) {
-  .at-workspace { grid-template-columns: minmax(0, 1fr); }
+  .at-workspace { grid-template-columns: minmax(0, 1fr); flex: 0 0 auto; }
   .at-right { display: none; }
+  .at-notes-mobile { display: block; }
   .at-rail { grid-template-columns: 150px minmax(0, 1fr); padding: 10px 12px; gap: 12px; }
   .at-rail .at-vline,
   .at-rail .at-rail-side { display: none; }

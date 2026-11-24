@@ -98,8 +98,25 @@ async def test_trade_plan_create_read_delete(async_client):
 # ----------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_active_order_create_status(async_client):
-    # Setup: portfolio + trade plan
-    portfolio_resp = await async_client.post("/api/v1/portfolios/", json=payloads()["portfolio"])
+    # Setup: broker + product/symbol spec, portfolio + trade plan
+    broker_resp = await async_client.post(
+        "/api/v1/brokers", json={"code": "AOT", "name": "Order Test Broker"}
+    )
+    assert broker_resp.status_code == 201, broker_resp.text
+    broker_id = broker_resp.json()["id"]
+    product_resp = await async_client.post(
+        "/api/v1/assets/products",
+        json={"ticker": "CRYPTO", "broker_id": broker_id, "asset_type": "crypto"},
+    )
+    assert product_resp.status_code == 201, product_resp.text
+    symbol_resp = await async_client.post(
+        f"/api/v1/assets/products/{product_resp.json()['product_id']}/symbols",
+        json={"price_symbol": "CRYPTO", "sync_symbol": "CRYPTO"},
+    )
+    assert symbol_resp.status_code == 201, symbol_resp.text
+
+    portfolio = {**payloads()["portfolio"], "broker_id": broker_id}
+    portfolio_resp = await async_client.post("/api/v1/portfolios/", json=portfolio)
     portfolio_id = portfolio_resp.json()["portfolio_id"]
 
     plan_resp = await async_client.post("/api/v1/trade-plans/", json={**payloads()["trade_plan"], "portfolio_id": portfolio_id})

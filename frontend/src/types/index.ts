@@ -156,6 +156,7 @@ export interface PortfolioData {
   /** Broker code for the portfolio; null when the portfolio has no broker. */
   broker_code?: string | null;
   product_ticker: string | null;
+  product_tickers?: string[] | null;
   x_amount: number;
   initial_capital: number;
   cash_buffer_limit: number | null;
@@ -403,6 +404,165 @@ export interface OrderLinkGroup {
   subs: SpreadOrder[];
   spreadPartner?: SpreadOrder;
   partnerSubs?: SpreadOrder[];
+}
+
+// === Asset registry: products, symbols, quotes ===
+
+export type MarginMode = "notional" | "premium" | "span";
+
+/** Broker-scoped contract product (the main asset registry). */
+export interface AssetProduct {
+  product_id: number;
+  ticker: string | null;
+  broker_id: number | null;
+  broker_code: string | null;
+  asset_type: string | null;
+  multiplier: number | null;
+  margin_rate: number | null;
+  margin_mode: MarginMode | string;
+  source: string;
+  group_id: number | null;
+  name: string | null;
+  symbol_count: number;
+}
+
+/** Contract symbol joined to its latest quote. */
+export interface AssetSymbol {
+  symbol_id: number;
+  product_id: number;
+  price_symbol: string | null;
+  sync_symbol: string;
+  contract_kind: string;
+  option_type: string | null;
+  expiry_date: string | null;
+  strike_price: number | null;
+  multiplier_override: number | null;
+  margin_rate_override: number | null;
+  margin_per_contract: number | null;
+  price: number | null;
+  change_24h: number | null;
+  updated_at: string | null;
+}
+
+/** Product detail; only this shape carries the symbol list. */
+export interface AssetProductDetail extends AssetProduct {
+  symbols: AssetSymbol[];
+}
+
+export interface AssetProductQuery {
+  broker_id?: number;
+  asset_type?: string;
+  group_id?: number;
+  source?: string;
+}
+
+export interface AssetSymbolQuery {
+  product_id?: number;
+}
+
+export interface AssetProductPayload {
+  ticker?: string;
+  broker_id?: number | null;
+  asset_type?: string | null;
+  multiplier?: number;
+  margin_rate?: number;
+  margin_mode?: string;
+  source?: string;
+  group_id?: number | null;
+  name?: string | null;
+}
+
+export interface AssetProductUpdatePayload {
+  ticker?: string;
+  broker_id?: number | null;
+  asset_type?: string | null;
+  multiplier?: number;
+  margin_rate?: number;
+  margin_mode?: string;
+  source?: string;
+  group_id?: number | null;
+  name?: string | null;
+}
+
+export interface AssetSymbolPayload {
+  price_symbol?: string;
+  sync_symbol: string;
+  contract_kind?: string;
+  option_type?: string | null;
+  expiry_date?: string | null;
+  strike_price?: number | null;
+  multiplier_override?: number | null;
+  margin_rate_override?: number | null;
+  margin_per_contract?: number | null;
+}
+
+export interface AssetSymbolUpdatePayload {
+  price_symbol?: string | null;
+  sync_symbol?: string;
+  contract_kind?: string;
+  option_type?: string | null;
+  expiry_date?: string | null;
+  strike_price?: number | null;
+  multiplier_override?: number | null;
+  margin_rate_override?: number | null;
+  margin_per_contract?: number | null;
+}
+
+export interface AssetQuotePayload {
+  price?: number | null;
+  change_24h?: number | null;
+}
+
+export interface BatchUpdatePricesResult {
+  updated: number;
+  tickers: string[];
+}
+
+/** One existing same-broker product offered for a proposed symbol. */
+export interface SyncProposalProduct {
+  product_id: number;
+  ticker: string | null;
+  asset_type: string | null;
+  multiplier: number | null;
+  margin_rate: number | null;
+  margin_mode: string;
+  symbol_count: number;
+}
+
+export interface SyncProposalCreate {
+  ticker: string | null;
+  asset_type: string | null;
+  multiplier: number | null;
+  margin_rate: number | null;
+  margin_mode: string;
+  source: string;
+  sync_symbol: string;
+}
+
+export interface SyncProposalItem {
+  symbol: string;
+  broker_id: number | null;
+  broker_code: string | null;
+  broker_required: boolean;
+  products: SyncProposalProduct[];
+  create: SyncProposalCreate;
+}
+
+export interface AssetSyncProposal {
+  items: SyncProposalItem[];
+}
+
+/** Exactly one of `product_id` or `create_product` per proposed pair. */
+export interface AssetSyncChoice {
+  symbol: string;
+  broker_id: number | null;
+  product_id?: number;
+  create_product?: boolean;
+}
+
+export interface AssetSyncApplyResult {
+  created: number;
+  choices: number;
 }
 
 // === API response wrapper ===

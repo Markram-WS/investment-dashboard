@@ -55,7 +55,7 @@ class CustomTransaction(CustomBase):
     data_source = Column(String, default='Manual')
 
 
-class CustomWhitelistAssets(CustomBase):
+class CustomAsset(CustomBase):
     __tablename__ = 'whitelist_assets'
 
     asset_id = Column(Integer, primary_key=True)

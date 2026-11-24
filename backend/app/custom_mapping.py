@@ -563,7 +563,7 @@ def normalise_order_row(row: Any, entity: dict) -> dict:
         "entry_price": _to_float(_mapped_value(entity, row, "entry_price")[0]),
         "current_price": _to_float(_mapped_value(entity, row, "current_price")[0]),
         # The foreign mark is display-only: the dashboard's Net P&L reads the
-        # local asset price (investment_main.whitelist_assets.price) instead.
+        # local registry quote (asset_quotes.price) instead.
         "mark_price": _to_float(_mapped_value(entity, row, "mark_price")[0]),
         "tp_price": _to_float(_mapped_value(entity, row, "tp_price")[0]),
         "exit_price": _to_float(_mapped_value(entity, row, "exit_price")[0]),

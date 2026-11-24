@@ -1,9 +1,18 @@
+"""Risk and margin math for the portfolio rail.
+
+Margin is recomputed only for local ``Active Trading`` portfolios, from the
+broker-scoped product/symbol specifications. Every other portfolio type keeps
+its stored ``margin_locked``. The top-level ``multiplier``/``margin_rate`` in
+``compute_risk`` are display-only and never feed the margin formula.
+"""
+
 from decimal import Decimal
 
-from sqlalchemy import func, select, or_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Portfolio, ActiveOrder, WhitelistAssets
+from app.models import ActiveOrder, Portfolio
+from app.services import asset_registry as registry
 
 
 ZERO = Decimal("0")
@@ -23,87 +32,83 @@ def _rounded(value: Decimal) -> float:
 
 def _norm_symbol(value) -> str | None:
     """Normalize a symbol for contract-spec lookup (case/whitespace only)."""
-    text = (value or "").strip().upper()
-    return text or None
+    return registry.normalise_symbol(value)
 
 
-async def _load_contract_specs(
-    db: AsyncSession, portfolio: Portfolio, tickers
-) -> tuple[dict[str, WhitelistAssets], WhitelistAssets | None]:
-    """Load contract specs for ``portfolio.broker_id`` in one query.
-
-    Returns ``(specs_by_symbol, product_spec)``. ``specs_by_symbol`` is keyed by
-    the normalized ticker; the portfolio product spec doubles as the fallback
-    for orders whose own symbol has no live row.
-    """
-    wanted = {s for s in (_norm_symbol(t) for t in tickers) if s}
-    product_symbol = _norm_symbol(portfolio.product_ticker)
-    if product_symbol:
-        wanted.add(product_symbol)
-    specs: dict[str, WhitelistAssets] = {}
-    if wanted:
-        spec_result = await db.execute(
-            select(WhitelistAssets).where(
-                WhitelistAssets.broker_id == portfolio.broker_id,
-                func.upper(func.trim(WhitelistAssets.ticker)).in_(wanted),
-            )
-        )
-        for spec in spec_result.scalars().all():
-            symbol = _norm_symbol(spec.ticker)
-            if symbol:
-                specs[symbol] = spec
-    return specs, specs.get(product_symbol) if product_symbol else None
+def _stored_margin(portfolio) -> float:
+    return float(portfolio.margin_locked or 0)
 
 
-def _order_spec(order, specs: dict[str, WhitelistAssets], product_spec):
-    """The order's own symbol spec, falling back to the portfolio product."""
-    symbol = _norm_symbol(getattr(order, "asset_type", None))
-    if symbol:
-        spec = specs.get(symbol)
-        if spec is not None:
-            return spec
-    return product_spec
+async def _load_order_specs(db: AsyncSession, portfolio: Portfolio, orders):
+    symbols = [getattr(order, "asset_type", None) for order in orders]
+    return await registry.resolve_symbol_specs(db, portfolio.broker_id, symbols)
+
+
+async def _display_product_spec(db: AsyncSession, portfolio: Portfolio):
+    """First ``product_tickers`` entry in the portfolio broker scope, or None."""
+    if db is None:
+        return None
+    tickers = getattr(portfolio, "product_tickers", None)
+    if not isinstance(tickers, list) or not tickers:
+        return None
+    matches = await registry.resolve_product(db, tickers[0], portfolio.broker_id)
+    if len(matches) != 1:
+        return None
+    return matches[0]
+
+
+def _order_multiplier(spec) -> Decimal:
+    if spec is None:
+        return Decimal("1")
+    symbol, product = spec
+    return registry.effective_multiplier(symbol, product)
 
 
 async def compute_margin_locked(db: AsyncSession, portfolio: Portfolio) -> float:
-    """Σ notional × margin_rate over non-option active orders.
+    """Margin locked from product/symbol specs for Active Trading only.
 
-    notional = COALESCE(current_price, entry_price) × multiplier × qty. Each
-    order uses the live asset row for its own symbol on the portfolio broker,
-    falling back to the portfolio product's spec. When the portfolio has no
-    product and no order resolves a spec, the stored margin_locked column is
-    returned unchanged (legacy behaviour). Without a session (pure risk
-    helpers) no spec can be resolved, so the stored value is used as well.
+    Missing broker, spec, mark or quantity contributes zero. Options are
+    included. The product's ``margin_mode`` selects exactly one formula:
+    notional / premium / span.
     """
     if db is None:
-        return float(portfolio.margin_locked or 0)
-    orders_result = await db.execute(
-        select(ActiveOrder).where(
-            ActiveOrder.portfolio_id == portfolio.portfolio_id,
-            or_(ActiveOrder.contract_type.is_(None), ActiveOrder.contract_type != "option"),
+        return _stored_margin(portfolio)
+    if getattr(portfolio, "port_type", None) != "Active Trading":
+        return _stored_margin(portfolio)
+    if portfolio.broker_id is None:
+        return 0.0
+
+    orders = (
+        await db.execute(
+            select(ActiveOrder).where(
+                ActiveOrder.portfolio_id == portfolio.portfolio_id
+            )
         )
-    )
-    orders = orders_result.scalars().all()
-    specs, product_spec = await _load_contract_specs(
-        db, portfolio, [order.asset_type for order in orders]
-    )
-    if not portfolio.product_ticker and not specs:
-        return float(portfolio.margin_locked or 0)
+    ).scalars().all()
+    specs = await _load_order_specs(db, portfolio, orders)
 
     total = Decimal("0")
     for order in orders:
-        spec = _order_spec(order, specs, product_spec)
+        spec = specs.get(_norm_symbol(order.asset_type))
         if spec is None:
             continue
+        symbol, product = spec
         mark = order.current_price if order.current_price is not None else order.entry_price
         if mark is None or order.qty is None:
             continue
-        total += (
-            dec(mark)
-            * dec(spec.multiplier)
-            * dec(order.qty)
-            * dec(spec.margin_rate)
-        )
+        multiplier = registry.effective_multiplier(symbol, product)
+        mode = (product.margin_mode or "notional").strip().lower()
+        premium = dec(mark) * multiplier * dec(order.qty)
+        if mode == "premium":
+            total += premium
+        elif mode == "span":
+            if symbol.margin_per_contract is not None:
+                total += dec(order.qty) * dec(symbol.margin_per_contract)
+            else:
+                total += premium
+        else:
+            rate = registry.effective_margin_rate(symbol, product)
+            total += dec(mark) * multiplier * dec(order.qty) * rate
     return float(total)
 
 
@@ -124,25 +129,18 @@ async def compute_risk(
 ) -> dict:
     """Every number the pool rail and the detail payload need for one portfolio.
 
-    ``orders`` is the caller's already-loaded ORM list. Per order the mark is
-    ``current_price`` falling back to ``entry_price``; contract multiplier comes
-    from the live asset row for that order's own symbol on the portfolio broker,
-    falling back to the portfolio product's spec and then to 1. The top-level
-    ``multiplier``/``margin_rate`` still describe the portfolio product for
-    backward compatibility.
-
-    Non-option orders drive the equity block; option orders are bucketed by
-    long/short × call/put. Orders that cannot be priced (no qty, no mark) are
-    skipped so they contribute nothing instead of an invented zero price.
+    Per-order sizing uses that order's own symbol spec (no portfolio-product
+    fallback) and multiplier 1 when it has none. With ``db is None`` no registry
+    lookup happens. Top-level ``multiplier``/``margin_rate`` are display-only:
+    they come only from the first resolvable ``product_tickers`` entry.
     """
-    specs, product_spec = await _load_contract_specs(
-        db, portfolio, [getattr(order, "asset_type", None) for order in orders]
+    display = await _display_product_spec(db, portfolio)
+    multiplier = _spec_fallback(display.multiplier, "1") if display else Decimal("1")
+    margin_rate = _spec_fallback(display.margin_rate, "0") if display else Decimal("0")
+
+    specs = (
+        await _load_order_specs(db, portfolio, orders) if db is not None else {}
     )
-    multiplier = Decimal("1")
-    margin_rate = Decimal("0")
-    if product_spec:
-        multiplier = _spec_fallback(product_spec.multiplier, "1")
-        margin_rate = _spec_fallback(product_spec.margin_rate, "0")
 
     x_amount = dec(portfolio.x_amount)
     available_cash = dec(portfolio.available_cash)
@@ -177,10 +175,8 @@ async def compute_risk(
         qty = dec(order.qty)
         mark_dec = dec(mark)
         entry_dec = dec(order.entry_price)
-        order_spec = _order_spec(order, specs, product_spec)
-        order_multiplier = (
-            _spec_fallback(order_spec.multiplier, "1") if order_spec else Decimal("1")
-        )
+        order_spec = specs.get(_norm_symbol(getattr(order, "asset_type", None)))
+        order_multiplier = _order_multiplier(order_spec)
 
         is_option = (order.contract_type or "").strip().lower() == "option"
         if not is_option:

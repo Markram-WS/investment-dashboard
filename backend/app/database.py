@@ -28,7 +28,7 @@ ENGINE_TTL = timedelta(minutes=30)
 CUSTOM_TABLES_MODELS = [
     "CustomActiveOrder",
     "CustomTransaction",
-    "CustomWhitelistAssets",
+    "CustomAsset",
     "CustomAssetGroup",
     "CustomOrdersGroup",
     "CustomTradePlan",

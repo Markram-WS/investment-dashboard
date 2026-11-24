@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import type { AssetUpdatePayload } from '../lib/api';
+import type { BrokerRecord } from '../lib/api';
+import type { AssetProduct, AssetSymbol } from '../types';
 import ModalShell from './components/ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
 import { Field, NumberInput, SelectInput, TextInput } from './components/Field';
@@ -10,32 +11,27 @@ import {
   CONTROL_HELPER,
   CONTROL_TITLE,
 } from './components/controlStyles';
+import { apiErrorDetail } from './components/apiError';
 
-/** Editable asset shape read by this modal (callers may pass the raw row). */
-interface EditableAsset {
-  asset_id: number;
-  ticker: string;
-  price_symbol?: string | null;
-  asset_type?: string | null;
-  source?: string | null;
-  group_id?: number | null;
-  price?: number | null;
-  multiplier?: number | null;
-  margin_rate?: number | null;
-  broker_code?: string | null;
-  sync_protected?: boolean | null;
-}
+export type AssetEditMode = 'product' | 'symbol';
 
 interface EditAssetModalProps {
   open: boolean;
-  asset: EditableAsset | null;
+  mode: AssetEditMode;
+  /** Edited product, or the owning product when `mode === 'symbol'`. */
+  product: AssetProduct | null;
+  /** Edited symbol when `mode === 'symbol'`. */
+  symbol?: AssetSymbol | null;
   onClose: () => void;
   onSaved: () => void;
   groups: { id: number; name: string }[];
 }
 
 const SOURCES = ['manual', 'yfinance', 'tfex'];
+const SOURCE_NONE = '-';
 const TYPES = ['stock', 'future', 'option', 'crypto'];
+const MARGIN_MODES = ['notional', 'premium', 'span'];
+const CONTRACT_KINDS = ['future', 'stock', 'option', 'crypto'];
 
 const contextLine = {
   ...CONTROL_HELPER,
@@ -73,196 +69,370 @@ const modalPanelStyle = {
   borderRadius: 'var(--rounded-xl)',
 } as const;
 
-/** Two equal short columns; collapses to one as the card narrows. */
 const rowTwo = 'grid gap-2.5 grid-cols-1 min-[420px]:grid-cols-2';
-/** Three equal short columns; collapses to two (then one) as the card narrows. */
 const rowThree = 'grid gap-2.5 grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3';
 
-const EditAssetModal: React.FC<EditAssetModalProps> = ({ open, asset, onClose, onSaved, groups }) => {
-  const [form, setForm] = useState({ ticker: '', price_symbol: '', asset_type: 'stock', source: 'manual', group_id: '', multiplier: '1', margin_rate: '0' });
-  const [priceStr, setPriceStr] = useState('');
+const numberText = (value: number | null | undefined): string =>
+  value == null ? '' : String(value);
+
+const optionalNumber = (raw: string): number | null => {
+  if (!raw.trim()) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+};
+
+const EditAssetModal: React.FC<EditAssetModalProps> = ({
+  open, mode, product, symbol, onClose, onSaved, groups,
+}) => {
+  const [productForm, setProductForm] = useState({
+    ticker: '', name: '', asset_type: '', source: 'manual', group_id: '',
+    broker_id: '', multiplier: '1', margin_rate: '0', margin_mode: 'notional',
+  });
+  const [symbolForm, setSymbolForm] = useState({
+    price_symbol: '', sync_symbol: '', contract_kind: 'future', option_type: '',
+    expiry_date: '', strike_price: '', multiplier_override: '',
+    margin_rate_override: '', margin_per_contract: '',
+  });
+  const [quotePrice, setQuotePrice] = useState('');
+  const [quoteChange, setQuoteChange] = useState('');
+  const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (asset) {
-      setForm({
-        ticker: asset.ticker,
-        price_symbol: asset.price_symbol ?? '',
-        asset_type: asset.asset_type || 'stock',
-        source: asset.source || 'manual',
-        group_id: asset.group_id != null ? String(asset.group_id) : '',
-        multiplier: String(asset.multiplier ?? 1),
-        margin_rate: String(asset.margin_rate ?? 0),
+    if (!open || mode !== 'product') return;
+    let cancelled = false;
+    api.getBrokers()
+      .then((rows) => { if (!cancelled) setBrokers(rows); })
+      .catch(() => { /* the broker list is optional */ });
+    return () => { cancelled = true; };
+  }, [open, mode]);
+
+  useEffect(() => {
+    if (!open) return;
+    setError('');
+    setQuotePrice('');
+    setQuoteChange('');
+    if (mode === 'product' && product) {
+      setProductForm({
+        ticker: product.ticker ?? '',
+        name: product.name ?? '',
+        asset_type: product.asset_type ?? '',
+        source: product.source ?? 'manual',
+        group_id: product.group_id != null ? String(product.group_id) : '',
+        broker_id: product.broker_id != null ? String(product.broker_id) : '',
+        multiplier: String(product.multiplier ?? 1),
+        margin_rate: String(product.margin_rate ?? 0),
+        margin_mode: product.margin_mode || 'notional',
       });
-      setPriceStr(asset.price != null ? String(asset.price) : '');
+    } else if (mode === 'symbol' && symbol) {
+      setSymbolForm({
+        price_symbol: symbol.price_symbol ?? '',
+        sync_symbol: symbol.sync_symbol,
+        contract_kind: symbol.contract_kind || 'future',
+        option_type: symbol.option_type ?? '',
+        expiry_date: symbol.expiry_date ?? '',
+        strike_price: numberText(symbol.strike_price),
+        multiplier_override: numberText(symbol.multiplier_override),
+        margin_rate_override: numberText(symbol.margin_rate_override),
+        margin_per_contract: numberText(symbol.margin_per_contract),
+      });
     }
-  }, [asset]);
+  }, [open, mode, product, symbol]);
 
-  if (!open || !asset) return null;
+  if (!open || !product) return null;
 
-  const handleSave = async () => {
-    const ticker = form.ticker.trim().toUpperCase();
-    if (!ticker) {
-      setError('Ticker is required');
-      return;
-    }
-    const multiplier = parseFloat(form.multiplier);
-    const marginRate = parseFloat(form.margin_rate);
-    if (form.multiplier.trim() === '' || isNaN(multiplier) || multiplier <= 0) {
+  const editingSymbol = mode === 'symbol';
+  if (editingSymbol && !symbol) return null;
+
+  const handleSaveProduct = async () => {
+    const ticker = productForm.ticker.trim();
+    if (!ticker) { setError('Ticker is required'); return; }
+    const multiplier = Number(productForm.multiplier);
+    const marginRate = Number(productForm.margin_rate);
+    if (!productForm.multiplier.trim() || !Number.isFinite(multiplier) || multiplier <= 0) {
       setError('Multiplier must be greater than 0');
       return;
     }
-    if (form.margin_rate.trim() === '' || isNaN(marginRate) || marginRate < 0 || marginRate > 1) {
+    if (!productForm.margin_rate.trim() || !Number.isFinite(marginRate) || marginRate < 0 || marginRate > 1) {
       setError('Margin rate must be between 0 and 1');
       return;
     }
-    const tickerChanged = ticker !== asset.ticker.toUpperCase();
     setLoading(true);
     setError('');
     try {
-      const payload: AssetUpdatePayload = {
-        price_symbol: form.price_symbol.trim() || null,
-        asset_type: form.asset_type,
-        source: form.source,
-        group_id: form.group_id ? parseInt(form.group_id) : null,
+      await api.updateProduct(product.product_id, {
+        ticker,
+        name: productForm.name.trim() || null,
+        asset_type: productForm.asset_type || null,
+        source: productForm.source,
+        group_id: productForm.group_id ? Number(productForm.group_id) : null,
+        broker_id: productForm.broker_id ? Number(productForm.broker_id) : null,
         multiplier,
         margin_rate: marginRate,
-      };
-      if (tickerChanged) payload.ticker = ticker;
-      await api.updateAsset(asset.asset_id, payload);
-      if (tickerChanged) {
-        // The per-ticker price caches follow the rename.
-        for (const prefix of ['asset_price_', 'cached_price_']) {
-          const cached = localStorage.getItem(`${prefix}${asset.ticker}`);
-          if (cached != null) {
-            localStorage.setItem(`${prefix}${ticker}`, cached);
-            localStorage.removeItem(`${prefix}${asset.ticker}`);
-          }
-        }
-      }
-      if (form.source === 'manual' && priceStr) {
-        const priceNum = parseFloat(priceStr);
-        if (!isNaN(priceNum)) {
-          localStorage.setItem(`asset_price_${ticker}`, String(priceNum));
-          await api.updateAsset(asset.asset_id, { price: priceNum });
-        }
+        margin_mode: productForm.margin_mode,
+      });
+      onSaved();
+      onClose();
+    } catch (e) {
+      console.error('Failed to update the product', e);
+      setError(apiErrorDetail(e, "Couldn't update the product."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveSymbol = async () => {
+    if (!symbol) return;
+    const syncSymbol = symbolForm.sync_symbol.trim();
+    if (!syncSymbol) { setError('sync_symbol is required'); return; }
+    const multiplierOverride = optionalNumber(symbolForm.multiplier_override);
+    const marginRateOverride = optionalNumber(symbolForm.margin_rate_override);
+    if (symbolForm.multiplier_override.trim() && (multiplierOverride == null || multiplierOverride <= 0)) {
+      setError('multiplier must be greater than 0');
+      return;
+    }
+    if (symbolForm.margin_rate_override.trim() && (marginRateOverride == null || marginRateOverride < 0 || marginRateOverride > 1)) {
+      setError('margin_rate must be between 0 and 1');
+      return;
+    }
+    const price = optionalNumber(quotePrice);
+    const change = optionalNumber(quoteChange);
+    if (quotePrice.trim() && price == null) { setError('Price must be a number'); return; }
+    if (quoteChange.trim() && change == null) { setError('Change must be a number'); return; }
+    setLoading(true);
+    setError('');
+    try {
+      await api.updateSymbol(symbol.symbol_id, {
+        price_symbol: symbolForm.price_symbol.trim() || null,
+        sync_symbol: syncSymbol,
+        contract_kind: symbolForm.contract_kind,
+        option_type: symbolForm.option_type || null,
+        expiry_date: symbolForm.expiry_date || null,
+        strike_price: optionalNumber(symbolForm.strike_price),
+        multiplier_override: multiplierOverride,
+        margin_rate_override: marginRateOverride,
+        margin_per_contract: optionalNumber(symbolForm.margin_per_contract),
+      });
+      if (quotePrice.trim() || quoteChange.trim()) {
+        await api.updateSymbolQuote(symbol.symbol_id, {
+          price,
+          change_24h: change,
+        });
       }
       onSaved();
       onClose();
     } catch (e) {
-      console.error('Failed to update the asset', e);
-      setError("Couldn't update the asset.");
+      console.error('Failed to update the symbol', e);
+      setError(apiErrorDetail(e, "Couldn't update the symbol."));
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete ${asset.ticker}?`)) return;
+    if (!product) return;
+    const label = editingSymbol ? symbol?.price_symbol || symbol?.sync_symbol : product.ticker;
+    if (!window.confirm(`Delete ${label}?`)) return;
     setLoading(true);
     try {
-      await api.deleteAsset(asset.asset_id);
-      localStorage.removeItem(`asset_price_${asset.ticker}`);
+      if (editingSymbol && symbol) {
+        await api.deleteSymbol(symbol.symbol_id);
+      } else {
+        await api.deleteProduct(product.product_id);
+      }
       onSaved();
       onClose();
     } catch (e) {
       console.error('Failed to delete the asset', e);
-      setError("Couldn't delete the asset.");
+      setError(apiErrorDetail(e, editingSymbol ? "Couldn't delete the symbol." : "Couldn't delete the product."));
     } finally {
       setLoading(false);
     }
   };
 
-  const canDelete = !asset.sync_protected;
-  const nextTicker = form.ticker.trim().toUpperCase();
-  const tickerChanged = !!nextTicker && nextTicker !== asset.ticker.toUpperCase();
+  const title = editingSymbol
+    ? `Edit symbol — ${symbol?.price_symbol || symbol?.sync_symbol || ''}`
+    : `Edit product — ${product.ticker ?? ''}`;
 
   return (
-    <ModalShell open={open} onClose={onClose} title={"Edit Asset " + (asset?.ticker || '')} zIndex={9999}>
+    <ModalShell open={open} onClose={onClose} title={title} zIndex={9999}>
       <div className={`${MODAL_CARD} ${modalPanel}`} style={modalPanelStyle}>
-        <h3 className={`${MODAL_HEADER} block`} style={{ ...CONTROL_TITLE, margin: '0 0 12px' }}>Edit asset — {asset.ticker}</h3>
+        <h3 className={`${MODAL_HEADER} block`} style={{ ...CONTROL_TITLE, margin: '0 0 12px' }}>
+          {title}
+        </h3>
 
         <div className={MODAL_BODY}>
-        {error && <div style={errorText} className="text-[length:var(--fs-label)]">{error}</div>}
+          {error && <div style={errorText} className="text-[length:var(--fs-label)]">{error}</div>}
 
-        <p style={contextLine}>
-          Broker {asset.broker_code ?? '—'} — renaming the ticker updates local orders, holdings and history; mapped broker orders keep their own symbol.
-        </p>
+          <p style={contextLine}>
+            {editingSymbol
+              ? `Product ${product.ticker ?? '—'} · broker ${product.broker_code ?? 'Unassigned'} · source ${product.source}`
+              : `Broker ${product.broker_code ?? 'Unassigned'} · ${product.symbol_count} symbol${product.symbol_count === 1 ? '' : 's'}`}
+          </p>
 
-        <div className="space-y-2.5">
-          <div>
-            <div className={rowTwo}>
-              <Field className="min-w-0" label="Ticker" htmlFor="edit-asset-ticker" required>
-                <TextInput id="edit-asset-ticker" value={form.ticker}
-                  onChange={e => setForm(p => ({ ...p, ticker: e.target.value }))} />
-              </Field>
-              <Field className="min-w-0" label="Price symbol" htmlFor="edit-asset-price-symbol">
-                <TextInput id="edit-asset-price-symbol" value={form.price_symbol}
-                  onChange={e => setForm(p => ({ ...p, price_symbol: e.target.value }))}
-                  placeholder={form.ticker.trim() || asset.ticker} />
-              </Field>
-            </div>
-            <p style={CONTROL_HELPER}>Symbol used to fetch prices (yfinance / TFEX; TFEX accepts the series symbol like S50Z26 or the product-page URL — expired series return no quote); leave blank to use the Ticker</p>
-          </div>
-          <div className={rowThree}>
-            <Field className="min-w-0" label="Type" htmlFor="edit-asset-type">
-              <SelectInput id="edit-asset-type" value={form.asset_type} onChange={e => setForm(p => ({ ...p, asset_type: e.target.value }))}>
-                {TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-              </SelectInput>
-            </Field>
-            <Field className="min-w-0" label="Source" htmlFor="edit-asset-source">
-              <SelectInput id="edit-asset-source" value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))}>
-                {SOURCES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-              </SelectInput>
-            </Field>
-            <Field className="min-w-0" label="Group" htmlFor="edit-asset-group">
-              <SelectInput id="edit-asset-group" value={form.group_id} onChange={e => setForm(p => ({ ...p, group_id: e.target.value }))}>
-                <option value="">None</option>
-                {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-              </SelectInput>
-            </Field>
-          </div>
-          <div>
-            <div className={form.source === 'manual' ? rowThree : rowTwo}>
-              <Field className="min-w-0" label="Multiplier" htmlFor="edit-asset-multiplier">
-                <NumberInput id="edit-asset-multiplier" step="any" value={form.multiplier}
-                  onChange={e => setForm(p => ({ ...p, multiplier: e.target.value }))}
-                  placeholder="1" />
-              </Field>
-              <Field className="min-w-0" label="Margin rate" htmlFor="edit-asset-margin-rate">
-                <NumberInput id="edit-asset-margin-rate" step="any" value={form.margin_rate}
-                  onChange={e => setForm(p => ({ ...p, margin_rate: e.target.value }))}
-                  placeholder="0" />
-              </Field>
-              {form.source === 'manual' && (
-                <Field className="min-w-0" label="Price (manual)" htmlFor="edit-asset-price">
-                  <NumberInput id="edit-asset-price" step="any" value={priceStr}
-                    onChange={e => setPriceStr(e.target.value)}
-                    placeholder="0.00" />
+          {editingSymbol ? (
+            <div className="space-y-2.5">
+              <div>
+                <div className={rowTwo}>
+                  <Field className="min-w-0" label="Price symbol" htmlFor="edit-symbol-price-symbol">
+                    <TextInput id="edit-symbol-price-symbol" value={symbolForm.price_symbol}
+                      onChange={e => setSymbolForm(p => ({ ...p, price_symbol: e.target.value }))}
+                      placeholder="Dashboard / order symbol" />
+                  </Field>
+                  <Field className="min-w-0" label="Sync symbol" htmlFor="edit-symbol-sync-symbol" required>
+                    <TextInput id="edit-symbol-sync-symbol" value={symbolForm.sync_symbol}
+                      onChange={e => setSymbolForm(p => ({ ...p, sync_symbol: e.target.value }))} />
+                  </Field>
+                </div>
+                <p style={CONTROL_HELPER}>Sync symbol is the provider key used for quotes; price symbol is the dashboard contract key orders use.</p>
+              </div>
+              <div className={rowThree}>
+                <Field className="min-w-0" label="Contract kind" htmlFor="edit-symbol-contract-kind">
+                  <SelectInput id="edit-symbol-contract-kind" value={symbolForm.contract_kind}
+                    onChange={e => setSymbolForm(p => ({ ...p, contract_kind: e.target.value }))}>
+                    {CONTRACT_KINDS.map(k => <option key={k} value={k}>{k.charAt(0).toUpperCase() + k.slice(1)}</option>)}
+                  </SelectInput>
                 </Field>
-              )}
+                <Field className="min-w-0" label="Option type" htmlFor="edit-symbol-option-type">
+                  <SelectInput id="edit-symbol-option-type" value={symbolForm.option_type}
+                    onChange={e => setSymbolForm(p => ({ ...p, option_type: e.target.value }))}>
+                    <option value="">—</option>
+                    <option value="Call">Call</option>
+                    <option value="Put">Put</option>
+                  </SelectInput>
+                </Field>
+                <Field className="min-w-0" label="Expiry date" htmlFor="edit-symbol-expiry">
+                  <TextInput id="edit-symbol-expiry" type="date" value={symbolForm.expiry_date}
+                    onChange={e => setSymbolForm(p => ({ ...p, expiry_date: e.target.value }))} />
+                </Field>
+              </div>
+              <div>
+                <div className={rowThree}>
+                  <Field className="min-w-0" label="Strike price" htmlFor="edit-symbol-strike">
+                    <NumberInput id="edit-symbol-strike" step="any" value={symbolForm.strike_price}
+                      onChange={e => setSymbolForm(p => ({ ...p, strike_price: e.target.value }))} placeholder="—" />
+                  </Field>
+                  <Field className="min-w-0" label="Multiplier override" htmlFor="edit-symbol-multiplier">
+                    <NumberInput id="edit-symbol-multiplier" step="any" value={symbolForm.multiplier_override}
+                      onChange={e => setSymbolForm(p => ({ ...p, multiplier_override: e.target.value }))}
+                      placeholder="Product default" />
+                  </Field>
+                  <Field className="min-w-0" label="Margin rate override" htmlFor="edit-symbol-margin-rate">
+                    <NumberInput id="edit-symbol-margin-rate" step="any" value={symbolForm.margin_rate_override}
+                      onChange={e => setSymbolForm(p => ({ ...p, margin_rate_override: e.target.value }))}
+                      placeholder="Product default" />
+                  </Field>
+                </div>
+                <p style={CONTROL_HELPER}>Overrides fall back to the product multiplier and margin rate.</p>
+              </div>
+              <Field className="min-w-0" label="Margin per contract" htmlFor="edit-symbol-margin-per-contract">
+                <NumberInput id="edit-symbol-margin-per-contract" step="any" value={symbolForm.margin_per_contract}
+                  onChange={e => setSymbolForm(p => ({ ...p, margin_per_contract: e.target.value }))}
+                  placeholder="Used by span margin mode" />
+              </Field>
+              <div>
+                <div className={rowTwo}>
+                  <Field className="min-w-0" label="Quote price (manual)" htmlFor="edit-symbol-quote-price">
+                    <NumberInput id="edit-symbol-quote-price" step="any" value={quotePrice}
+                      onChange={e => setQuotePrice(e.target.value)}
+                      placeholder={symbol?.price != null ? String(symbol.price) : '—'} />
+                  </Field>
+                  <Field className="min-w-0" label="24h change" htmlFor="edit-symbol-quote-change">
+                    <NumberInput id="edit-symbol-quote-change" step="any" value={quoteChange}
+                      onChange={e => setQuoteChange(e.target.value)}
+                      placeholder={symbol?.change_24h != null ? String(symbol.change_24h) : '—'} />
+                  </Field>
+                </div>
+                <p style={CONTROL_HELPER}>Leave blank to keep the current quote.</p>
+              </div>
             </div>
-            <p style={CONTROL_HELPER}>Margin 0.10 = 10% of notional</p>
-          </div>
-        </div>
+          ) : (
+            <div className="space-y-2.5">
+              <div className={rowTwo}>
+                <Field className="min-w-0" label="Ticker" htmlFor="edit-product-ticker" required>
+                  <TextInput id="edit-product-ticker" value={productForm.ticker}
+                    onChange={e => setProductForm(p => ({ ...p, ticker: e.target.value }))} />
+                </Field>
+                <Field className="min-w-0" label="Name" htmlFor="edit-product-name">
+                  <TextInput id="edit-product-name" value={productForm.name}
+                    onChange={e => setProductForm(p => ({ ...p, name: e.target.value }))}
+                    placeholder="Optional display name" />
+                </Field>
+              </div>
+              <div className={rowThree}>
+                <Field className="min-w-0" label="Broker" htmlFor="edit-product-broker">
+                  <SelectInput id="edit-product-broker" value={productForm.broker_id}
+                    onChange={e => setProductForm(p => ({ ...p, broker_id: e.target.value }))}>
+                    <option value="">Unassigned</option>
+                    {brokers.map(b => <option key={b.id} value={b.id}>{b.code}</option>)}
+                  </SelectInput>
+                </Field>
+                <Field className="min-w-0" label="Asset type" htmlFor="edit-product-type">
+                  <SelectInput id="edit-product-type" value={productForm.asset_type}
+                    onChange={e => setProductForm(p => ({ ...p, asset_type: e.target.value }))}>
+                    <option value="">—</option>
+                    {TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                  </SelectInput>
+                </Field>
+                <Field className="min-w-0" label="Group" htmlFor="edit-product-group">
+                  <SelectInput id="edit-product-group" value={productForm.group_id}
+                    onChange={e => setProductForm(p => ({ ...p, group_id: e.target.value }))}>
+                    <option value="">None</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </SelectInput>
+                </Field>
+              </div>
+              <div className={rowThree}>
+                <Field className="min-w-0" label="Multiplier" htmlFor="edit-product-multiplier">
+                  <NumberInput id="edit-product-multiplier" step="any" value={productForm.multiplier}
+                    onChange={e => setProductForm(p => ({ ...p, multiplier: e.target.value }))} placeholder="1" />
+                </Field>
+                <Field className="min-w-0" label="Margin rate" htmlFor="edit-product-margin-rate">
+                  <NumberInput id="edit-product-margin-rate" step="any" value={productForm.margin_rate}
+                    onChange={e => setProductForm(p => ({ ...p, margin_rate: e.target.value }))} placeholder="0" />
+                </Field>
+                <Field className="min-w-0" label="Margin mode" htmlFor="edit-product-margin-mode">
+                  <SelectInput id="edit-product-margin-mode" value={productForm.margin_mode}
+                    onChange={e => setProductForm(p => ({ ...p, margin_mode: e.target.value }))}>
+                    {MARGIN_MODES.map(m => <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>)}
+                  </SelectInput>
+                </Field>
+              </div>
+              <div className={rowTwo}>
+                <Field className="min-w-0" label="Source" htmlFor="edit-product-source">
+                  <SelectInput id="edit-product-source" value={productForm.source}
+                    onChange={e => setProductForm(p => ({ ...p, source: e.target.value }))}>
+                    <option value={SOURCE_NONE}>None</option>
+                    {SOURCES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                  </SelectInput>
+                </Field>
+              </div>
+              <p style={CONTROL_HELPER}>Margin 0.10 = 10%; the multiplier applies to every symbol without an override.</p>
+            </div>
+          )}
         </div>
 
-        {tickerChanged && (
+        {!editingSymbol && product.symbol_count > 0 &&
+          (productForm.broker_id ? Number(productForm.broker_id) : null) !== product.broker_id && (
           <div style={warningText} className="text-[length:var(--fs-label)]" role="status">
-            Renaming the ticker updates local orders, holdings and history; mapped broker orders keep their own symbol.
+            A product with attached symbols cannot change broker until its symbols are removed.
           </div>
         )}
 
         <div className={`${MODAL_FOOTER} flex justify-between items-center`} style={{ marginTop: 12 }}>
           <div>
-            {canDelete && (
-              <button type="button" onClick={handleDelete} disabled={loading} className={actionButtonClass} style={dangerButton}>Delete</button>
-            )}
+            <button type="button" onClick={handleDelete} disabled={loading}
+              className={actionButtonClass} style={dangerButton}>
+              Delete
+            </button>
           </div>
           <div className="flex" style={{ gap: 8 }}>
             <button type="button" onClick={onClose} style={secondaryButton}>Cancel</button>
-            <button type="button" onClick={handleSave} disabled={loading} className={actionButtonClass} style={primaryButton}>{loading ? 'Saving...' : 'Save'}</button>
+            <button type="button" onClick={editingSymbol ? handleSaveSymbol : handleSaveProduct}
+              disabled={loading} className={actionButtonClass} style={primaryButton}>
+              {loading ? 'Saving...' : 'Save'}
+            </button>
           </div>
         </div>
       </div>

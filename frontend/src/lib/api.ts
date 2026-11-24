@@ -1,4 +1,18 @@
 import type {
+  AssetProduct,
+  AssetProductDetail,
+  AssetProductPayload,
+  AssetProductQuery,
+  AssetProductUpdatePayload,
+  AssetQuotePayload,
+  AssetSymbol,
+  AssetSymbolPayload,
+  AssetSymbolQuery,
+  AssetSymbolUpdatePayload,
+  AssetSyncApplyResult,
+  AssetSyncChoice,
+  AssetSyncProposal,
+  BatchUpdatePricesResult,
   GroupOption,
   MFHistory,
   MFHolding,
@@ -43,6 +57,7 @@ export interface PortfolioRecord {
   broker_id: number | null;
   broker_code?: string | null;
   product_ticker: string | null;
+  product_tickers?: string[] | null;
   x_amount: number;
   initial_capital: number;
   available_cash: number;
@@ -66,6 +81,7 @@ export interface PortfolioPayload {
   current_nav?: number | null;
   broker_id?: number | null;
   product_ticker?: string | null;
+  product_tickers?: string[] | null;
   x_amount?: number;
   initial_capital?: number;
   cash_buffer_limit?: number;
@@ -89,6 +105,7 @@ export interface PortfolioUpdatePayload {
   current_nav?: number;
   broker_id?: number | null;
   product_ticker?: string | null;
+  product_tickers?: string[] | null;
   x_amount?: number;
   initial_capital?: number;
   cash_buffer_limit?: number;
@@ -251,60 +268,6 @@ export interface TransferRecord {
   destination_balance_after: number | null;
   created_at: string;
   confirmed_at: string | null;
-}
-
-export interface AssetRecord {
-  asset_id: number;
-  ticker: string;
-  price_symbol?: string | null;
-  asset_type: string;
-  name: string | null;
-  source: string;
-  group_id: number | null;
-  price: number | null;
-  change_24h: number | null;
-  updated_at: string | null;
-  broker_id?: number | null;
-  broker_code?: string | null;
-  broker_name?: string | null;
-  multiplier?: number;
-  margin_rate?: number;
-}
-
-export interface AssetQuery {
-  group_id?: number;
-  asset_type?: string;
-  source?: string;
-}
-
-export interface AssetPayload {
-  ticker: string;
-  price_symbol?: string;
-  asset_type?: string;
-  name?: string;
-  source?: string;
-  group_id?: number;
-  broker_id?: number;
-  multiplier?: number;
-  margin_rate?: number;
-}
-
-export interface AssetUpdatePayload {
-  ticker?: string;
-  name?: string;
-  price_symbol?: string | null;
-  asset_type?: string;
-  source?: string;
-  group_id?: number | null;
-  price?: number;
-  change_24h?: number;
-  multiplier?: number;
-  margin_rate?: number;
-}
-
-export interface BatchUpdatePricesResult {
-  updated: number;
-  tickers: string[];
 }
 
 export interface AssetGroupRecord {
@@ -527,33 +490,67 @@ export const api = {
       }),
     }),
 
-  // Assets
-  getAssets: (params: AssetQuery = {}) => {
+  // Asset registry: products
+  getProducts: (params: AssetProductQuery = {}) => {
     const query = new URLSearchParams();
-    if (params.group_id != null) query.set('group_id', String(params.group_id));
+    if (params.broker_id != null) query.set('broker_id', String(params.broker_id));
     if (params.asset_type) query.set('asset_type', params.asset_type);
+    if (params.group_id != null) query.set('group_id', String(params.group_id));
     if (params.source) query.set('source', params.source);
     const suffix = query.toString() ? `?${query.toString()}` : '';
-    return request<AssetRecord[]>(`/assets${suffix}`);
+    return request<AssetProduct[]>(`/assets/products${suffix}`);
   },
-  createAsset: (payload: AssetPayload) =>
-    request<AssetRecord>('/assets', {
+  getProduct: (productId: number) =>
+    request<AssetProductDetail>(`/assets/products/${productId}`),
+  createProduct: (payload: AssetProductPayload) =>
+    request<AssetProduct>('/assets/products', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  updateAsset: (assetId: number, payload: AssetUpdatePayload) =>
-    request<AssetRecord>(`/assets/${assetId}`, {
+  updateProduct: (productId: number, payload: AssetProductUpdatePayload) =>
+    request<AssetProduct>(`/assets/products/${productId}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
     }),
-  deleteAsset: (assetId: number) =>
-    request<void>(`/assets/${assetId}`, { method: 'DELETE' }),
-  updateAssetPrice: (assetId: number) =>
-    request<AssetRecord>(`/assets/${assetId}/update-price`, { method: 'POST' }),
+  deleteProduct: (productId: number) =>
+    request<void>(`/assets/products/${productId}`, { method: 'DELETE' }),
+
+  // Asset registry: symbols + quotes
+  getSymbols: (params: AssetSymbolQuery = {}) => {
+    const query = new URLSearchParams();
+    if (params.product_id != null) query.set('product_id', String(params.product_id));
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<AssetSymbol[]>(`/assets/symbols${suffix}`);
+  },
+  createSymbol: (productId: number, payload: AssetSymbolPayload) =>
+    request<AssetSymbol>(`/assets/products/${productId}/symbols`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateSymbol: (symbolId: number, payload: AssetSymbolUpdatePayload) =>
+    request<AssetSymbol>(`/assets/symbols/${symbolId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  deleteSymbol: (symbolId: number) =>
+    request<void>(`/assets/symbols/${symbolId}`, { method: 'DELETE' }),
+  updateSymbolQuote: (symbolId: number, payload: AssetQuotePayload) =>
+    request<AssetSymbol>(`/assets/symbols/${symbolId}/quote`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  updateSymbolPrice: (symbolId: number) =>
+    request<AssetSymbol>(`/assets/symbols/${symbolId}/update-price`, { method: 'POST' }),
   batchUpdatePrices: () =>
-    request<BatchUpdatePricesResult>('/assets/batch-update-prices', { method: 'POST' }),
-  syncAllAssets: () =>
-    request<AssetRecord[]>('/assets/sync-from-all', { method: 'POST' }),
+    request<BatchUpdatePricesResult>('/assets/symbols/batch-update-prices', { method: 'POST' }),
+
+  // Asset registry: explicit sync proposal / apply
+  getAssetProposal: () => request<AssetSyncProposal>('/assets/proposal'),
+  applyAssetProposal: (choices: AssetSyncChoice[]) =>
+    request<AssetSyncApplyResult>('/assets/apply', {
+      method: 'POST',
+      body: JSON.stringify({ choices }),
+    }),
 
   // Asset groups
   getAssetGroups: () => request<AssetGroupRecord[]>('/asset-groups'),

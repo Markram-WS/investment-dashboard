@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../lib/api";
-import type { AssetRecord, BrokerRecord } from "../lib/api";
+import type { BrokerRecord } from "../lib/api";
+import type { AssetProduct } from "../types";
 import ModalShell from "./components/ModalShell";
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
 import { Field, NumberInput, SelectInput, TextInput } from "./components/Field";
@@ -14,6 +15,12 @@ import {
   CONTROL_VALUE,
 } from "./components/controlStyles";
 import { formatMoney } from "../utils/format";
+
+/** Selected products: the list when present, else the legacy single ticker. */
+const hydrateProductTickers = (
+  tickers?: string[] | null,
+  ticker?: string | null,
+): string[] => (tickers && tickers.length > 0 ? [...tickers] : ticker ? [ticker] : []);
 
 const modalPanelStyle = {
   padding: 12, borderRadius: "var(--rounded-xl)", background: "var(--color-canvas)",
@@ -46,6 +53,17 @@ const SPEC_VALUE: React.CSSProperties = {
 const SPEC_HINT: React.CSSProperties = {
   ...CONTROL_HELPER, margin: 0,
 };
+const CHIP: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 4,
+  padding: "1px 4px 1px 7px", borderRadius: "var(--rounded-full)",
+  border: "1px solid var(--color-hairline)", background: "var(--color-surface)",
+  fontSize: "var(--fs-label)", fontWeight: 500, color: "var(--color-ink)",
+  maxWidth: "100%", overflowWrap: "anywhere",
+};
+const CHIP_REMOVE: React.CSSProperties = {
+  border: 0, background: "none", padding: "0 2px", cursor: "pointer",
+  fontSize: "var(--fs-content)", lineHeight: 1, color: "var(--color-slate)",
+};
 
 interface EditPortfolioModalProps {
   portfolioId: number;
@@ -54,6 +72,9 @@ interface EditPortfolioModalProps {
   cashBufferLimit: number;
   brokerId: number | null;
   productTicker: string | null;
+  productTickers?: string[] | null;
+  /** Broker-scoped products already loaded by the grid. */
+  products?: AssetProduct[];
   xAmount: number;
   initialCapital: number;
   rawAvailableCash: number;
@@ -71,7 +92,7 @@ interface EditPortfolioModalProps {
 
 const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
   portfolioId, portfolioName, marginLocked, cashBufferLimit,
-  brokerId, productTicker, xAmount, initialCapital,
+  brokerId, productTicker, productTickers, products: initialProducts, xAmount, initialCapital,
   rawAvailableCash, cumulativePl, tags, showModal, onClose, onSaved,
   onDepositWithdraw, activeOrderCount, onDeleted, readOnly = false,
 }) => {
@@ -79,14 +100,16 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
     portfolio_name: portfolioName,
     cash_buffer_limit: String(cashBufferLimit ?? 0),
     broker_id: brokerId as number | null,
-    product_ticker: productTicker ?? "",
+    product_tickers: hydrateProductTickers(productTickers, productTicker),
     x_amount: String(xAmount ?? 0),
     initial_capital: String(initialCapital ?? 0),
     tags: tags ? Object.keys(tags).join(", ") : "",
   });
   const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
-  const [assets, setAssets] = useState<AssetRecord[]>([]);
+  const [products, setProducts] = useState<AssetProduct[]>(initialProducts ?? []);
+  const [productsLoaded, setProductsLoaded] = useState(false);
   const [tickers, setTickers] = useState<string[]>([]);
+  const [tickerInput, setTickerInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -102,7 +125,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
         portfolio_name: portfolioName,
         cash_buffer_limit: String(cashBufferLimit ?? 0),
         broker_id: brokerId,
-        product_ticker: productTicker ?? "",
+        product_tickers: hydrateProductTickers(productTickers, productTicker),
         x_amount: String(xAmount ?? 0),
         initial_capital: String(initialCapital ?? 0),
         tags: tags ? Object.keys(tags).join(", ") : "",
@@ -113,6 +136,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
       setDwAmount("");
       setDwError("");
       setSaveErr("");
+      setTickerInput("");
     }
     // Hydrates the draft only when the modal opens. Adding the portfolio props
     // would wipe in-progress edits whenever the parent refetches them.
@@ -125,18 +149,51 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
     api.getBrokers()
       .then((rows) => { if (!cancelled) setBrokers(rows); })
       .catch((err) => console.error("Failed to load brokers:", err));
-    api.getAssets()
-      .then((rows) => {
-        if (cancelled) return;
-        setAssets(rows);
-        setTickers(Array.from(new Set(rows.map((a) => a.ticker).filter(Boolean))));
-      })
-      .catch((err) => console.error("Failed to load asset tickers:", err));
     return () => { cancelled = true; };
   }, [showModal]);
 
+  useEffect(() => {
+    if (!showModal) return;
+    let cancelled = false;
+    const brokerId = form.broker_id;
+    setProductsLoaded(false);
+    api.getProducts(brokerId == null ? {} : { broker_id: brokerId })
+      .then((rows) => {
+        if (cancelled) return;
+        const scoped = rows.filter((product) => product.broker_id === (brokerId ?? null));
+        const nextTickers = Array.from(new Set(
+          scoped
+            .map((product) => product.ticker)
+            .filter((ticker): ticker is string => Boolean(ticker)),
+        ));
+        setProducts(scoped);
+        setProductsLoaded(true);
+        setTickers(nextTickers);
+      })
+      .catch((err) => console.error("Failed to load product tickers:", err));
+    return () => { cancelled = true; };
+  }, [showModal, form.broker_id]);
+
   const handleChange = (field: string, value: string | number | null) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const addTicker = (raw: string) => {
+    const ticker = raw.trim().toUpperCase();
+    if (!ticker) return;
+    setForm((prev) => (
+      prev.product_tickers.includes(ticker)
+        ? prev
+        : { ...prev, product_tickers: [...prev.product_tickers, ticker] }
+    ));
+    setTickerInput("");
+  };
+
+  const removeTicker = (ticker: string) => {
+    setForm((prev) => ({
+      ...prev,
+      product_tickers: prev.product_tickers.filter((t) => t !== ticker),
+    }));
   };
 
   const handleSave = async () => {
@@ -156,7 +213,8 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
       await api.updatePortfolio(portfolioId, {
         portfolio_name: form.portfolio_name || undefined,
         broker_id: form.broker_id,
-        product_ticker: form.product_ticker.trim() || null,
+        product_tickers: form.product_tickers,
+        product_ticker: form.product_tickers[0] ?? null,
         x_amount: parseFloat(form.x_amount) || 0,
         initial_capital: parseFloat(form.initial_capital) || 0,
         cash_buffer_limit: newBuffer,
@@ -253,17 +311,9 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
   const projectedAvailableCash = Math.max(0, rawAvailableCash - projectedDiff);
   const displayEquity = projectedAvailableCash + cumulativePl;
 
-  // The contract spec is owned by All Assets, keyed by ticker + broker.
-  const tickerQuery = form.product_ticker.trim().toUpperCase();
-  const contractAsset = tickerQuery
-    ? assets.find((a) =>
-        a.ticker.toUpperCase() === tickerQuery &&
-        (form.broker_id == null ? a.broker_id == null : a.broker_id === form.broker_id))
-    : undefined;
-
   return (
     <ModalShell open={showModal} onClose={onClose} title="Edit portfolio">
-      <div className={`${MODAL_CARD} w-full max-w-lg mx-4 relative`} style={modalPanelStyle}>
+      <div className={`${MODAL_CARD} w-full max-w-xl mx-4 relative`} style={modalPanelStyle}>
           <div className={`${MODAL_HEADER} flex justify-between items-center`} style={{ marginBottom: 12 }}>
             <h3 style={CONTROL_TITLE}>Edit portfolio</h3>
             <button onClick={onClose} className="p-1 hover:bg-surface-soft rounded-full transition-colors">
@@ -312,7 +362,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
             <hr style={SEPARATOR} />
 
             {/* Product: broker + ticker + strike, then the spec All Assets owns */}
-            <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "1fr 1fr 1.6fr" }}>
+            <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "minmax(0,0.9fr) minmax(0,2.4fr) minmax(0,1.4fr)" }}>
               <Field label="Broker" htmlFor="edit-portfolio-broker">
                 <SelectInput
                   id="edit-portfolio-broker"
@@ -321,18 +371,87 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
                 >
                   <option value="">—</option>
                   {brokers.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
+                    <option key={b.id} value={b.id}>{b.code}</option>
                   ))}
                 </SelectInput>
               </Field>
               <Field label="Product ticker" htmlFor="edit-portfolio-ticker">
-                <TextInput
-                  id="edit-portfolio-ticker"
-                  list="edit-portfolio-tickers"
-                  value={form.product_ticker}
-                  onChange={(e) => handleChange("product_ticker", e.target.value)}
-                  placeholder="e.g. S50"
-                />
+                <div className="flex flex-col" style={{ gap: 4 }}>
+                  <div className="flex flex-wrap items-center" style={{ gap: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, product_tickers: [] }))}
+                      aria-pressed={form.product_tickers.length === 0}
+                      className="transition-colors"
+                      style={{
+                        ...CHIP,
+                        cursor: "pointer",
+                        background: form.product_tickers.length === 0
+                          ? "var(--color-brand-yellow)" : "transparent",
+                        color: form.product_tickers.length === 0
+                          ? "var(--color-on-brand-yellow)" : "var(--color-slate)",
+                      }}
+                    >
+                      --ALL--
+                    </button>
+                    {form.product_tickers.map((ticker) => {
+                      const matches = products.filter(
+                        (product) => (product.ticker ?? "").toUpperCase() === ticker.toUpperCase(),
+                      );
+                      const unresolved = productsLoaded && matches.length === 0;
+                      return (
+                        <span
+                          key={ticker}
+                          style={unresolved
+                            ? {
+                                ...CHIP,
+                                borderColor: "var(--color-warning-text)",
+                                color: "var(--color-warning-text)",
+                              }
+                            : CHIP}
+                          title={unresolved ? `No product spec for ${ticker} on this broker` : undefined}
+                          aria-label={unresolved
+                            ? `${ticker} — no product spec for this broker`
+                            : ticker}
+                        >
+                          {ticker}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${ticker}`}
+                            onClick={() => removeTicker(ticker)}
+                            style={CHIP_REMOVE}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center" style={{ gap: 4 }}>
+                    <TextInput
+                      id="edit-portfolio-ticker"
+                      list="edit-portfolio-tickers"
+                      value={tickerInput}
+                      onChange={(e) => setTickerInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addTicker(tickerInput);
+                        }
+                      }}
+                      placeholder="e.g. S50"
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => addTicker(tickerInput)}
+                      className="transition-colors hover:bg-surface-soft"
+                      style={secondaryButton}
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
               </Field>
               <datalist id="edit-portfolio-tickers">
                 {tickers.map((t) => <option key={t} value={t} />)}
@@ -352,23 +471,54 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
               </Field>
             </div>
 
-            <div style={SPEC_ROW}>
-              <span>
-                <span style={SPEC_LABEL}>Contract multiplier</span>{" "}
-                <span style={SPEC_VALUE}>
-                  {contractAsset?.multiplier == null || Number.isNaN(contractAsset.multiplier)
-                    ? "—" : String(contractAsset.multiplier)}
-                </span>
-              </span>{" "}
-              <span>
-                <span style={SPEC_LABEL}>Margin rate</span>{" "}
-                <span style={SPEC_VALUE}>
-                  {contractAsset?.margin_rate == null || Number.isNaN(contractAsset.margin_rate)
-                    ? "—" : String(contractAsset.margin_rate)}
-                </span>
-              </span>{" "}
-              <span style={SPEC_HINT}>maintained in All Assets</span>
-            </div>
+            {form.product_tickers.length === 0 ? (
+              <p style={SPEC_HINT}>
+                All products allowed — contract specs resolve per order symbol.
+              </p>
+            ) : (
+              <div className="flex flex-col" style={{ gap: 2 }}>
+                {form.product_tickers.map((ticker) => {
+                  const matches = products.filter(
+                    (product) => (product.ticker ?? "").toUpperCase() === ticker.toUpperCase(),
+                  );
+                  const contractProduct = matches.length === 1 ? matches[0] : null;
+                  return (
+                    <div key={ticker} style={SPEC_ROW}>
+                      <span style={{ ...SPEC_VALUE, fontWeight: 600 }}>{ticker}</span>{" "}
+                      <span>
+                        <span style={SPEC_LABEL}>Contract multiplier</span>{" "}
+                        <span style={SPEC_VALUE}>
+                          {contractProduct?.multiplier == null || Number.isNaN(contractProduct.multiplier)
+                            ? "—" : String(contractProduct.multiplier)}
+                        </span>
+                      </span>{" "}
+                      <span>
+                        <span style={SPEC_LABEL}>Margin rate</span>{" "}
+                        <span style={SPEC_VALUE}>
+                          {contractProduct?.margin_rate == null || Number.isNaN(contractProduct.margin_rate)
+                            ? "—" : String(contractProduct.margin_rate)}
+                        </span>
+                      </span>{" "}
+                      <span>
+                        <span style={SPEC_LABEL}>Margin mode</span>{" "}
+                        <span style={SPEC_VALUE}>{contractProduct?.margin_mode ?? "—"}</span>
+                      </span>{" "}
+                      <span>
+                        <span style={SPEC_LABEL}>Symbols</span>{" "}
+                        <span style={SPEC_VALUE}>{contractProduct?.symbol_count ?? "—"}</span>
+                      </span>
+                      {matches.length > 1 && (
+                        <span style={SPEC_HINT}>multiple products — specs are ambiguous</span>
+                      )}
+                      {productsLoaded && matches.length === 0 && (
+                        <span style={SPEC_HINT}>no product spec — value kept on save</span>
+                      )}
+                    </div>
+                  );
+                })}
+                <span style={SPEC_HINT}>maintained in All Assets</span>
+              </div>
+            )}
 
             <hr style={SEPARATOR} />
 

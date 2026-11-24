@@ -160,19 +160,95 @@ CREATE TABLE IF NOT EXISTS orders_groups (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 10. Asset Whitelists & Watchlists
--- Contract spec lives on the asset row. Phase-1 key is (broker_id, ticker): one
--- row per instrument so the price feed (batchUpdatePrices) stays singular.
--- Known limitation: spot and future on one underlying share this single spec
--- row (contract_type is not part of the key yet); options use premium only.
-CREATE TABLE IF NOT EXISTS whitelist_assets (
-    asset_id SERIAL PRIMARY KEY,
-    broker_id INTEGER NOT NULL DEFAULT 1 REFERENCES brokers(id),
-    ticker TEXT NOT NULL,
-    asset_type TEXT NOT NULL,
+-- 10. Asset Registry (broker-scoped products, contract symbols, provider quotes)
+-- This is the live main-database registry. The legacy, mockup-only
+-- `whitelist_assets` table is no longer canonical: the FastAPI startup
+-- migration creates the three tables below, converts every legacy row to one
+-- product + one symbol + quote(s), asserts the conversion invariants inside the
+-- same transaction, and only then DROPs `whitelist_assets`. The whole legacy
+-- branch runs only when the legacy table still exists, so later boots are a
+-- no-op. `Base.metadata.create_all` deliberately excludes both the legacy table
+-- and these registry tables; the migration owns their DDL.
+--
+-- PostgreSQL 15 is canonical: the product natural key uses
+-- `UNIQUE NULLS NOT DISTINCT`, and the symbol table installs the three
+-- partial/expression indexes below. SQLite uses the portable unique constraint
+-- only and cannot enforce those indexes.
+
+-- `asset_groups` (referenced by group_id) and `custom_portfolio_connections`
+-- are created by the application's SQLAlchemy metadata; they are described in
+-- database/README.md.
+--
+-- Broker-scoped product. Identity is (ticker, broker_id, asset_type), with
+-- NULLs treated as equal on PostgreSQL so the internal default product
+-- (ticker/broker/type all NULL) cannot be duplicated. The default product is
+-- never listed and is not editable.
+CREATE TABLE IF NOT EXISTS asset_products (
+    product_id SERIAL PRIMARY KEY,
+    ticker VARCHAR,
+    broker_id INTEGER REFERENCES brokers(id),
+    asset_type VARCHAR,
     multiplier NUMERIC(20,8) NOT NULL DEFAULT 1,
     margin_rate NUMERIC(10,6) NOT NULL DEFAULT 0,
-    CONSTRAINT uq_asset_broker_ticker UNIQUE (broker_id, ticker)
+    source VARCHAR DEFAULT '-',                 -- 'yfinance', 'tfex', 'manual', or '-' (no feed)
+    margin_mode VARCHAR NOT NULL DEFAULT 'notional',
+    group_id INTEGER REFERENCES asset_groups(id),
+    name VARCHAR,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_asset_product_identity
+        UNIQUE NULLS NOT DISTINCT (ticker, broker_id, asset_type),
+    CONSTRAINT ck_asset_product_margin_mode
+        CHECK (margin_mode IN ('notional', 'premium', 'span'))
+);
+
+-- Contract symbol belonging to a product. `price_symbol` is the dashboard /
+-- order key (the symbol an order's asset_type must match); `sync_symbol` is the
+-- case-preserving provider key used to fetch and store a quote. They may differ
+-- (for example dashboard `PTT` vs provider `PTT.BK`). The broker mirror is kept
+-- equal to the owning product's broker by the application and is never exposed
+-- by the API.
+CREATE TABLE IF NOT EXISTS asset_symbols (
+    symbol_id SERIAL PRIMARY KEY,
+    product_id INTEGER NOT NULL
+        REFERENCES asset_products(product_id) ON DELETE CASCADE,
+    broker_id INTEGER REFERENCES brokers(id),
+    price_symbol VARCHAR,
+    sync_symbol VARCHAR NOT NULL,
+    contract_kind VARCHAR DEFAULT 'future',
+    option_type VARCHAR,
+    expiry_date DATE,
+    strike_price NUMERIC(20,8),
+    multiplier_override NUMERIC(20,8),
+    margin_rate_override NUMERIC(10,6),
+    margin_per_contract NUMERIC(20,8),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Dashboard keys are unique per product and per broker, compared normalized
+-- (upper(trim(...))) and only when a dashboard key exists.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_asset_symbol_product_dashboard
+    ON asset_symbols (product_id, upper(trim(price_symbol)))
+    WHERE price_symbol IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_asset_symbol_broker_dashboard
+    ON asset_symbols (broker_id, upper(trim(price_symbol)))
+    WHERE price_symbol IS NOT NULL;
+-- Option contracts without a dashboard key are identified by their terms.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_asset_symbol_option_identity
+    ON asset_symbols (product_id, expiry_date, strike_price, option_type)
+    WHERE contract_kind = 'option' AND price_symbol IS NULL;
+
+-- Latest provider quote, keyed by the case-preserving provider symbol. Quote
+-- rows have no foreign key: deleting a symbol/product removes a quote only when
+-- no remaining symbol references the same (source, sync_symbol).
+CREATE TABLE IF NOT EXISTS asset_quotes (
+    source VARCHAR NOT NULL,
+    sync_symbol VARCHAR NOT NULL,
+    price NUMERIC(20,8),
+    change_24h NUMERIC(10,4),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (source, sync_symbol)
 );
 
 CREATE TABLE IF NOT EXISTS watchlist (

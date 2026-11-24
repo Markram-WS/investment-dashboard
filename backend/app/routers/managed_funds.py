@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.models import Portfolio, PortfolioNavHistory, WhitelistAssets
+from app.models import Portfolio, PortfolioNavHistory
 from app.managed_fund_models import ManagedFundHolding, ManagedFundOrder, ManagedFundOrderHistory, ManagedFundSetting
+from app.services import asset_registry as registry
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from decimal import Decimal
@@ -340,18 +341,9 @@ async def list_orders(portfolio_id: int, db: AsyncSession = Depends(get_db)):
     ]
 
 
-async def _ensure_in_whitelist(db: AsyncSession, asset: str):
-    result = await db.execute(
-        select(WhitelistAssets).where(WhitelistAssets.ticker == asset)
-    )
-    if not result.scalar_one_or_none():
-        db.add(WhitelistAssets(ticker=asset, asset_type='crypto', source='manual'))
-
-
 @router.post("/{portfolio_id}/orders", response_model=MFOrderResponse, status_code=201)
 async def create_order(portfolio_id: int, body: MFOrderCreate, db: AsyncSession = Depends(get_db)):
     asset = body.asset.upper()
-    await _ensure_in_whitelist(db, asset)
     order = ManagedFundOrder(
         portfolio_id=portfolio_id,
         asset=asset,
@@ -638,6 +630,9 @@ async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_
 
     recommendations: List[MFRebalanceRecommendation] = []
     total_drift = 0.0
+    prices = await registry.local_prices(
+        db, portfolio.broker_id, list(target_ratio.keys())
+    )
 
     for symbol, target_pct in target_ratio.items():
         current_pct = current_allocations.get(symbol, 0)
@@ -651,13 +646,11 @@ async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_
         diff_value = total_value * abs(diff_pct) / 100
         estimated_price = 0.0
 
-        # Try to get current price from whitelist for price estimate
+        # Price estimate comes from the broker-scoped registry quote.
         if diff_value > 0:
-            price_result = await db.execute(
-                select(WhitelistAssets).where(WhitelistAssets.ticker == symbol)
+            estimated_price = prices.get(
+                registry.normalise_symbol(symbol), 0.0
             )
-            whitelist_asset = price_result.scalar_one_or_none()
-            estimated_price = float(whitelist_asset.price or 0) if whitelist_asset else 0
 
             if estimated_price > 0:
                 qty = round(diff_value / estimated_price, 8)
@@ -691,19 +684,22 @@ async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_
 
 @router.post("/{portfolio_id}/sync-prices")
 async def sync_prices(portfolio_id: int, db: AsyncSession = Depends(get_db)):
+    portfolio = await db.get(Portfolio, portfolio_id)
     holdings_result = await db.execute(
         select(ManagedFundHolding).where(ManagedFundHolding.portfolio_id == portfolio_id)
     )
     holdings = holdings_result.scalars().all()
+    prices = await registry.local_prices(
+        db,
+        portfolio.broker_id if portfolio is not None else None,
+        [holding.asset for holding in holdings],
+    )
 
     updated_count = 0
     for holding in holdings:
-        asset_result = await db.execute(
-            select(WhitelistAssets).where(WhitelistAssets.ticker == holding.asset)
-        )
-        wa = asset_result.scalar_one_or_none()
-        if wa and wa.price and wa.price > 0:
-            holding.current_price = wa.price
+        price = prices.get(registry.normalise_symbol(holding.asset))
+        if price and price > 0:
+            holding.current_price = Decimal(str(price))
             holding.market_value = holding.qty * holding.current_price
             holding.unrealized_pl = (holding.current_price - holding.avg_entry_price) * holding.qty
             if holding.avg_entry_price and holding.avg_entry_price > 0:

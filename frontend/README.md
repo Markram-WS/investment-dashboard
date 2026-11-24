@@ -55,7 +55,7 @@ frontend/
 │   ├── pages/              # Top-level route components
 │   │   ├── PortfolioOverview.tsx    # Hero Card + Pool Health + Portfolio Grid with DnD transfer
 │   │   ├── TransactionsPage.tsx     # Transaction table + unified inline form (From/To dropdowns, no modals)
-│   │   ├── AllAssets.tsx           # One grouped asset registry: editable ticker, collapsible group rows, inline price/spec editing, yfinance/TFEX refresh
+│   │   ├── AllAssets.tsx           # Two-level registry: grouped product rows expand to symbol/quote rows; explicit proposal/apply; yfinance/TFEX refresh
 │   │   ├── RiskAnalytics.tsx       # Sharpe, VaR, Drawdown charts
 │   │   ├── CreateNewPortfolio.tsx  # Portfolio creation form (Managed Fund / Active Trading / Custom Portfolio with external DB connection)
 │   │   ├── TradePlanManager.tsx    # Trade plan management
@@ -70,8 +70,8 @@ frontend/
 │   │   ├── MFSellHoldingModal.tsx # Managed Fund: sell holding with manual price entry
 │   │   ├── MFRebalanceRecommendModal.tsx # Managed Fund: rebalance recommendations table
 │   │   ├── MFEditPortfolioModal.tsx # Managed Fund: unified edit modal (name, cash fields, target ratios, profit thresholds, deposit/withdraw, Danger Zone delete + navbar query invalidation)
-│   │   ├── AddAssetModal.tsx      # Create asset: ticker, price symbol, type/source/group, broker/multiplier/margin (560px, no Name)
-│   │   ├── EditAssetModal.tsx     # Edit/delete asset incl. editable ticker + rename cascade warning; manual price input
+│   │   ├── AddAssetModal.tsx      # Create product (ticker/name/broker/type/source/group/multiplier/rate/margin mode) or symbol (price/sync symbol, contract terms); 560px
+│   │   ├── EditAssetModal.tsx     # Edit/delete product or symbol; broker-change warning with symbols; manual quote price input
 │   │   ├── AssetGroupModal.tsx    # Asset group list: inline rename, footer add, fixed error sentences
 │   │   ├── AddOrderModal.tsx      # Add order form with contract_type toggle
 │   │   ├── CloseOrderModal.tsx    # Close order form with exit price/P&L
@@ -98,7 +98,8 @@ frontend/
 │   │       ├── ModalShell.tsx          # Shared modal shell (overlay + panel)
 │   │       ├── TransferModal.tsx       # Two-step transfer (create → confirm)
 │   │       ├── ZoneGroupRow.tsx        # Grouped order row with drag handle + link icon
-│   │       └── GroupCombobox.tsx       # Searchable combobox for group selection
+│   │       ├── GroupCombobox.tsx       # Searchable combobox for group selection
+│   │       ├── SyncFromOrdersModal.tsx # Read-only proposal of order symbols; choose same-broker product or create; writes only on Apply
 │   │
 │   └── (Vitest tests are colocated with their sources: *.test.tsx)
 │
@@ -163,7 +164,9 @@ See `src/lib/api.ts` for the complete list of 65+ endpoints. Key categories:
 - `/api/v1/managed-funds` — settings, holdings, orders, history, rebalance/calculate, sync-prices, alerts (15 methods)
 - `/api/v1/orders` — CRUD + close/link/unlink
 - `/api/v1/analytics/*` — portfolio-grid, performance, NAV
-- `/api/v1/assets` — CRUD + sync-from-orders + sync-from-all + update-price + batch-update-prices
+- `/api/v1/assets/products` + `/api/v1/assets/symbols` — two-level registry CRUD, manual quotes, `update-price` + `batch-update-prices`
+- `/api/v1/assets/proposal` + `/api/v1/assets/apply` — explicit, read-only-until-applied sync of order symbols to products/symbols
+- `/api/v1/assets` — custom owned-database flat CRUD only (mapped `GET` returns `[]`; local non-custom returns 404)
 - `/api/v1/asset-groups` — CRUD (seeds Ungrouped/Watchlist)
 - `/api/v1/transfers` — create + confirm
 - `/api/v1/transactions` — deposit/withdraw/transfer history
@@ -182,17 +185,20 @@ Centralized via `NotificationContext` (wraps entire app in App.tsx):
 
 ## 📊 Asset Page (AllAssets.tsx)
 
-One 44px header band, a type-filter toolbar, and one grouped registry table — no per-group cards:
+The page is a **two-level registry**: grouped product rows, each expandable to its contract symbols and quotes. It replaces the old flat one-row-per-asset table.
 
-- **Header** — `Assets`, the counts summary (`N assets · N priced · N groups`), the Auto toggle and the manual refresh button only.
-- **Type filter tabs** — All / Stock / Future / Option / Crypto; `+ New group`, `+ New asset` and `Sync from Orders` sit on the right.
-- **One table** — a single sticky head; group rows (32px, collapse, count, drag-and-drop target) live inside the same `tbody`; an empty group is one `No assets` row. Asset rows are 32px at 11px; the ticker is the identity, and Name is no longer rendered.
-- **Editable ticker** — Edit changes the registry key; the backend cascades it to local orders, history and Managed Fund holdings, while mapped broker orders keep their own symbol (the modal warns).
-- **Inline price and spec editing** — click Price/Multiplier/Margin → 26px input → save through the API; the per-row refresh icon appears only for `PRICE_SOURCES` (`yfinance`, `tfex`).
-- **Price cache** — `localStorage('cached_price_{ticker}')` persists the last known price and follows a rename.
-- **Batch / Auto refresh** — `batch-update-prices`; Auto repeats it every 10 minutes.
-- **Sync on load + manual button** — `POST /api/v1/assets/sync-from-all` pulls symbols from Active Trading orders, every custom portfolio's orders, and Managed Fund holdings; Managed Fund order history is deliberately not a source.
+- **Header** — `Assets`, the counts summary (`N products · N symbols · N specs`), the Auto toggle and the manual refresh button. No automatic order-derived sync runs on mount.
+- **Type filter tabs** — All / Stock / Future / Option / Crypto (filters products by `asset_type`); `+ New group`, `Sync from orders` and `+ New product` sit on the right.
+- **One table, two levels.** A single sticky head; group rows (32px, collapse, count, drag-and-drop target) live inside the same `tbody`; product rows are 32px at 11px. An empty group is one `No products` row. Product identity is its ticker plus an optional display name; expanding a product fetches `/assets/symbols?product_id=` and renders its symbol sub-rows (price symbol, sync symbol, contract kind/option terms, price, change, updated, actions). A product with no symbols says orders cannot resolve a contract spec.
+- **Product rows** carry the broker code (not the numeric id), type, multiplier, margin rate, margin mode (`notional`/`premium`/`span`), source and `symbol_count`; Edit opens the product modal. **Symbol rows** carry the dashboard `price_symbol`, provider `sync_symbol`, contract terms and current quote; Edit opens the symbol modal.
+- **Product and symbol modals.** `AddAssetModal`/`EditAssetModal` run in `mode="product"` or `mode="symbol"`: product fields are ticker, optional Name, broker, type, source, group, multiplier, margin rate and margin mode; symbol fields are price symbol, required sync symbol, contract kind/option type/expiry/strike, and optional multiplier/rate overrides plus margin per contract. The helper states that sync symbol is the provider key used for quotes while price symbol is the dashboard contract key orders use.
+- **Rename and broker rules.** Editing the product ticker submits the rename; the backend moves the product, that product's own `price_symbol` rows and local ledger references, while mapped broker orders keep their own symbol (the modal does not enumerate this cascade). Changing the broker while symbols are attached shows the inline warning that the symbols must be removed first.
+- **Manual quote + refresh.** Clicking a symbol's Price opens a 26px input saved through `PUT /assets/symbols/{id}/quote`; the row refresh icon appears only for `PRICE_SOURCES` (`yfinance`, `tfex`) and calls `POST /assets/symbols/{id}/update-price`. The header/batch refresh calls `POST /assets/symbols/batch-update-prices`, and Auto repeats it every 10 minutes.
+- **Sync from orders is explicit.** The modal reads `GET /assets/proposal` and writes nothing until Apply. Each proposed symbol row selects either an existing same-broker product or "create new", then `POST /assets/apply` submits those choices. A brokerless Active Trading symbol cannot be assigned until a broker is set in Edit portfolio; a pair not in the proposal, a cross-broker product or an invalid choice shows the server detail.
+- **Price cache** — `localStorage('cached_price_{price_symbol}')` (and the sync symbol when they differ) persists the last known price.
 - **Selects** — source/type/group/broker use the shared in-page `SelectInput` combobox (`Field.tsx`), not a native `<select>`.
+
+**Broker scoping and prefill elsewhere.** Create Portfolio and Edit Portfolio load `/assets/products?broker_id=` and show only product tickers valid for the selected broker; broker selectors display the broker **code**. The portfolio summary resolves a unique broker+ticker product and shows its multiplier, margin rate, mode and symbol count. On the Active Trading detail, Add Order prefills the free-text `asset_type` only when the portfolio's first product ticker resolves uniquely **and** that product has exactly one symbol; the prefill is that symbol's `price_symbol` (otherwise the field stays empty).
 
 ## 🎨 UI Architecture
 
@@ -235,7 +241,7 @@ Portfolio Grid (xl:grid-cols-2)
 |-------|-----------|-------------|
 | `/` | PortfolioOverview | Cash breakdown + portfolio grid |
 | `/transactions` | TransactionsPage | Transaction table + unified inline form (From/To dropdowns, no modals) |
-| `/all-assets` | AllAssets | One grouped registry: editable ticker, collapsible group rows, inline price/spec editing |
+| `/all-assets` | AllAssets | Two-level registry: grouped products expand to symbol/quote rows, product/symbol modals, explicit proposal/apply |
 | `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | Dynamic layout per port_type (Managed Fund → PortfolioMutualFund with 4-card summary; all others → PortfolioGrid) |
 | `/analytics/detail` | PortfolioGrid | Grid view |
 | `/managed-fund/{portfolioId}` | PortfolioMutualFund | Managed fund view (summary, holdings, orders, history, rebalance) |
@@ -293,11 +299,12 @@ In the cluster no frontend env vars are needed: the browser calls `/api/v1/...` 
 9. **Dark mode**: `.dark` class toggle, localStorage persistence, anti-flash script
 10. **Tailwind CSS npm**: v3.4.19 with `darkMode: 'class'`, custom color variables
 11. **Inline styles minimized**: 254 → 35 (only dynamic runtime values)
-12. **Asset groups**: collapsible, droppable group section rows inside the one registry table; yfinance + TFEX price sync
-13. **Inline price and spec editing**: click Price/Multiplier/Margin → 26px input → API; the ticker is editable and its rename cascades through local orders/history/holdings
-14. **Transaction ledger**: data cells at 11px (`--fs-label`) in the shared table shell
-15. **Custom Portfolio**: New portfolio type with external database connection form (host, port, DB name, user, password) + Test Connection button
-16. **Portfolio-aware API calls**: All order operations (create, update, close, link, unlink), asset CRUD, asset/orders group CRUD accept optional `portfolioId` and append `?portfolio_id=` query param for custom portfolio routing
+12. **Two-level asset registry**: collapsible, droppable group rows, expandable product rows, and symbol/quote sub-rows in one table; broker-scoped product and symbol modals; yfinance/TFEX quote refresh
+13. **Explicit proposal/apply**: active-order symbols are proposed with same-broker product choices or a create option (an already-owned pair is idempotent); nothing is written until Apply, replacing the removed sync-from-orders/sync-from-all flows
+14. **Contract specs and quotes**: product margin mode (notional/premium/span) and multiplier/rate; symbol `price_symbol` (dashboard/order key) vs `sync_symbol` (provider key); editable manual quote per symbol; a product ticker rename cascades through local ledger references while mapped broker orders keep their symbol
+15. **Transaction ledger**: data cells at 11px (`--fs-label`) in the shared table shell
+16. **Custom Portfolio**: New portfolio type with external database connection form (host, port, DB name, user, password) + Test Connection button
+17. **Portfolio-aware API calls**: All order operations (create, update, close, link, unlink), custom asset CRUD, asset/orders group CRUD accept optional `portfolioId` and append `?portfolio_id=` query param for custom portfolio routing. Main-registry product/symbol calls are broker-scoped instead
 
 ### Key Business Logic
 
@@ -335,4 +342,4 @@ optimizeDeps: { include: ['react', 'react-dom', ...] }
 
 ---
 
-*Last updated: 10 November 2026 (docs aligned with the nginx multi-stage production image; stale tree entries for removed components, assets and tests dropped)*
+*Last updated: 24 November 2026 (two-level All Assets registry of products and expandable symbols; product/symbol modals with margin modes and price vs sync symbols; explicit proposal/apply replacing auto-sync; broker-code selectors and single-symbol Add Order prefill; nginx multi-stage production image retained)*

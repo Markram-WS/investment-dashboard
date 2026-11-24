@@ -1,6 +1,6 @@
 import os
 import uuid
-from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime, Boolean, ForeignKey, CheckConstraint, Numeric, UniqueConstraint, text
+from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime, Boolean, ForeignKey, CheckConstraint, Numeric, UniqueConstraint, Date, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, configure_mappers
 from datetime import datetime
@@ -24,6 +24,8 @@ class Portfolio(Base):
     # x_amount is the adverse move (in product price points) used by the risk model.
     broker_id = Column(Integer, ForeignKey('brokers.id'), nullable=True)
     product_ticker = Column(String, nullable=True)
+    # Ordered list of products the portfolio trades; product_ticker mirrors the first entry for legacy readers.
+    product_tickers = Column(JSON)
     x_amount = Column(Numeric(20, 8), nullable=False, default=Decimal('0'))
     initial_capital = Column(Numeric(20, 8), nullable=False, default=Decimal('0'))
     target_ratio = Column(JSON)
@@ -252,31 +254,79 @@ class Broker(Base):
     created_at = Column(DateTime, default=datetime.utcnow, server_default=text("CURRENT_TIMESTAMP"))
 
 
-class WhitelistAssets(Base):
-    __tablename__ = 'whitelist_assets'
+class AssetProduct(Base):
+    """Broker-scoped product definition (the dashboard's registry key)."""
 
-    asset_id = Column(Integer, primary_key=True)
-    # Contract spec lives on the asset row. Phase-1 key is (broker_id, ticker):
-    # one row per instrument so the price feed (batchUpdatePrices) stays singular.
-    # Known limitation: spot and future on one underlying currently share one
-    # multiplier/margin_rate row (contract_type is not part of the key yet).
-    broker_id = Column(Integer, ForeignKey('brokers.id'), nullable=False, default=1)
-    ticker = Column(String, nullable=False)
-    # Provider symbol used by the price feed (e.g. PTT.BK). NULL/blank falls
-    # back to ticker; it is never uppercased because providers are case-sensitive.
-    price_symbol = Column(String, nullable=True)
-    asset_type = Column(String, nullable=False)
-    multiplier = Column(Numeric(20, 8), nullable=False, default=1)
-    margin_rate = Column(Numeric(10, 6), nullable=False, default=0)
-    name = Column(String, nullable=True)
-    source = Column(String, default='manual')
+    __tablename__ = 'asset_products'
+
+    product_id = Column(Integer, primary_key=True)
+    ticker = Column(String, nullable=True)
+    broker_id = Column(Integer, ForeignKey('brokers.id'), nullable=True)
+    asset_type = Column(String, nullable=True)
+    multiplier = Column(Numeric(20, 8), nullable=False, default=1, server_default=text("1"))
+    margin_rate = Column(Numeric(10, 6), nullable=False, default=0, server_default=text("0"))
+    source = Column(String, default='-', server_default=text("'-'"))
+    margin_mode = Column(String, nullable=False, default='notional', server_default=text("'notional'"))
     group_id = Column(Integer, ForeignKey('asset_groups.id'), nullable=True)
-    price = Column(Numeric(20, 8), nullable=True)
-    change_24h = Column(Numeric(10, 4), nullable=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    name = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
     __table_args__ = (
-        UniqueConstraint('broker_id', 'ticker', name='uq_asset_broker_ticker'),
+        UniqueConstraint(
+            'ticker', 'broker_id', 'asset_type', name='uq_asset_product_identity'
+        ),
+        CheckConstraint(
+            "margin_mode IN ('notional','premium','span')",
+            name='ck_asset_product_margin_mode',
+        ),
+    )
+
+
+class AssetSymbol(Base):
+    """Contract symbol belonging to a product; price_symbol is the order key."""
+
+    __tablename__ = 'asset_symbols'
+
+    symbol_id = Column(Integer, primary_key=True)
+    product_id = Column(
+        Integer,
+        ForeignKey('asset_products.product_id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    # Mirror of the owning product broker; application writes keep them equal.
+    broker_id = Column(Integer, ForeignKey('brokers.id'), nullable=True)
+    price_symbol = Column(String, nullable=True)
+    sync_symbol = Column(String, nullable=False)
+    contract_kind = Column(String, default='future', server_default=text("'future'"))
+    option_type = Column(String, nullable=True)
+    expiry_date = Column(Date, nullable=True)
+    strike_price = Column(Numeric(20, 8), nullable=True)
+    multiplier_override = Column(Numeric(20, 8), nullable=True)
+    margin_rate_override = Column(Numeric(10, 6), nullable=True)
+    margin_per_contract = Column(Numeric(20, 8), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class AssetQuote(Base):
+    """Latest provider quote keyed by case-preserving provider symbol."""
+
+    __tablename__ = 'asset_quotes'
+
+    source = Column(String, primary_key=True)
+    sync_symbol = Column(String, primary_key=True)
+    price = Column(Numeric(20, 8), nullable=True)
+    change_24h = Column(Numeric(10, 4), nullable=True)
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.utcnow,
+        server_default=text("CURRENT_TIMESTAMP"),
     )
 
 

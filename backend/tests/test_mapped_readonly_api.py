@@ -274,8 +274,8 @@ async def test_non_mapped_reads_still_return_local_rows(async_client):
     assert "Equities" in [group["name"] for group in asset_groups.json()]
 
     assets = await async_client.get(f"/api/v1/assets?portfolio_id={portfolio_id}")
-    assert assets.status_code == 200
-    assert isinstance(assets.json(), list)
+    assert assets.status_code == 404
+    assert assets.json()["detail"] == "Use /assets/products for the main asset registry"
 
     performance = await async_client.get(
         f"/api/v1/analytics/performance/{portfolio_id}"

@@ -2,6 +2,10 @@ import pytest
 import asyncio
 from httpx import AsyncClient, ASGITransport
 from app.main import app
+from app.asset_registry_migration import (
+    create_application_tables,
+    run_asset_registry_migration,
+)
 from app.models import Base, configure_mappers, Portfolio, TradePlan, ActiveOrder
 from app.database import get_db
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -35,7 +39,8 @@ async def setup_test_engine():
     configure_mappers()
     engine, _ = get_test_engine()
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(create_application_tables)
+        await conn.run_sync(run_asset_registry_migration)
     yield
     await engine.dispose()
 

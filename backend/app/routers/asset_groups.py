@@ -6,8 +6,8 @@ from typing import Optional
 from datetime import datetime
 
 from app.database import get_db, resolve_portfolio_db
-from app.models import AssetGroup, WhitelistAssets
-from app.custom_models import CustomAssetGroup, CustomWhitelistAssets
+from app.models import AssetGroup, AssetProduct
+from app.custom_models import CustomAsset, CustomAssetGroup
 from app.custom_mapping import is_mapped_portfolio, raise_if_mapped_readonly
 
 class AssetGroupResponse(BaseModel):
@@ -123,7 +123,7 @@ async def delete_group(
             raise HTTPException(404, "Group not found")
         if getattr(group, 'is_default', False):
             raise HTTPException(400, "Cannot delete default groups")
-        AssetModel = CustomWhitelistAssets if is_custom else WhitelistAssets
+        AssetModel = CustomAsset if is_custom else AssetProduct
         await session.execute(
             AssetModel.__table__.update().where(AssetModel.group_id == group_id).values(group_id=None)
         )

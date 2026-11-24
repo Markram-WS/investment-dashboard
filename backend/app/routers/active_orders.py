@@ -3,8 +3,9 @@ from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 from app.database import get_db, resolve_portfolio_db
-from app.models import ActiveOrder, TradePlan, TradeHistory, Portfolio, WhitelistAssets, Broker
+from app.models import ActiveOrder, TradePlan, TradeHistory, Portfolio
 from app.custom_models import CustomActiveOrder, CustomTradePlan
+from app.services import asset_registry as registry
 from app.custom_mapping import (
     READ_ONLY_DETAIL,
     fetch_mapped_order,
@@ -129,6 +130,30 @@ def _mapped_response(order: dict, portfolio_id: int) -> dict:
     return shaped
 
 
+async def _assert_order_contract_spec(db: AsyncSession, portfolio: Portfolio, symbol: str) -> None:
+    """Local, non-custom Active Trading orders need a broker-scoped symbol spec."""
+    if portfolio is None or portfolio.port_type != "Active Trading":
+        return
+    if portfolio.broker_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Assign a broker in Edit portfolio before adding orders",
+        )
+    normalized = registry.normalise_symbol(symbol)
+    specs = await registry.resolve_symbol_specs(db, portfolio.broker_id, [normalized])
+    if normalized is not None and normalized in specs:
+        return
+    broker_code = await registry.broker_code(db, portfolio.broker_id)
+    broker_code = broker_code or str(portfolio.broker_id)
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            f"No contract spec for {normalized} on broker {broker_code} "
+            "— add it in All-assets first"
+        ),
+    )
+
+
 @router.get("/", tags=["orders"], response_model=List[ActiveOrderResponse])
 async def list_orders(
     db: AsyncSession = Depends(get_db),
@@ -178,36 +203,12 @@ async def create_order(order: ActiveOrderCreate, db: AsyncSession = Depends(get_
     session, is_custom = await resolve_portfolio_db(db, order.portfolio_id)
     try:
         ModelClass = CustomActiveOrder if is_custom else ActiveOrder
-        # Risk model guard: a portfolio configured with a product needs a live
-        # contract spec for the ORDER's own symbol (broker + ticker) in
-        # whitelist_assets before the order can be created. Portfolios may hold
-        # several symbols, so the order symbol is not compared to the product.
-        # Legacy portfolios without a product are not blocked.
-        pf = None
+        # Local, non-custom Active Trading: the order's own symbol must exist as
+        # a broker-scoped contract spec. Managed Fund / Spread Strategy / custom
+        # and mapped branches bypass this guard.
         if not is_custom:
-            pf_result = await db.execute(
-                select(Portfolio).where(Portfolio.portfolio_id == order.portfolio_id)
-            )
-            pf = pf_result.scalar_one_or_none()
-        if not is_custom and pf and pf.product_ticker:
-            order_symbol = order.asset_type.strip().upper()
-            spec = await db.execute(
-                select(WhitelistAssets.asset_id).where(
-                    WhitelistAssets.broker_id == pf.broker_id,
-                    func.upper(func.trim(WhitelistAssets.ticker)) == order_symbol,
-                )
-            )
-            if spec.scalars().first() is None:
-                broker_code = (await db.execute(
-                    select(Broker.code).where(Broker.id == pf.broker_id)
-                )).scalars().first() or str(pf.broker_id)
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"No contract spec for {order_symbol} on broker "
-                        f"{broker_code} — add it in All-assets first"
-                    ),
-                )
+            pf = await db.get(Portfolio, order.portfolio_id)
+            await _assert_order_contract_spec(db, pf, order.asset_type)
         data = order.dict(exclude_none=True)
         data.pop("order_ref", None)
         data.pop("fee", None)
@@ -389,6 +390,16 @@ async def update_order(
         update_data = order_update.dict(exclude_unset=True)
         update_data.pop("order_ref", None)
         update_data.pop("fee", None)
+        if (
+            not is_custom
+            and "asset_type" in update_data
+            and registry.normalise_symbol(update_data["asset_type"])
+            != registry.normalise_symbol(order.asset_type)
+        ):
+            # Resolve the portfolio from the loaded ORDER, never the optional
+            # query parameter, so a misleading parameter cannot skip the guard.
+            pf = await db.get(Portfolio, order.portfolio_id)
+            await _assert_order_contract_spec(db, pf, update_data["asset_type"])
         for field, value in update_data.items():
             setattr(order, field, value)
 

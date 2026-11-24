@@ -13,6 +13,7 @@ from app.managed_fund_models import (
     ManagedFundOrderHistory, ManagedFundSetting
 )
 from app.risk_calc import compute_margin_locked
+from app.services import asset_registry as registry
 from app.utils.crypto import encrypt_password, decrypt_password
 from app.custom_mapping import mapped_diagnostics, select_test_mapping, validate_mapping
 from app.mapping_templates import list_templates
@@ -30,6 +31,7 @@ class PortfolioCreate(BaseModel):
     port_type: str
     broker_id: Optional[int] = None
     product_ticker: Optional[str] = None
+    product_tickers: Optional[List[str]] = None
     x_amount: Optional[float] = 0.0
     initial_capital: Optional[float] = 0.0
     target_ratio: Optional[Dict[str, Any]] = None
@@ -57,6 +59,7 @@ class PortfolioResponse(BaseModel):
     is_custom: bool = False
     broker_id: Optional[int] = None
     product_ticker: Optional[str] = None
+    product_tickers: Optional[List[str]] = None
     x_amount: Optional[float] = 0.0
     initial_capital: Optional[float] = 0.0
     target_ratio: Optional[Dict[str, Any]]
@@ -108,6 +111,7 @@ class PortfolioUpdate(BaseModel):
     port_type: Optional[str] = None
     broker_id: Optional[int] = None
     product_ticker: Optional[str] = None
+    product_tickers: Optional[List[str]] = None
     x_amount: Optional[float] = None
     initial_capital: Optional[float] = None
     target_ratio: Optional[Dict[str, Any]] = None
@@ -135,6 +139,35 @@ class StoredConnectionTestRequest(BaseModel):
     """Body for testing a saved connection; credentials are never accepted."""
 
     mapping_config: Optional[Dict[str, Any]] = None
+
+
+def _normalize_product_tickers(values: Optional[List[str]]) -> Optional[List[str]]:
+    """Drop blanks and dedupe by normalized key, preserving the first raw value.
+
+    Values are not uppercased/trimmed: translation uses the normalized form only
+    for matching, so unmatched entries keep their original casing/whitespace.
+    """
+    if not values:
+        return None
+    normalized: List[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        key = value.strip().upper()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        normalized.append(value)
+    return normalized or None
+
+
+def _serialize_product_tickers(portfolio: Portfolio) -> Optional[List[str]]:
+    """Stored list, else the legacy single ticker, else None."""
+    stored = portfolio.product_tickers
+    if stored:
+        return list(stored)
+    return [portfolio.product_ticker] if portfolio.product_ticker else None
 
 
 async def _probe_mapped_connection(
@@ -249,12 +282,23 @@ async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depend
             if errors:
                 raise HTTPException(status_code=400, detail="; ".join(errors))
 
+    if portfolio.product_tickers is not None:
+        product_tickers = _normalize_product_tickers(portfolio.product_tickers)
+        product_tickers = await registry.translate_product_tickers(
+            db, portfolio.broker_id, product_tickers
+        )
+        product_ticker = product_tickers[0] if product_tickers else None
+    else:
+        product_tickers = None
+        product_ticker = portfolio.product_ticker
+
     db_portfolio = Portfolio(
         portfolio_name=portfolio.portfolio_name,
         port_type=portfolio.port_type,
         is_custom=is_custom,
         broker_id=portfolio.broker_id,
-        product_ticker=portfolio.product_ticker,
+        product_ticker=product_ticker,
+        product_tickers=product_tickers,
         x_amount=portfolio.x_amount or 0,
         initial_capital=portfolio.initial_capital or 0,
         target_ratio=portfolio.target_ratio,
@@ -295,6 +339,7 @@ async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depend
         "is_custom": db_portfolio.is_custom,
         "broker_id": db_portfolio.broker_id,
         "product_ticker": db_portfolio.product_ticker,
+        "product_tickers": _serialize_product_tickers(db_portfolio),
         "x_amount": db_portfolio.x_amount,
         "initial_capital": db_portfolio.initial_capital,
         "target_ratio": db_portfolio.target_ratio,
@@ -361,6 +406,7 @@ async def get_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)):
         "is_custom": portfolio.is_custom,
         "broker_id": portfolio.broker_id,
         "product_ticker": portfolio.product_ticker,
+        "product_tickers": _serialize_product_tickers(portfolio),
         "x_amount": portfolio.x_amount,
         "initial_capital": portfolio.initial_capital,
         "target_ratio": portfolio.target_ratio,
@@ -404,6 +450,18 @@ async def update_portfolio(portfolio_id: int, update: PortfolioUpdate, db: Async
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
     update_data = update.dict(exclude_unset=True)
+    if "product_tickers" in update_data:
+        # The list is authoritative when supplied: normalize it, translate any
+        # contract symbols to their owning product tickers and mirror the first
+        # entry into the legacy single-ticker column.
+        tickers = _normalize_product_tickers(update_data.pop("product_tickers"))
+        tickers = await registry.translate_product_tickers(
+            db,
+            update_data.get("broker_id", portfolio.broker_id),
+            tickers,
+        )
+        update_data["product_tickers"] = tickers
+        update_data["product_ticker"] = tickers[0] if tickers else None
     # margin_locked is a policy input only for Managed Fund; Active Trading
     # computes it from live orders, so a submitted value is accepted and dropped.
     if update_data.get("port_type", portfolio.port_type) == "Active Trading":
@@ -419,6 +477,7 @@ async def update_portfolio(portfolio_id: int, update: PortfolioUpdate, db: Async
         "is_custom": portfolio.is_custom,
         "broker_id": portfolio.broker_id,
         "product_ticker": portfolio.product_ticker,
+        "product_tickers": _serialize_product_tickers(portfolio),
         "x_amount": portfolio.x_amount,
         "initial_capital": portfolio.initial_capital,
         "target_ratio": portfolio.target_ratio,

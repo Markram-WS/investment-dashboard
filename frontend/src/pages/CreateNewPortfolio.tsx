@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { BrokerRecord, MappingTemplate, PortfolioPayload } from '../lib/api';
+import type { AssetProduct } from '../types';
 import PageLayout from '../components/PageLayout';
 import PageHeader from '../components/PageHeader';
 import {
@@ -250,6 +251,7 @@ const CreateNewPortfolio: React.FC = () => {
   const [mappingError, setMappingError] = useState<string | null>(null);
   const [targetRatioStr, setTargetRatioStr] = useState<string>('');
   const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
+  const [products, setProducts] = useState<AssetProduct[]>([]);
   const [tickers, setTickers] = useState<string[]>([]);
   const navigate = useNavigate();
 
@@ -258,14 +260,32 @@ const CreateNewPortfolio: React.FC = () => {
     api.getBrokers()
       .then((rows) => { if (!cancelled) setBrokers(rows); })
       .catch((err) => console.error('Failed to load brokers:', err));
-    api.getAssets()
-      .then((rows) => {
-        if (cancelled) return;
-        setTickers(Array.from(new Set(rows.map((a) => a.ticker).filter(Boolean))));
-      })
-      .catch((err) => console.error('Failed to load asset tickers:', err));
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const brokerId = formData.broker_id;
+    api.getProducts(brokerId == null ? {} : { broker_id: brokerId })
+      .then((rows) => {
+        if (cancelled) return;
+        const scoped = rows.filter((product) => product.broker_id === (brokerId ?? null));
+        const nextTickers = Array.from(new Set(
+          scoped
+            .map((product) => product.ticker)
+            .filter((ticker): ticker is string => Boolean(ticker)),
+        ));
+        setProducts(scoped);
+        setTickers(nextTickers);
+        setFormData((prev) => {
+          const current = prev.product_ticker.trim().toUpperCase();
+          if (!current || nextTickers.some((ticker) => ticker.toUpperCase() === current)) return prev;
+          return { ...prev, product_ticker: '' };
+        });
+      })
+      .catch((err) => console.error('Failed to load products:', err));
+    return () => { cancelled = true; };
+  }, [formData.broker_id]);
 
   useEffect(() => {
     if (formData.port_type !== 'Custom Portfolio') return;
@@ -477,6 +497,12 @@ const CreateNewPortfolio: React.FC = () => {
   const hasConnectionLine =
     formData.port_type === 'Custom Portfolio' && Boolean(formData.db_host);
 
+  const selectedTicker = formData.product_ticker.trim().toUpperCase();
+  const matchingProducts = selectedTicker
+    ? products.filter((product) => (product.ticker ?? '').toUpperCase() === selectedTicker)
+    : [];
+  const selectedProduct = matchingProducts.length === 1 ? matchingProducts[0] : null;
+
   return (
     <PageLayout>
       <button
@@ -643,7 +669,7 @@ const CreateNewPortfolio: React.FC = () => {
                     >
                       <option value="" style={{ color: "var(--color-ink)" }}>Select broker</option>
                       {brokers.map(b => (
-                        <option key={b.id} value={b.id} style={{ color: "var(--color-ink)" }}>{b.code} — {b.name}</option>
+                        <option key={b.id} value={b.id} style={{ color: "var(--color-ink)" }}>{b.code}</option>
                       ))}
                     </select>
                     <span
@@ -697,6 +723,18 @@ const CreateNewPortfolio: React.FC = () => {
                   />
                 </div>
                   </div>
+                  {selectedProduct ? (
+                    <p style={{ ...CONTROL_HELPER, margin: "6px 0 0" }}>
+                      Contract spec: multiplier {selectedProduct.multiplier ?? '—'} · margin rate{' '}
+                      {selectedProduct.margin_rate != null ? Number(selectedProduct.margin_rate).toFixed(2) : '—'} ·{' '}
+                      {selectedProduct.margin_mode} · {selectedProduct.symbol_count} symbol
+                      {selectedProduct.symbol_count === 1 ? '' : 's'}
+                    </p>
+                  ) : selectedTicker ? (
+                    <p style={{ ...CONTROL_HELPER, margin: "6px 0 0", color: "var(--color-warning-text)" }}>
+                      No unique product for “{selectedTicker}” in this broker — pick the exact product ticker.
+                    </p>
+                  ) : null}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "var(--space-md)" }}>
                     <div style={{ minWidth: 0 }}>
                       <label style={CONTROL_LABEL} htmlFor="available_cash">Available Cash</label>

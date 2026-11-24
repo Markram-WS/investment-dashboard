@@ -59,6 +59,26 @@ def active_order_payload(plan_id, portfolio_id):
         "linked_order_id": "spread_1",
     }
 
+
+async def _seed_contract(client, broker_code: str = "ANC") -> int:
+    """Create a broker plus CRYPTO product/symbol spec; return the broker id."""
+    broker_resp = await client.post(
+        "/api/v1/brokers", json={"code": broker_code, "name": f"Broker {broker_code}"}
+    )
+    assert broker_resp.status_code == 201, broker_resp.text
+    broker_id = broker_resp.json()["id"]
+    product_resp = await client.post(
+        "/api/v1/assets/products",
+        json={"ticker": "CRYPTO", "broker_id": broker_id, "asset_type": "crypto"},
+    )
+    assert product_resp.status_code == 201, product_resp.text
+    symbol_resp = await client.post(
+        f"/api/v1/assets/products/{product_resp.json()['product_id']}/symbols",
+        json={"price_symbol": "CRYPTO", "sync_symbol": "CRYPTO"},
+    )
+    assert symbol_resp.status_code == 201, symbol_resp.text
+    return broker_id
+
 @pytest.mark.asyncio
 async def test_portfolio_grid_endpoint_empty(async_client):
     """Test the portfolio-grid endpoint when there are no portfolios."""
@@ -71,8 +91,11 @@ async def test_portfolio_grid_endpoint_empty(async_client):
 @pytest.mark.asyncio
 async def test_portfolio_grid_endpoint_with_data(async_client):
     """Test the portfolio-grid endpoint with a portfolio and related data."""
-    # Create a portfolio
-    portfolio_resp = await async_client.post("/api/v1/portfolios/", json=portfolio_payload())
+    # Create a portfolio (with a broker-scoped contract spec for the order)
+    broker_id = await _seed_contract(async_client, "AN1")
+    portfolio_resp = await async_client.post(
+        "/api/v1/portfolios/", json={**portfolio_payload(), "broker_id": broker_id}
+    )
     assert portfolio_resp.status_code == 201
     portfolio = portfolio_resp.json()
     portfolio_id = portfolio["portfolio_id"]
@@ -134,8 +157,11 @@ async def test_portfolio_detail_endpoint_not_found(async_client):
 @pytest.mark.asyncio
 async def test_portfolio_detail_endpoint_with_data(async_client):
     """Test the portfolio detail endpoint with portfolio and related data."""
-    # Create a portfolio
-    portfolio_resp = await async_client.post("/api/v1/portfolios/", json=portfolio_payload())
+    # Create a portfolio (with a broker-scoped contract spec for the order)
+    broker_id = await _seed_contract(async_client, "AN2")
+    portfolio_resp = await async_client.post(
+        "/api/v1/portfolios/", json={**portfolio_payload(), "broker_id": broker_id}
+    )
     assert portfolio_resp.status_code == 201
     portfolio = portfolio_resp.json()
     portfolio_id = portfolio["portfolio_id"]
@@ -181,9 +207,11 @@ async def test_analytics_alias_endpoint(async_client):
 # Unreachable mapped database: degrade, never 500
 # ---------------------------------------------------------------------------
 
-async def _create_portfolio(client, name: str) -> int:
+async def _create_portfolio(client, name: str, broker_id: int | None = None) -> int:
     payload = portfolio_payload()
     payload["portfolio_name"] = name
+    if broker_id is not None:
+        payload["broker_id"] = broker_id
     resp = await client.post("/api/v1/portfolios/", json=payload)
     assert resp.status_code == 201, resp.text
     return resp.json()["portfolio_id"]
@@ -281,7 +309,10 @@ async def test_portfolio_detail_mapped_unreachable_degrades(async_client, monkey
 @pytest.mark.asyncio
 async def test_portfolio_grid_isolates_unreachable_mapped(async_client, monkeypatch):
     """One dead foreign DB degrades its own row; the healthy row is intact."""
-    healthy_id = await _create_portfolio(async_client, "Healthy Local")
+    healthy_broker_id = await _seed_contract(async_client, "AN3")
+    healthy_id = await _create_portfolio(
+        async_client, "Healthy Local", broker_id=healthy_broker_id
+    )
     broken_id = await _create_portfolio(async_client, "Broken Mapped")
     try:
         plan_resp = await async_client.post(

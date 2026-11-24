@@ -1,31 +1,57 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, or_, update
-from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime
-import logging
+"""Asset registry API.
 
+Root ``/assets`` keeps only the custom-portfolio flat CRUD and the mapped
+read-only responses.  The main registry is exposed as broker-scoped products
+and their contract symbols; legacy flat ids and sync writers are gone.
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import date, datetime
+from typing import Any, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import func, or_, select, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.custom_mapping import (
+    fetch_mapped_orders,
+    is_mapped_portfolio,
+    raise_if_mapped_readonly,
+)
+from app.custom_models import CustomActiveOrder, CustomAsset, CustomTransaction
 from app.database import (
-    get_db, get_custom_session, get_or_create_custom_engine, resolve_portfolio_db,
+    get_custom_session,
+    get_db,
+    get_or_create_custom_engine,
+    resolve_portfolio_db,
 )
 from app.models import (
-    WhitelistAssets, AssetGroup, ActiveOrder, Broker,
-    CustomPortfolioConnection, Portfolio, TradeHistory, Transaction,
+    ActiveOrder,
+    AssetProduct,
+    AssetSymbol,
+    Broker,
+    CustomPortfolioConnection,
+    Portfolio,
 )
-from app.custom_models import CustomActiveOrder, CustomTransaction, CustomWhitelistAssets
-from app.custom_mapping import (
-    fetch_mapped_orders, is_mapped_portfolio, raise_if_mapped_readonly,
-)
-from app.managed_fund_models import (
-    ManagedFundHolding, ManagedFundOrder, ManagedFundOrderHistory,
-)
+from app.services import asset_registry as registry
+
 from app.services import tfex_service
 from app.services.yfinance_service import fetch_price
 
 logger = logging.getLogger(__name__)
 
-PRICE_SOURCES = ('yfinance', 'tfex')
+MAIN_ROOT_DETAIL = "Use /assets/products for the main asset registry"
+
+router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Custom flat branch (unchanged response shape)
+# ---------------------------------------------------------------------------
 
 class AssetResponse(BaseModel):
     asset_id: int
@@ -46,6 +72,7 @@ class AssetResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class AssetCreate(BaseModel):
     ticker: str
     price_symbol: Optional[str] = None
@@ -56,6 +83,7 @@ class AssetCreate(BaseModel):
     broker_id: Optional[int] = 1
     multiplier: Optional[float] = 1
     margin_rate: Optional[float] = 0
+
 
 class AssetUpdate(BaseModel):
     ticker: Optional[str] = None
@@ -68,13 +96,6 @@ class AssetUpdate(BaseModel):
     change_24h: Optional[float] = None
     multiplier: Optional[float] = None
     margin_rate: Optional[float] = None
-
-router = APIRouter()
-
-
-async def _broker_codes(db: AsyncSession) -> dict:
-    result = await db.execute(select(Broker.id, Broker.code))
-    return {row[0]: row[1] for row in result.all()}
 
 
 def _asset_payload(asset, broker_codes: dict) -> dict:
@@ -97,55 +118,9 @@ def _asset_payload(asset, broker_codes: dict) -> dict:
     }
 
 
-async def _ensure_default_group(db: AsyncSession):
-    result = await db.execute(select(AssetGroup).where(AssetGroup.name == "Ungrouped"))
-    group = result.scalars().first()
-    if not group:
-        group = AssetGroup(name="Ungrouped", is_default=True)
-        db.add(group)
-        await db.commit()
-        await db.refresh(group)
-    return group
-
-
 def _normalise_ticker(value) -> str | None:
     """Asset ticker in the dashboard's stored form, or None when blank."""
-    if not isinstance(value, str):
-        return None
-    ticker = value.strip().upper()
-    return ticker or None
-
-
-async def _rename_asset_references(
-    session: AsyncSession, old_ticker: str, new_ticker: str, is_custom: bool,
-) -> None:
-    """Follow a registry ticker rename in the asset's own database.
-
-    The ticker is the editable registry key; the local ledger tables carry their
-    own copy of it (``asset_type`` on orders, ``asset`` on history and
-    transactions, ``product_ticker`` on portfolios) and must move with it in the
-    same transaction. Mapped portfolios keep their orders in the foreign broker
-    database, so those rows are never touched here and keep their own symbol.
-    """
-    if is_custom:
-        references = (
-            (CustomActiveOrder, CustomActiveOrder.asset_type),
-            (CustomTransaction, CustomTransaction.asset),
-        )
-    else:
-        references = (
-            (ActiveOrder, ActiveOrder.asset_type),
-            (TradeHistory, TradeHistory.asset),
-            (Transaction, Transaction.asset),
-            (ManagedFundHolding, ManagedFundHolding.asset),
-            (ManagedFundOrder, ManagedFundOrder.asset),
-            (ManagedFundOrderHistory, ManagedFundOrderHistory.asset),
-            (Portfolio, Portfolio.product_ticker),
-        )
-    for model, column in references:
-        await session.execute(
-            update(model).where(column == old_ticker).values({column: new_ticker})
-        )
+    return registry.normalise_ticker(value)
 
 
 def _normalise_price_symbol(value, fallback: str | None = None) -> str | None:
@@ -160,74 +135,12 @@ def _normalise_price_symbol(value, fallback: str | None = None) -> str | None:
 
 
 def _fetch_source_price(asset) -> tuple[float, float]:
-    """Fetch ``(price, change_24h)`` for an asset from its configured source.
-
-    Manual assets are never fetched; callers only pass yfinance/tfex sources.
-    """
+    """Fetch ``(price, change_24h)`` from the asset's configured provider."""
     symbol = asset.price_symbol or asset.ticker
     if asset.source == 'tfex':
         return tfex_service.fetch_price(symbol)
     return fetch_price(symbol)
 
-
-async def _collect_order_tickers(db: AsyncSession) -> tuple[set[str], set[str]]:
-    """Order tickers across the main DB and every custom portfolio.
-
-    Returns ``(tickers, mapped_tickers)``. Mapped portfolios are read through
-    the foreign-schema adapter (never ``ensure_custom_tables`` on a foreign
-    database); legacy custom portfolios use their own session. A portfolio
-    whose external database is unreachable is skipped so one broken
-    connection cannot block local asset sync.
-    """
-    tickers: set[str] = set()
-    mapped_tickers: set[str] = set()
-
-    result = await db.execute(select(ActiveOrder.asset_type).distinct())
-    for row in result:
-        ticker = _normalise_ticker(row[0])
-        if ticker:
-            tickers.add(ticker)
-
-    portfolios_result = await db.execute(
-        select(Portfolio).where(Portfolio.is_custom.is_(True))
-    )
-    for portfolio in portfolios_result.scalars().all():
-        conn_result = await db.execute(
-            select(CustomPortfolioConnection).where(
-                CustomPortfolioConnection.portfolio_id == portfolio.portfolio_id
-            )
-        )
-        connection = conn_result.scalar_one_or_none()
-        if connection is None:
-            continue
-        try:
-            if connection.mapping_config:
-                engine = await get_or_create_custom_engine(connection)
-                orders = await fetch_mapped_orders(engine, connection.mapping_config)
-                portfolio_tickers = {_normalise_ticker(o.get("asset_type")) for o in orders}
-                portfolio_tickers.discard(None)
-                mapped_tickers.update(portfolio_tickers)
-                tickers.update(portfolio_tickers)
-            else:
-                session = await get_custom_session(connection)
-                try:
-                    custom_result = await session.execute(
-                        select(CustomActiveOrder.asset_type).distinct()
-                    )
-                    for row in custom_result:
-                        ticker = _normalise_ticker(row[0])
-                        if ticker:
-                            tickers.add(ticker)
-                finally:
-                    await session.close()
-        except Exception:
-            logger.warning(
-                "Skipping custom portfolio %s while collecting order tickers",
-                portfolio.portfolio_id,
-                exc_info=True,
-            )
-
-    return tickers, mapped_tickers
 
 @router.get("", response_model=List[AssetResponse], tags=["assets"])
 async def list_assets(
@@ -240,23 +153,22 @@ async def list_assets(
     if await is_mapped_portfolio(db, portfolio_id):
         return []
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
+    if not is_custom:
+        raise HTTPException(404, MAIN_ROOT_DETAIL)
     try:
-        ModelClass = CustomWhitelistAssets if is_custom else WhitelistAssets
-        query = select(ModelClass)
+        query = select(CustomAsset)
         if group_id is not None:
-            query = query.where(ModelClass.group_id == group_id)
+            query = query.where(CustomAsset.group_id == group_id)
         if asset_type:
-            query = query.where(ModelClass.asset_type == asset_type)
+            query = query.where(CustomAsset.asset_type == asset_type)
         if source:
-            query = query.where(ModelClass.source == source)
-        query = query.order_by(ModelClass.ticker)
-        result = await session.execute(query)
-        assets = result.scalars().all()
-        codes = {} if is_custom else await _broker_codes(db)
-        return [_asset_payload(a, codes) for a in assets]
+            query = query.where(CustomAsset.source == source)
+        query = query.order_by(CustomAsset.ticker)
+        assets = (await session.execute(query)).scalars().all()
+        return [_asset_payload(asset, {}) for asset in assets]
     finally:
-        if is_custom:
-            await session.close()
+        await session.close()
+
 
 @router.post("", response_model=AssetResponse, status_code=201, tags=["assets"])
 async def create_asset(
@@ -266,27 +178,19 @@ async def create_asset(
 ):
     await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
+    if not is_custom:
+        raise HTTPException(404, MAIN_ROOT_DETAIL)
     try:
-        ModelClass = CustomWhitelistAssets if is_custom else WhitelistAssets
         if data.multiplier is not None and data.multiplier <= 0:
             raise HTTPException(400, "multiplier must be greater than 0")
         if data.margin_rate is not None and not (0 <= data.margin_rate <= 1):
             raise HTTPException(400, "margin_rate must be between 0 and 1")
-        broker_id = data.broker_id or 1
-        if is_custom:
-            existing = await session.execute(
-                select(ModelClass).where(ModelClass.ticker == data.ticker.upper())
-            )
-        else:
-            existing = await session.execute(
-                select(ModelClass).where(
-                    ModelClass.ticker == data.ticker.upper(),
-                    ModelClass.broker_id == broker_id,
-                )
-            )
+        existing = await session.execute(
+            select(CustomAsset).where(CustomAsset.ticker == data.ticker.upper())
+        )
         if existing.scalars().first():
             raise HTTPException(400, "Asset with this ticker already exists")
-        asset = ModelClass(
+        asset = CustomAsset(
             ticker=data.ticker.upper(),
             price_symbol=_normalise_price_symbol(data.price_symbol, data.ticker.upper()),
             asset_type=data.asset_type,
@@ -294,18 +198,13 @@ async def create_asset(
             source=data.source,
             group_id=data.group_id,
         )
-        if not is_custom:
-            asset.broker_id = broker_id
-            asset.multiplier = data.multiplier if data.multiplier is not None else 1
-            asset.margin_rate = data.margin_rate if data.margin_rate is not None else 0
         session.add(asset)
         await session.commit()
         await session.refresh(asset)
-        codes = {} if is_custom else await _broker_codes(db)
-        return _asset_payload(asset, codes)
+        return _asset_payload(asset, {})
     finally:
-        if is_custom:
-            await session.close()
+        await session.close()
+
 
 @router.put("/{asset_id}", response_model=AssetResponse, tags=["assets"])
 async def update_asset(
@@ -316,10 +215,14 @@ async def update_asset(
 ):
     await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
+    if not is_custom:
+        raise HTTPException(404, MAIN_ROOT_DETAIL)
     try:
-        ModelClass = CustomWhitelistAssets if is_custom else WhitelistAssets
-        result = await session.execute(select(ModelClass).where(ModelClass.asset_id == asset_id))
-        asset = result.scalars().first()
+        asset = (
+            await session.execute(
+                select(CustomAsset).where(CustomAsset.asset_id == asset_id)
+            )
+        ).scalars().first()
         if not asset:
             raise HTTPException(404, "Asset not found")
         if data.multiplier is not None and data.multiplier <= 0:
@@ -332,38 +235,42 @@ async def update_asset(
                 raise HTTPException(400, "Ticker is required")
             old_ticker = asset.ticker
             if new_ticker != (old_ticker or "").upper():
-                duplicate = select(ModelClass).where(
-                    ModelClass.ticker == new_ticker,
-                    ModelClass.asset_id != asset.asset_id,
+                duplicate = await session.execute(
+                    select(CustomAsset).where(
+                        CustomAsset.ticker == new_ticker,
+                        CustomAsset.asset_id != asset.asset_id,
+                    )
                 )
-                if not is_custom:
-                    duplicate = duplicate.where(ModelClass.broker_id == asset.broker_id)
-                if (await session.execute(duplicate)).scalars().first():
+                if duplicate.scalars().first():
                     raise HTTPException(400, "An asset with this ticker already exists")
-                await _rename_asset_references(session, old_ticker, new_ticker, is_custom)
+                for model, column in (
+                    (CustomActiveOrder, CustomActiveOrder.asset_type),
+                    (CustomTransaction, CustomTransaction.asset),
+                ):
+                    await session.execute(
+                        update(model)
+                        .where(column == old_ticker)
+                        .values({column.name: new_ticker})
+                    )
                 asset.ticker = new_ticker
-                # The display name is legacy; keep it as a label only while it
-                # never diverged from the old registry key.
                 if not asset.name or asset.name == old_ticker:
                     asset.name = new_ticker
-        # Blank (or explicit null) clears the override: NULL means "use the ticker".
         if "price_symbol" in data.model_fields_set:
             asset.price_symbol = _normalise_price_symbol(data.price_symbol)
-        for field in ("name", "asset_type", "source", "group_id", "price", "change_24h", "multiplier", "margin_rate"):
-            val = getattr(data, field, None)
-            if val is None:
+        for field in (
+            "name", "asset_type", "source", "group_id", "price", "change_24h",
+        ):
+            value = getattr(data, field, None)
+            if value is None:
                 continue
-            if field in ("multiplier", "margin_rate") and not hasattr(asset, field):
-                continue
-            setattr(asset, field, val)
+            setattr(asset, field, value)
         asset.updated_at = datetime.utcnow()
         await session.commit()
         await session.refresh(asset)
-        codes = {} if is_custom else await _broker_codes(db)
-        return _asset_payload(asset, codes)
+        return _asset_payload(asset, {})
     finally:
-        if is_custom:
-            await session.close()
+        await session.close()
+
 
 @router.delete("/{asset_id}", status_code=204, tags=["assets"])
 async def delete_asset(
@@ -373,123 +280,893 @@ async def delete_asset(
 ):
     await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
+    if not is_custom:
+        raise HTTPException(404, MAIN_ROOT_DETAIL)
     try:
-        ModelClass = CustomWhitelistAssets if is_custom else WhitelistAssets
-        result = await session.execute(select(ModelClass).where(ModelClass.asset_id == asset_id))
-        asset = result.scalars().first()
+        asset = (
+            await session.execute(
+                select(CustomAsset).where(CustomAsset.asset_id == asset_id)
+            )
+        ).scalars().first()
         if not asset:
             raise HTTPException(404, "Asset not found")
         await session.delete(asset)
         await session.commit()
     finally:
-        if is_custom:
-            await session.close()
-
-@router.post("/sync-from-orders", response_model=List[AssetResponse], tags=["assets"])
-async def sync_from_orders(db: AsyncSession = Depends(get_db)):
-    tickers, mapped_tickers = await _collect_order_tickers(db)
-    existing = await db.execute(select(WhitelistAssets.ticker))
-    existing_tickers = {row[0].upper() for row in existing if row[0]}
-    missing = tickers - existing_tickers
-    if not missing:
-        return []
-    ung_group = await _ensure_default_group(db)
-    new_assets = []
-    for ticker in sorted(missing):
-        asset = WhitelistAssets(
-            ticker=ticker,
-            price_symbol=ticker,
-            asset_type='future' if ticker in mapped_tickers else 'stock',
-            name=ticker,
-            source='tfex' if ticker in mapped_tickers else 'yfinance',
-            group_id=ung_group.id,
-        )
-        db.add(asset)
-        new_assets.append(asset)
-    await db.commit()
-    for a in new_assets:
-        await db.refresh(a)
-        try:
-            price, change = _fetch_source_price(a)
-            a.price = price
-            a.change_24h = change
-        except Exception:
-            pass
-    await db.commit()
-    for a in new_assets:
-        await db.refresh(a)
-    return new_assets
-
-@router.post("/sync-from-all", response_model=List[AssetResponse], tags=["assets"])
-async def sync_from_all(db: AsyncSession = Depends(get_db)):
-    tickers, mapped_tickers = await _collect_order_tickers(db)
-
-    # From Managed Fund holdings
-    mf_hold_result = await db.execute(select(ManagedFundHolding.asset).distinct())
-    for row in mf_hold_result:
-        ticker = _normalise_ticker(row[0])
-        if ticker:
-            tickers.add(ticker)
-
-    existing = await db.execute(select(WhitelistAssets.ticker))
-    existing_tickers = {row[0].upper() for row in existing if row[0]}
-    missing = tickers - existing_tickers
-
-    if not missing:
-        return []
-
-    ung_group = await _ensure_default_group(db)
-    new_assets = []
-    for ticker in sorted(missing):
-        asset = WhitelistAssets(
-            ticker=ticker,
-            price_symbol=ticker,
-            asset_type='future' if ticker in mapped_tickers else 'crypto',
-            name=ticker,
-            source='tfex' if ticker in mapped_tickers else 'manual',
-            group_id=ung_group.id,
-        )
-        db.add(asset)
-        new_assets.append(asset)
-    await db.commit()
-    for a in new_assets:
-        await db.refresh(a)
-    return new_assets
+        await session.close()
 
 
-@router.post("/{asset_id}/update-price", response_model=AssetResponse, tags=["assets"])
-async def update_asset_price(asset_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(WhitelistAssets).where(WhitelistAssets.asset_id == asset_id))
-    asset = result.scalars().first()
-    if not asset:
-        raise HTTPException(404, "Asset not found")
-    if asset.source in PRICE_SOURCES:
-        try:
-            price, change = _fetch_source_price(asset)
-            asset.price = price
-            asset.change_24h = change
-        except Exception as e:
-            raise HTTPException(502, f"Failed to fetch price: {e}")
-    asset.updated_at = datetime.utcnow()
-    await db.commit()
-    await db.refresh(asset)
-    return asset
+# The legacy order-derived sync writers are removed. These explicit 404s make
+# the removal unambiguous even though the dynamic custom routes share the path
+# prefix.
+@router.post("/sync-from-orders", status_code=404, include_in_schema=False)
+async def legacy_sync_from_orders_removed():
+    raise HTTPException(404, "Not Found")
 
-@router.post("/batch-update-prices", tags=["assets"])
-async def batch_update_prices(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(WhitelistAssets).where(WhitelistAssets.source.in_(PRICE_SOURCES))
+
+@router.post("/sync-from-all", status_code=404, include_in_schema=False)
+async def legacy_sync_from_all_removed():
+    raise HTTPException(404, "Not Found")
+
+
+# ---------------------------------------------------------------------------
+# Products
+# ---------------------------------------------------------------------------
+
+class ProductCreate(BaseModel):
+    ticker: Optional[str] = None
+    broker_id: Optional[int] = None
+    asset_type: Optional[str] = None
+    multiplier: Optional[float] = None
+    margin_rate: Optional[float] = None
+    margin_mode: Optional[str] = None
+    source: Optional[str] = None
+    group_id: Optional[int] = None
+    name: Optional[str] = None
+
+
+class ProductUpdate(BaseModel):
+    ticker: Optional[str] = None
+    broker_id: Optional[int] = None
+    asset_type: Optional[str] = None
+    multiplier: Optional[float] = None
+    margin_rate: Optional[float] = None
+    margin_mode: Optional[str] = None
+    source: Optional[str] = None
+    group_id: Optional[int] = None
+    name: Optional[str] = None
+
+
+class SymbolCreate(BaseModel):
+    price_symbol: Optional[str] = None
+    sync_symbol: Optional[str] = None
+    contract_kind: Optional[str] = None
+    option_type: Optional[str] = None
+    expiry_date: Optional[date] = None
+    strike_price: Optional[float] = None
+    multiplier_override: Optional[float] = None
+    margin_rate_override: Optional[float] = None
+    margin_per_contract: Optional[float] = None
+
+
+class SymbolUpdate(BaseModel):
+    price_symbol: Optional[str] = None
+    sync_symbol: Optional[str] = None
+    contract_kind: Optional[str] = None
+    option_type: Optional[str] = None
+    expiry_date: Optional[date] = None
+    strike_price: Optional[float] = None
+    multiplier_override: Optional[float] = None
+    margin_rate_override: Optional[float] = None
+    margin_per_contract: Optional[float] = None
+
+
+class QuoteUpdate(BaseModel):
+    price: Optional[float] = None
+    change_24h: Optional[float] = None
+
+
+class SyncChoice(BaseModel):
+    symbol: str
+    broker_id: Optional[int] = None
+    product_id: Optional[int] = None
+    create_product: Optional[bool] = None
+
+
+class SyncApplyRequest(BaseModel):
+    choices: List[SyncChoice] = []
+
+
+def _validate_product_values(
+    multiplier: Optional[float],
+    margin_rate: Optional[float],
+    margin_mode: Optional[str],
+) -> None:
+    if multiplier is not None and multiplier <= 0:
+        raise HTTPException(400, "multiplier must be greater than 0")
+    if margin_rate is not None and not (0 <= margin_rate <= 1):
+        raise HTTPException(400, "margin_rate must be between 0 and 1")
+    if margin_mode is not None and margin_mode not in registry.MARGIN_MODES:
+        raise HTTPException(400, "margin_mode must be one of notional, premium, span")
+
+
+def _validate_symbol_values(
+    multiplier_override: Optional[float],
+    margin_rate_override: Optional[float],
+) -> None:
+    if multiplier_override is not None and multiplier_override <= 0:
+        raise HTTPException(400, "multiplier must be greater than 0")
+    if margin_rate_override is not None and not (0 <= margin_rate_override <= 1):
+        raise HTTPException(400, "margin_rate must be between 0 and 1")
+
+
+def _identity_filter(ticker: Optional[str], broker_id: Optional[int], asset_type: Optional[str]):
+    clauses = []
+    for column, value in (
+        (AssetProduct.ticker, ticker),
+        (AssetProduct.broker_id, broker_id),
+        (AssetProduct.asset_type, asset_type),
+    ):
+        clauses.append(column.is_(None) if value is None else column == value)
+    return clauses
+
+
+async def _identity_exists(
+    db: AsyncSession,
+    ticker: Optional[str],
+    broker_id: Optional[int],
+    asset_type: Optional[str],
+    *,
+    exclude_product_id: Optional[int] = None,
+) -> bool:
+    query = select(AssetProduct.product_id).where(
+        *_identity_filter(ticker, broker_id, asset_type)
     )
-    assets = result.scalars().all()
-    updated = []
-    for asset in assets:
-        try:
-            price, change = _fetch_source_price(asset)
-            asset.price = price
-            asset.change_24h = change
-            asset.updated_at = datetime.utcnow()
-            updated.append(asset.ticker)
-        except Exception:
-            pass
+    if exclude_product_id is not None:
+        query = query.where(AssetProduct.product_id != exclude_product_id)
+    return (await db.execute(query.limit(1))).first() is not None
+
+
+async def _product_or_404(db: AsyncSession, product_id: int) -> AssetProduct:
+    product = await db.get(AssetProduct, product_id)
+    if product is None:
+        raise HTTPException(404, "Product not found")
+    return product
+
+
+async def _symbol_or_404(
+    db: AsyncSession, symbol_id: int
+) -> tuple[AssetSymbol, AssetProduct]:
+    symbol = await db.get(AssetSymbol, symbol_id)
+    if symbol is None:
+        raise HTTPException(404, "Symbol not found")
+    product = await db.get(AssetProduct, symbol.product_id)
+    if product is None:
+        raise HTTPException(404, "Symbol not found")
+    return symbol, product
+
+
+@router.get("/products", tags=["assets"])
+async def list_products(
+    group_id: Optional[int] = Query(None),
+    asset_type: Optional[str] = Query(None),
+    source: Optional[str] = Query(None),
+    broker_id: Optional[int] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(AssetProduct).where(
+        or_(
+            AssetProduct.ticker.isnot(None),
+            AssetProduct.broker_id.isnot(None),
+            AssetProduct.asset_type.isnot(None),
+        )
+    )
+    if group_id is not None:
+        query = query.where(AssetProduct.group_id == group_id)
+    if asset_type:
+        query = query.where(AssetProduct.asset_type == asset_type)
+    if source:
+        query = query.where(AssetProduct.source == source)
+    if broker_id is not None:
+        query = query.where(AssetProduct.broker_id == broker_id)
+    query = query.order_by(
+        func.upper(AssetProduct.ticker).nulls_last(),
+        AssetProduct.broker_id.nulls_last(),
+        AssetProduct.asset_type.nulls_last(),
+    )
+    products = (await db.execute(query)).scalars().all()
+    return [await registry.product_payload(db, product) for product in products]
+
+
+@router.post("/products", status_code=201, tags=["assets"])
+async def create_product(data: ProductCreate, db: AsyncSession = Depends(get_db)):
+    ticker = registry.normalise_ticker(data.ticker)
+    if ticker is None:
+        raise HTTPException(400, "Ticker is required")
+    _validate_product_values(
+        data.multiplier, data.margin_rate, data.margin_mode
+    )
+    if await _identity_exists(db, ticker, data.broker_id, data.asset_type):
+        raise HTTPException(400, "An asset with this ticker already exists")
+    product = AssetProduct(
+        ticker=ticker,
+        broker_id=data.broker_id,
+        asset_type=data.asset_type,
+        multiplier=data.multiplier if data.multiplier is not None else 1,
+        margin_rate=data.margin_rate if data.margin_rate is not None else 0,
+        margin_mode=data.margin_mode or "notional",
+        source=data.source if data.source is not None else "-",
+        group_id=data.group_id,
+        name=data.name,
+    )
+    db.add(product)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(400, "An asset with this ticker already exists")
+    await db.refresh(product)
+    return await registry.product_payload(db, product)
+
+
+@router.get("/products/{product_id}", tags=["assets"])
+async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
+    product = await _product_or_404(db, product_id)
+    return await registry.product_payload(db, product, include_symbols=True)
+
+
+@router.put("/products/{product_id}", tags=["assets"])
+async def update_product(
+    product_id: int, data: ProductUpdate, db: AsyncSession = Depends(get_db)
+):
+    product = await _product_or_404(db, product_id)
+    if registry.is_default_product(product):
+        raise HTTPException(400, "The default product is not editable")
+    fields = data.model_dump(exclude_unset=True)
+    for field, message in (
+        ("multiplier", "multiplier must be greater than 0"),
+        ("margin_rate", "margin_rate must be between 0 and 1"),
+        ("margin_mode", "margin_mode must be one of notional, premium, span"),
+    ):
+        if field in fields and fields[field] is None:
+            raise HTTPException(400, message)
+    _validate_product_values(
+        fields.get("multiplier"),
+        fields.get("margin_rate"),
+        fields.get("margin_mode"),
+    )
+
+    old_ticker = product.ticker
+    new_ticker = old_ticker
+    effective_broker_id = fields.get("broker_id", product.broker_id)
+    if "ticker" in fields:
+        new_ticker = registry.normalise_ticker(fields.pop("ticker"))
+        if new_ticker is None:
+            raise HTTPException(400, "Ticker is required")
+        if new_ticker != old_ticker:
+            if await _identity_exists(
+                db,
+                new_ticker,
+                effective_broker_id,
+                fields.get("asset_type", product.asset_type),
+                exclude_product_id=product.product_id,
+            ):
+                raise HTTPException(400, "An asset with this ticker already exists")
+            collision = await registry.find_symbol_collision(
+                db, new_ticker, effective_broker_id
+            )
+            if collision is not None and collision[1].product_id != product.product_id:
+                raise HTTPException(400, "An asset with this ticker already exists")
+
+    if "broker_id" in fields and fields["broker_id"] != product.broker_id:
+        symbol_count = int(
+            (
+                await db.execute(
+                    select(func.count(AssetSymbol.symbol_id)).where(
+                        AssetSymbol.product_id == product.product_id
+                    )
+                )
+            ).scalar()
+            or 0
+        )
+        if symbol_count:
+            raise HTTPException(
+                400,
+                f"Cannot change broker_id for product {product.ticker} "
+                f"(product_id={product.product_id}) while {symbol_count} "
+                "symbols are attached",
+            )
+        if await _identity_exists(
+            db,
+            new_ticker,
+            fields["broker_id"],
+            fields.get("asset_type", product.asset_type),
+            exclude_product_id=product.product_id,
+        ):
+            raise HTTPException(400, "An asset with this ticker already exists")
+
+    if "asset_type" in fields and fields["asset_type"] != product.asset_type:
+        if await _identity_exists(
+            db,
+            new_ticker,
+            fields.get("broker_id", product.broker_id),
+            fields["asset_type"],
+            exclude_product_id=product.product_id,
+        ):
+            raise HTTPException(400, "An asset with this ticker already exists")
+
+    if new_ticker != old_ticker:
+        await registry.rename_product_references(db, old_ticker, new_ticker, product)
+        product.ticker = new_ticker
+        if not product.name or product.name == old_ticker:
+            product.name = new_ticker
+
+    for field, value in fields.items():
+        setattr(product, field, value)
+    product.updated_at = datetime.utcnow()
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(400, "An asset with this ticker already exists")
+    await db.refresh(product)
+    return await registry.product_payload(db, product)
+
+
+@router.delete("/products/{product_id}", status_code=204, tags=["assets"])
+async def delete_product(product_id: int, db: AsyncSession = Depends(get_db)):
+    product = await _product_or_404(db, product_id)
+    if registry.is_default_product(product):
+        raise HTTPException(400, "The default product is not editable")
+    symbols = (
+        await db.execute(
+            select(AssetSymbol).where(AssetSymbol.product_id == product.product_id)
+        )
+    ).scalars().all()
+    source = registry.quote_source(product)
+    for symbol in symbols:
+        sync_symbol = symbol.sync_symbol
+        await db.delete(symbol)
+        await db.flush()
+        await registry.delete_quote_if_unreferenced(db, source, sync_symbol)
+    await db.delete(product)
     await db.commit()
-    return {"updated": len(updated), "tickers": updated}
+
+
+# ---------------------------------------------------------------------------
+# Symbols and quotes
+# ---------------------------------------------------------------------------
+
+@router.get("/symbols", tags=["assets"])
+async def list_symbols(
+    product_id: Optional[int] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(AssetSymbol).order_by(AssetSymbol.symbol_id)
+    if product_id is not None:
+        query = query.where(AssetSymbol.product_id == product_id)
+    symbols = (await db.execute(query)).scalars().all()
+    payloads = []
+    products: dict[int, AssetProduct] = {}
+    for symbol in symbols:
+        product = products.get(symbol.product_id)
+        if product is None:
+            product = await db.get(AssetProduct, symbol.product_id)
+            if product is None:
+                continue
+            products[symbol.product_id] = product
+        payloads.append(await registry.symbol_payload(db, symbol, product))
+    return payloads
+
+
+@router.post("/products/{product_id}/symbols", status_code=201, tags=["assets"])
+async def create_symbol(
+    product_id: int, data: SymbolCreate, db: AsyncSession = Depends(get_db)
+):
+    product = await _product_or_404(db, product_id)
+    if registry.is_default_product(product):
+        raise HTTPException(400, "The default product is not editable")
+    sync_symbol = (data.sync_symbol or "").strip()
+    if not sync_symbol:
+        raise HTTPException(400, "sync_symbol is required")
+    _validate_symbol_values(data.multiplier_override, data.margin_rate_override)
+    stored_price_symbol = (
+        data.price_symbol.strip()
+        if isinstance(data.price_symbol, str) and data.price_symbol.strip()
+        else None
+    )
+    collision = await registry.find_symbol_collision(
+        db, stored_price_symbol, product.broker_id
+    )
+    if collision is not None:
+        raise HTTPException(
+            400,
+            await registry.symbol_collision_detail(
+                db, collision, registry.normalise_symbol(stored_price_symbol)
+            ),
+        )
+    await registry.assert_option_identity_available(
+        db,
+        product,
+        contract_kind=data.contract_kind,
+        price_symbol=stored_price_symbol,
+        option_type=data.option_type,
+        expiry_date=data.expiry_date,
+        strike_price=data.strike_price,
+    )
+    symbol = AssetSymbol(
+        product_id=product.product_id,
+        broker_id=product.broker_id,
+        price_symbol=stored_price_symbol,
+        sync_symbol=sync_symbol,
+        contract_kind=data.contract_kind or "future",
+        option_type=data.option_type,
+        expiry_date=data.expiry_date,
+        strike_price=data.strike_price,
+        multiplier_override=data.multiplier_override,
+        margin_rate_override=data.margin_rate_override,
+        margin_per_contract=data.margin_per_contract,
+    )
+    db.add(symbol)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            400, "Symbol already exists"
+        )
+    await db.refresh(symbol)
+    return await registry.symbol_payload(db, symbol, product)
+
+
+@router.put("/symbols/{symbol_id}", tags=["assets"])
+async def update_symbol(
+    symbol_id: int, data: SymbolUpdate, db: AsyncSession = Depends(get_db)
+):
+    symbol, product = await _symbol_or_404(db, symbol_id)
+    fields = data.model_dump(exclude_unset=True)
+    _validate_symbol_values(
+        fields.get("multiplier_override"), fields.get("margin_rate_override")
+    )
+    if "sync_symbol" in fields:
+        sync_symbol = (fields["sync_symbol"] or "").strip()
+        if not sync_symbol:
+            raise HTTPException(400, "sync_symbol is required")
+        fields["sync_symbol"] = sync_symbol
+
+    new_price_symbol = symbol.price_symbol
+    if "price_symbol" in fields:
+        raw = fields.pop("price_symbol")
+        new_price_symbol = raw.strip() if isinstance(raw, str) and raw.strip() else None
+        collision = await registry.find_symbol_collision(
+            db,
+            new_price_symbol,
+            product.broker_id,
+            exclude_symbol_id=symbol.symbol_id,
+        )
+        if collision is not None:
+            raise HTTPException(
+                400,
+                await registry.symbol_collision_detail(
+                    db, collision, registry.normalise_symbol(new_price_symbol)
+                ),
+            )
+
+    effective_kind = fields.get("contract_kind", symbol.contract_kind)
+    await registry.assert_option_identity_available(
+        db,
+        product,
+        contract_kind=effective_kind,
+        price_symbol=new_price_symbol,
+        option_type=fields.get("option_type", symbol.option_type),
+        expiry_date=fields.get("expiry_date", symbol.expiry_date),
+        strike_price=fields.get("strike_price", symbol.strike_price),
+        exclude_symbol_id=symbol.symbol_id,
+    )
+
+    if "price_symbol" in data.model_fields_set:
+        symbol.price_symbol = new_price_symbol
+    for field in (
+        "sync_symbol",
+        "contract_kind",
+        "option_type",
+        "expiry_date",
+        "strike_price",
+        "multiplier_override",
+        "margin_rate_override",
+        "margin_per_contract",
+    ):
+        if field in fields:
+            setattr(symbol, field, fields[field])
+    symbol.broker_id = product.broker_id
+    symbol.updated_at = datetime.utcnow()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(400, "Symbol already exists")
+    await db.refresh(symbol)
+    return await registry.symbol_payload(db, symbol, product)
+
+
+@router.delete("/symbols/{symbol_id}", status_code=204, tags=["assets"])
+async def delete_symbol(symbol_id: int, db: AsyncSession = Depends(get_db)):
+    symbol, product = await _symbol_or_404(db, symbol_id)
+    source = registry.quote_source(product)
+    sync_symbol = symbol.sync_symbol
+    await db.delete(symbol)
+    await db.flush()
+    await registry.delete_quote_if_unreferenced(db, source, sync_symbol)
+    await db.commit()
+
+
+@router.put("/symbols/{symbol_id}/quote", tags=["assets"])
+async def update_symbol_quote(
+    symbol_id: int, data: QuoteUpdate, db: AsyncSession = Depends(get_db)
+):
+    symbol, product = await _symbol_or_404(db, symbol_id)
+    source = registry.quote_source(product)
+    quote = await registry.quote_for(db, product, symbol)
+    fields = data.model_dump(exclude_unset=True)
+    if quote is None:
+        await registry.upsert_quote(
+            db, source, symbol.sync_symbol, fields.get("price"), fields.get("change_24h")
+        )
+    else:
+        if "price" in fields:
+            quote.price = fields["price"]
+        if "change_24h" in fields:
+            quote.change_24h = fields["change_24h"]
+        quote.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(symbol)
+    return await registry.symbol_payload(db, symbol, product)
+
+
+@router.post("/symbols/{symbol_id}/update-price", tags=["assets"])
+async def update_symbol_price(symbol_id: int, db: AsyncSession = Depends(get_db)):
+    symbol, product = await _symbol_or_404(db, symbol_id)
+    try:
+        await registry.refresh_symbol_quote(db, symbol, product)
+    except Exception as exc:  # provider error is reported, never swallowed
+        await db.rollback()
+        raise HTTPException(502, f"Failed to fetch price: {exc}")
+    await db.commit()
+    await db.refresh(symbol)
+    return await registry.symbol_payload(db, symbol, product)
+
+
+@router.post("/symbols/batch-update-prices", tags=["assets"])
+async def batch_update_prices(db: AsyncSession = Depends(get_db)):
+    rows = (
+        await db.execute(
+            select(AssetSymbol, AssetProduct)
+            .join(AssetProduct, AssetProduct.product_id == AssetSymbol.product_id)
+            .where(
+                func.coalesce(
+                    func.nullif(func.trim(AssetProduct.source), ""), "-"
+                ).in_(registry.PRICE_SOURCES)
+            )
+            .order_by(AssetSymbol.symbol_id)
+        )
+    ).all()
+
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for symbol, product in rows:
+        source = registry.quote_source(product)
+        key = (source, symbol.sync_symbol)
+        entry = by_key.setdefault(key, {"symbols": [], "price_symbols": set()})
+        entry["symbols"].append((symbol, product))
+        if symbol.price_symbol:
+            entry["price_symbols"].add(symbol.price_symbol)
+
+    updated = 0
+    tickers: set[str] = set()
+    for (source, sync_symbol), entry in by_key.items():
+        try:
+            price, change = registry._fetch_quote(source, sync_symbol)
+        except Exception:
+            continue
+        await registry.upsert_quote(db, source, sync_symbol, price, change)
+        updated += 1
+        tickers.update(str(value) for value in entry["price_symbols"])
+    await db.commit()
+    return {"updated": updated, "tickers": sorted(tickers)}
+
+
+# ---------------------------------------------------------------------------
+# Sync proposal / apply
+# ---------------------------------------------------------------------------
+
+def _proposed_source(broker: Optional[Broker]) -> str:
+    return "yfinance"
+
+
+def _proposed_sync_symbol(
+    symbol: str, source: str, broker: Optional[Broker]
+) -> str:
+    if (
+        source == "yfinance"
+        and broker is not None
+        and (broker.currency or "").upper() == "THB"
+        and not symbol.upper().endswith(".BK")
+    ):
+        return f"{symbol}.BK"
+    return symbol
+
+
+async def _collect_proposal_pairs(
+    db: AsyncSession,
+) -> dict[tuple[Optional[int], str], bool]:
+    """``(broker_id, normalized symbol) -> broker_required``.
+
+    Includes main, owned-custom and mapped active orders; Managed Fund holdings
+    and history are never read. ``broker_required`` marks a brokerless Active
+    Trading portfolio, which cannot receive a registry symbol.
+    """
+    pairs: dict[tuple[Optional[int], str], bool] = {}
+
+    main_rows = (
+        await db.execute(
+            select(ActiveOrder.asset_type, Portfolio.broker_id, Portfolio.port_type)
+            .join(Portfolio, Portfolio.portfolio_id == ActiveOrder.portfolio_id)
+            .where(Portfolio.is_custom.is_(False))
+        )
+    ).all()
+    for asset_type, broker_id, port_type in main_rows:
+        symbol = registry.normalise_symbol(asset_type)
+        if symbol is None:
+            continue
+        required = port_type == "Active Trading" and broker_id is None
+        pairs[(broker_id, symbol)] = pairs.get((broker_id, symbol), False) or required
+
+    portfolios = (
+        await db.execute(select(Portfolio).where(Portfolio.is_custom.is_(True)))
+    ).scalars().all()
+    for portfolio in portfolios:
+        connection = (
+            await db.execute(
+                select(CustomPortfolioConnection).where(
+                    CustomPortfolioConnection.portfolio_id
+                    == portfolio.portfolio_id
+                )
+            )
+        ).scalar_one_or_none()
+        if connection is None:
+            continue
+        symbols: set[str] = set()
+        try:
+            if connection.mapping_config:
+                engine = await get_or_create_custom_engine(connection)
+                orders = await fetch_mapped_orders(engine, connection.mapping_config)
+                symbols = {
+                    s for s in (registry.normalise_symbol(o.get("asset_type")) for o in orders) if s
+                }
+            else:
+                session = await get_custom_session(connection)
+                try:
+                    custom_symbols = (
+                        await session.execute(
+                            select(CustomActiveOrder.asset_type).distinct()
+                        )
+                    ).all()
+                    symbols = {
+                        s for s in (registry.normalise_symbol(row[0]) for row in custom_symbols) if s
+                    }
+                finally:
+                    await session.close()
+        except Exception:
+            logger.warning(
+                "Skipping custom portfolio %s while building the sync proposal",
+                portfolio.portfolio_id,
+                exc_info=True,
+            )
+            continue
+        required = portfolio.port_type == "Active Trading" and portfolio.broker_id is None
+        for symbol in symbols:
+            key = (portfolio.broker_id, symbol)
+            pairs[key] = pairs.get(key, False) or required
+    return pairs
+
+
+async def _proposal_items(db: AsyncSession) -> list[dict]:
+    pairs = await _collect_proposal_pairs(db)
+    codes = await registry.broker_codes(db)
+    broker_rows = {
+        broker.id: broker
+        for broker in (await db.execute(select(Broker))).scalars().all()
+    }
+    items = []
+    for broker_id, symbol in sorted(
+        pairs, key=lambda pair: (pair[0] is None, pair[0] or 0, pair[1])
+    ):
+        products = (
+            await db.execute(
+                select(AssetProduct)
+                .where(
+                    or_(
+                        AssetProduct.ticker.isnot(None),
+                        AssetProduct.broker_id.isnot(None),
+                        AssetProduct.asset_type.isnot(None),
+                    ),
+                    AssetProduct.broker_id.is_(None)
+                    if broker_id is None
+                    else AssetProduct.broker_id == broker_id,
+                )
+                .order_by(
+                    func.upper(AssetProduct.ticker),
+                    AssetProduct.product_id,
+                )
+            )
+        ).scalars().all()
+        broker = broker_rows.get(broker_id) if broker_id is not None else None
+        source = _proposed_source(broker)
+        choices = []
+        for product in products:
+            count = int(
+                (
+                    await db.execute(
+                        select(func.count(AssetSymbol.symbol_id)).where(
+                            AssetSymbol.product_id == product.product_id
+                        )
+                    )
+                ).scalar()
+                or 0
+            )
+            choices.append(
+                {
+                    "product_id": product.product_id,
+                    "ticker": product.ticker,
+                    "asset_type": product.asset_type,
+                    "multiplier": float(product.multiplier or 0),
+                    "margin_rate": float(product.margin_rate or 0),
+                    "margin_mode": product.margin_mode,
+                    "symbol_count": count,
+                }
+            )
+        items.append(
+            {
+                "symbol": symbol,
+                "broker_id": broker_id,
+                "broker_code": codes.get(broker_id) if broker_id is not None else None,
+                "broker_required": pairs[(broker_id, symbol)],
+                "products": choices,
+                "create": {
+                    "ticker": symbol,
+                    "asset_type": None,
+                    "multiplier": 1.0,
+                    "margin_rate": 0.0,
+                    "margin_mode": "notional",
+                    "source": source,
+                    "sync_symbol": _proposed_sync_symbol(symbol, source, broker),
+                },
+            }
+        )
+    return items
+
+
+@router.get("/proposal", tags=["assets"])
+@router.get("/sync-proposal", include_in_schema=False)
+async def sync_proposal(db: AsyncSession = Depends(get_db)):
+    return {"items": await _proposal_items(db)}
+
+
+@router.post("/apply", tags=["assets"])
+@router.post("/sync-apply", include_in_schema=False)
+async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db)):
+    items = await _proposal_items(db)
+    proposed = {
+        (item["broker_id"], item["symbol"]): item for item in items
+    }
+    proposed_pairs = set(proposed)
+    codes = await registry.broker_codes(db)
+    brokers = {
+        broker.id: broker
+        for broker in (await db.execute(select(Broker))).scalars().all()
+    }
+
+    created = 0
+    try:
+        for choice in data.choices:
+            symbol = registry.normalise_symbol(choice.symbol)
+            broker_id = choice.broker_id
+            if symbol is None or (broker_id, symbol) not in proposed_pairs:
+                raise HTTPException(
+                    400, f"Symbol {choice.symbol} was not in the proposal"
+                )
+            item = proposed[(broker_id, symbol)]
+            if item["broker_required"]:
+                raise HTTPException(
+                    400, "Assign a broker in Edit portfolio before adding orders"
+                )
+            has_product = choice.product_id is not None
+            wants_create = choice.create_product is True
+            if has_product == wants_create:
+                raise HTTPException(
+                    400, "Provide exactly one of product_id or create_product=true"
+                )
+
+            broker = brokers.get(broker_id) if broker_id is not None else None
+            source = _proposed_source(broker)
+
+            if has_product:
+                product = await db.get(AssetProduct, choice.product_id)
+                if product is None:
+                    raise HTTPException(404, "Product not found")
+                if registry.is_default_product(product):
+                    raise HTTPException(400, "The default product is not editable")
+                if product.broker_id != broker_id:
+                    broker_code_value = (
+                        codes.get(broker_id) if broker_id is not None else "Unassigned"
+                    )
+                    raise HTTPException(
+                        400,
+                        f"Product {product.ticker} (product_id={product.product_id}) "
+                        f"is not in broker {broker_code_value}",
+                    )
+            else:
+                ticker = symbol
+                duplicate_ticker_query = select(AssetProduct.product_id).where(
+                    func.upper(func.trim(AssetProduct.ticker)) == ticker
+                )
+                if broker_id is None:
+                    duplicate_ticker_query = duplicate_ticker_query.where(
+                        AssetProduct.broker_id.is_(None)
+                    )
+                else:
+                    duplicate_ticker_query = duplicate_ticker_query.where(
+                        AssetProduct.broker_id == broker_id
+                    )
+                if (await db.execute(duplicate_ticker_query.limit(1))).first() is not None:
+                    raise HTTPException(
+                        400, "A product with this ticker already exists"
+                    )
+                product = AssetProduct(
+                    ticker=ticker,
+                    broker_id=broker_id,
+                    asset_type=None,
+                    multiplier=1,
+                    margin_rate=0,
+                    margin_mode="notional",
+                    source=source,
+                )
+                db.add(product)
+                await db.flush()
+
+            owner = await registry.resolve_symbol_owner(db, symbol, broker_id)
+            if owner is not None and owner[1].product_id != product.product_id:
+                raise HTTPException(
+                    400,
+                    await registry.symbol_collision_detail(db, owner, symbol),
+                )
+            if owner is not None:
+                # Same owner: explicit choice is idempotent.
+                continue
+
+            sync_symbol = _proposed_sync_symbol(symbol, source, broker)
+            new_symbol = AssetSymbol(
+                product_id=product.product_id,
+                broker_id=product.broker_id,
+                price_symbol=symbol,
+                sync_symbol=sync_symbol,
+                contract_kind="future",
+            )
+            db.add(new_symbol)
+            await db.flush()
+            created += 1
+
+            if source in registry.PRICE_SOURCES:
+                try:
+                    price, change = registry._fetch_quote(source, sync_symbol)
+                    await registry.upsert_quote(
+                        db, source, sync_symbol, price, change
+                    )
+                except Exception:
+                    # Best effort: keep existing/null quote values.
+                    pass
+        await db.commit()
+    except HTTPException:
+        await db.rollback()
+        raise
+    return {"created": created, "choices": len(data.choices)}

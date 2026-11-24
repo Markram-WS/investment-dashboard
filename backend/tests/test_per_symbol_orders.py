@@ -1,9 +1,8 @@
 """Per-symbol contract specs for order creation and risk.
 
 A portfolio may hold several futures symbols: the order-create guard only
-requires a live ``whitelist_assets`` row for the order's own ticker on the
-portfolio's broker, and the risk model resolves multiplier/margin_rate per
-order symbol with the portfolio product as fallback.
+requires a broker-scoped ``asset_symbols.price_symbol`` spec for the order's own
+symbol, and the risk model resolves multiplier/margin_rate per order symbol.
 """
 
 import os
@@ -18,10 +17,11 @@ from conftest import get_test_engine  # noqa: E402
 
 from app.models import (  # noqa: E402
     ActiveOrder,
+    AssetProduct,
+    AssetSymbol,
     Broker,
     Portfolio,
     TradePlan,
-    WhitelistAssets,
 )
 from app.risk_calc import compute_margin_locked, compute_risk  # noqa: E402
 
@@ -56,6 +56,7 @@ async def seed_portfolio(
             risk_status="Safe",
             broker_id=broker.id,
             product_ticker=product,
+            product_tickers=[product],
             x_amount=Decimal("50"),
             available_cash=Decimal("10000"),
             margin_locked=Decimal("999"),
@@ -63,13 +64,24 @@ async def seed_portfolio(
         session.add(portfolio)
         await session.flush()
         for ticker, (multiplier, margin_rate) in (specs or {}).items():
+            product_row = AssetProduct(
+                ticker=ticker,
+                broker_id=broker.id,
+                asset_type="future",
+                multiplier=multiplier,
+                margin_rate=margin_rate,
+                source="-",
+                margin_mode="notional",
+            )
+            session.add(product_row)
+            await session.flush()
             session.add(
-                WhitelistAssets(
+                AssetSymbol(
+                    product_id=product_row.product_id,
                     broker_id=broker.id,
-                    ticker=ticker,
-                    asset_type="futures",
-                    multiplier=multiplier,
-                    margin_rate=margin_rate,
+                    price_symbol=ticker,
+                    sync_symbol=ticker,
+                    contract_kind="future",
                 )
             )
         await session.commit()
@@ -80,6 +92,12 @@ async def cleanup_portfolio(portfolio_id: int, broker_id: int) -> None:
     _, Session = get_test_engine()
     async with Session() as session:
         await session.execute(
+            delete(AssetSymbol).where(AssetSymbol.broker_id == broker_id)
+        )
+        await session.execute(
+            delete(AssetProduct).where(AssetProduct.broker_id == broker_id)
+        )
+        await session.execute(
             delete(ActiveOrder).where(ActiveOrder.portfolio_id == portfolio_id)
         )
         await session.execute(
@@ -87,9 +105,6 @@ async def cleanup_portfolio(portfolio_id: int, broker_id: int) -> None:
         )
         await session.execute(
             delete(Portfolio).where(Portfolio.portfolio_id == portfolio_id)
-        )
-        await session.execute(
-            delete(WhitelistAssets).where(WhitelistAssets.broker_id == broker_id)
         )
         await session.execute(delete(Broker).where(Broker.id == broker_id))
         await session.commit()
@@ -226,7 +241,7 @@ async def test_risk_uses_per_symbol_multiplier():
         assert risk["eq"]["size_at_x_mark"] == pytest.approx(1200.0 + 45.0)
         assert risk["eq"]["size_at_x_entry"] == pytest.approx(1000.0 + 40.0)
         assert risk["eq"]["pl"] == pytest.approx(200.0 + 5.0)
-        # Top-level values stay the product spec for backward compatibility.
+        # Top-level values come only from the first product_tickers entry.
         assert risk["multiplier"] == 1.0
         assert risk["margin_rate"] == 0.1
         assert risk["margin_locked"] == pytest.approx(449.5)

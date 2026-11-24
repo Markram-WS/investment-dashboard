@@ -9,9 +9,8 @@ import MappingModal from "./MappingModal";
 import { useOrderEdit } from "../hooks/useOrderEdit";
 import { useAddOrder } from "../hooks/useAddOrder";
 import { usePortfolioManager } from "../hooks/usePortfolioManager";
-import { useMarkdownRenderer } from "../hooks/useMarkdownRenderer";
 import { SpreadOrder } from "../types";
-import type { MappedOrderFields } from "../types";
+import type { AssetProduct, MappedOrderFields } from "../types";
 import { api } from "../lib/api";
 import type { ZoneGroupRecord, TradeHistoryRecord, PerformanceResult } from "../lib/api";
 
@@ -58,7 +57,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const [historyOpen, setHistoryOpen] = useState(true);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showStrategyModal, setShowStrategyModal] = useState(false);
-  const [showNotesModal, setShowNotesModal] = useState(false);
   const [closingOrder, setClosingOrder] = useState<SpreadOrder | null>(null);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showEditPortfolioModal, setShowEditPortfolioModal] = useState(false);
@@ -73,6 +71,58 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   /** Mapped portfolios are read-only at the portfolio level, but their
    * `order_writes` block may open per-entity capabilities. */
   const isMapped = Boolean(selectedPortfolio?.read_only);
+  const [portfolioProducts, setPortfolioProducts] = useState<AssetProduct[]>([]);
+  const [addOrderAssetType, setAddOrderAssetType] = useState('');
+  const portfolioTickers = useMemo(() => (
+    selectedPortfolio?.product_tickers?.length
+      ? selectedPortfolio.product_tickers
+      : selectedPortfolio?.product_ticker ? [selectedPortfolio.product_ticker] : []
+  ), [selectedPortfolio?.product_tickers, selectedPortfolio?.product_ticker]);
+
+  React.useEffect(() => {
+    if (!selectedPortfolio) {
+      setPortfolioProducts([]);
+      return;
+    }
+    let cancelled = false;
+    const brokerId = selectedPortfolio.broker_id ?? null;
+    api.getProducts(brokerId == null ? {} : { broker_id: brokerId })
+      .then((rows) => {
+        if (cancelled) return;
+        setPortfolioProducts(rows.filter((product) => product.broker_id === brokerId));
+      })
+      .catch((err) => {
+        console.error('Failed to load portfolio products:', err);
+        if (!cancelled) setPortfolioProducts([]);
+      });
+    return () => { cancelled = true; };
+  }, [selectedPortfolio?.portfolio_id, selectedPortfolio?.broker_id]);
+
+  const firstPortfolioTicker = portfolioTickers[0]?.trim() ?? '';
+
+  React.useEffect(() => {
+    if (!selectedPortfolio || !firstPortfolioTicker) {
+      setAddOrderAssetType('');
+      return;
+    }
+    const matches = portfolioProducts.filter(
+      (product) => (product.ticker ?? '').toUpperCase() === firstPortfolioTicker.toUpperCase(),
+    );
+    if (matches.length !== 1) {
+      setAddOrderAssetType('');
+      return;
+    }
+    let cancelled = false;
+    api.getProduct(matches[0].product_id)
+      .then((detail) => {
+        if (cancelled) return;
+        const symbols = detail.symbols ?? [];
+        setAddOrderAssetType(symbols.length === 1 ? (symbols[0].price_symbol ?? '') : '');
+      })
+      .catch(() => { if (!cancelled) setAddOrderAssetType(''); });
+    return () => { cancelled = true; };
+  }, [selectedPortfolio?.portfolio_id, firstPortfolioTicker, portfolioProducts]);
+
   const mappedOrderFields = useMemo<MappedOrderFields | undefined>(() => {
     const writes = selectedPortfolio?.order_writes;
     return writes ? { fields: writes.fields, keyGenerated: writes.key_generated } : undefined;
@@ -306,17 +356,18 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     }
   }, [activeOrders, handleCloseOrder]);
 
-  /** Header pill opens a blank form; a ladder row presets its zone and mark. */
+  /** Header pill opens a blank form; a ladder row presets its zone and mark.
+   * The product symbol is prefilled only when its product has exactly one
+   * contract symbol, so the order can resolve a spec without picking. */
   const handleAddOrder = useCallback((preset?: { groupId: number | null; entryPrice: number | null }) => {
-    const productTicker = String(selectedPortfolio?.product_ticker ?? '').trim();
+    const assetType = addOrderAssetType.trim();
     openModal({
       group_id: isMapped ? null : preset?.groupId ?? null,
       entry_price: preset?.entryPrice ?? '',
       ...(isMapped ? { side: 'LONG' } : {}),
-      // Prefill the portfolio product as an editable convenience.
-      ...(productTicker ? { asset_type: productTicker } : {}),
+      ...(assetType ? { asset_type: assetType } : {}),
     });
-  }, [openModal, isMapped, selectedPortfolio?.product_ticker]);
+  }, [openModal, isMapped, addOrderAssetType]);
 
   const handleLinkOrder = useCallback(async (sourceOrderId: string, targetOrderId: string) => {
     try {
@@ -363,8 +414,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     },
     [fetchAnalyticsData, selectedPortfolio, activeOrders, isMapped],
   );
-
-  const { renderMarkdown } = useMarkdownRenderer();
 
   if (loading) return (
     <PageLayout>
@@ -498,11 +547,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           lastUpdated={lastUpdated}
           onRefresh={handleRefresh}
           onEditPortfolio={() => setShowEditPortfolioModal(true)}
-          extraActions={
-            <button type="button" className="at-btn-ghost" onClick={() => setShowNotesModal(true)}>
-              Strategy &amp; notes
-            </button>
-          }
           showConnection={isCustom}
           onOpenConnection={() => setShowMappingModal(true)}
         />
@@ -613,7 +657,21 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
                 }
               />
             </section>
+            <StrategyNotes
+              internalNotes={selectedPortfolio.internal_notes}
+              tradePlanMd={selectedPortfolio.trade_plan_md}
+              portfolioId={selectedPortfolio.portfolio_id}
+              onSaved={fetchAnalyticsData}
+            />
           </div>
+        </div>
+        <div className="at-notes-mobile">
+          <StrategyNotes
+            internalNotes={selectedPortfolio.internal_notes}
+            tradePlanMd={selectedPortfolio.trade_plan_md}
+            portfolioId={selectedPortfolio.portfolio_id}
+            onSaved={fetchAnalyticsData}
+          />
         </div>
       </div>
 
@@ -704,18 +762,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         </div>
       </ModalShell>
 
-      <ModalShell open={showNotesModal} onClose={() => setShowNotesModal(false)} title="Strategy & notes">
-        <div style={{ width: 520, maxWidth: "92vw" }}>
-          <StrategyNotes
-            tradePlanMd={selectedPortfolio.trade_plan_md}
-            portfolioId={selectedPortfolio.portfolio_id}
-            renderMarkdown={renderMarkdown}
-            internalNotes={selectedPortfolio.internal_notes}
-            onSaved={fetchAnalyticsData}
-          />
-        </div>
-      </ModalShell>
-
       <EditPortfolioModal
         portfolioId={selectedPortfolio.portfolio_id}
         portfolioName={selectedPortfolio.portfolio_name}
@@ -723,6 +769,11 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         cashBufferLimit={cashBufferLimit}
         brokerId={selectedPortfolio.broker_id ?? null}
         productTicker={selectedPortfolio.product_ticker ?? null}
+        productTickers={
+          selectedPortfolio.product_tickers
+          ?? (selectedPortfolio.product_ticker ? [selectedPortfolio.product_ticker] : null)
+        }
+        products={portfolioProducts}
         xAmount={selectedPortfolio.x_amount ?? 0}
         initialCapital={selectedPortfolio.initial_capital ?? 0}
         rawAvailableCash={selectedPortfolio.available_cash || 0}
