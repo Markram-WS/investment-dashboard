@@ -47,8 +47,6 @@ interface AddOrderModalProps {
   groups: GroupOption[];
   groupOrderCounts: Record<number, number>;
   assetTypeOptions: string[];
-  /** The portfolio's own product; when set it is the only valid symbol. */
-  productTicker?: string | null;
   /** Present for a mapped portfolio: render only the foreign-writable fields. */
   mapped?: MappedOrderFields;
 }
@@ -111,11 +109,9 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   groups,
   groupOrderCounts,
   assetTypeOptions,
-  productTicker,
   mapped,
 }) => {
   const entryPrice = parseFloat(formData.entry_price as string) || 0;
-  const lockedAssetType = String(productTicker ?? '').trim();
   const selectedGroup = groups.find(g => g.id === formData.group_id);
 
   const groupWarnings = useMemo(() => {
@@ -332,27 +328,19 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 onChange={(v) => onChange('contract_type', v)}
                 fullWidth
               />
-              <Field
-                label="Asset type"
-                htmlFor="add-order-asset-type"
-                hint={lockedAssetType ? 'Portfolio product — other symbols are rejected.' : undefined}
-              >
+              <Field label="Asset type" htmlFor="add-order-asset-type">
                 <TextInput
                   id="add-order-asset-type"
                   type="text"
-                  value={lockedAssetType || formData.asset_type}
+                  value={formData.asset_type}
                   onChange={(e) => onChange('asset_type', e.target.value)}
-                  readOnly={Boolean(lockedAssetType)}
-                  list={lockedAssetType ? undefined : 'asset-types-add'}
+                  list="asset-types-add"
                   className="w-full"
-                  style={lockedAssetType ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
                 />
               </Field>
-              {!lockedAssetType && (
-                <datalist id="asset-types-add">
-                  {assetTypeOptions.map((t) => <option key={t} value={t} />)}
-                </datalist>
-              )}
+              <datalist id="asset-types-add">
+                {assetTypeOptions.map((t) => <option key={t} value={t} />)}
+              </datalist>
               {contractType === 'option' ? (
                 <div style={twoCol}>
                   <div className="min-w-0">

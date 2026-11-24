@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 from app.database import get_db, resolve_portfolio_db
@@ -178,10 +178,11 @@ async def create_order(order: ActiveOrderCreate, db: AsyncSession = Depends(get_
     session, is_custom = await resolve_portfolio_db(db, order.portfolio_id)
     try:
         ModelClass = CustomActiveOrder if is_custom else ActiveOrder
-        # Risk model guard: a portfolio configured with a product only accepts
-        # orders for that product, and needs a live contract spec (broker +
-        # ticker) in whitelist_assets before any order can be created. Legacy
-        # portfolios without a product are not blocked.
+        # Risk model guard: a portfolio configured with a product needs a live
+        # contract spec for the ORDER's own symbol (broker + ticker) in
+        # whitelist_assets before the order can be created. Portfolios may hold
+        # several symbols, so the order symbol is not compared to the product.
+        # Legacy portfolios without a product are not blocked.
         pf = None
         if not is_custom:
             pf_result = await db.execute(
@@ -189,18 +190,11 @@ async def create_order(order: ActiveOrderCreate, db: AsyncSession = Depends(get_
             )
             pf = pf_result.scalar_one_or_none()
         if not is_custom and pf and pf.product_ticker:
-            if order.asset_type.strip().upper() != pf.product_ticker.strip().upper():
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"Order symbol {order.asset_type} does not match the "
-                        f"portfolio product {pf.product_ticker}"
-                    ),
-                )
+            order_symbol = order.asset_type.strip().upper()
             spec = await db.execute(
                 select(WhitelistAssets.asset_id).where(
                     WhitelistAssets.broker_id == pf.broker_id,
-                    WhitelistAssets.ticker == pf.product_ticker,
+                    func.upper(func.trim(WhitelistAssets.ticker)) == order_symbol,
                 )
             )
             if spec.scalars().first() is None:
@@ -210,7 +204,7 @@ async def create_order(order: ActiveOrderCreate, db: AsyncSession = Depends(get_
                 raise HTTPException(
                     status_code=400,
                     detail=(
-                        f"No contract spec for {pf.product_ticker} on broker "
+                        f"No contract spec for {order_symbol} on broker "
                         f"{broker_code} — add it in All-assets first"
                     ),
                 )

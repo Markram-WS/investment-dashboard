@@ -298,6 +298,7 @@ def _risk_order_proxy(order: dict, current_price: float | None) -> SimpleNamespa
     """
     return SimpleNamespace(
         qty=order.get("qty"),
+        asset_type=order.get("asset_type"),
         current_price=current_price,
         entry_price=order.get("entry_price"),
         contract_type=order.get("contract_type"),

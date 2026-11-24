@@ -313,7 +313,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       group_id: isMapped ? null : preset?.groupId ?? null,
       entry_price: preset?.entryPrice ?? '',
       ...(isMapped ? { side: 'LONG' } : {}),
-      // A portfolio product is the only symbol the write path accepts.
+      // Prefill the portfolio product as an editable convenience.
       ...(productTicker ? { asset_type: productTicker } : {}),
     });
   }, [openModal, isMapped, selectedPortfolio?.product_ticker]);
@@ -678,7 +678,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           groups={groups}
           groupOrderCounts={groupOrderCounts}
           assetTypeOptions={assetTypeOptions}
-          productTicker={selectedPortfolio.product_ticker ?? null}
           mapped={mappedOrderFields}
         />
       )}
