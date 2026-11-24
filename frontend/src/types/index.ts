@@ -153,15 +153,13 @@ export interface PortfolioData {
   /** Computed by the backend; never written by the client. */
   margin_locked: number | null;
   broker_id: number | null;
-  /** Broker code for the risk card header; null when the portfolio has no broker. */
+  /** Broker code for the portfolio; null when the portfolio has no broker. */
   broker_code?: string | null;
   product_ticker: string | null;
   x_amount: number;
   initial_capital: number;
   cash_buffer_limit: number | null;
   tags: Record<string, boolean> | null;
-  ai_reasoning: string | null;
-  ai_risk_insight: string | null;
   risk?: PortfolioRisk | null;
   spread_pairs: SpreadPair[];
   active_orders: SpreadOrder[];
@@ -387,8 +385,6 @@ export interface PortfolioGridData {
   port_type: string;
   risk_status: string;
   trade_plan_md: string | null;
-  ai_reasoning: string | null;
-  ai_risk_insight: string | null;
   spread_pairs: SpreadPair[];
   active_orders: SpreadOrder[];
   recent_trades: RecentTrade[];

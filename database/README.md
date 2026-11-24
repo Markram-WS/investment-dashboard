@@ -1,6 +1,6 @@
 # Investment Dashboard – Database Schemas
 
-Two PostgreSQL databases power the system, plus user-configured external PostgreSQL databases for Custom Portfolios.
+One PostgreSQL database powers the system, plus user-configured external PostgreSQL databases for Custom Portfolios.
 
 ## Managed Fund Tables (Main DB)
 
@@ -128,18 +128,6 @@ CREATE TABLE asset_groups (
 - `side TEXT` — `'BUY'`/`'SELL'` (spot), `'LONG'`/`'SHORT'` (futures/options)
 - `expiry_date TIMESTAMP`, `strike_price NUMERIC(20,8)`, `cost NUMERIC(20,8)`
 
-## AI DB (`investment_ai`) — `ai_db_schema.sql`
-
-3 tables for AI agent orchestration:
-
-| Table | Purpose |
-|-------|---------|
-| `ai_agents` | Agent profiles: name, model, strategy config, target portfolio |
-| `ai_action_logs` | Execution audit: SCAN/PLAN/EXECUTE/ADJUST actions |
-| `ai_agent_state` | Runtime state: last run, current task, busy flag |
-
----
-
 ## Custom Portfolio – External DB (Data Plane)
 
 When a portfolio has `is_custom = True`, its transactional data is stored on a **separate PostgreSQL database** managed by the user. In the default (owned-tables) mode these tables are FK-free copies of the main DB tables:
@@ -164,7 +152,7 @@ A non-null `custom_portfolio_connections.mapping_config` switches the same portf
 - **Template** — `tfex-settrade-v1` (`TFEX / Settrade`), exposed by `GET /api/v1/portfolios/mapping-templates`. Select it on create or PATCH it onto an existing connection (`PATCH /api/v1/portfolios/{id}/connection`); a stored config is a snapshot and does not follow later template edits.
 - **Connection editing** — the same `PATCH` edits `db_host`, `db_port`, `db_name`, and `db_user`, and accepts a new `db_password` (blank keeps the current one); `db_port` must be 1..65535. When a credential field actually changes, the backend evicts the cached external engine (`evict_custom_engine`) so the next request reconnects with the new credentials.
 - **Entities** — `orders` → `usd_pct_abc.opened_orders`, `history` → `usd_pct_abc.order_history`, `account` → `usd_pct_abc.account_history` (newest row by `ts`). Each entity declares `schema`, `table`, optional `filter`/`order_by`, and a `columns` map from our field to a foreign column or `{column, map}` value map.
-- **Value maps** — `side` is a plain column spec (`side` ← `side`, no value map; the raw LONG/SHORT passes through); `order_status` maps `M`/`MP` → `open`, `C*` → `cancelled`, `E*` → `expired`, `R*` → `rejected`. `mark_price` ← `mark_price` on the `orders` entity (display only: it feeds the read-only EQ · Future ladder's `Mark` column and nothing else; both foreign tables carry the column, but `history` does not map it); `current_price` is not mapped from the foreign schema — the backend resolves it per order ticker from the local `investment_main.whitelist_assets.price`, preferring the portfolio's `broker_id` row and otherwise the lowest `broker_id`, and a `NULL` price is missing (the order falls back to its entry price, so its Net P&L is 0; the foreign mark is never substituted), so Net P&L and the risk card's Sum P/L read that local asset price maintained in All Assets. `tp` is an exit-only price (falling back to `tp_price`, then `exit_price`) surfaced as the ladder's `Price out` for mapped orders and never read as P/L; `remark` carries the Mark note (`remark.note` is `Close` or `Canceled` on history rows). Money comes from the account row: `available_cash` ← `excessequity`, `margin_locked` ← `initialmargin`, `current_nav` ← `equity`; cash buffer and initial capital stay manual.
+- **Value maps** — `side` is a plain column spec (`side` ← `side`, no value map; the raw LONG/SHORT passes through); `order_status` maps `M`/`MP` → `open`, `C*` → `cancelled`, `E*` → `expired`, `R*` → `rejected`. `mark_price` ← `mark_price` on the `orders` entity (display only: it feeds the read-only EQ · Future ladder's `Mark` column and nothing else; both foreign tables carry the column, but `history` does not map it); `current_price` is not mapped from the foreign schema — the backend resolves it per order ticker from the local `investment_main.whitelist_assets.price`, preferring the portfolio's `broker_id` row and otherwise the lowest `broker_id`, and a `NULL` price is missing (the order falls back to its entry price, so its Net P&L is 0; the foreign mark is never substituted), so Net P&L and the risk block's Sum P/L (`risk.pl_total`) read that local asset price maintained in All Assets. `tp` is an exit-only price (falling back to `tp_price`, then `exit_price`) surfaced as the ladder's `Price out` for mapped orders and never read as P/L; `remark` carries the Mark note (`remark.note` is `Close` or `Canceled` on history rows). Money comes from the account row: `available_cash` ← `excessequity`, `margin_locked` ← `initialmargin`, `current_nav` ← `equity`; cash buffer and initial capital stay manual.
 - **No DDL** — every path that opens a custom session checks `mapping_config` and skips `ensure_custom_tables()`, so `active_orders`/`transactions`/… are never created inside the foreign database.
 - **Asset sync** — `POST /api/v1/assets/sync-from-orders` and `sync-from-all` collect tickers through one collector: main-DB `active_orders` plus every custom portfolio (legacy owned tables in their own session, mapped portfolios through the foreign-schema adapter, never `ensure_custom_tables` on a foreign database). `sync-from-all` additionally adds `managed_fund_holdings.asset`; Managed Fund order history is never a source. Mapped tickers are inserted as `asset_type = 'future'` with `source = 'tfex'` and priced through the TFEX quote source; `sync-from-orders` inserts other tickers as `stock`/`yfinance`, while `sync-from-all` inserts them as `crypto`/`manual`. An unreachable custom database is skipped with a warning. All Assets data cells render at `var(--fs-label)` (11px), the same size as the order-detail numeric cells.
 - **Read-only** — every data-plane write against a mapped portfolio — orders, assets, order groups, trade plans, trade history, ledger transactions — is refused by `raise_if_mapped_readonly` with `409 Portfolio is read-only (mapped external database)`. The analytics grid response carries `read_only: true` plus `mapping_template`, and the frontend hides every write affordance.

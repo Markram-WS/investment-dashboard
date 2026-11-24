@@ -4,8 +4,8 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, resolve_portfolio_db, get_or_create_custom_engine
 from app.models import (
-    Portfolio, Broker, ActiveOrder, TradePlan, AiActionLog, TradeHistory,
-    AiAgent, CustomPortfolioConnection, WhitelistAssets,
+    Portfolio, Broker, ActiveOrder, TradePlan, TradeHistory,
+    CustomPortfolioConnection, WhitelistAssets,
 )
 from app.custom_models import CustomActiveOrder, CustomTransaction, CustomOrdersGroup
 from app.custom_mapping import (
@@ -143,8 +143,6 @@ class PortfolioGridData(BaseModel):
     x_amount: float = 0
     initial_capital: float = 0
     tags: Optional[Dict[str, Any]] = None
-    ai_reasoning: Optional[str] = None
-    ai_risk_insight: Optional[str] = None
     spread_pairs: List[SpreadPair] = []
     active_orders: List[Dict[str, Any]] = []
     recent_trades: List[Dict[str, Any]] = []
@@ -222,22 +220,6 @@ async def _load_portfolio_context(db: AsyncSession, portfolio: Portfolio):
     )
     trade_plan = trade_plan_result.scalar_one_or_none()
 
-    ai_reasoning = None
-    ai_risk_insight = None
-    ai_log_result = await db.execute(
-        select(AiActionLog)
-        .join(AiActionLog.agent)
-        .where(AiAgent.target_portfolio_id == portfolio.portfolio_id)
-        .order_by(AiActionLog.created_at.desc())
-        .limit(1)
-    )
-    ai_log = ai_log_result.scalar_one_or_none()
-    if ai_log:
-        ai_reasoning = ai_log.reasoning
-        ai_risk_insight = (
-            "Risk metrics based on recent AI analysis" if ai_log.reasoning else None
-        )
-
     broker_code = None
     if portfolio.broker_id is not None:
         broker_code_result = await db.execute(
@@ -245,7 +227,7 @@ async def _load_portfolio_context(db: AsyncSession, portfolio: Portfolio):
         )
         broker_code = broker_code_result.scalar_one_or_none()
 
-    return trade_plan, ai_reasoning, ai_risk_insight, broker_code
+    return trade_plan, broker_code
 
 
 def _order_ticker(order: dict) -> str:
@@ -407,9 +389,7 @@ async def _build_mapped_grid_data(
     margin_locked = money("margin_locked", portfolio.margin_locked)
     cash_buffer_limit = _to_float(portfolio.cash_buffer_limit)
 
-    trade_plan, ai_reasoning, ai_risk_insight, broker_code = (
-        await _load_portfolio_context(db, portfolio)
-    )
+    trade_plan, broker_code = await _load_portfolio_context(db, portfolio)
     plan_id = trade_plan.plan_id if trade_plan else None
 
     history.sort(key=lambda row: row.get("exit_date") or "", reverse=True)
@@ -456,8 +436,6 @@ async def _build_mapped_grid_data(
         x_amount=_to_float(portfolio.x_amount) or 0,
         initial_capital=_to_float(portfolio.initial_capital) or 0,
         tags=portfolio.tags,
-        ai_reasoning=ai_reasoning,
-        ai_risk_insight=ai_risk_insight,
         spread_pairs=[],
         active_orders=[
             _serialize_mapped_order(order, plan_id, order_price(order))
@@ -527,21 +505,6 @@ async def get_portfolio_grid_data(
                 .limit(1)
             )
             trade_plan = trade_plan_result.scalar_one_or_none()
-
-            # Get recent AI reasoning/logs (always from main db)
-            ai_reasoning = None
-            ai_risk_insight = None
-            ai_log_result = await db.execute(
-                select(AiActionLog)
-                .join(AiActionLog.agent)
-                .where(AiAgent.target_portfolio_id == portfolio.portfolio_id)
-                .order_by(AiActionLog.created_at.desc())
-                .limit(1)
-            )
-            ai_log = ai_log_result.scalar_one_or_none()
-            if ai_log:
-                ai_reasoning = ai_log.reasoning
-                ai_risk_insight = "Risk metrics based on recent AI analysis" if ai_log.reasoning else None
 
             # Build order_id lookup for link detection
             order_map = {o.order_id: o for o in active_orders}
@@ -729,8 +692,6 @@ async def get_portfolio_grid_data(
                 x_amount=_to_float(portfolio.x_amount) or 0,
                 initial_capital=_to_float(portfolio.initial_capital) or 0,
                 tags=portfolio.tags,
-                ai_reasoning=ai_reasoning,
-                ai_risk_insight=ai_risk_insight,
                 spread_pairs=spread_pairs,
                 active_orders=active_orders_list,
                 recent_trades=recent_trades_list
@@ -790,21 +751,6 @@ async def get_portfolio_detail(
             .limit(1)
         )
         trade_plan = trade_plan_result.scalar_one_or_none()
-
-        # AI logs
-        ai_reasoning = None
-        ai_risk_insight = None
-        ai_log_result = await db.execute(
-            select(AiActionLog)
-            .join(AiActionLog.agent)
-            .where(AiAgent.target_portfolio_id == portfolio_id)
-            .order_by(AiActionLog.created_at.desc())
-            .limit(1)
-        )
-        ai_log = ai_log_result.scalar_one_or_none()
-        if ai_log:
-            ai_reasoning = ai_log.reasoning
-            ai_risk_insight = "Risk metrics based on recent AI analysis" if ai_log.reasoning else None
 
         order_map = {o.order_id: o for o in active_orders}
         spread_pair_legs = set()
@@ -1007,8 +953,6 @@ async def get_portfolio_detail(
             x_amount=_to_float(portfolio.x_amount) or 0,
             initial_capital=_to_float(portfolio.initial_capital) or 0,
             tags=portfolio.tags,
-            ai_reasoning=ai_reasoning,
-            ai_risk_insight=ai_risk_insight,
             spread_pairs=spread_pairs,
             active_orders=active_orders_list,
             recent_trades=recent_trades_list,

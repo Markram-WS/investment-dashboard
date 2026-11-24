@@ -43,26 +43,6 @@ def active_order_payload(plan_id, portfolio_id):
         "linked_order_id": "spread_1",
     }
 
-def ai_agent_payload(target_portfolio_id):
-    return {
-        "agent_name": "Test AI Agent",
-        "model_name": "test-model",
-        "target_portfolio_id": target_portfolio_id,
-        "strategy_config": {},
-        "status": "Active",
-    }
-
-def ai_action_log_payload(agent_id, reasoning="Test AI reasoning"):
-    return {
-        "agent_id": agent_id,
-        "action_type": "test_action",
-        "reasoning": reasoning,
-        "confidence_score": 0.95,
-        "raw_data_snapshot": {},
-        "linked_plan_id": None,
-        "linked_order_id": None,
-    }
-
 @pytest.mark.asyncio
 async def test_portfolio_grid_endpoint_empty(async_client):
     """Test the portfolio-grid endpoint when there are no portfolios."""
@@ -95,13 +75,6 @@ async def test_portfolio_grid_endpoint_with_data(async_client):
     order = order_resp.json()
     order_id = order["order_id"]
 
-    # Create an AI agent and log for the portfolio
-    agent_payload = ai_agent_payload(portfolio_id)
-    agent_resp = await async_client.post("/api/v1/ai/", json=agent_payload)
-    assert agent_resp.status_code == 201
-    agent = agent_resp.json()
-    agent_id = agent["agent_id"]
-
     # Now call the portfolio-grid endpoint
     resp = await async_client.get("/api/v1/analytics/portfolio-grid")
     assert resp.status_code == 200
@@ -132,44 +105,6 @@ async def test_portfolio_grid_endpoint_with_data(async_client):
     assert len(portfolio_data["spread_pairs"]) == 0
     # Check that the trade_plan_md is set to the entry_reason
     assert portfolio_data["trade_plan_md"] == "Test entry reason"
-    # Check that ai_reasoning and ai_risk_insight are present (since we created an AI log)
-    # Note: The endpoint tries to get the latest AI log. We didn't create it via API, so we'll skip this assertion for now.
-    # We'll create the AI log via ORM in the test to ensure it exists.
-
-    # Create the AI log using the test database session
-    # We can access the test session through the conftest module
-    import sys
-    import os
-    # Get the session from the test engine in conftest
-    sys.path.insert(0, os.path.dirname(__file__))
-    from conftest import get_test_engine
-    _, TestSessionLocal = get_test_engine()
-    async with TestSessionLocal() as session:
-        from app.models import AiActionLog
-        ai_log = AiActionLog(
-            agent_id=agent_id,
-            action_type="test_action",
-            reasoning="Test AI reasoning for the portfolio",
-            confidence_score=0.95,
-            raw_data_snapshot={},
-        )
-        session.add(ai_log)
-        await session.commit()
-
-    # Now call the endpoint again to see if the AI log is picked up.
-    resp = await async_client.get("/api/v1/analytics/portfolio-grid")
-    assert resp.status_code == 200
-    data = resp.json()
-    portfolio_data = None
-    for item in data:
-        if item["portfolio_id"] == portfolio_id:
-            portfolio_data = item
-            break
-    assert portfolio_data is not None
-    assert portfolio_data["ai_reasoning"] == "Test AI reasoning for the portfolio"
-    # The ai_risk_insight is set to a placeholder if reasoning exists.
-    assert portfolio_data["ai_risk_insight"] is not None
-    assert "Risk metrics based on recent AI analysis" in portfolio_data["ai_risk_insight"]
 
 
 @pytest.mark.asyncio

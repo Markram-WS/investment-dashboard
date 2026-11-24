@@ -172,27 +172,6 @@ export interface PerformanceResult {
   total_pl: number;
 }
 
-// Backend `/api/v1/risk/analytics` emits snake_case keys, while the
-// RiskAnalytics screen reads camelCase names; getRiskAnalytics adapts between
-// the two so both authorities are honoured.
-export interface RiskAnalyticsResult {
-  sharpeRatio: number;
-  maxDrawdown: number;
-  var95: number;
-  beta: number;
-  volatility: number;
-  correlation: number;
-}
-
-interface RiskAnalyticsResponse {
-  sharpe_ratio: number;
-  max_drawdown: number;
-  var_95: number;
-  beta: number;
-  volatility: number;
-  correlation: number;
-}
-
 export interface TradeHistoryRecord {
   history_id: number;
   portfolio_id: number;
@@ -509,17 +488,6 @@ export const api = {
     request<PortfolioData>(`/analytics/portfolio/${encodeURIComponent(String(portfolioId))}`),
   getPerformance: (portfolioId: number) =>
     request<PerformanceResult>(`/analytics/performance/${portfolioId}`),
-  getRiskAnalytics: async () => {
-    const raw = await request<RiskAnalyticsResponse>('/risk/analytics');
-    return {
-      sharpeRatio: raw.sharpe_ratio,
-      maxDrawdown: raw.max_drawdown,
-      var95: raw.var_95,
-      beta: raw.beta,
-      volatility: raw.volatility,
-      correlation: raw.correlation,
-    };
-  },
 
   // Trade history
   getTradeHistory: (portfolioId: number, offset?: number, limit?: number) => {

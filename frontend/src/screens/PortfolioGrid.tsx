@@ -20,7 +20,6 @@ import PageLayout from "../components/PageLayout";
 import PoolRail from "./components/PoolRail";
 import OrderDetailLadder from "./components/OrderDetailLadder";
 import OrderHistoryCard from "./components/OrderHistoryCard";
-import RiskCard from "./components/RiskCard";
 import StrategyNotes from "./components/StrategyNotes";
 import PerformanceSection from "./components/PerformanceSection";
 import OptionsStrategyTable from "./components/OptionsStrategyTable";
@@ -487,6 +486,11 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           lastUpdated={lastUpdated}
           onRefresh={handleRefresh}
           onEditPortfolio={() => setShowEditPortfolioModal(true)}
+          extraActions={
+            <button type="button" className="at-btn-ghost" onClick={() => setShowNotesModal(true)}>
+              Strategy &amp; notes
+            </button>
+          }
           showConnection={isCustom}
           onOpenConnection={() => setShowMappingModal(true)}
         />
@@ -557,15 +561,6 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
                 }
               />
             </section>
-
-            <RiskCard
-              risk={selectedPortfolio.risk}
-              productTicker={selectedPortfolio.product_ticker}
-              brokerCode={selectedPortfolio.broker_code}
-              strategySet={Boolean(selectedPortfolio.trade_plan_md?.trim())}
-              notesPresent={Boolean(selectedPortfolio.internal_notes?.trim())}
-              onEdit={() => setShowNotesModal(true)}
-            />
           </div>
         </div>
       </div>

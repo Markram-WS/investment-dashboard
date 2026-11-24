@@ -1,6 +1,6 @@
 # Investment Dashboard
 
-Full-stack portfolio management system with real-time analytics, options strategy sandbox, AI agent integration, **Managed Fund rebalancing**, and **dynamic multi-database custom portfolios**.
+Full-stack portfolio management system with real-time analytics, options strategy sandbox, **Managed Fund rebalancing**, and **dynamic multi-database custom portfolios**.
 
 ## Stack
 
@@ -35,7 +35,7 @@ Browser → frontend Service (nginx, NodePort 30080 → localhost:8080)
                               ↓ /api/*
                            backend Service (:8000)
                               ↓
-                           PostgreSQL (main, ai)
+                           PostgreSQL (main)
                               ↓
                            External DBs (Custom Portfolios)
 ```
@@ -62,8 +62,6 @@ The read-through mode ships with the `tfex-settrade-v1` template (`usd_pct_abc.o
 - **Notification System** — Centralized context with navbar bell icon, unread badge, history dropdown, 3s auto-dismiss
 - **Dark Mode** — Class-based toggle with localStorage persistence and anti-flash protection
 - **Transaction Ledger** — Deposit, withdraw, transfer between portfolios with full history; global aggregation across all custom DBs, with 11px (`--fs-label`) data cells
-- **Risk Analytics** — Pool health, money reserve status, Sharpe/VaR/Drawdown, risk score gauge
-- **AI Agents** — Automated scan/plan/execute/adjust cycles per portfolio
 - **Custom Portfolio** — User-configured external PostgreSQL databases for isolated data storage, with Test Connection diagnostics. Either the backend owns the tables, or a JSON mapping config (`mapping_config`, template `tfex-settrade-v1`) turns the portfolio into a read-through view over a foreign broker schema: mapped orders/history/account balances, no DDL, row-level diagnostics on the connection test. Active orders are **writable only when the config declares `entities.orders.write`** — insert/update, plus close/cancel as a history insert followed by the open-row delete in one transaction (the row key is the broker `id`, exposed as `order_id` with the human order number as `order_ref`); every other mutation is answered with 409. The ladder's `Mark` column shows the broker's `mark_price` while Net P&L uses the local All Assets current price. Mapped order tickers sync into All Assets as `future`/`tfex` rows
 - **Drag & Drop** — Transfer cash between portfolios, assign orders to groups, move assets between groups
 - **Encrypted Credentials** — DB passwords encrypted with Fernet symmetric key (`FERNET_KEY`), never stored in plaintext
@@ -102,7 +100,6 @@ InvestmentDashboard/
 │   └── Dockerfile
 ├── database/           # SQL schemas
 │   ├── main_db_schema.sql
-│   ├── ai_db_schema.sql
 │   ├── mock/                   # Dev-only fixtures (usd_pct_abc_dev_seed.sql: foreign-schema seed)
 │   └── README.md               # Schema docs incl. custom_portfolio_connections
 ├── deploy/             # Kubernetes base + kind dev overlay

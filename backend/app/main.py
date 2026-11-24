@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, ai_engine
+from app.database import engine
 from app.models import Base
 import app.managed_fund_models  # noqa: F401 - register models for table creation
 from app.routers import (
@@ -9,12 +9,10 @@ from app.routers import (
     trade_plans,
     active_orders,
     analytics,
-    ai_agents,
     overview,
     transactions,
     transfers,
     journal,
-    risk,
     rebalance,
     trade_history,
     assets,
@@ -156,8 +154,6 @@ async def lifespan(app: FastAPI):
             ))
         except Exception:
             pass
-    async with ai_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
     yield
 
 app = FastAPI(
@@ -191,7 +187,6 @@ app.include_router(
 )
 app.include_router(active_orders.router, prefix="/api/v1/orders", tags=["orders"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"])
-app.include_router(ai_agents.router, prefix="/api/v1/ai", tags=["ai-agents"])
 app.include_router(overview.router, prefix="/api/v1/overview", tags=["overview"])
 app.include_router(
     transactions.router, prefix="/api/v1/transactions", tags=["transactions"]
@@ -201,7 +196,6 @@ app.include_router(
 )
 app.include_router(transfers.router, prefix="/api/v1/transfers", tags=["transfers"])
 app.include_router(journal.router, prefix="/api/v1/journal", tags=["journal"])
-app.include_router(risk.router, prefix="/api/v1/risk", tags=["risk"])
 app.include_router(rebalance.router, prefix="/api/v1/rebalance", tags=["rebalance"])
 app.include_router(orders_groups.router, prefix="/api/v1/orders-groups", tags=["orders-groups"])
 app.include_router(performance.router, prefix="/api/v1/analytics/performance", tags=["analytics"])

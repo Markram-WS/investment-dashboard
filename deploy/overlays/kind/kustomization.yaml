@@ -80,30 +80,3 @@ patches:
                   requests:
                     cpu: 100m
                     memory: 128Mi
-
-  - target:
-      kind: StatefulSet
-      name: postgres-ai
-    patch: |-
-      apiVersion: apps/v1
-      kind: StatefulSet
-      metadata:
-        name: postgres-ai
-      spec:
-        volumeClaimTemplates:
-          - metadata:
-              name: data
-            spec:
-              accessModes:
-                - ReadWriteOnce
-              resources:
-                requests:
-                  storage: 1Gi
-        template:
-          spec:
-            containers:
-              - name: postgres
-                resources:
-                  requests:
-                    cpu: 100m
-                    memory: 128Mi

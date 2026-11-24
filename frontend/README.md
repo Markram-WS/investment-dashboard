@@ -167,8 +167,7 @@ See `src/lib/api.ts` for the complete list of 65+ endpoints. Key categories:
 - `/api/v1/asset-groups` — CRUD (seeds Ungrouped/Watchlist)
 - `/api/v1/transfers` — create + confirm
 - `/api/v1/transactions` — deposit/withdraw/transfer history
-- `/api/v1/risk/*` — pool health, money reserve, analytics
-- `/api/v1/*` — trade-plans, trade-history, orders-groups, journal, AI
+- `/api/v1/*` — trade-plans, trade-history, orders-groups, journal
 
 ## 🔔 Notification System
 
@@ -202,7 +201,7 @@ One 44px header band, a type-filter toolbar, and one grouped registry table — 
 ```
 Header (sticky top-0 z-100)
   ├─ Branding (InvestDesk/ Dashboard)
-  ├─ Navigation Links (Overview, Asset, Transactions, Risk Analytics)
+  ├─ Navigation Links (Overview, Asset, Transactions)
   ├─ Portfolios Dropdown (+ Create Portfolio)
   └─ ThemeToggle + NotificationBell
 
@@ -237,7 +236,6 @@ Portfolio Grid (xl:grid-cols-2)
 | `/` | PortfolioOverview | Cash breakdown + portfolio grid |
 | `/transactions` | TransactionsPage | Transaction table + unified inline form (From/To dropdowns, no modals) |
 | `/all-assets` | AllAssets | One grouped registry: editable ticker, collapsible group rows, inline price/spec editing |
-| `/risk-analytics` | RiskAnalytics | Risk metrics (Sharpe, VaR, Drawdown) |
 | `/analytics/portfolio/{id}` | PortfolioAnalyticsDetail | Dynamic layout per port_type (Managed Fund → PortfolioMutualFund with 4-card summary; all others → PortfolioGrid) |
 | `/analytics/detail` | PortfolioGrid | Grid view |
 | `/managed-fund/{portfolioId}` | PortfolioMutualFund | Managed fund view (summary, holdings, orders, history, rebalance) |

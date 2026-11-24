@@ -37,8 +37,8 @@
 ## 6. Architecture Overview
 
 ### Backend (FastAPI)
-- **17 routers** in `backend/app/routers/`: `active_orders.py`, `ai_agents.py`, `analytics.py`, `asset_groups.py`, `assets.py`, `journal.py`, `managed_funds.py`, `orders_groups.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `risk.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py` (+ `yfinance_service.py` in services/)
-- **22 SQLAlchemy models**: Portfolio, CustomPortfolioConnection, TradePlan, ActiveOrder, OptionDetails, PortfolioNavHistory, SimulationModels, TradeHistory, Transaction, DecisionJournal, WhitelistAssets, Watchlist, AssetGroup, OrdersGroup, AiAgent, AiActionLog, AiAgentState, CustomTradePlan (in custom_models.py), ManagedFundHolding, ManagedFundOrder, ManagedFundOrderHistory, ManagedFundSetting (in managed_fund_models.py)
+- **16 routers** in `backend/app/routers/`: `active_orders.py`, `analytics.py`, `asset_groups.py`, `assets.py`, `brokers.py`, `journal.py`, `managed_funds.py`, `orders_groups.py`, `overview.py`, `performance.py`, `portfolios.py`, `rebalance.py`, `trade_history.py`, `trade_plans.py`, `transactions.py`, `transfers.py`
+- **25 SQLAlchemy models**: Portfolio, CustomPortfolioConnection, TradePlan, ActiveOrder, OptionDetails, PortfolioNavHistory, SimulationModels, TradeHistory, Transaction, DecisionJournal, Broker, WhitelistAssets, AssetGroup, Watchlist, OrdersGroup (in `models.py`), CustomActiveOrder, CustomTransaction, CustomWhitelistAssets, CustomAssetGroup, CustomOrdersGroup, CustomTradePlan (in `custom_models.py`), ManagedFundHolding, ManagedFundOrder, ManagedFundOrderHistory, ManagedFundSetting (in `managed_fund_models.py`)
 - **Custom Portfolio** (`port_type = "Custom Portfolio"`) replaces legacy "Spread Strategy" — requires external PostgreSQL connection.
 - **Multi-DB Architecture**:
   - `is_custom` flag on `Portfolio` routes transactional data to user-configured external databases
@@ -59,7 +59,7 @@
   - `yfinance_service.py` — rewritten to use direct HTTP to Yahoo Finance (`query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=2d&interval=1d`). No yfinance library. Errors propagate as HTTP 502.
   - `overview.py` — custom portfolio P/L fixed: uses `TradeHistory.realized_pl` (same as regular portfolios) instead of `CustomTransaction.amount`.
 - `WhitelistAssets` extended: `name`, `source` (yfinance/manual), `group_id` FK→`asset_groups`, `price`, `change_24h`, `updated_at`
-- Two core PostgreSQL databases: `investment_main` (port 5432) and `investment_ai` (port 5433)
+- One core PostgreSQL database: `investment_main` (port 5432)
 
 ### Managed Fund Feature
 - **4 new DB tables**: `managed_fund_holdings`, `managed_fund_orders`, `managed_fund_order_history`, `managed_fund_settings`

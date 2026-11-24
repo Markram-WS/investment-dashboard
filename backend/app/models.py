@@ -21,7 +21,7 @@ class Portfolio(Base):
     portfolio_name = Column(String, nullable=False)
     port_type = Column(String, nullable=False)
     # Risk model (Phase 1): one product per portfolio - broker + product ticker.
-    # x_amount is the adverse move (in product price points) used by the risk card.
+    # x_amount is the adverse move (in product price points) used by the risk model.
     broker_id = Column(Integer, ForeignKey('brokers.id'), nullable=True)
     product_ticker = Column(String, nullable=True)
     x_amount = Column(Numeric(20, 8), nullable=False, default=Decimal('0'))
@@ -296,47 +296,6 @@ class Watchlist(Base):
     ticker = Column(String, nullable=False)
     alert_price = Column(Numeric(20, 8))
     notes = Column(String)
-
-# AI Database Models
-class AiAgent(Base):
-    __tablename__ = 'ai_agents'
-    
-    agent_id = Column(Integer, primary_key=True)
-    agent_name = Column(String, nullable=False)
-    model_name = Column(String, nullable=False)
-    target_portfolio_id = Column(Integer)
-    strategy_config = Column(JSON)
-    status = Column(String, default='Active')
-    created_at = Column(DateTime, default=datetime.utcnow)
-    action_logs = relationship("AiActionLog", back_populates="agent")
-    state = relationship("AiAgentState", back_populates="agent", uselist=False)
-    
-class AiActionLog(Base):
-    __tablename__ = 'ai_action_logs'
-    
-    log_id = Column(Integer, primary_key=True)
-    agent_id = Column(Integer, ForeignKey('ai_agents.agent_id'), nullable=False)
-    action_type = Column(String, nullable=False)
-    reasoning = Column(String)
-    confidence_score = Column(Numeric(20, 8))
-    risk_assessment = Column(JSON)
-    raw_data_snapshot = Column(JSON)
-    linked_plan_id = Column(Integer)
-    linked_order_id = Column(Integer)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    agent = relationship("AiAgent", back_populates="action_logs")
-
-class AiAgentState(Base):
-    __tablename__ = 'ai_agent_state'
-    
-    agent_id = Column(Integer, ForeignKey('ai_agents.agent_id'), primary_key=True)
-    last_run_timestamp = Column(DateTime)
-    current_task = Column(String)
-    is_busy = Column(Boolean, default=False)
-    error_logs = Column(String)
-    
-    agent = relationship("AiAgent", back_populates="state")
 
 
 class OrdersGroup(Base):

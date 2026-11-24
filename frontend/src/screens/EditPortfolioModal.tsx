@@ -340,7 +340,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
               <Field
                 label="Adverse move (X)"
                 htmlFor="edit-portfolio-multiplier"
-                hint="price points used by the risk card"
+                hint="price points used by margin and P&amp;L"
               >
                 <NumberInput
                   id="edit-portfolio-multiplier"

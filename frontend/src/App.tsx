@@ -16,7 +16,6 @@ const CreateNewPortfolio = lazy(() => import('./pages/CreateNewPortfolio'));
 const PortfolioMutualFund = lazy(() => import('./screens/PortfolioMutualFund'));
 const PortfolioGrid = lazy(() => import('./screens/PortfolioGrid'));
 const AllAssets = lazy(() => import('./pages/AllAssets'));
-const RiskAnalytics = lazy(() => import('./pages/RiskAnalytics'));
 
 const queryClient = new QueryClient();
 
@@ -39,7 +38,6 @@ export default function App() {
             <Route path="/managed-fund" element={<PortfolioMutualFund />} />
             <Route path="/managed-fund/:portfolioId" element={<PortfolioMutualFund />} />
             <Route path="/all-assets" element={<AllAssets />} />
-            <Route path="/risk-analytics" element={<RiskAnalytics />} />
           </Route>
         </Routes>
         </Suspense>

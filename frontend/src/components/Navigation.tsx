@@ -6,7 +6,6 @@ import {
   IconDashboard,
   IconTrendingUp,
   IconRepeat,
-  IconShield,
   IconFolder,
   IconChevronDown,
   IconMenu,
@@ -21,7 +20,6 @@ const NAV_ITEMS = [
   { name: "Overview", path: "/", Icon: IconDashboard },
   { name: "Asset", path: "/all-assets", Icon: IconTrendingUp },
   { name: "Transactions", path: "/transactions", Icon: IconRepeat },
-  { name: "Risk Analytics", path: "/risk-analytics", Icon: IconShield },
 ];
 
 export default function Navigation() {

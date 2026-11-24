@@ -77,7 +77,7 @@ def _option_bucket_key(order) -> str | None:
 async def compute_risk(
     db: AsyncSession, portfolio: Portfolio, orders: list
 ) -> dict:
-    """Every number the risk card and the pool rail need for one portfolio.
+    """Every number the pool rail and the detail payload need for one portfolio.
 
     ``orders`` is the caller's already-loaded ORM list. Per order the mark is
     ``current_price`` falling back to ``entry_price``; contract multiplier and

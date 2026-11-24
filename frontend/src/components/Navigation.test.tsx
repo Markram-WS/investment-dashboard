@@ -43,13 +43,13 @@ describe('Navigation Component', () => {
     expect(screen.getByText('INVESTDESK')).toBeInTheDocument()
   })
 
-  it('renders all 4 navigation menu items', () => {
+  it('renders all 3 navigation menu items', () => {
     renderWithRouter(<Navigation />)
     
     expect(screen.getByText('Overview')).toBeInTheDocument()
     expect(screen.getByText('All Assets')).toBeInTheDocument()
     expect(screen.getByText('Transactions')).toBeInTheDocument()
-    expect(screen.getByText('Risk Analytics')).toBeInTheDocument()
+    expect(screen.queryByText('Risk Analytics')).not.toBeInTheDocument()
   })
 
   it('renders the portfolio selector dropdown', () => {
@@ -77,9 +77,6 @@ describe('Navigation Component', () => {
     
     const transactionsLink = screen.getByText('Transactions').closest('a')
     expect(transactionsLink).toHaveAttribute('href', '/transactions')
-    
-    const riskAnalyticsLink = screen.getByText('Risk Analytics').closest('a')
-    expect(riskAnalyticsLink).toHaveAttribute('href', '/risk-analytics')
   })
 
   it('renders mobile menu button on mobile viewport', () => {

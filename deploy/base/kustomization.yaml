@@ -6,7 +6,6 @@ namespace: investment-dashboard
 resources:
   - namespace.yaml
   - postgres-main.yaml
-  - postgres-ai.yaml
   - backend.yaml
   - frontend.yaml
 

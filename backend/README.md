@@ -1,6 +1,6 @@
 # Investment Dashboard – Backend
 
-A FastAPI-powered backend for professional investment management, including portfolio tracking, trade plans, active orders, AI agent integration, whitelist asset management with Yahoo Finance and TFEX price sync, and **dynamic multi-database custom portfolios**.
+A FastAPI-powered backend for professional investment management, including portfolio tracking, trade plans, active orders, whitelist asset management with Yahoo Finance and TFEX price sync, and **dynamic multi-database custom portfolios**.
 
 ---
 
@@ -25,7 +25,7 @@ This backend is built with:
 
 - **FastAPI** – modern, async REST API
 - **SQLAlchemy 2.0 (async)** – ORM & DB engine
-- **PostgreSQL** – two core databases (`investment_main`, `investment_ai`) plus user-configured external databases for Custom Portfolios
+- **PostgreSQL** – one core database (`investment_main`) plus user-configured external databases for Custom Portfolios
 - **Podman + kind** – image builds and the local Kubernetes dev cluster
 
 **Key additions:**
@@ -81,7 +81,7 @@ open http://localhost:8000/docs
 > `portfolios.tags` is a JSONB map of key→bool for metadata filtering.
 > `risk_score` (0–100) is computed server-side from `available_cash`, `margin_locked`, `cash_buffer_limit`.
 > Order status values are uppercase: `PENDING`, `FILLED`, `CLOSE`, `CANCELED`.
-> The backend, frontend and both PostgreSQL instances run in the `investment-dashboard` namespace as Deployments/StatefulSets. Logs: `kubectl -n investment-dashboard logs -f deploy/backend`.
+> The backend, frontend and the PostgreSQL instance run in the `investment-dashboard` namespace as Deployments/StatefulSets. Logs: `kubectl -n investment-dashboard logs -f deploy/backend`.
 
 ---
 
@@ -90,7 +90,6 @@ open http://localhost:8000/docs
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATABASE_URL` | `postgresql+asyncpg://dashboard:dashboard@localhost:5432/investment_main` | Main DB connection (the kind overlay sets it to the `postgres-main` Service) |
-| `AI_DATABASE_URL` | `postgresql+asyncpg://dashboard:dashboard@localhost:5433/investment_ai` | AI-specific DB (the kind overlay sets it to the `postgres-ai` Service) |
 | `PORT` | `8000` | HTTP port exposed by the container |
 | `FERNET_KEY` | *(required for Custom Portfolio)* | Symmetric key for encrypting DB passwords. Generate: `python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'` |
 
@@ -155,14 +154,6 @@ open http://localhost:8000/docs
 | `GET` | `/api/v1/analytics/portfolio/{portfolio_id}` | Single portfolio detail |
 | `GET` | `/api/v1/analytics/performance/{portfolio_id}` | Performance data |
 
-### Risk
-| Method | Endpoint | Description |
-|--------|-----------|-------------|
-| `GET` | `/api/v1/risk/pool-health` | Pool health summary |
-| `GET` | `/api/v1/risk/money-reserve-status` | Money reserve status |
-| `GET` | `/api/v1/risk/portfolio-safety/{id}` | Per-portfolio safety metrics |
-| `GET` | `/api/v1/risk/analytics` | Computed risk metrics |
-
 ### Transactions
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
@@ -211,15 +202,6 @@ open http://localhost:8000/docs
 | `PUT` | `/api/v1/orders-groups/{id}` | Update a group |
 | `DELETE` | `/api/v1/orders-groups/{id}` | Delete a group |
 
-### AI Agents
-| Method | Endpoint | Description |
-|--------|-----------|-------------|
-| `GET` | `/api/v1/ai/agents` | List AI agents |
-| `POST` | `/api/v1/ai/agents` | Create agent |
-| `POST` | `/api/v1/ai/agents/{agent_id}/run` | Trigger agent execution |
-| `GET` | `/api/v1/ai/status` | AI status for a portfolio |
-| `GET` | `/api/v1/ai/logs/{portfolio_id}` | AI action logs |
-
 ### Trade History
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
@@ -258,7 +240,6 @@ backend/
 │       ├── analytics.py         # Portfolio grid + detail analytics
 │       ├── performance.py       # Equity curve + payoff bars
 │       ├── overview.py          # Global dashboard
-│       ├── risk.py              # Pool health, money reserve, safety
 │       ├── transactions.py      # Transaction history (global + per-portfolio routing)
 │       ├── trade_history.py     # Historical trade records
 │       ├── transfers.py         # Cash pool transfers
@@ -268,8 +249,7 @@ backend/
 │       ├── trade_plans.py       # Trade plan CRUD
 │       ├── journal.py           # Decision journal
 │       ├── managed_funds.py     # Managed Fund CRUD: settings, holdings, orders, history, rebalance, sync-prices, alerts
-│       ├── rebalance.py         # Dual-mode rebalancing
-│       └── ai_agents.py         # AI autonomy
+│       └── rebalance.py         # Dual-mode rebalancing
 ├── tests/                       # pytest suite (collected from this directory only)
 ├── pytest.ini                   # testpaths = tests
 ├── requirements.txt             # runtime deps (cryptography included for Fernet password encryption)
@@ -330,7 +310,7 @@ A non-null `custom_portfolio_connections.mapping_config` (JSON) turns the same C
 - **Validation**: `validate_mapping` refuses a `version` other than 1, a missing `orders`/`account` entity, and any schema/table/column that is not a plain SQL identifier — the config can only ever name a quoted identifier, never carry SQL.
 - **No DDL**: `get_custom_session` / `get_portfolio_db` skip `ensure_custom_tables()` when `mapping_config` is set, so our `active_orders`/`transactions` tables are never created in the foreign database.
 - **Reads**: the grid maps orders (`status` `M`/`MP`→`open`, `C*`→`cancelled`, `E*`→`expired`, `R*`→`rejected`; `tp` is the exit price; `remark` is the Mark note), the newest `account_history` row supplies `available_cash`←`excessequity`, `margin_locked`←`initialmargin`, `current_nav`←`equity`, and `GET /api/v1/trade-history` serves the mapped `history` rows (`remark.note` = `Close`/`Canceled`).
-- **Prices and P&L**: the mapped `orders` entity maps `mark_price` → a display-only `mark_price` that the mapped ladder's `Mark` column shows; `current_price` is not mapped. Net P&L and the risk card's Sum P/L use the local `investment_main.whitelist_assets.price` for the order ticker — the portfolio's `broker_id` row preferred, else the lowest `broker_id` — and a `NULL` price is missing (the order falls back to its entry price, so its Net P&L is 0; the foreign mark is never substituted). `tp` remains an exit price only and never enters P/L.
+- **Prices and P&L**: the mapped `orders` entity maps `mark_price` → a display-only `mark_price` that the mapped ladder's `Mark` column shows; `current_price` is not mapped. Net P&L and the risk block's Sum P/L (`risk.pl_total`) use the local `investment_main.whitelist_assets.price` for the order ticker — the portfolio's `broker_id` row preferred, else the lowest `broker_id` — and a `NULL` price is missing (the order falls back to its entry price, so its Net P&L is 0; the foreign mark is never substituted). `tp` remains an exit price only and never enters P/L.
 - **Asset sync**: `POST /api/v1/assets/sync-from-orders` and `sync-from-all` share one collector over main-DB active orders plus every custom portfolio — legacy owned tables or the mapped adapter, never `ensure_custom_tables()` on a foreign database — so mapped tickers surface in All Assets as `asset_type = 'future'`; `sync-from-all` additionally adds Managed Fund holdings tickers and never reads Managed Fund order history; a custom database that cannot be reached is skipped with a warning instead of blocking the sync.
 - **Order writes (optional `write` block)**: `entities.orders.write` declares `key` (`column`, `generated`), `insert`/`update`/`delete` flags, `columns` (canonical→foreign, unique, never the generated key), literal `defaults`, and `values` (canonical literal → foreign literal, e.g. `BUY`→`LONG`). Identifiers and shapes are validated by `validate_mapping`; every identifier is quoted and every value bound. The row key is the uuid `id` returned by `INSERT ... RETURNING`; the normalised order exposes it as `order_id` and maps `orderno` to `order_ref`. Update raises 400 for a non-null field outside `write.columns`; there is no plain delete path when a history spec exists.
 - **Close / cancel**: `POST /close` and `PATCH /status` (`CANCELED`) run in one transaction — read the open row, INSERT a copy into `write.history` (base values via `history.columns`, `defaults`, the `history.status` code, and `close_columns` for exit price / realized P/L), then DELETE the open row. Without a `write.history` block the operation is a plain delete. Response shape: `{order_id, order_status: CLOSE|CANCELED, history_id: null}`.
@@ -403,15 +383,11 @@ kubectl -n investment-dashboard rollout restart deploy/backend
 ### Accessing the Database
 
 ```bash
-# Forward both Postgres Services to the host, then connect
+# Forward the Postgres Service to the host, then connect
 kubectl -n investment-dashboard port-forward svc/postgres-main 5432:5432
-kubectl -n investment-dashboard port-forward svc/postgres-ai 5433:5433
 
 # Main database
 psql -h localhost -p 5432 -U dashboard -d investment_main
-
-# AI database
-psql -h localhost -p 5433 -U dashboard -d investment_ai
 ```
 
 ### Viewing Logs
@@ -419,7 +395,6 @@ psql -h localhost -p 5433 -U dashboard -d investment_ai
 ```bash
 kubectl -n investment-dashboard logs -f deploy/backend
 kubectl -n investment-dashboard logs -f statefulset/postgres-main
-kubectl -n investment-dashboard logs -f statefulset/postgres-ai
 ```
 
 ### Swagger UI
@@ -466,7 +441,6 @@ TFEX quotes are delayed by roughly 15 minutes, so the fetched value will not mat
 ```bash
 kubectl -n investment-dashboard get pods
 kubectl -n investment-dashboard logs statefulset/postgres-main
-kubectl -n investment-dashboard logs statefulset/postgres-ai
 ```
 
 ---
