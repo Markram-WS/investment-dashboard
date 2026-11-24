@@ -308,12 +308,15 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
 
   /** Header pill opens a blank form; a ladder row presets its zone and mark. */
   const handleAddOrder = useCallback((preset?: { groupId: number | null; entryPrice: number | null }) => {
+    const productTicker = String(selectedPortfolio?.product_ticker ?? '').trim();
     openModal({
       group_id: isMapped ? null : preset?.groupId ?? null,
       entry_price: preset?.entryPrice ?? '',
       ...(isMapped ? { side: 'LONG' } : {}),
+      // A portfolio product is the only symbol the write path accepts.
+      ...(productTicker ? { asset_type: productTicker } : {}),
     });
-  }, [openModal, isMapped]);
+  }, [openModal, isMapped, selectedPortfolio?.product_ticker]);
 
   const handleLinkOrder = useCallback(async (sourceOrderId: string, targetOrderId: string) => {
     try {
@@ -675,6 +678,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           groups={groups}
           groupOrderCounts={groupOrderCounts}
           assetTypeOptions={assetTypeOptions}
+          productTicker={selectedPortfolio.product_ticker ?? null}
           mapped={mappedOrderFields}
         />
       )}

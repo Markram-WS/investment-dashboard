@@ -57,9 +57,24 @@ const mappedNumber = (value: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+/** The API carries the FastAPI `detail` as raw response text. */
+const detailMessage = (body: unknown): string | null => {
+  if (typeof body !== 'string' || !body.trim()) return null;
+  try {
+    const parsed: unknown = JSON.parse(body);
+    const detail = (parsed as { detail?: unknown } | null)?.detail;
+    return typeof detail === 'string' && detail.trim() ? detail.trim() : null;
+  } catch {
+    return null;
+  }
+};
+
 const createErrorMessage = (error: unknown): string => {
-  const status = (error as { status?: number } | null)?.status;
-  if (typeof status === 'number') return `Create order failed (HTTP ${status})`;
+  const err = error as { status?: number; body?: unknown } | null;
+  // Prefer the server's own sentence; it is more specific than the status.
+  const detail = detailMessage(err?.body);
+  if (detail) return detail;
+  if (typeof err?.status === 'number') return `Create order failed (HTTP ${err.status})`;
   return 'Create order failed';
 };
 
