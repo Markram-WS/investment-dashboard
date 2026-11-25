@@ -708,6 +708,59 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_proposal_resolved_flags_existing_symbol_spec(async_client):
+    """`resolved` is true only for a spec owning the key in the pair's broker."""
+    broker_id = await create_broker(async_client, "SYN5")
+    other_broker = await create_broker(async_client, "SYN6")
+    _, _, resolved_order = await _seed_order("HASSPEC", broker_id)
+    _, _, missing_order = await _seed_order("NOSPEC", broker_id)
+    _, _, brokerless_order = await _seed_order("NOSPEC", None)
+
+    try:
+        product = await create_product(
+            async_client, ticker="HASSPEC", broker_id=broker_id, asset_type="stock"
+        )
+        symbol = await create_symbol(
+            async_client,
+            product["product_id"],
+            price_symbol=" hasspec ",
+            sync_symbol="HASSPEC.BK",
+            contract_kind="stock",
+        )
+        assert symbol.status_code == 201, symbol.text
+
+        # Same normalized key, but owned by a different broker: out of scope.
+        foreign = await create_product(
+            async_client, ticker="NOSPEC", broker_id=other_broker, asset_type="stock"
+        )
+        foreign_symbol = await create_symbol(
+            async_client,
+            foreign["product_id"],
+            price_symbol="NOSPEC",
+            sync_symbol="NOSPEC.BK",
+            contract_kind="stock",
+        )
+        assert foreign_symbol.status_code == 201, foreign_symbol.text
+
+        proposal = await async_client.get("/api/v1/assets/proposal")
+        assert proposal.status_code == 200, proposal.text
+        items = {
+            (item["broker_id"], item["symbol"]): item
+            for item in proposal.json()["items"]
+        }
+        assert items[(broker_id, "HASSPEC")]["resolved"] is True
+        assert items[(broker_id, "NOSPEC")]["resolved"] is False
+        # A brokerless pair never matches a broker-owned spec.
+        assert items[(None, "NOSPEC")]["resolved"] is False
+        # The flag is informational only: the spec is still counted and the
+        # row stays assignable.
+        assert items[(broker_id, "HASSPEC")]["products"][0]["symbol_count"] == 1
+    finally:
+        await cleanup_brokers(broker_id, other_broker)
+        await _delete_orders(resolved_order, missing_order, brokerless_order)
+
+
+@pytest.mark.asyncio
 async def test_apply_create_needs_explicit_source_type_and_provider(
     async_client, monkeypatch
 ):

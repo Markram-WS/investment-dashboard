@@ -538,6 +538,8 @@ export interface SyncProposalItem {
   broker_id: number | null;
   broker_code: string | null;
   broker_required: boolean;
+  /** True when this normalized dashboard key already has a contract spec in the pair's broker scope. */
+  resolved: boolean;
   products: SyncProposalProduct[];
   /** Asset types recorded on the orders behind this pair — a hint, never a default. */
   order_asset_types: string[];

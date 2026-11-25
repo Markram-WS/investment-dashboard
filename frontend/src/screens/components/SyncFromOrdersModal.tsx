@@ -68,6 +68,20 @@ const headCell = {
   whiteSpace: 'nowrap',
 } as const;
 
+/** Neutral "has spec" chip: 11px slate on surface-soft with a hairline edge. */
+const specChipStyle = {
+  marginLeft: 6,
+  fontSize: 'var(--fs-label)',
+  fontWeight: 500,
+  color: 'var(--color-slate)',
+  background: 'var(--color-surface-soft)',
+  border: '1px solid var(--color-hairline)',
+  borderRadius: 'var(--rounded-full)',
+  padding: '0 6px',
+  whiteSpace: 'nowrap',
+  verticalAlign: 'middle',
+} as const;
+
 export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFromOrdersModalProps) {
   const [selections, setSelections] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, CreateDraft>>({});
@@ -198,6 +212,15 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                     <tr key={key}>
                       <td style={{ ...cell, fontWeight: 600, color: 'var(--color-ink)', whiteSpace: 'nowrap' }}>
                         {item.symbol}
+                        {item.resolved && (
+                          <span
+                            style={specChipStyle}
+                            title="Already has a contract spec"
+                            aria-label="Already has a contract spec"
+                          >
+                            has spec
+                          </span>
+                        )}
                       </td>
                       <td style={{ ...cell, color: 'var(--color-slate)', whiteSpace: 'nowrap' }}>
                         {item.broker_code ?? 'Unassigned'}

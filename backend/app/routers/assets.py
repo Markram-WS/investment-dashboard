@@ -1028,18 +1028,23 @@ async def _proposal_items(db: AsyncSession) -> list[dict]:
                 )
             )
         ).scalars().all()
+        symbol_counts: dict[int, int] = {}
+        resolved = False
+        product_ids = [product.product_id for product in products]
+        if product_ids:
+            symbol_rows = (
+                await db.execute(
+                    select(AssetSymbol.product_id, AssetSymbol.price_symbol).where(
+                        AssetSymbol.product_id.in_(product_ids)
+                    )
+                )
+            ).all()
+            for product_id, price_symbol in symbol_rows:
+                symbol_counts[product_id] = symbol_counts.get(product_id, 0) + 1
+                if registry.normalise_symbol(price_symbol) == symbol:
+                    resolved = True
         choices = []
         for product in products:
-            count = int(
-                (
-                    await db.execute(
-                        select(func.count(AssetSymbol.symbol_id)).where(
-                            AssetSymbol.product_id == product.product_id
-                        )
-                    )
-                ).scalar()
-                or 0
-            )
             choices.append(
                 {
                     "product_id": product.product_id,
@@ -1048,7 +1053,7 @@ async def _proposal_items(db: AsyncSession) -> list[dict]:
                     "multiplier": float(product.multiplier or 0),
                     "margin_rate": float(product.margin_rate or 0),
                     "margin_mode": product.margin_mode,
-                    "symbol_count": count,
+                    "symbol_count": symbol_counts.get(product.product_id, 0),
                 }
             )
         items.append(
@@ -1057,6 +1062,7 @@ async def _proposal_items(db: AsyncSession) -> list[dict]:
                 "broker_id": broker_id,
                 "broker_code": codes.get(broker_id) if broker_id is not None else None,
                 "broker_required": pairs[(broker_id, symbol)].broker_required,
+                "resolved": resolved,
                 "products": choices,
                 "order_asset_types": sorted(
                     pairs[(broker_id, symbol)].order_asset_types
