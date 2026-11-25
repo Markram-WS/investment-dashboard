@@ -599,7 +599,14 @@ async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_
     groups, _ = await _group_holdings_by_underlying(
         db, portfolio, holdings, global_threshold
     )
-    total_value = sum(group.value for group in groups)
+    holdings_value = sum(group.value for group in groups)
+
+    # The allocation base is the fund's NAV — cash plus holdings market value —
+    # so idle cash dilutes every group's share and funds the buys. Fall back to
+    # the components when the stored NAV is missing.
+    total_value = float(portfolio.current_nav or 0)
+    if total_value <= 0:
+        total_value = holdings_value + float(portfolio.available_cash or 0)
 
     recommendations: List[MFRebalanceRecommendation] = []
     total_drift = 0.0
@@ -610,7 +617,7 @@ async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_
         return MFRebalanceResponse(
             portfolio_id=portfolio_id,
             portfolio_name=portfolio.portfolio_name,
-            current_nav=float(portfolio.current_nav or 0),
+            current_nav=total_value,
             target_allocations=target_allocations,
             current_allocations=current_allocations,
             recommendations=recommendations,
@@ -620,21 +627,23 @@ async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_
     # Neutral mode: every underlying group gets an equal share of the fund.
     target_pct = 100.0 / len(groups)
     target_allocations = {group.label: round(target_pct, 2) for group in groups}
-    current_allocations = {group.label: group.share_pct for group in groups}
+    current_allocations = {
+        group.label: round(group.value / total_value * 100, 2) for group in groups
+    }
 
     price_symbols = [
         holding.asset
         for group in groups
-        if abs(target_pct - group.share_pct) >= 0.5
+        if abs(target_pct - group.value / total_value * 100) >= 0.5
         for holding in group.holdings
     ]
     prices = await registry.local_prices(db, portfolio.broker_id, price_symbols)
 
     for group in groups:
-        # Display shares are rounded, but drift keeps the exact proportion so
-        # the reported total is not biased by per-group rounding.
-        current_pct = group.share_pct
+        # Drift keeps the exact proportion so the reported total is not biased
+        # by the rounded display shares.
         raw_pct = group.value / total_value * 100
+        current_pct = current_allocations[group.label]
         drift = abs(target_pct - raw_pct)
         total_drift += drift
         if drift < 0.5:
@@ -644,11 +653,16 @@ async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_
         diff_value = total_value * abs(diff_pct) / 100
         side = "Buy" if diff_pct > 0 else "Sell"
 
+        # A buy can only be split across holdings that carry market value;
+        # cash is not a group, so a group without holdings gets no order.
+        if group.value <= 0:
+            continue
+
         # Intra-group split: every holding keeps its current market-value
         # proportion inside the group; the group's diff value scales them.
         for holding in group.holdings:
             holding_value = float(holding.qty or 0) * float(holding.current_price or 0)
-            if holding_value <= 0 or group.value <= 0:
+            if holding_value <= 0:
                 continue
             portion = diff_value * holding_value / group.value
             estimated_price = prices.get(
@@ -682,7 +696,7 @@ async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_
     return MFRebalanceResponse(
         portfolio_id=portfolio_id,
         portfolio_name=portfolio.portfolio_name,
-        current_nav=float(portfolio.current_nav or 0),
+        current_nav=total_value,
         target_allocations=target_allocations,
         current_allocations=current_allocations,
         recommendations=recommendations,
@@ -798,7 +812,6 @@ class _UnderlyingGroup:
 
     label: str
     value: float
-    share_pct: float
     threshold: float
     holdings: List[ManagedFundHolding]
 
@@ -811,7 +824,9 @@ async def _group_holdings_by_underlying(
 ) -> tuple[List[_UnderlyingGroup], Dict[int, str]]:
     """Group holdings by registry underlying — the one allocation rule.
 
-    Market value is ``qty × current_price``; cash is not part of the shares.
+    Group value is the sum of the holdings' market value
+    (``qty × current_price``); allocation shares are measured against the
+    fund's NAV by the rebalance calculation, never against holdings alone.
     Neutral mode gives every group ``100 / N`` percent, so the global profit
     threshold splits evenly to ``global / N`` per group. A holding whose symbol
     is not registered lands in the ``Unassigned`` group. Returns the groups in
@@ -831,19 +846,15 @@ async def _group_holdings_by_underlying(
         value = float(holding.qty or 0) * float(holding.current_price or 0)
         group = grouped.get(label)
         if group is None:
-            group = _UnderlyingGroup(label, 0.0, 0.0, 0.0, [])
+            group = _UnderlyingGroup(label, 0.0, 0.0, [])
             grouped[label] = group
         group.value += value
         group.holdings.append(holding)
         group_of_holding[holding.holding_id] = label
 
     groups = list(grouped.values())
-    total_value = sum(group.value for group in groups)
     group_threshold = (global_profit_threshold / len(groups)) if groups else 0.0
     for group in groups:
-        group.share_pct = (
-            round(group.value / total_value * 100, 2) if total_value > 0 else 0.0
-        )
         group.threshold = group_threshold
     return groups, group_of_holding
 

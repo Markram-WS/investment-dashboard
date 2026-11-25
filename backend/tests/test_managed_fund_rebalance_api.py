@@ -2,8 +2,9 @@
 
 The allocation unit is the registry underlying (``asset_products.ticker``),
 never the broker: holdings of the same underlying from different brokers form
-one group. Neutral mode gives every group ``100 / N`` percent and splits the
-global profit threshold to ``global / N`` per group.
+one group. Neutral mode gives every group ``100 / N`` percent of NAV — cash plus
+holdings market value — and splits the global profit threshold to ``global / N``
+per group.
 """
 
 import itertools
@@ -49,6 +50,8 @@ async def seed_neutral_fund(
     global_profit_threshold=0.0,
     target_ratio=None,
     portfolio_broker_index=0,
+    current_nav=None,
+    available_cash=0,
 ):
     """Seed one managed fund.
 
@@ -77,7 +80,8 @@ async def seed_neutral_fund(
             risk_status="Safe",
             broker_id=broker_ids[portfolio_broker_index] if broker_ids else None,
             x_amount=Decimal("0"),
-            available_cash=Decimal("0"),
+            available_cash=Decimal(str(available_cash)),
+            current_nav=None if current_nav is None else Decimal(str(current_nav)),
             margin_locked=Decimal("0"),
         )
         session.add(portfolio)
@@ -189,7 +193,10 @@ async def drop_fund(fund: _Fund) -> None:
 
 
 def live_fund_kwargs():
-    """The live portfolio-2 shape: S&P500 (two brokers) vs CHA."""
+    """The live portfolio-2 shape: S&P500 (two brokers) vs CHA.
+
+    NAV 4230.00 = holdings 1970 (520 + 550 + 900) + cash 2260.
+    """
     return dict(
         products=[
             ("S&P500", "VOO", "VOO", "yfinance"),
@@ -208,6 +215,8 @@ def live_fund_kwargs():
         ],
         global_profit_threshold=50,
         target_ratio={"VOO": 0, "ABC": 0},
+        current_nav=4230,
+        available_cash=2260,
     )
 
 
@@ -221,34 +230,100 @@ async def test_neutral_rebalance_groups_by_underlying(async_client):
         assert resp.status_code == 200, resp.text
         data = resp.json()
 
-        # Broker is ignored: VOO and ABC (different brokers) are one S&P500 group.
-        assert data["current_allocations"] == {"S&P500": 54.31, "CHA": 45.69}
+        # Broker is ignored: VOO and ABC (different brokers) are one S&P500
+        # group. Shares are measured against NAV (holdings + cash), so the
+        # 2260 of idle cash dilutes both groups below 50%.
+        assert data["current_allocations"] == {"S&P500": 25.3, "CHA": 21.28}
         assert data["target_allocations"] == {"S&P500": 50.0, "CHA": 50.0}
-        assert data["total_drift"] == 8.63
+        # 24.7045 + 28.7234 (unrounded group drifts).
+        assert data["total_drift"] == 53.43
 
         recs = {rec["symbol"]: rec for rec in data["recommendations"]}
         assert set(recs) == {"VOO", "ABC", "SCBCHAE"}
 
+        # Each group buys up to NAV x 50%: 1045.00 for S&P500, 1215.00 for
+        # CHA — 2260.00 in total, exactly the available cash.
         voo = recs["VOO"]
         assert voo["underlying"] == "S&P500"
-        assert voo["side"] == "Sell"
+        assert voo["side"] == "Buy"
         assert voo["estimated_price"] == 26
-        assert voo["qty"] == pytest.approx(1.58878505, abs=1e-8)
-        assert voo["current_allocation"] == 54.31
+        assert voo["qty"] == pytest.approx(19.53271028, abs=1e-8)
+        assert voo["current_allocation"] == 25.3
         assert voo["target_allocation"] == 50.0
-        assert voo["drift"] == 4.31
+        assert voo["drift"] == 24.7
 
         abc = recs["ABC"]
         assert abc["underlying"] == "S&P500"
-        assert abc["side"] == "Sell"
+        assert abc["side"] == "Buy"
         assert abc["estimated_price"] == 25
-        assert abc["qty"] == pytest.approx(1.74766355, abs=1e-8)
+        assert abc["qty"] == pytest.approx(21.48598131, abs=1e-8)
 
         cha = recs["SCBCHAE"]
         assert cha["underlying"] == "CHA"
         assert cha["side"] == "Buy"
         assert cha["estimated_price"] == 18
-        assert cha["qty"] == pytest.approx(4.72222222, abs=1e-8)
+        assert cha["qty"] == pytest.approx(67.5, abs=1e-8)
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_rebalance_base_is_nav_not_holdings_value(async_client):
+    # Holdings 300 (200 + 100), but NAV is 1000 with 700 of cash. Shares are
+    # measured against the 1000 NAV: 20% / 10%, so each group buys up to 500.
+    fund = await seed_neutral_fund(
+        products=[
+            ("S&P500", "VOO", "VOO", "yfinance"),
+            ("CHA", "SCBCHAE", "SCBCHAE", "yfinance"),
+        ],
+        holdings=[("VOO", 10, 20, 0), ("SCBCHAE", 10, 10, 0)],
+        quotes=[("yfinance", "VOO", 20), ("yfinance", "SCBCHAE", 10)],
+        current_nav=1000,
+        available_cash=700,
+    )
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["current_nav"] == 1000
+        assert data["current_allocations"] == {"S&P500": 20.0, "CHA": 10.0}
+        assert data["target_allocations"] == {"S&P500": 50.0, "CHA": 50.0}
+        assert data["total_drift"] == 70.0
+
+        recs = {rec["symbol"]: rec for rec in data["recommendations"]}
+        # 300.00 / 20 = 15, 400.00 / 10 = 40 — funded by the 700 cash.
+        assert recs["VOO"]["side"] == "Buy"
+        assert recs["VOO"]["qty"] == pytest.approx(15.0, abs=1e-8)
+        assert recs["SCBCHAE"]["side"] == "Buy"
+        assert recs["SCBCHAE"]["qty"] == pytest.approx(40.0, abs=1e-8)
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_zero_nav_falls_back_to_holdings_plus_cash(async_client):
+    # NAV unset (0) -> base = holdings 1970 + cash 1030 = 3000.
+    kwargs = live_fund_kwargs()
+    kwargs["current_nav"] = 0
+    kwargs["available_cash"] = 1030
+    fund = await seed_neutral_fund(**kwargs)
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["current_nav"] == 3000
+        assert data["current_allocations"] == {"S&P500": 35.67, "CHA": 30.0}
+        assert data["target_allocations"] == {"S&P500": 50.0, "CHA": 50.0}
+        assert data["total_drift"] == 34.33
+
+        recs = {rec["symbol"]: rec for rec in data["recommendations"]}
+        assert recs["VOO"]["qty"] == pytest.approx(8.03738318, abs=1e-8)
+        assert recs["ABC"]["qty"] == pytest.approx(8.84112150, abs=1e-8)
+        assert recs["SCBCHAE"]["qty"] == pytest.approx(33.33333333, abs=1e-8)
     finally:
         await drop_fund(fund)
 
@@ -330,7 +405,7 @@ async def test_missing_registry_quote_falls_back_to_holding_price(async_client):
         assert resp.status_code == 200, resp.text
         recs = {rec["symbol"]: rec for rec in resp.json()["recommendations"]}
         assert recs["SCBCHAE"]["estimated_price"] == 18
-        assert recs["SCBCHAE"]["qty"] == pytest.approx(4.72222222, abs=1e-8)
+        assert recs["SCBCHAE"]["qty"] == pytest.approx(67.5, abs=1e-8)
     finally:
         await drop_fund(fund)
 
