@@ -307,6 +307,88 @@ async def test_retained_startup_never_assigns_a_broker_to_active_trading():
 
 
 @pytest.mark.asyncio
+async def test_retained_migration_adds_product_span_margin_idempotently():
+    engine = _engine()
+
+    async def columns(table: str) -> dict[str, tuple]:
+        async with engine.connect() as conn:
+            rows = (
+                await conn.execute(text(f"PRAGMA table_info({table})"))
+            ).all()
+        return {row[1]: tuple(row) for row in rows}
+
+    try:
+        await _prepare(engine)
+        # A registry created by the previous release: no span margin column.
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE asset_products (
+                        product_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        ticker VARCHAR,
+                        broker_id INTEGER,
+                        asset_type VARCHAR,
+                        multiplier NUMERIC(20,8) NOT NULL DEFAULT 1,
+                        margin_rate NUMERIC(10,6) NOT NULL DEFAULT 0,
+                        source VARCHAR DEFAULT '-',
+                        margin_mode VARCHAR NOT NULL DEFAULT 'notional',
+                        group_id INTEGER,
+                        name VARCHAR,
+                        created_at DATETIME,
+                        updated_at DATETIME,
+                        CONSTRAINT uq_asset_product_identity
+                            UNIQUE (ticker, broker_id, asset_type)
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO asset_products "
+                    "(ticker, broker_id, asset_type, multiplier, margin_rate, "
+                    "source, margin_mode, name) "
+                    "VALUES ('OLD', NULL, 'stock', 2, 0.1, '-', 'notional', "
+                    "'Old Product')"
+                )
+            )
+        assert "margin_per_contract" not in await columns("asset_products")
+
+        # Both boots converge to the same schema and keep every product row.
+        for _ in range(2):
+            async with engine.begin() as conn:
+                await conn.run_sync(run_asset_registry_migration)
+
+        schema = await columns("asset_products")
+        assert "margin_per_contract" in schema
+        # PRAGMA table_info: (cid, name, type, notnull, dflt_value, pk).
+        assert schema["margin_per_contract"][3] == 0
+        assert (
+            await _scalar(engine, "SELECT COUNT(*) FROM asset_products")
+        ) == 2  # the retained row plus the created default identity
+        assert (
+            await _scalar(
+                engine,
+                "SELECT margin_per_contract FROM asset_products "
+                "WHERE ticker='OLD'",
+            )
+        ) is None
+        assert (
+            await _scalar(
+                engine,
+                "SELECT multiplier FROM asset_products WHERE ticker='OLD'",
+            )
+        ) == 2
+        assert (
+            await _scalar(
+                engine, "SELECT name FROM asset_products WHERE ticker='OLD'"
+            )
+        ) == "Old Product"
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_duplicate_dashboard_key_rolls_back_the_whole_migration():
     engine = _engine()
     try:

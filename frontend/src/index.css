@@ -668,6 +668,12 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
   border-radius: 12px;
 }
 
+/* Two-level asset registry: only the product/type-name track shrinks below 1100. */
+.at-assets-name-col { width: 300px; }
+@media (max-width: 1099px) {
+  .at-assets-name-col { width: 240px; }
+}
+
 /* --- page header band (44px) --- */
 .at-head {
   flex: 0 0 44px;

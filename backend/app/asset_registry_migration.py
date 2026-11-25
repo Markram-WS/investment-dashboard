@@ -193,6 +193,7 @@ _POSTGRES_DDL = (
         margin_rate NUMERIC(10,6) NOT NULL DEFAULT 0,
         source VARCHAR DEFAULT '-',
         margin_mode VARCHAR NOT NULL DEFAULT 'notional',
+        margin_per_contract NUMERIC(20,8),
         group_id INTEGER REFERENCES asset_groups(id),
         name VARCHAR,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -304,6 +305,17 @@ def _create_registry_tables(conn: Connection) -> None:
     statements = _POSTGRES_DDL if _dialect(conn) == "postgresql" else _SQLITE_DDL
     for statement in statements:
         conn.execute(text(statement))
+
+
+def _retained_registry_migrations(conn: Connection) -> None:
+    """Columns added to the registry after its first release.
+
+    State is never rewritten: an existing database keeps every product row and
+    simply gains the nullable identity-owned span margin.
+    """
+    _add_column(
+        conn, "asset_products", "margin_per_contract", "NUMERIC(20,8)"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -868,6 +880,7 @@ def run_asset_registry_migration(conn: Connection) -> None:
     df_broker_id = _ensure_brokers(conn)
     _retained_portfolio_migrations(conn)
     _create_registry_tables(conn)
+    _retained_registry_migrations(conn)
 
     legacy_exists = _table_exists(conn, LEGACY_TABLE)
     if legacy_exists and _dialect(conn) == "postgresql":

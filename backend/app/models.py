@@ -267,6 +267,9 @@ class AssetProduct(Base):
     margin_rate = Column(Numeric(10, 6), nullable=False, default=0, server_default=text("0"))
     source = Column(String, default='-', server_default=text("'-'"))
     margin_mode = Column(String, nullable=False, default='notional', server_default=text("'notional'"))
+    # Span margin: identity-owned like multiplier/margin_rate. A symbol never
+    # supplies it; only the legacy symbol column remains for old databases.
+    margin_per_contract = Column(Numeric(20, 8), nullable=True)
     group_id = Column(Integer, ForeignKey('asset_groups.id'), nullable=True)
     name = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)

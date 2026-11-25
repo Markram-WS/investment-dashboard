@@ -192,6 +192,7 @@ CREATE TABLE IF NOT EXISTS asset_products (
     margin_rate NUMERIC(10,6) NOT NULL DEFAULT 0,
     source VARCHAR DEFAULT '-',                 -- 'yfinance', 'tfex', 'manual', or '-' (no feed)
     margin_mode VARCHAR NOT NULL DEFAULT 'notional',
+    margin_per_contract NUMERIC(20,8),
     group_id INTEGER REFERENCES asset_groups(id),
     name VARCHAR,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

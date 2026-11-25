@@ -54,15 +54,33 @@ const badgeStyle = {
   whiteSpace: 'nowrap',
 } as const;
 
-const COL_SPEC = 'hidden md:table-cell';
-const COL_SOURCE = 'hidden sm:table-cell';
-
 /** Displayed wherever a nullable ticker has no value. */
 const NO_TICKER = '—';
 
-const COLUMN_COUNT = 8;
+/** Labeled data columns plus the unlabeled actions column and the trailing spacer. */
+const COLUMN_COUNT = 6;
 
-/** Effective multiplier for a contract: the symbol override or the product default. */
+/** Fixed tracks; only the trailing spacer absorbs slack. */
+const COLUMN_WIDTHS = {
+  sync: 140,
+  price: 112,
+  change: 92,
+  actions: 72,
+} as const;
+const PRODUCT_MIN_WIDTH = 240;
+const TABLE_MIN_WIDTH = PRODUCT_MIN_WIDTH
+  + COLUMN_WIDTHS.sync + COLUMN_WIDTHS.price + COLUMN_WIDTHS.change + COLUMN_WIDTHS.actions;
+
+/** Two-level registry: the product band then its symbols, one table per broker. */
+const registryTable = {
+  tableLayout: 'fixed',
+  width: '100%',
+  minWidth: TABLE_MIN_WIDTH,
+  borderCollapse: 'separate',
+  borderSpacing: 0,
+} as const;
+
+/** Effective multiplier for a product identity. */
 const formatMultiplier = (value: number) =>
   Number.isFinite(value) ? String(Number(value.toFixed(8))) : '—';
 
@@ -70,19 +88,38 @@ const formatMultiplier = (value: number) =>
 const formatMarginPct = (rate: number) =>
   Number.isFinite(rate) ? `${Number((rate * 100).toFixed(2))}%` : '—';
 
+/** Products sort by underlying ticker first, then type. */
+const ASSET_TYPE_RANK: Record<string, number> = {
+  stock: 0,
+  future: 1,
+  option: 2,
+  crypto: 3,
+};
+const UNKNOWN_TYPE_RANK = 4;
+const NULL_TYPE_RANK = 5;
+
+const typeRank = (type: string | null) =>
+  type == null ? NULL_TYPE_RANK : ASSET_TYPE_RANK[type] ?? UNKNOWN_TYPE_RANK;
+
+/** Underlying tickers ascend; a NULL underlying is always last. */
+const compareUnderlyings = (a: string | null, b: string | null) => {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return a.localeCompare(b);
+};
+
 /** Column head shared by every broker table. */
 function RegistryHead() {
   return (
     <thead>
       <tr>
-        <th style={{ ...headTh, width: '24%' }} title="Underlying: the product that owns these contracts">Underlying</th>
-        <th className={COL_SPEC} style={{ ...headTh, width: '11%' }}>Type</th>
-        <th className="text-right" style={{ ...headTh, width: '12%', textAlign: 'right' }} title="Default multiplier — inherited by every contract unless the contract overrides it">Multiplier</th>
-        <th className="text-right" style={{ ...headTh, width: '11%', textAlign: 'right' }} title="Default margin rate, 0.10 = 10% — inherited by every contract unless the contract overrides it">Margin</th>
-        <th className={COL_SPEC} style={{ ...headTh, width: '11%' }}>Mode</th>
-        <th className={COL_SOURCE} style={{ ...headTh, width: '11%' }}>Source</th>
-        <th className="text-right" style={{ ...headTh, width: '10%', textAlign: 'right' }}>Contracts</th>
-        <th style={{ ...headTh, width: '10%', paddingInline: 8 }}>
+        <th className="at-assets-name-col" style={headTh} title="Product: underlying and type, then its symbols">Product · type / symbol</th>
+        <th style={{ ...headTh, width: COLUMN_WIDTHS.sync }}>Sync symbol</th>
+        <th className="text-right" style={{ ...headTh, width: COLUMN_WIDTHS.price, textAlign: 'right' }}>Price</th>
+        <th className="text-right" style={{ ...headTh, width: COLUMN_WIDTHS.change, textAlign: 'right' }}>Change</th>
+        <th aria-hidden="true" style={headTh} />
+        <th style={{ ...headTh, width: COLUMN_WIDTHS.actions, paddingInline: 8 }}>
           <span className="sr-only">Actions</span>
         </th>
       </tr>
@@ -90,240 +127,245 @@ function RegistryHead() {
   );
 }
 
-/** Fixed layout for a registry table, stacked inside the page card. */
-const registryTable = { borderCollapse: 'separate', borderSpacing: 0 } as const;
+function Chevron({ open, size }: { open: boolean; size: number }) {
+  return (
+    <svg className="transition-transform" style={{ width: size, height: size, flexShrink: 0, color: 'var(--color-slate)', transform: open ? 'none' : 'rotate(-90deg)' }}
+      viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
 
-function ProductRow({
-  product, expanded, onToggle, onEdit, onAddSymbol, onEditSymbol, onRefreshSymbol, onSaveQuote,
+const rowToggle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  width: '100%',
+  padding: 0,
+  border: 0,
+  background: 'transparent',
+  cursor: 'pointer',
+  textAlign: 'left',
+  color: 'inherit',
+  fontFamily: 'inherit',
+} as const;
+
+const actionSlot = {
+  width: 20,
+  height: 20,
+  flex: '0 0 20px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+} as const;
+
+/** The product band carries the identity; the actions cell is its own un-tinted track. */
+const productCell = { ...cell, background: 'var(--color-surface)' } as const;
+
+/** One product identity band plus its symbol rows, all in the broker's tbody. */
+function ProductBlock({
+  product, onEdit, onAddSymbol, onEditSymbol, onRefreshSymbol, onSaveQuote,
 }: {
   product: AssetProduct;
-  expanded: boolean;
-  onToggle: () => void;
   onEdit: (product: AssetProduct) => void;
   onAddSymbol: (product: AssetProduct) => void;
   onEditSymbol: (product: AssetProduct, symbol: AssetSymbol) => void;
   onRefreshSymbol: (product: AssetProduct, symbol: AssetSymbol) => Promise<void>;
   onSaveQuote: (symbol: AssetSymbol, price: number) => Promise<void>;
 }) {
+  const [expanded, setExpanded] = useState(true);
+  const underlyingLabel = product.ticker ?? NO_TICKER;
+  const typeLabel = product.asset_type ?? NO_TICKER;
+  const { data: symbols = [], isLoading } = useQuery({
+    queryKey: ['asset-symbols', product.product_id],
+    queryFn: () => api.getSymbols({ product_id: product.product_id }),
+    enabled: expanded,
+  });
+  const orderedSymbols = useMemo(
+    () => symbols
+      .slice()
+      .sort((a, b) => (a.price_symbol ?? '').localeCompare(b.price_symbol ?? '')),
+    [symbols],
+  );
+
   return (
     <>
-      <tr className="transition-colors hover:bg-surface" style={{ height: 32 }}>
-        <td style={cell} title={product.ticker ?? undefined}>
-          <div className="flex items-center" style={{ gap: 6 }}>
-            <button
-              type="button"
-              aria-expanded={expanded}
-              aria-label={expanded ? `Collapse ${product.ticker ?? NO_TICKER}` : `Expand ${product.ticker ?? NO_TICKER}`}
-              onClick={onToggle}
-              className="flex items-center justify-center"
-              style={{ width: 14, height: 14, color: 'var(--color-slate)', padding: 0, border: 0, background: 'transparent' }}
-            >
-              <svg className="transition-transform" style={{ width: 12, height: 12, transform: expanded ? 'none' : 'rotate(-90deg)' }}
-                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-            <div className="truncate" style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--color-ink)', lineHeight: 1.05 }}>
-              {product.ticker ?? NO_TICKER}
-              {product.name && product.name !== product.ticker && (
-                <span style={{ fontWeight: 400, color: 'var(--color-slate)', marginLeft: 6 }}>{product.name}</span>
-              )}
-            </div>
-          </div>
+      <tr data-level="product" data-product-id={product.product_id} style={{ height: 32 }}>
+        <td style={{ ...productCell, padding: 0 }}>
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-label={expanded ? `Collapse ${underlyingLabel} ${typeLabel}` : `Expand ${underlyingLabel} ${typeLabel}`}
+            onClick={() => setExpanded(value => !value)}
+            style={{ ...rowToggle, padding: '4px 12px' }}
+          >
+            <span style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--color-ink)' }}>
+              {underlyingLabel}
+            </span>
+            <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 500, color: 'var(--color-slate)' }}>
+              {typeLabel}
+            </span>
+          </button>
         </td>
-        <td className={COL_SPEC} style={{ ...cell, color: 'var(--color-slate)' }}>
-          {product.asset_type ?? '—'}
+        <td style={productCell} />
+        <td className="text-right" style={{
+          ...productCell,
+          textAlign: 'right',
+          whiteSpace: 'nowrap',
+          color: 'var(--color-slate)',
+          fontSize: 'var(--fs-micro)',
+          fontVariantNumeric: 'tabular-nums',
+        }}>
+          {formatMultiplier(product.multiplier)} · {formatMarginPct(product.margin_rate)} · {product.margin_mode} · {product.source}
         </td>
-        <td className="text-right" style={{ ...cell, color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' }}>
-          {product.multiplier != null && !Number.isNaN(Number(product.multiplier)) ? String(product.multiplier) : '—'}
-        </td>
-        <td className="text-right" style={{ ...cell, color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' }}
-          title="rate of notional, 0.10 = 10%">
-          {product.margin_rate != null && !Number.isNaN(Number(product.margin_rate)) ? Number(product.margin_rate).toFixed(2) : '—'}
-        </td>
-        <td className={COL_SPEC} style={{ ...cell, color: 'var(--color-slate)', whiteSpace: 'nowrap' }}>
-          {product.margin_mode}
-        </td>
-        <td className={COL_SOURCE} style={cell}>
-          <span style={badgeStyle}>{product.source}</span>
-        </td>
-        <td className="text-right" style={{ ...cell, color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' }}>
-          {product.symbol_count}
-        </td>
-        <td style={{ ...cell, paddingInline: 8 }}>
+        <td style={productCell} />
+        <td style={productCell} />
+        <td style={{ ...productCell, paddingInline: 8 }}>
           <div className="flex items-center justify-end" style={{ gap: 4 }}>
-            <IconButton label="+ New symbol" onClick={() => onAddSymbol(product)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </IconButton>
-            <IconButton label="Edit product" onClick={() => onEdit(product)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-            </IconButton>
+            <span style={actionSlot}>
+              <IconButton label="Edit product" onClick={() => onEdit(product)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </IconButton>
+            </span>
+            <span style={actionSlot}>
+              <IconButton label="+ New symbol" onClick={() => onAddSymbol(product)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </IconButton>
+            </span>
           </div>
         </td>
       </tr>
-      {expanded && (
-        <tr>
-          <td colSpan={COLUMN_COUNT} style={{ padding: 0, borderBottom: '1px solid var(--color-hairline)', background: 'var(--color-surface)' }}>
-            <SymbolRows
-              product={product}
-              onEditSymbol={onEditSymbol}
-              onRefreshSymbol={onRefreshSymbol}
-              onSaveQuote={onSaveQuote}
-            />
+      {expanded && (isLoading ? (
+        <tr data-level="symbol-status">
+          <td colSpan={COLUMN_COUNT} style={{ ...cell, paddingLeft: 22, color: 'var(--color-slate)' }}>Loading symbols…</td>
+        </tr>
+      ) : orderedSymbols.length === 0 ? (
+        <tr data-level="symbol-status" title="Orders cannot resolve a contract spec for this product.">
+          <td colSpan={COLUMN_COUNT} style={{ ...cell, paddingLeft: 22, color: 'var(--color-slate)' }}>
+            No symbols
           </td>
         </tr>
-      )}
+      ) : orderedSymbols.map(symbol => (
+        <SymbolRow
+          key={symbol.symbol_id}
+          product={product}
+          symbol={symbol}
+          onEditSymbol={onEditSymbol}
+          onRefreshSymbol={onRefreshSymbol}
+          onSaveQuote={onSaveQuote}
+        />
+      )))}
     </>
   );
 }
 
-function SymbolRows({ product, onEditSymbol, onRefreshSymbol, onSaveQuote }: {
+/** One symbol under its product band: price symbol, sync symbol, quote and change. */
+function SymbolRow({
+  product, symbol, onEditSymbol, onRefreshSymbol, onSaveQuote,
+}: {
   product: AssetProduct;
+  symbol: AssetSymbol;
   onEditSymbol: (product: AssetProduct, symbol: AssetSymbol) => void;
   onRefreshSymbol: (product: AssetProduct, symbol: AssetSymbol) => Promise<void>;
   onSaveQuote: (symbol: AssetSymbol, price: number) => Promise<void>;
 }) {
-  const { data: symbols = [], isLoading } = useQuery({
-    queryKey: ['asset-symbols', product.product_id],
-    queryFn: () => api.getSymbols({ product_id: product.product_id }),
-  });
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editing, setEditing] = useState(false);
   const [priceVal, setPriceVal] = useState('');
-  const [refreshingId, setRefreshingId] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const feedBacked = PRICE_SOURCES.includes(product.source);
 
-  const startEdit = (symbol: AssetSymbol) => {
+  const startEdit = () => {
     setPriceVal(symbol.price != null ? String(symbol.price) : '');
-    setEditingId(symbol.symbol_id);
+    setEditing(true);
   };
 
-  const commitEdit = async (symbol: AssetSymbol) => {
-    setEditingId(null);
+  const commitEdit = async () => {
+    setEditing(false);
     const num = Number(priceVal);
     if (!priceVal.trim() || !Number.isFinite(num) || num < 0) return;
     await onSaveQuote(symbol, num);
   };
 
-  const refresh = async (symbol: AssetSymbol) => {
-    if (refreshingId != null) return;
-    setRefreshingId(symbol.symbol_id);
+  const refresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
     await onRefreshSymbol(product, symbol);
-    setRefreshingId(null);
+    setRefreshing(false);
   };
 
-  const subHead = {
-    fontSize: 'var(--fs-micro)',
-    fontWeight: 500,
-    color: 'var(--color-slate)',
-    padding: '4px 12px',
-    whiteSpace: 'nowrap',
-  } as const;
-
   return (
-    <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
-      <thead>
-        <tr>
-          <th style={{ ...subHead, paddingLeft: 32 }}>Price symbol</th>
-          <th style={subHead}>Sync symbol</th>
-          <th className={COL_SPEC} style={subHead}>Contract</th>
-          <th className="text-right" style={{ ...subHead, textAlign: 'right' }}>Price</th>
-          <th className="text-right" style={{ ...subHead, textAlign: 'right' }}>Change</th>
-          <th className={COL_SPEC} style={subHead}>Updated</th>
-          <th style={{ ...subHead, width: 44 }}><span className="sr-only">Actions</span></th>
-        </tr>
-      </thead>
-      <tbody>
-        {isLoading ? (
-          <tr><td colSpan={7} style={{ ...cell, paddingLeft: 32, color: 'var(--color-slate)' }}>Loading symbols…</td></tr>
-        ) : symbols.length === 0 ? (
-          <tr><td colSpan={7} style={{ ...cell, paddingLeft: 32, color: 'var(--color-slate)' }}>
-            No symbols — orders cannot resolve a contract spec for this product.
-          </td></tr>
-        ) : symbols.map((symbol) => {
-          const optionBits = [
-            symbol.option_type,
-            symbol.expiry_date,
-            symbol.strike_price != null ? `@${symbol.strike_price}` : null,
-          ].filter(Boolean).join(' · ');
-          const effectiveSpec = [
-            'mult',
-            formatMultiplier(symbol.multiplier_effective),
-            formatMarginPct(symbol.margin_rate_effective),
-          ].join(' · ')
-            + (symbol.margin_per_contract != null ? ` · span ${symbol.margin_per_contract}` : '');
-          return (
-            <tr key={symbol.symbol_id} className="transition-colors hover:bg-surface" style={{ height: 30 }}>
-              <td style={{ ...cell, paddingLeft: 32, color: 'var(--color-ink)', fontWeight: 500 }}>
-                {symbol.price_symbol ?? '—'}
-              </td>
-              <td style={{ ...cell, color: 'var(--color-slate)' }}>{symbol.sync_symbol}</td>
-              <td className={COL_SPEC} style={{ ...cell, color: 'var(--color-slate)' }}>
-                <span>{symbol.contract_kind}{optionBits ? ` · ${optionBits}` : ''}</span>
-                <span style={{ display: 'block', fontSize: 'var(--fs-label)', color: 'var(--color-slate)' }}
-                  title="Effective values for this contract">
-                  {effectiveSpec}
-                </span>
-              </td>
-              <td className="text-right" style={{ ...cell, cursor: 'pointer', fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)' }}
-                onClick={() => startEdit(symbol)} title="Edit the manual quote">
-                {editingId === symbol.symbol_id ? (
-                  <input type="number" step="any" value={priceVal} autoFocus
-                    onChange={e => setPriceVal(e.target.value)}
-                    onBlur={() => commitEdit(symbol)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') commitEdit(symbol);
-                      if (e.key === 'Escape') setEditingId(null);
-                    }}
-                    className="text-right"
-                    style={{ ...CONTROL_INPUT, width: 84 }}
-                    onClick={e => e.stopPropagation()} />
-                ) : symbol.price != null ? (
-                  formatMoney(Number(symbol.price), 'USD')
-                ) : '—'}
-              </td>
-              <td className="text-right" style={{
-                ...cell,
-                fontVariantNumeric: 'tabular-nums',
-                fontWeight: 500,
-                color: symbol.change_24h != null
-                  ? (symbol.change_24h >= 0 ? 'var(--color-positive-text)' : 'var(--color-danger-text)')
-                  : 'var(--color-slate)',
-              }}>
-                {symbol.change_24h != null ? formatPct(symbol.change_24h) : '—'}
-              </td>
-              <td className={COL_SPEC} style={{ ...cell, color: 'var(--color-slate)', fontSize: 'var(--fs-micro)' }}>
-                {symbol.updated_at ? symbol.updated_at.replace('T', ' ').slice(0, 19) : '—'}
-              </td>
-              <td style={{ ...cell, paddingInline: 8 }}>
-                <div className="flex items-center justify-end" style={{ gap: 4 }}>
-                  {PRICE_SOURCES.includes(product.source) && (
-                    <IconButton label={`Refresh ${symbol.sync_symbol}`} onClick={() => refresh(symbol)} disabled={refreshingId != null}>
-                      <svg className={refreshingId === symbol.symbol_id ? 'animate-spin' : ''} viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="23 4 23 10 17 10" />
-                        <polyline points="1 20 1 14 7 14" />
-                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                      </svg>
-                    </IconButton>
-                  )}
-                  <IconButton label="Edit symbol" onClick={() => onEditSymbol(product, symbol)}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                  </IconButton>
-                </div>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <tr data-level="symbol" data-symbol-id={symbol.symbol_id} data-product-id={product.product_id}
+      className="transition-colors hover:bg-surface" style={{ height: 28 }}>
+      <td
+        style={{ ...cell, paddingLeft: 22 }}
+        title={symbol.price == null && !feedBacked ? 'No quote — this product has no price feed.' : undefined}
+      >
+        <span style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--color-ink)' }}>{symbol.price_symbol ?? NO_TICKER}</span>
+        {symbol.price == null && feedBacked && (
+          <span style={{ marginLeft: 6, color: 'var(--color-slate)', fontWeight: 400 }}>has no price</span>
+        )}
+      </td>
+      <td style={{ ...cell, color: 'var(--color-slate)' }}>{symbol.sync_symbol}</td>
+      <td className="text-right" style={{ ...cell, textAlign: 'right', cursor: 'pointer', fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)' }}
+        onClick={startEdit} title="Edit the manual quote">
+        {editing ? (
+          <input type="number" step="any" value={priceVal} autoFocus
+            onChange={e => setPriceVal(e.target.value)}
+            onBlur={commitEdit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void commitEdit();
+              if (e.key === 'Escape') setEditing(false);
+            }}
+            className="text-right"
+            style={{ ...CONTROL_INPUT, width: 84 }}
+            onClick={e => e.stopPropagation()} />
+        ) : symbol.price != null ? (
+          formatMoney(Number(symbol.price), 'USD')
+        ) : '—'}
+      </td>
+      <td className="text-right" style={{
+        ...cell,
+        textAlign: 'right',
+        fontVariantNumeric: 'tabular-nums',
+        fontWeight: 500,
+        color: symbol.change_24h != null
+          ? (symbol.change_24h >= 0 ? 'var(--color-positive-text)' : 'var(--color-danger-text)')
+          : 'var(--color-slate)',
+      }}>
+        {symbol.change_24h != null ? formatPct(symbol.change_24h) : '—'}
+      </td>
+      <td style={cell} />
+      <td style={{ ...cell, paddingInline: 8 }}>
+        <div className="flex items-center justify-end" style={{ gap: 4 }}>
+          <span style={actionSlot}>
+            <IconButton label="Edit symbol" onClick={() => onEditSymbol(product, symbol)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </IconButton>
+          </span>
+          <span style={actionSlot}>
+            {feedBacked && (
+              <IconButton label={`Refresh ${symbol.sync_symbol}`} onClick={refresh} disabled={refreshing}>
+                <svg className={refreshing ? 'animate-spin' : ''} viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="23 4 23 10 17 10" />
+                  <polyline points="1 20 1 14 7 14" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+              </IconButton>
+            )}
+          </span>
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -334,12 +376,10 @@ interface BrokerSectionModel {
 }
 
 /** One collapsible table per broker, headed by the code and its product count. */
-function BrokerSection({ sectionLabel, products, first, expanded, onToggle, onEdit, onAddSymbol, onEditSymbol, onRefreshSymbol, onSaveQuote }: {
+function BrokerSection({ sectionLabel, products, first, onEdit, onAddSymbol, onEditSymbol, onRefreshSymbol, onSaveQuote }: {
   sectionLabel: string;
   products: AssetProduct[];
   first: boolean;
-  expanded: Set<number>;
-  onToggle: (productId: number) => void;
   onEdit: (product: AssetProduct) => void;
   onAddSymbol: (product: AssetProduct) => void;
   onEditSymbol: (product: AssetProduct, symbol: AssetSymbol) => void;
@@ -347,6 +387,16 @@ function BrokerSection({ sectionLabel, products, first, expanded, onToggle, onEd
   onSaveQuote: (symbol: AssetSymbol, price: number) => Promise<void>;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const orderedProducts = useMemo(
+    () => products
+      .slice()
+      .sort((a, b) => (
+        compareUnderlyings(a.ticker, b.ticker)
+        || typeRank(a.asset_type) - typeRank(b.asset_type)
+        || a.product_id - b.product_id
+      )),
+    [products],
+  );
 
   return (
     <div style={{ marginTop: first ? 0 : 16 }}>
@@ -365,10 +415,7 @@ function BrokerSection({ sectionLabel, products, first, expanded, onToggle, onEd
           textAlign: 'left',
         }}
       >
-        <svg className="transition-transform" style={{ width: 12, height: 12, flexShrink: 0, color: 'var(--color-slate)', transform: collapsed ? 'rotate(-90deg)' : 'none' }}
-          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
+        <Chevron open={!collapsed} size={12} />
         <span style={{
           fontSize: 'var(--fs-label)',
           fontWeight: 600,
@@ -378,24 +425,24 @@ function BrokerSection({ sectionLabel, products, first, expanded, onToggle, onEd
           {sectionLabel} · {products.length}
         </span>
       </button>
-      <table className="w-full text-left" style={registryTable}>
-        <RegistryHead />
-        <tbody>
-          {!collapsed && products.map((product) => (
-            <ProductRow
-              key={product.product_id}
-              product={product}
-              expanded={expanded.has(product.product_id)}
-              onToggle={() => onToggle(product.product_id)}
-              onEdit={onEdit}
-              onAddSymbol={onAddSymbol}
-              onEditSymbol={onEditSymbol}
-              onRefreshSymbol={onRefreshSymbol}
-              onSaveQuote={onSaveQuote}
-            />
-          ))}
-        </tbody>
-      </table>
+      <div className="max-[720px]:overflow-x-auto">
+        <table className="w-full text-left" style={registryTable}>
+          <RegistryHead />
+          <tbody>
+            {!collapsed && orderedProducts.map(product => (
+              <ProductBlock
+                key={product.product_id}
+                product={product}
+                onEdit={onEdit}
+                onAddSymbol={onAddSymbol}
+                onEditSymbol={onEditSymbol}
+                onRefreshSymbol={onRefreshSymbol}
+                onSaveQuote={onSaveQuote}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -409,11 +456,21 @@ export default function AllAssets() {
   const [showSync, setShowSync] = useState(false);
   const [editProduct, setEditProduct] = useState<AssetProduct | null>(null);
   const [addSymbolFor, setAddSymbolFor] = useState<AssetProduct | null>(null);
+  const [symbolModalOpen, setSymbolModalOpen] = useState(false);
   const [editSymbol, setEditSymbol] = useState<{ product: AssetProduct; symbol: AssetSymbol } | null>(null);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const { notify } = useNotification();
   const queryClient = useQueryClient();
   const autoTimerRef = useRef<number | null>(null);
+
+  const openSymbolModal = (owner: AssetProduct | null) => {
+    setAddSymbolFor(owner);
+    setSymbolModalOpen(true);
+  };
+
+  const closeSymbolModal = () => {
+    setAddSymbolFor(null);
+    setSymbolModalOpen(false);
+  };
 
   const { data: products = [], isLoading: productsLoading } = useQuery({
     queryKey: ['asset-products', typeFilter],
@@ -479,14 +536,6 @@ export default function AllAssets() {
     }
   }, [refreshMode, refetchAll]);
 
-  const toggleExpanded = (productId: number) => {
-    setExpanded(prev => {
-      const next = new Set(prev);
-      if (next.has(productId)) next.delete(productId); else next.add(productId);
-      return next;
-    });
-  };
-
   /** Sections follow the broker code; the unassigned bucket is always last. */
   const sections = useMemo(() => {
     const byBroker = new Map<string, BrokerSectionModel>();
@@ -524,10 +573,10 @@ export default function AllAssets() {
         onSaved={() => { void invalidateRegistry(); }}
       />
       <AddAssetModal
-        open={!!addSymbolFor}
+        open={symbolModalOpen}
         mode="symbol"
         product={addSymbolFor}
-        onClose={() => setAddSymbolFor(null)}
+        onClose={closeSymbolModal}
         onSaved={() => { void invalidateRegistry(); }}
       />
       <EditAssetModal
@@ -592,29 +641,32 @@ export default function AllAssets() {
         <div className="flex items-center" style={{ gap: 6, marginLeft: 'auto' }}>
           <button type="button" className="at-znew" onClick={() => setShowSync(true)}>Sync from orders</button>
           <button type="button" className="at-znew" onClick={() => setShowProductModal(true)}>+ New product</button>
+          <button type="button" className="at-znew" onClick={() => openSymbolModal(null)}>+ New symbol</button>
         </div>
       </div>
 
       <div className="at-card" style={{ overflow: 'clip' }}>
         {(loading || sections.length === 0) ? (
-          <table className="w-full text-left" style={registryTable}>
-            <RegistryHead />
-            <tbody>
-              {loading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i} style={{ height: 32 }} className="animate-pulse">
-                    <td colSpan={COLUMN_COUNT} style={cell}>
-                      <div style={{ height: 8, width: `${62 - i * 9}%`, borderRadius: 999, background: 'var(--color-hairline-soft)' }} />
-                    </td>
+          <div className="max-[720px]:overflow-x-auto">
+            <table className="w-full text-left" style={registryTable}>
+              <RegistryHead />
+              <tbody>
+                {loading ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <tr key={i} style={{ height: 32 }} className="animate-pulse">
+                      <td colSpan={COLUMN_COUNT} style={cell}>
+                        <div style={{ height: 8, width: `${62 - i * 9}%`, borderRadius: 999, background: 'var(--color-hairline-soft)' }} />
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr style={{ height: 32 }}>
+                    <td colSpan={COLUMN_COUNT} style={{ ...cell, color: 'var(--color-slate)' }}>No products</td>
                   </tr>
-                ))
-              ) : (
-                <tr style={{ height: 32 }}>
-                  <td colSpan={COLUMN_COUNT} style={{ ...cell, color: 'var(--color-slate)' }}>No products</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          </div>
         ) : (
           sections.map((section, index) => (
             <BrokerSection
@@ -622,10 +674,8 @@ export default function AllAssets() {
               sectionLabel={section.label}
               products={section.products}
               first={index === 0}
-              expanded={expanded}
-              onToggle={toggleExpanded}
               onEdit={setEditProduct}
-              onAddSymbol={setAddSymbolFor}
+              onAddSymbol={openSymbolModal}
               onEditSymbol={(product, symbol) => setEditSymbol({ product, symbol })}
               onRefreshSymbol={handleRefreshSymbol}
               onSaveQuote={handleSaveQuote}

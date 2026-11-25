@@ -49,6 +49,8 @@ export const resolveProduct = (
 interface ProductSelectorProps {
   /** Prefix for the three control ids, unique per modal. */
   idPrefix: string;
+  /** Hide the unmatched-combination sentence when the caller offers inline creation. */
+  hideUnmatched?: boolean;
   products: AssetProduct[];
   brokers: BrokerRecord[];
   selection: ProductSelection;
@@ -62,7 +64,7 @@ interface ProductSelectorProps {
  * reads back the resolved product and the spec the product owns.
  */
 const ProductSelector: React.FC<ProductSelectorProps> = ({
-  idPrefix, products, brokers, selection, onChange, className,
+  idPrefix, products, brokers, selection, onChange, className, hideUnmatched = false,
 }) => {
   const tickers = Array.from(new Set(
     products
@@ -117,11 +119,11 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
         {resolved ? (
           <>
             <p style={{ ...CONTROL_HELPER, margin: '4px 0 0', color: 'var(--color-ink)' }}>
-              {`Product ${resolved.ticker ?? '—'} · ${resolved.broker_code ?? 'Unassigned'} · ${resolved.asset_type ?? '—'}`}
+              {`${resolved.ticker ?? '—'} · ${resolved.broker_code ?? 'Unassigned'} · ${resolved.asset_type ?? '—'}`}
             </p>
             <p style={CONTROL_HELPER}>{resolvedSpec}</p>
           </>
-        ) : (
+        ) : hideUnmatched ? null : (
           <p style={{ ...CONTROL_HELPER, color: 'var(--color-danger-text)' }}>
             {NO_MATCHING_PRODUCT}
           </p>

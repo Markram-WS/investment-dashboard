@@ -29,7 +29,7 @@ interface AddAssetModalProps {
 const SOURCES = ['manual', 'yfinance', 'tfex'];
 const SOURCE_NONE = '-';
 const MARGIN_MODES = ['notional', 'premium', 'span'];
-const CONTRACT_KINDS = ['future', 'stock', 'option', 'crypto'];
+const CREATION_SOURCES = ['yfinance', 'tfex', 'manual'];
 
 const primaryButton = {
   padding: '5px 12px',
@@ -80,16 +80,15 @@ const emptyProductForm = {
   multiplier: '1',
   margin_rate: '0',
   margin_mode: 'notional',
+  margin_per_contract: '',
 };
 
 const emptySymbolForm = {
   price_symbol: '',
   sync_symbol: '',
-  contract_kind: 'future',
   option_type: '',
   expiry_date: '',
   strike_price: '',
-  margin_per_contract: '',
 };
 
 const optionalNumber = (raw: string): number | null => {
@@ -105,6 +104,8 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
   const [symbolForm, setSymbolForm] = useState({ ...emptySymbolForm });
   const [selection, setSelection] = useState<ProductSelection>(selectionForProduct(product));
   const [products, setProducts] = useState<AssetProduct[]>([]);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+  const [creationSource, setCreationSource] = useState('');
   const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -127,8 +128,13 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
     if (!open || mode !== 'symbol') return;
     let cancelled = false;
     api.getProducts()
-      .then((rows) => { if (!cancelled) setProducts(rows); })
-      .catch(() => { /* the preselected product still resolves the dropdowns */ });
+      .then((rows) => {
+        if (cancelled) return;
+        setProducts(rows);
+        setProductsLoaded(true);
+        if (!product) setSelection(selectionForProduct(rows[0] ?? null));
+      })
+      .catch(() => { setProductsLoaded(true); /* the preselected product still resolves the dropdowns */ });
     return () => { cancelled = true; };
   }, [open, mode]);
 
@@ -142,6 +148,8 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
     setBrokerNote('');
     setSelection(selectionForProduct(product));
     setProducts(product ? [product] : []);
+    setProductsLoaded(product != null);
+    setCreationSource('');
     if (mode === 'product') {
       setProductForm({ ...emptyProductForm });
     } else {
@@ -149,11 +157,29 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
     }
   }, [open, mode, product]);
 
-  if (!open) return null;
-
   const editingSymbol = mode === 'symbol';
   const resolvedProduct = editingSymbol ? resolveProduct(products, selection) : undefined;
   const symbolUnresolved = editingSymbol && !resolvedProduct;
+  const optionIdentity = resolvedProduct?.asset_type === 'option';
+  const selectionIsBlank = !selection.underlying && !selection.broker && !selection.type;
+  const canCreateIdentity = editingSymbol && productsLoaded && !resolvedProduct && !selectionIsBlank;
+  const optionFieldsVisible = optionIdentity || selection.type === 'option';
+  const creationReady = canCreateIdentity && creationSource !== '';
+  const creationBroker = selection.broker
+    ? brokers.find(broker => String(broker.id) === selection.broker)?.code ?? selection.broker
+    : 'Unassigned';
+  const creationCopy = `No product matches — this will create ${selection.underlying || '—'} · ${creationBroker} · ${selection.type || 'no type'}.`;
+
+  useEffect(() => {
+    if (!open || !editingSymbol || optionFieldsVisible) return;
+    setSymbolForm(prev => (
+      prev.option_type || prev.expiry_date || prev.strike_price
+        ? { ...prev, option_type: '', expiry_date: '', strike_price: '' }
+        : prev
+    ));
+  }, [open, editingSymbol, optionFieldsVisible]);
+
+  if (!open) return null;
 
   const handleSaveProduct = async () => {
     const ticker = productForm.ticker.trim();
@@ -171,6 +197,13 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
       setError('Margin rate must be between 0 and 1');
       return;
     }
+    if (productForm.margin_mode === 'span' && productForm.margin_per_contract.trim()) {
+      const marginPerContract = Number(productForm.margin_per_contract);
+      if (!Number.isFinite(marginPerContract) || marginPerContract < 0) {
+        setError('Margin per contract must be 0 or more');
+        return;
+      }
+    }
     setLoading(true);
     setError('');
     try {
@@ -182,6 +215,9 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
         margin_rate: marginRate,
         margin_mode: productForm.margin_mode,
         source: productForm.source,
+        ...(productForm.margin_mode === 'span'
+          ? { margin_per_contract: optionalNumber(productForm.margin_per_contract) }
+          : {}),
       });
       onSaved();
       onClose();
@@ -227,26 +263,50 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
   };
 
   const handleSaveSymbol = async () => {
-    if (!resolvedProduct) { setError(NO_MATCHING_PRODUCT); return; }
     const syncSymbol = symbolForm.sync_symbol.trim();
     if (!syncSymbol) { setError('sync_symbol is required'); return; }
+    if (!resolvedProduct && !canCreateIdentity) { setError(NO_MATCHING_PRODUCT); return; }
+    if (!resolvedProduct && !creationSource) { setError('Price source is required'); return; }
     setLoading(true);
     setError('');
+    let failedOnProduct = false;
     try {
-      await api.createSymbol(resolvedProduct.product_id, {
+      let owningProduct = resolvedProduct;
+      if (!owningProduct) {
+        failedOnProduct = true;
+        const created = await api.createProduct({
+          ticker: selection.underlying || null,
+          broker_id: selection.broker ? Number(selection.broker) : null,
+          asset_type: selection.type || null,
+          source: creationSource,
+          multiplier: 1,
+          margin_rate: 0,
+          margin_mode: 'notional',
+        });
+        setProducts(prev => (
+          prev.some(product => product.product_id === created.product_id)
+            ? prev
+            : [...prev, created]
+        ));
+        owningProduct = created;
+        failedOnProduct = false;
+      }
+      await api.createSymbol(owningProduct.product_id, {
         price_symbol: symbolForm.price_symbol.trim() || undefined,
         sync_symbol: syncSymbol,
-        contract_kind: symbolForm.contract_kind,
-        option_type: symbolForm.option_type || null,
-        expiry_date: symbolForm.expiry_date || null,
-        strike_price: optionalNumber(symbolForm.strike_price),
-        margin_per_contract: optionalNumber(symbolForm.margin_per_contract),
+        ...(owningProduct.asset_type === 'option' ? {
+          option_type: symbolForm.option_type || null,
+          expiry_date: symbolForm.expiry_date || null,
+          strike_price: optionalNumber(symbolForm.strike_price),
+        } : {}),
       });
       onSaved();
       onClose();
     } catch (e) {
       console.error('Failed to create the symbol', e);
-      setError(apiErrorDetail(e, "Couldn't create the symbol. Try again."));
+      setError(apiErrorDetail(e, failedOnProduct
+        ? "Couldn't create the product. Try again."
+        : "Couldn't create the symbol. Try again."));
     } finally {
       setLoading(false);
     }
@@ -273,7 +333,23 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                 brokers={brokers}
                 selection={selection}
                 onChange={setSelection}
+                hideUnmatched={canCreateIdentity}
               />
+              {canCreateIdentity && (
+                <div className="rounded-xl border border-hairline p-2.5">
+                  <p style={{ ...CONTROL_HELPER, color: 'var(--color-ink)' }}>{creationCopy}</p>
+                  <Field className="min-w-0" label="Price source" htmlFor="add-symbol-creation-source" required>
+                    <SelectInput id="add-symbol-creation-source" value={creationSource}
+                      onChange={e => setCreationSource(e.target.value)}>
+                      <option value="">Choose…</option>
+                      {CREATION_SOURCES.map(source => (
+                        <option key={source} value={source}>{source}</option>
+                      ))}
+                    </SelectInput>
+                  </Field>
+                  <p style={CONTROL_HELPER}>New products start at multiplier 1, margin 0%, mode notional.</p>
+                </div>
+              )}
               <div>
                 <div className={rowTwo}>
                   <Field className="min-w-0" label="Ticker" htmlFor="add-symbol-price-symbol">
@@ -289,37 +365,26 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                 </div>
                 <p style={CONTROL_HELPER}>Sync symbol is the provider key used for quotes; price symbol is the dashboard contract key orders use.</p>
               </div>
-              <div className={rowThree}>
-                <Field className="min-w-0" label="Contract kind" htmlFor="add-symbol-contract-kind">
-                  <SelectInput id="add-symbol-contract-kind" value={symbolForm.contract_kind}
-                    onChange={e => setSymbolForm(p => ({ ...p, contract_kind: e.target.value }))}>
-                    {CONTRACT_KINDS.map(k => <option key={k} value={k}>{k.charAt(0).toUpperCase() + k.slice(1)}</option>)}
-                  </SelectInput>
-                </Field>
-                <Field className="min-w-0" label="Option type" htmlFor="add-symbol-option-type">
-                  <SelectInput id="add-symbol-option-type" value={symbolForm.option_type}
-                    onChange={e => setSymbolForm(p => ({ ...p, option_type: e.target.value }))}>
-                    <option value="">—</option>
-                    <option value="Call">Call</option>
-                    <option value="Put">Put</option>
-                  </SelectInput>
-                </Field>
-                <Field className="min-w-0" label="Expiry date" htmlFor="add-symbol-expiry">
-                  <TextInput id="add-symbol-expiry" type="date" value={symbolForm.expiry_date}
-                    onChange={e => setSymbolForm(p => ({ ...p, expiry_date: e.target.value }))} />
-                </Field>
-              </div>
-              <div className={rowTwo}>
-                <Field className="min-w-0" label="Strike price" htmlFor="add-symbol-strike">
-                  <NumberInput id="add-symbol-strike" step="any" value={symbolForm.strike_price}
-                    onChange={e => setSymbolForm(p => ({ ...p, strike_price: e.target.value }))} placeholder="—" />
-                </Field>
-                <Field className="min-w-0" label="Margin per contract (span)" htmlFor="add-symbol-margin-per-contract">
-                  <NumberInput id="add-symbol-margin-per-contract" step="any" value={symbolForm.margin_per_contract}
-                    onChange={e => setSymbolForm(p => ({ ...p, margin_per_contract: e.target.value }))}
-                    placeholder="Used by span margin mode" />
-                </Field>
-              </div>
+              {optionFieldsVisible && (
+                <div className={rowThree}>
+                  <Field className="min-w-0" label="Option type" htmlFor="add-symbol-option-type">
+                    <SelectInput id="add-symbol-option-type" value={symbolForm.option_type}
+                      onChange={e => setSymbolForm(p => ({ ...p, option_type: e.target.value }))}>
+                      <option value="">—</option>
+                      <option value="Call">Call</option>
+                      <option value="Put">Put</option>
+                    </SelectInput>
+                  </Field>
+                  <Field className="min-w-0" label="Expiry date" htmlFor="add-symbol-expiry">
+                    <TextInput id="add-symbol-expiry" type="date" value={symbolForm.expiry_date}
+                      onChange={e => setSymbolForm(p => ({ ...p, expiry_date: e.target.value }))} />
+                  </Field>
+                  <Field className="min-w-0" label="Strike price" htmlFor="add-symbol-strike">
+                    <NumberInput id="add-symbol-strike" step="any" value={symbolForm.strike_price}
+                      onChange={e => setSymbolForm(p => ({ ...p, strike_price: e.target.value }))} placeholder="—" />
+                  </Field>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-2.5">
@@ -443,6 +508,16 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                   </SelectInput>
                 </Field>
               </div>
+              {productForm.margin_mode === 'span' && (
+                <div className={rowTwo}>
+                  <Field className="min-w-0" label="Margin per contract" htmlFor="add-product-margin-per-contract"
+                    hint="Used by span mode: qty × this value.">
+                    <NumberInput id="add-product-margin-per-contract" min={0} step="any"
+                      value={productForm.margin_per_contract}
+                      onChange={e => setProductForm(p => ({ ...p, margin_per_contract: e.target.value }))} />
+                  </Field>
+                </div>
+              )}
               <div className={rowTwo}>
                 <Field className="min-w-0" label="Source" htmlFor="add-product-source">
                   <SelectInput id="add-product-source" value={productForm.source}
@@ -460,9 +535,13 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
         <div className={`${MODAL_FOOTER} flex justify-end`} style={{ gap: 8, marginTop: 12 }}>
           <button type="button" onClick={onClose} style={secondaryButton} className="text-xs">Cancel</button>
           <button type="button" onClick={editingSymbol ? handleSaveSymbol : handleSaveProduct}
-            disabled={loading || symbolUnresolved} style={primaryButton}
+            disabled={loading || (symbolUnresolved && !creationReady)} style={primaryButton}
             className="text-xs transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
-            {loading ? 'Saving...' : (editingSymbol ? 'Create symbol' : 'Add product')}
+            {loading
+              ? 'Saving...'
+              : canCreateIdentity
+                ? 'Create product & apply'
+                : (editingSymbol ? 'Create symbol' : 'Add product')}
           </button>
         </div>
       </div>

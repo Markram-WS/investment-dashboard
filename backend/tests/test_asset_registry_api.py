@@ -35,8 +35,8 @@ from app.routers import assets as assets_router  # noqa: E402
 
 PRODUCT_KEYS = {
     "product_id", "ticker", "broker_id", "broker_code", "asset_type",
-    "multiplier", "margin_rate", "margin_mode", "source", "group_id",
-    "name", "symbol_count",
+    "multiplier", "margin_rate", "margin_mode", "margin_per_contract",
+    "source", "group_id", "name", "symbol_count",
 }
 SYMBOL_KEYS = {
     "symbol_id", "product_id", "price_symbol", "sync_symbol", "contract_kind",
@@ -241,6 +241,160 @@ async def test_product_symbol_crud_exact_contract(async_client):
     assert (await async_client.delete("/api/v1/assets/symbols/999999")).status_code == 404
 
     await cleanup_brokers(broker_id)
+
+
+@pytest.mark.asyncio
+async def test_product_span_margin_and_identity_contract_kind(async_client):
+    broker_id = await create_broker(async_client, "SPAN")
+    try:
+        product = await create_product(
+            async_client,
+            ticker="SPAN",
+            broker_id=broker_id,
+            asset_type="stock",
+            margin_mode="span",
+            margin_per_contract=750,
+        )
+        assert product["margin_per_contract"] == 750.0
+        assert product["margin_mode"] == "span"
+
+        # An omitted value is an explicit null in the payload.
+        plain = await create_product(
+            async_client, ticker="PLAIN", broker_id=broker_id, asset_type="stock"
+        )
+        assert plain["margin_per_contract"] is None
+
+        negative = await async_client.post(
+            "/api/v1/assets/products",
+            json={
+                "ticker": "NEG",
+                "broker_id": broker_id,
+                "margin_per_contract": -1,
+            },
+        )
+        assert negative.status_code == 400
+        assert negative.json()["detail"] == (
+            "margin_per_contract must be zero or greater"
+        )
+
+        updated = await async_client.put(
+            f"/api/v1/assets/products/{product['product_id']}",
+            json={"margin_per_contract": 900},
+        )
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["margin_per_contract"] == 900.0
+        # A span-only update touches nothing else.
+        assert updated.json()["margin_mode"] == "span"
+        assert updated.json()["multiplier"] == 1.0
+        assert updated.json()["margin_rate"] == 0.0
+        assert updated.json()["asset_type"] == "stock"
+
+        negative_update = await async_client.put(
+            f"/api/v1/assets/products/{product['product_id']}",
+            json={"margin_per_contract": -5},
+        )
+        assert negative_update.status_code == 400
+        assert negative_update.json()["detail"] == (
+            "margin_per_contract must be zero or greater"
+        )
+
+        # An explicit null clears the span and only the span.
+        cleared = await async_client.put(
+            f"/api/v1/assets/products/{product['product_id']}",
+            json={"margin_per_contract": None, "multiplier": 2},
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["margin_per_contract"] is None
+        assert cleared.json()["multiplier"] == 2.0
+        assert cleared.json()["margin_mode"] == "span"
+        assert cleared.json()["margin_rate"] == 0.0
+
+        # The contract type is the owning identity's asset_type.
+        mismatched = await create_symbol(
+            async_client,
+            product["product_id"],
+            price_symbol="SPAN-F",
+            sync_symbol="SPAN-F",
+            contract_kind="future",
+        )
+        assert mismatched.status_code == 400
+        assert mismatched.json()["detail"] == (
+            "contract type is set by the underlying + broker + type"
+        )
+
+        matching = await create_symbol(
+            async_client,
+            product["product_id"],
+            price_symbol="SPAN.ME",
+            sync_symbol="SPAN",
+            contract_kind="stock",
+        )
+        assert matching.status_code == 201, matching.text
+        assert matching.json()["contract_kind"] == "stock"
+        omitted = await create_symbol(
+            async_client,
+            product["product_id"],
+            price_symbol="SPAN2",
+            sync_symbol="SPAN2",
+        )
+        assert omitted.status_code == 201, omitted.text
+        assert omitted.json()["contract_kind"] == "stock"
+
+        # The symbol payload mirrors the identity's span value.
+        assert matching.json()["margin_per_contract"] is None
+        await async_client.put(
+            f"/api/v1/assets/products/{product['product_id']}",
+            json={"margin_per_contract": 4},
+        )
+        mirrored = await async_client.get(
+            f"/api/v1/assets/symbols?product_id={product['product_id']}"
+        )
+        assert mirrored.status_code == 200, mirrored.text
+        assert {row["margin_per_contract"] for row in mirrored.json()} == {4.0}
+
+        # Updates obey the same identity rule.
+        bad_kind = await async_client.put(
+            f"/api/v1/assets/symbols/{matching.json()['symbol_id']}",
+            json={"contract_kind": "future"},
+        )
+        assert bad_kind.status_code == 400
+        assert bad_kind.json()["detail"] == (
+            "contract type is set by the underlying + broker + type"
+        )
+        same_kind = await async_client.put(
+            f"/api/v1/assets/symbols/{matching.json()['symbol_id']}",
+            json={"contract_kind": "stock"},
+        )
+        assert same_kind.status_code == 200, same_kind.text
+        assert same_kind.json()["contract_kind"] == "stock"
+
+        # An untyped identity keeps the legacy ``future`` fallback, which is
+        # also the only value a client may supply for it.
+        untyped = await create_product(
+            async_client, ticker="UNTYPED", broker_id=broker_id
+        )
+        fallback = await create_symbol(
+            async_client,
+            untyped["product_id"],
+            price_symbol="UNTYPED",
+            sync_symbol="UNTYPED",
+            contract_kind="future",
+        )
+        assert fallback.status_code == 201, fallback.text
+        assert fallback.json()["contract_kind"] == "future"
+        rejected_fallback = await create_symbol(
+            async_client,
+            untyped["product_id"],
+            price_symbol="UNTYPED2",
+            sync_symbol="UNTYPED2",
+            contract_kind="stock",
+        )
+        assert rejected_fallback.status_code == 400
+        assert rejected_fallback.json()["detail"] == (
+            "contract type is set by the underlying + broker + type"
+        )
+    finally:
+        await cleanup_brokers(broker_id)
 
 
 @pytest.mark.asyncio
@@ -1714,7 +1868,7 @@ async def test_margin_modes_overrides_and_display_risk(async_client):
         session.add_all([portfolio, stored_portfolio])
         await session.flush()
 
-        def product(ticker, multiplier, rate, mode):
+        def product(ticker, multiplier, rate, mode, span=None):
             return AssetProduct(
                 ticker=ticker,
                 broker_id=broker.id,
@@ -1722,13 +1876,15 @@ async def test_margin_modes_overrides_and_display_risk(async_client):
                 multiplier=Decimal(str(multiplier)),
                 margin_rate=Decimal(str(rate)),
                 margin_mode=mode,
+                margin_per_contract=None if span is None else Decimal(str(span)),
                 source="-",
             )
 
         products = {
             "N": product("N", 2, 0.1, "notional"),
             "P": product("P", 2, 0.5, "premium"),
-            "S": product("S", 3, 0.2, "span"),
+            # The span margin is identity-owned: qty × 7 = 21 for S.
+            "S": product("S", 3, 0.2, "span", span=7),
             # O carries its 5 / 0.2 on the identity; contracts cannot override.
             "O": product("O", 5, 0.2, "notional"),
             "S2": product("S2", 1, 0.5, "span"),
@@ -1755,7 +1911,6 @@ async def test_margin_modes_overrides_and_display_risk(async_client):
                     broker_id=broker.id,
                     price_symbol="S",
                     sync_symbol="S",
-                    margin_per_contract=Decimal("7"),
                 ),
                 AssetSymbol(
                     product_id=products["O"].product_id,
@@ -1967,18 +2122,38 @@ async def test_symbol_payload_effective_and_inherited_contract_values(async_clie
             "contract"
         )
 
-        # The span margin stays a contract-level value; multiplier and rate do
-        # not.
-        span_resp = await create_symbol(
+        # The span margin is identity-owned too: a supplied contract value is
+        # refused, and the symbol payload mirrors the product's value.
+        rejected_span = await create_symbol(
             async_client,
             product["product_id"],
             price_symbol="EFF1-S",
             sync_symbol="EFF1-S.BK",
             margin_per_contract=7,
         )
+        assert rejected_span.status_code == 400
+        assert rejected_span.json()["detail"] == (
+            "margin per contract is set on the underlying + broker + type, "
+            "not on the contract"
+        )
+
+        product_span = await async_client.put(
+            f"/api/v1/assets/products/{product['product_id']}",
+            json={"margin_per_contract": 7},
+        )
+        assert product_span.status_code == 200, product_span.text
+        assert product_span.json()["margin_per_contract"] == 7.0
+
+        span_resp = await create_symbol(
+            async_client,
+            product["product_id"],
+            price_symbol="EFF1-S",
+            sync_symbol="EFF1-S.BK",
+        )
         assert span_resp.status_code == 201, span_resp.text
         span = span_resp.json()
         assert span["margin_per_contract"] == 7.0
+        assert span["contract_kind"] == "future"
         assert span["multiplier_effective"] == 2.5
         assert span["margin_rate_effective"] == 0.25
         assert span["multiplier_inherited"] is True
@@ -1994,6 +2169,15 @@ async def test_symbol_payload_effective_and_inherited_contract_values(async_clie
         assert rejected_update.json()["detail"] == (
             "multiplier is set on the underlying + broker + type, not on the "
             "contract"
+        )
+        rejected_span_update = await async_client.put(
+            f"/api/v1/assets/symbols/{span['symbol_id']}",
+            json={"margin_per_contract": 9},
+        )
+        assert rejected_span_update.status_code == 400
+        assert rejected_span_update.json()["detail"] == (
+            "margin per contract is set on the underlying + broker + type, "
+            "not on the contract"
         )
 
         # Editing the identity moves both effective values; the contract never
@@ -2012,6 +2196,8 @@ async def test_symbol_payload_effective_and_inherited_contract_values(async_clie
         assert by_symbol["EFF1"]["margin_rate_effective"] == 0.4
         assert by_symbol["EFF1"]["multiplier_inherited"] is True
         assert by_symbol["EFF1"]["margin_rate_inherited"] is True
+        # The span value is untouched by an unrelated identity edit.
+        assert by_symbol["EFF1-S"]["margin_per_contract"] == 7.0
 
         # A product with neither value falls back to multiplier 1 / rate 0 and
         # both stay inherited — the same rule risk_calc applies without a spec.
@@ -2026,6 +2212,8 @@ async def test_symbol_payload_effective_and_inherited_contract_values(async_clie
         assert fallback["margin_rate_effective"] == 0.0
         assert fallback["multiplier_inherited"] is True
         assert fallback["margin_rate_inherited"] is True
+        assert fallback["margin_per_contract"] is None
+        assert fallback["contract_kind"] == "future"
 
         # The batched order-underlying resolver leaves brokerless and unknown
         # pairs unassigned instead of borrowing another broker's product.
@@ -2601,6 +2789,7 @@ async def test_symbol_move_to_another_product_identity(async_client):
         multiplier=2,
         margin_rate=0.1,
         margin_mode="notional",
+        margin_per_contract=7,
         source="manual",
     )
     beta = await create_product(
@@ -2611,6 +2800,7 @@ async def test_symbol_move_to_another_product_identity(async_client):
         multiplier=5,
         margin_rate=0.25,
         margin_mode="premium",
+        margin_per_contract=11,
         source="manual",
     )
     gamma = await create_product(
@@ -2651,16 +2841,17 @@ async def test_symbol_move_to_another_product_identity(async_client):
             price_symbol="MOVE.ME",
             sync_symbol="MOVE",
             contract_kind="stock",
-            margin_per_contract=7,
         )
         assert created.status_code == 201, created.text
         symbol = created.json()
         symbol_id = symbol["symbol_id"]
         assert symbol["multiplier_effective"] == 2.0
         assert symbol["margin_rate_effective"] == 0.1
+        assert symbol["contract_kind"] == "stock"
+        assert symbol["margin_per_contract"] == 7.0
 
-        # Move inside the same broker: identity-owned values re-base, the
-        # contract-level span and every other symbol field stay put.
+        # Move inside the same broker: identity-owned values re-base from the
+        # new owner, including its span margin.
         moved = await async_client.put(
             f"/api/v1/assets/symbols/{symbol_id}",
             json={"product_id": beta["product_id"]},
@@ -2672,7 +2863,7 @@ async def test_symbol_move_to_another_product_identity(async_client):
         assert body["price_symbol"] == "MOVE.ME"
         assert body["sync_symbol"] == "MOVE"
         assert body["contract_kind"] == "stock"
-        assert body["margin_per_contract"] == 7.0
+        assert body["margin_per_contract"] == 11.0
         assert body["multiplier_effective"] == 5.0
         assert body["margin_rate_effective"] == 0.25
         assert (await stored(symbol_id)).broker_id == broker_id
@@ -2687,6 +2878,9 @@ async def test_symbol_move_to_another_product_identity(async_client):
         assert across.json()["product_id"] == gamma["product_id"]
         assert across.json()["multiplier_effective"] == 3.0
         assert across.json()["margin_rate_effective"] == 0.4
+        # GAMMA has no span value, so the contract reports none: the symbol
+        # column is never read.
+        assert across.json()["margin_per_contract"] is None
         row = await stored(symbol_id)
         assert row.product_id == gamma["product_id"]
         assert row.broker_id == other_broker
@@ -2712,6 +2906,11 @@ async def test_symbol_move_to_another_product_identity(async_client):
                 "margin_rate_override",
                 "margin_rate is set on the underlying + broker + type, "
                 "not on the contract",
+            ),
+            (
+                "margin_per_contract",
+                "margin per contract is set on the underlying + broker + "
+                "type, not on the contract",
             ),
         ):
             rejected = await async_client.put(
@@ -2742,11 +2941,11 @@ async def test_symbol_move_to_another_product_identity(async_client):
         # The current owner is an explicit no-op move as well.
         same = await async_client.put(
             f"/api/v1/assets/symbols/{symbol_id}",
-            json={"product_id": gamma["product_id"], "margin_per_contract": 9},
+            json={"product_id": gamma["product_id"]},
         )
         assert same.status_code == 200, same.text
         assert same.json()["product_id"] == gamma["product_id"]
-        assert same.json()["margin_per_contract"] == 9.0
+        assert same.json()["margin_per_contract"] is None
         row = await stored(symbol_id)
         assert row.product_id == gamma["product_id"]
         assert row.broker_id == other_broker
@@ -2829,6 +3028,8 @@ async def test_symbol_move_to_another_product_identity(async_client):
             contract_kind="stock",
         )
         assert movable.status_code == 201, movable.text
+        assert movable.json()["contract_kind"] == "stock"
+        assert movable.json()["margin_per_contract"] == 7.0
         to_default = await async_client.put(
             f"/api/v1/assets/symbols/{movable.json()['symbol_id']}",
             json={"product_id": default_id},
@@ -2837,9 +3038,14 @@ async def test_symbol_move_to_another_product_identity(async_client):
         assert to_default.json()["product_id"] == default_id
         assert to_default.json()["multiplier_effective"] == 1.0
         assert to_default.json()["margin_rate_effective"] == 0.0
+        # The type and span re-derive from the new (untyped) owner: legacy
+        # ``future`` fallback and no span value.
+        assert to_default.json()["contract_kind"] == "future"
+        assert to_default.json()["margin_per_contract"] is None
         default_row = await stored(movable.json()["symbol_id"])
         assert default_row.product_id == default_id
         assert default_row.broker_id is None
+        assert default_row.contract_kind == "future"
         removed = await async_client.delete(
             f"/api/v1/assets/symbols/{movable.json()['symbol_id']}"
         )

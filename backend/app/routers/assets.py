@@ -319,6 +319,7 @@ class ProductCreate(BaseModel):
     multiplier: Optional[float] = None
     margin_rate: Optional[float] = None
     margin_mode: Optional[str] = None
+    margin_per_contract: Optional[float] = None
     source: Optional[str] = None
     group_id: Optional[int] = None
     name: Optional[str] = None
@@ -331,6 +332,7 @@ class ProductUpdate(BaseModel):
     multiplier: Optional[float] = None
     margin_rate: Optional[float] = None
     margin_mode: Optional[str] = None
+    margin_per_contract: Optional[float] = None
     source: Optional[str] = None
     group_id: Optional[int] = None
     name: Optional[str] = None
@@ -385,11 +387,16 @@ def _validate_product_values(
     multiplier: Optional[float],
     margin_rate: Optional[float],
     margin_mode: Optional[str],
+    margin_per_contract: Optional[float] = None,
 ) -> None:
     if multiplier is not None and multiplier <= 0:
         raise HTTPException(400, "multiplier must be greater than 0")
     if margin_rate is not None and not (0 <= margin_rate <= 1):
         raise HTTPException(400, "margin_rate must be between 0 and 1")
+    if margin_per_contract is not None and margin_per_contract < 0:
+        raise HTTPException(
+            400, "margin_per_contract must be zero or greater"
+        )
     if margin_mode is not None and margin_mode not in registry.MARGIN_MODES:
         raise HTTPException(400, "margin_mode must be one of notional, premium, span")
 
@@ -397,8 +404,9 @@ def _validate_product_values(
 def _validate_symbol_values(
     multiplier_override: Optional[float],
     margin_rate_override: Optional[float],
+    margin_per_contract: Optional[float] = None,
 ) -> None:
-    """Multiplier and margin rate belong to the identity, never the contract."""
+    """Identity-owned values: multiplier, margin rate and span margin."""
     if multiplier_override is not None:
         raise HTTPException(
             400,
@@ -409,6 +417,30 @@ def _validate_symbol_values(
             400,
             "margin_rate is set on the underlying + broker + type, not on the contract",
         )
+    if margin_per_contract is not None:
+        raise HTTPException(
+            400,
+            "margin per contract is set on the underlying + broker + type, "
+            "not on the contract",
+        )
+
+
+def _validate_contract_kind(
+    product: AssetProduct, supplied: Optional[str]
+) -> str:
+    """Contract type belongs to the identity; return the value to store.
+
+    A supplied type must equal the owning product's ``asset_type``. An identity
+    without a type keeps the legacy ``future`` fallback so old contracts still
+    render, but the symbol column is never authoritative.
+    """
+    identity_kind = (product.asset_type or "").strip().lower() or "future"
+    supplied_kind = (supplied or "").strip().lower()
+    if supplied_kind and supplied_kind != identity_kind:
+        raise HTTPException(
+            400, "contract type is set by the underlying + broker + type"
+        )
+    return identity_kind
 
 
 def _identity_filter(ticker: Optional[str], broker_id: Optional[int], asset_type: Optional[str]):
@@ -509,7 +541,8 @@ async def create_product(data: ProductCreate, db: AsyncSession = Depends(get_db)
         # type; the all-NULL triple is the reserved default-product identity.
         raise HTTPException(400, "Ticker is required")
     _validate_product_values(
-        data.multiplier, data.margin_rate, data.margin_mode
+        data.multiplier, data.margin_rate, data.margin_mode,
+        data.margin_per_contract,
     )
     if await _identity_exists(db, ticker, data.broker_id, data.asset_type):
         raise HTTPException(400, "An asset with this ticker already exists")
@@ -520,6 +553,7 @@ async def create_product(data: ProductCreate, db: AsyncSession = Depends(get_db)
         multiplier=data.multiplier if data.multiplier is not None else 1,
         margin_rate=data.margin_rate if data.margin_rate is not None else 0,
         margin_mode=data.margin_mode or "notional",
+        margin_per_contract=data.margin_per_contract,
         source=data.source if data.source is not None else "-",
         group_id=data.group_id,
         name=data.name,
@@ -559,6 +593,7 @@ async def update_product(
         fields.get("multiplier"),
         fields.get("margin_rate"),
         fields.get("margin_mode"),
+        fields.get("margin_per_contract"),
     )
 
     old_ticker = product.ticker
@@ -708,7 +743,11 @@ async def create_symbol(
     sync_symbol = (data.sync_symbol or "").strip()
     if not sync_symbol:
         raise HTTPException(400, "sync_symbol is required")
-    _validate_symbol_values(data.multiplier_override, data.margin_rate_override)
+    _validate_symbol_values(
+        data.multiplier_override,
+        data.margin_rate_override,
+        data.margin_per_contract,
+    )
     stored_price_symbol = (
         data.price_symbol.strip()
         if isinstance(data.price_symbol, str) and data.price_symbol.strip()
@@ -724,10 +763,11 @@ async def create_symbol(
                 db, collision, registry.normalise_symbol(stored_price_symbol)
             ),
         )
+    contract_kind = _validate_contract_kind(product, data.contract_kind)
     await registry.assert_option_identity_available(
         db,
         product,
-        contract_kind=data.contract_kind,
+        contract_kind=contract_kind,
         price_symbol=stored_price_symbol,
         option_type=data.option_type,
         expiry_date=data.expiry_date,
@@ -738,13 +778,12 @@ async def create_symbol(
         broker_id=product.broker_id,
         price_symbol=stored_price_symbol,
         sync_symbol=sync_symbol,
-        contract_kind=data.contract_kind or "future",
+        contract_kind=contract_kind,
         option_type=data.option_type,
         expiry_date=data.expiry_date,
         strike_price=data.strike_price,
-        # multiplier_override / margin_rate_override are rejected above: they
-        # belong to the identity. Only the span margin stays contract-level.
-        margin_per_contract=data.margin_per_contract,
+        # multiplier_override / margin_rate_override / margin_per_contract are
+        # rejected above: they belong to the identity, not the contract.
     )
     db.add(symbol)
     try:
@@ -765,7 +804,9 @@ async def update_symbol(
     symbol, product = await _symbol_or_404(db, symbol_id)
     fields = data.model_dump(exclude_unset=True)
     _validate_symbol_values(
-        fields.get("multiplier_override"), fields.get("margin_rate_override")
+        fields.get("multiplier_override"),
+        fields.get("margin_rate_override"),
+        fields.get("margin_per_contract"),
     )
     if "sync_symbol" in fields:
         sync_symbol = (fields["sync_symbol"] or "").strip()
@@ -805,11 +846,16 @@ async def update_symbol(
                 ),
             )
 
-    effective_kind = fields.get("contract_kind", symbol.contract_kind)
+    # Contract type and span margin are identity-owned: the type is derived
+    # from the target product (a supplied value must match it) and a supplied
+    # span value is rejected by _validate_symbol_values above.
+    contract_kind = _validate_contract_kind(
+        target_product, fields.get("contract_kind")
+    )
     await registry.assert_option_identity_available(
         db,
         target_product,
-        contract_kind=effective_kind,
+        contract_kind=contract_kind,
         price_symbol=new_price_symbol,
         option_type=fields.get("option_type", symbol.option_type),
         expiry_date=fields.get("expiry_date", symbol.expiry_date),
@@ -821,16 +867,15 @@ async def update_symbol(
         symbol.price_symbol = new_price_symbol
     for field in (
         "sync_symbol",
-        "contract_kind",
         "option_type",
         "expiry_date",
         "strike_price",
         "multiplier_override",
         "margin_rate_override",
-        "margin_per_contract",
     ):
         if field in fields:
             setattr(symbol, field, fields[field])
+    symbol.contract_kind = contract_kind
     symbol.product_id = target_product.product_id
     symbol.broker_id = target_product.broker_id
     symbol.updated_at = datetime.utcnow()

@@ -81,8 +81,8 @@ def _margin_for_orders(orders, specs) -> Decimal:
         if mode == "premium":
             total += premium
         elif mode == "span":
-            if symbol.margin_per_contract is not None:
-                total += dec(order.qty) * dec(symbol.margin_per_contract)
+            if product.margin_per_contract is not None:
+                total += dec(order.qty) * dec(product.margin_per_contract)
             else:
                 total += premium
         else:

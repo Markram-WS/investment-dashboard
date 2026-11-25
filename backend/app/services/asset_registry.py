@@ -86,6 +86,14 @@ def effective_margin_rate(symbol: AssetSymbol, product: AssetProduct) -> Decimal
     return identity_value(product.margin_rate, "0")
 
 
+def identity_contract_kind(product: AssetProduct) -> str:
+    """Contract type is the identity's ``asset_type``; legacy fallback: future.
+
+    The symbol column is retained for old databases but is never authoritative.
+    """
+    return (product.asset_type or "").strip().lower() or "future"
+
+
 async def broker_codes(db: AsyncSession) -> dict[int, str]:
     result = await db.execute(select(Broker.id, Broker.code))
     return {row[0]: row[1] for row in result.all()}
@@ -336,7 +344,7 @@ async def symbol_payload(
         "product_id": symbol.product_id,
         "price_symbol": symbol.price_symbol,
         "sync_symbol": symbol.sync_symbol,
-        "contract_kind": symbol.contract_kind,
+        "contract_kind": identity_contract_kind(product),
         "option_type": symbol.option_type,
         "expiry_date": symbol.expiry_date,
         "strike_price": _float(symbol.strike_price),
@@ -348,7 +356,7 @@ async def symbol_payload(
         # always inherited. The keys stay for payload compatibility.
         "multiplier_inherited": True,
         "margin_rate_inherited": True,
-        "margin_per_contract": _float(symbol.margin_per_contract),
+        "margin_per_contract": _float(product.margin_per_contract),
         "price": _float(quote.price) if quote else None,
         "change_24h": _float(quote.change_24h) if quote else None,
         "updated_at": quote.updated_at if quote else None,
@@ -379,6 +387,7 @@ async def product_payload(
         "asset_type": product.asset_type,
         "multiplier": _float(product.multiplier),
         "margin_rate": _float(product.margin_rate),
+        "margin_per_contract": _float(product.margin_per_contract),
         "margin_mode": product.margin_mode,
         "source": product.source,
         "group_id": product.group_id,

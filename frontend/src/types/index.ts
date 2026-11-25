@@ -451,6 +451,8 @@ export interface AssetProduct {
   margin_rate: number | null;
   margin_mode: MarginMode | string;
   source: string;
+  /** Only used when margin_mode is 'span'; owned by the product identity. */
+  margin_per_contract?: number | null;
   group_id: number | null;
   name: string | null;
   symbol_count: number;
@@ -499,12 +501,13 @@ export interface AssetSymbolQuery {
 }
 
 export interface AssetProductPayload {
-  ticker?: string;
+  ticker?: string | null;
   broker_id?: number | null;
   asset_type?: string | null;
   multiplier?: number;
   margin_rate?: number;
   margin_mode?: string;
+  margin_per_contract?: number | null;
   source?: string;
   group_id?: number | null;
   name?: string | null;
@@ -517,6 +520,7 @@ export interface AssetProductUpdatePayload {
   multiplier?: number;
   margin_rate?: number;
   margin_mode?: string;
+  margin_per_contract?: number | null;
   source?: string;
   group_id?: number | null;
   name?: string | null;
@@ -525,13 +529,12 @@ export interface AssetProductUpdatePayload {
 export interface AssetSymbolPayload {
   price_symbol?: string;
   sync_symbol: string;
-  contract_kind?: string;
+  /** Option terms only; omitted for non-option identities. */
   option_type?: string | null;
   expiry_date?: string | null;
   strike_price?: number | null;
   multiplier_override?: number | null;
   margin_rate_override?: number | null;
-  margin_per_contract?: number | null;
 }
 
 export interface AssetSymbolUpdatePayload {
@@ -539,13 +542,12 @@ export interface AssetSymbolUpdatePayload {
   sync_symbol?: string;
   /** Move the symbol to another product; omitted when the product is unchanged. */
   product_id?: number;
-  contract_kind?: string;
+  /** Option terms only; omitted for non-option identities. */
   option_type?: string | null;
   expiry_date?: string | null;
   strike_price?: number | null;
   multiplier_override?: number | null;
   margin_rate_override?: number | null;
-  margin_per_contract?: number | null;
 }
 
 export interface AssetQuotePayload {
