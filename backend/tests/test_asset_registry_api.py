@@ -708,6 +708,103 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_apply_existing_product_uses_its_asset_type(async_client):
+    """Assigning an existing product derives the symbol's contract kind from it.
+
+    A sync row carries no option terms and no asset type of its own, so an
+    option product or a product without an asset type is refused unguessed.
+    """
+    broker_id = await create_broker(async_client, "SYN7")
+    orders = []
+    for symbol in ("STOCKSYM", "FUTSYM", "OPTSYM", "NOTYPE"):
+        _, _, order_id = await _seed_order(symbol, broker_id)
+        orders.append(order_id)
+
+    try:
+        stock = await create_product(
+            async_client, ticker="STOCKSYM", broker_id=broker_id, asset_type="stock"
+        )
+        future = await create_product(
+            async_client, ticker="FUTSYM", broker_id=broker_id, asset_type="future"
+        )
+        option = await create_product(
+            async_client, ticker="OPTSYM", broker_id=broker_id, asset_type="option"
+        )
+        untyped = await create_product(
+            async_client, ticker="NOTYPE", broker_id=broker_id
+        )
+        assert untyped["asset_type"] is None
+
+        async def assign(symbol: str, product: dict):
+            return await async_client.post(
+                "/api/v1/assets/apply",
+                json={
+                    "choices": [
+                        {
+                            "symbol": symbol,
+                            "broker_id": broker_id,
+                            "product_id": product["product_id"],
+                        }
+                    ]
+                },
+            )
+
+        for symbol, product in (("STOCKSYM", stock), ("FUTSYM", future)):
+            resp = await assign(symbol, product)
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["created"] == 1
+
+        option_resp = await assign("OPTSYM", option)
+        assert option_resp.status_code == 400
+        assert option_resp.json()["detail"] == (
+            "Add the option contract in All-assets — a sync row has no expiry, "
+            "strike or type"
+        )
+
+        untyped_resp = await assign("NOTYPE", untyped)
+        assert untyped_resp.status_code == 400
+        assert untyped_resp.json()["detail"] == (
+            "Set the asset type of product NOTYPE in All-assets before syncing"
+        )
+
+        _, Session = get_test_engine()
+        async with Session() as session:
+            products = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.broker_id == broker_id
+                    )
+                )
+            ).scalars().all()
+            symbols = (
+                await session.execute(
+                    select(AssetSymbol).where(AssetSymbol.broker_id == broker_id)
+                )
+            ).scalars().all()
+            quotes = (
+                await session.execute(
+                    select(AssetQuote).where(
+                        AssetQuote.sync_symbol.in_(
+                            ["STOCKSYM", "FUTSYM", "OPTSYM", "NOTYPE"]
+                        )
+                    )
+                )
+            ).scalars().all()
+
+        assert {product.ticker for product in products} == {
+            "STOCKSYM", "FUTSYM", "OPTSYM", "NOTYPE"
+        }
+        assert {symbol.price_symbol: symbol.contract_kind for symbol in symbols} == {
+            "STOCKSYM": "stock",
+            "FUTSYM": "future",
+        }
+        assert quotes == []
+    finally:
+        await _delete_orders(*orders)
+        await cleanup_brokers(broker_id)
+
+
+@pytest.mark.asyncio
 async def test_proposal_resolved_flags_existing_symbol_spec(async_client):
     """`resolved` is true only for a spec owning the key in the pair's broker."""
     broker_id = await create_broker(async_client, "SYN5")

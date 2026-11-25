@@ -1202,11 +1202,26 @@ async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db))
                 # Same owner: explicit choice is idempotent.
                 continue
 
-            contract_kind = (
-                "option"
-                if asset_type == "option"
-                else (asset_type or "future")
-            )
+            if has_product:
+                # An existing product supplies the symbol's contract kind. A
+                # sync row has no option terms, and a missing asset type is a
+                # question only All Assets can answer, so neither is guessed.
+                kind = (product.asset_type or "").strip().lower()
+                if kind == "option":
+                    raise HTTPException(
+                        400,
+                        "Add the option contract in All-assets — a sync row has "
+                        "no expiry, strike or type",
+                    )
+                if kind not in ("stock", "future", "crypto"):
+                    raise HTTPException(
+                        400,
+                        f"Set the asset type of product {product.ticker} "
+                        "in All-assets before syncing",
+                    )
+                contract_kind = kind
+            else:
+                contract_kind = "option" if asset_type == "option" else asset_type
             new_symbol = AssetSymbol(
                 product_id=product.product_id,
                 broker_id=product.broker_id,
