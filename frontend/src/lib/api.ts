@@ -462,6 +462,16 @@ export const api = {
 
   // Brokers
   getBrokers: () => request<BrokerRecord[]>('/brokers'),
+  createBroker: (payload: {
+    code: string;
+    name: string;
+    default_margin_rate?: number;
+    currency?: string;
+  }) =>
+    request<BrokerRecord>('/brokers', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   // Analytics
   getPortfolioAnalytics: (portfolioId: number | string) =>
