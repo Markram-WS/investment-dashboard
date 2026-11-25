@@ -17,6 +17,9 @@ interface OrderDetailLadderProps {
   onAssignGroup?: (orderIds: string[], groupId: number | null) => void;
   onLinkOrder?: (sourceOrderId: string, targetOrderId: string) => void;
   onUpdateRemark?: (order: SpreadOrder, remark: string | null) => void | Promise<void>;
+  /** Which tab the ladder shows. Owned by the parent so a remount cannot reset it. */
+  view: LadderView;
+  onViewChange: (view: LadderView) => void;
   /** Mapped foreign data: the Mark column shows the broker mark and no local zones exist. */
   mapped?: boolean;
   canAdd?: boolean;
@@ -309,6 +312,7 @@ const RemarkCell = ({ order, onSave, readOnly }: {
 const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
   activeOrders, zones, onShowZoneGroupModal, onAddOrder,
   onEditOrder, onCloseOrder, onAssignGroup, onLinkOrder, onUpdateRemark,
+  view, onViewChange,
   mapped = false,
   canAdd = !mapped,
   canEdit = !mapped,
@@ -318,7 +322,6 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
   canZone = !mapped,
   canRemark = !mapped,
 }) => {
-  const [view, setView] = useState<LadderView>("all");
   const [linkSource, setLinkSource] = useState<string | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
   const narrow = useIsNarrow();
@@ -600,13 +603,13 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         )}
         <div className="at-dh-right">
           <div className="at-tabs" role="group" aria-label="Ladder view">
-            <button type="button" className="at-tab" aria-pressed={view === "all"} onClick={() => setView("all")}>
+            <button type="button" className="at-tab" aria-pressed={view === "all"} onClick={() => onViewChange("all")}>
               All
             </button>
-            <button type="button" className="at-tab" aria-pressed={view === "eq"} onClick={() => setView("eq")}>
+            <button type="button" className="at-tab" aria-pressed={view === "eq"} onClick={() => onViewChange("eq")}>
               EQ · Future
             </button>
-            <button type="button" className="at-tab" aria-pressed={view === "option"} onClick={() => setView("option")}>
+            <button type="button" className="at-tab" aria-pressed={view === "option"} onClick={() => onViewChange("option")}>
               Options
             </button>
           </div>

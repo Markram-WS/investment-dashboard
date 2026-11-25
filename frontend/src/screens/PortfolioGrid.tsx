@@ -18,6 +18,7 @@ import PortfolioHeader from "./components/PortfolioHeader";
 import PageLayout from "../components/PageLayout";
 import PoolRail from "./components/PoolRail";
 import OrderDetailLadder from "./components/OrderDetailLadder";
+import type { LadderView } from "./components/OrderDetailLadder";
 import OrderHistoryCard from "./components/OrderHistoryCard";
 import StrategyNotes from "./components/StrategyNotes";
 import PerformanceSection from "./components/PerformanceSection";
@@ -33,6 +34,30 @@ import { formatMoney } from "../utils/format";
 interface PortfolioGridProps {
   portfolioId?: number | string;
 }
+
+const LADDER_VIEW_VALUES: readonly LadderView[] = ["all", "eq", "option"];
+
+/** One ladder tab per portfolio, so an unmount or reload reopens the last view. */
+const ladderStorageKey = (portfolioId: number) => `at-ladder-view:${portfolioId}`;
+
+const readLadderView = (portfolioId: number | null): LadderView | null => {
+  if (portfolioId == null || !Number.isFinite(portfolioId) || portfolioId < 0 || typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(ladderStorageKey(portfolioId));
+    return (LADDER_VIEW_VALUES as readonly string[]).includes(raw ?? "") ? (raw as LadderView) : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeLadderView = (portfolioId: number, view: LadderView) => {
+  if (!Number.isFinite(portfolioId) || portfolioId < 0 || typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(ladderStorageKey(portfolioId), view);
+  } catch {
+    // Storage unavailable: the in-memory selection still applies for this mount.
+  }
+};
 
 /** The API already prefixes the message; the banner shows that prefix once. */
 const stripLoadErrorPrefix = (message?: string | null) => {
@@ -68,6 +93,13 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const [viewMode, setViewMode] = useState<"equity" | "payoff">("payoff");
   const [performanceData, setPerformanceData] = useState<PerformanceResult | null>(null);
 
+  /** Ladder tab per portfolio: a refetch remounts the ladder, so the parent keeps the selection. */
+  const [ladderViews, setLadderViews] = useState<Record<number, LadderView>>(() => {
+    const mountKey = portfolioId != null ? Number(portfolioId) : NaN;
+    const stored = Number.isFinite(mountKey) ? readLadderView(mountKey) : null;
+    return stored == null ? {} : { [mountKey]: stored };
+  });
+
   /** Mapped portfolios are read-only at the portfolio level, but their
    * `order_writes` block may open per-entity capabilities. */
   const isMapped = Boolean(selectedPortfolio?.read_only);
@@ -78,6 +110,21 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       ? selectedPortfolio.product_tickers
       : selectedPortfolio?.product_ticker ? [selectedPortfolio.product_ticker] : []
   ), [selectedPortfolio?.product_tickers, selectedPortfolio?.product_ticker]);
+
+  const ladderKey = selectedPortfolio?.portfolio_id
+    ?? (portfolioId != null ? Number(portfolioId) : -1);
+  const ladderView = ladderViews[ladderKey] ?? "all";
+  const handleLadderViewChange = useCallback((next: LadderView) => {
+    writeLadderView(ladderKey, next);
+    setLadderViews((prev) => (prev[ladderKey] === next ? prev : { ...prev, [ladderKey]: next }));
+  }, [ladderKey]);
+
+  /** The route's portfolio is only known after analytics load, so hydrate its stored tab too. */
+  React.useEffect(() => {
+    const stored = readLadderView(ladderKey);
+    if (stored == null) return;
+    setLadderViews((prev) => (prev[ladderKey] === undefined ? { ...prev, [ladderKey]: stored } : prev));
+  }, [ladderKey]);
 
   React.useEffect(() => {
     if (!selectedPortfolio) {
@@ -616,6 +663,8 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
               onAssignGroup={handleAssignGroup}
               onLinkOrder={handleLinkOrder}
               onUpdateRemark={canUpdate ? handleUpdateRemark : undefined}
+              view={ladderView}
+              onViewChange={handleLadderViewChange}
               mapped={isMapped}
               canAdd={canInsert}
               canEdit={canUpdate}
