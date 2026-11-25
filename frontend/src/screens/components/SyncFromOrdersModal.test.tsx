@@ -253,7 +253,8 @@ describe('Sync from orders create panel', () => {
     fireEvent.keyDown(underlying, { key: 'Escape' });
 
     const assetType = screen.getByRole('combobox', { name: 'Asset type for S50H26' });
-    expect(within(assetType).getAllByRole('option')[0]).toHaveTextContent('— No type —');
+    expect(within(assetType).getAllByRole('option').map(option => option.textContent))
+      .toEqual(['— No type —', 'Stock', 'Future', 'Option', 'Crypto', 'Mutual Fund']);
     const broker = screen.getByRole('combobox', { name: 'Broker for S50H26' });
     expect(within(broker).getAllByRole('option')[0]).toHaveTextContent('— Unassigned —');
   });
@@ -313,6 +314,24 @@ describe('Sync from orders create panel', () => {
           create_sync_symbol: '',
           create_source: 'manual',
           create_asset_type: 'future',
+        }),
+      ]);
+    });
+  });
+
+  it('sends mutual_fund when Mutual Fund is selected', async () => {
+    renderSync();
+    await openCreate();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Asset type for S50H26' }), { target: { value: 'mutual_fund' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Price source for S50H26' }), { target: { value: 'manual' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply 1' }));
+
+    await waitFor(() => {
+      expect(apiMock.applyAssetProposal).toHaveBeenCalledWith([
+        expect.objectContaining({
+          create_asset_type: 'mutual_fund',
+          create_source: 'manual',
         }),
       ]);
     });

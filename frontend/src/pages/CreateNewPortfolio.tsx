@@ -734,6 +734,7 @@ const CreateNewPortfolio: React.FC = () => {
                     <option value="future">Future</option>
                     <option value="option">Option</option>
                     <option value="crypto">Crypto</option>
+                  <option value="mutual_fund">Mutual Fund</option>
                   </SelectInput>
                   <p style={{ ...CONTROL_HELPER, margin: '4px 0 0' }}>
                     Maps the portfolio's multiplier and margin display to this underlying · broker · type.

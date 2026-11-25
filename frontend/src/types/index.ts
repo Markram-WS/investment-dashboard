@@ -603,7 +603,7 @@ export interface AssetSyncChoice {
   create_product?: boolean;
   create_source?: 'yfinance' | 'tfex' | 'manual';
   create_sync_symbol?: string;
-  create_asset_type?: 'stock' | 'future' | 'option' | 'crypto';
+  create_asset_type?: 'stock' | 'future' | 'option' | 'crypto' | 'mutual_fund';
   /** Optional grouping ticker for the new product; "" means no underlying. */
   create_underlying?: string;
 }

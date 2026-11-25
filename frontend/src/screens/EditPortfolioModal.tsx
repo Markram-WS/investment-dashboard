@@ -493,6 +493,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
                   <option value="future">Future</option>
                   <option value="option">Option</option>
                   <option value="crypto">Crypto</option>
+                  <option value="mutual_fund">Mutual Fund</option>
                 </SelectInput>
               </Field>
               {showResolution && (

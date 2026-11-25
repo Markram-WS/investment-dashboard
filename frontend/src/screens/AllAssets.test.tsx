@@ -291,6 +291,33 @@ describe('All assets two-level rows', () => {
     expect(symbolNames).toEqual(['AAAH26', 'PTT', 'S50S26', 'S50H26', 'S50M26']);
   });
 
+  it('orders mutual_fund after crypto and exposes its tab', async () => {
+    const optionProduct = { ...piFuture, product_id: 50, asset_type: 'option', symbol_count: 0 };
+    const cryptoProduct = { ...piFuture, product_id: 51, asset_type: 'crypto', symbol_count: 0 };
+    const mutualFundProduct = { ...piFuture, product_id: 52, asset_type: 'mutual_fund', symbol_count: 0 };
+    apiMock.getProducts.mockResolvedValue([
+      mutualFundProduct, cryptoProduct, optionProduct, piFuture, piStock,
+    ]);
+    renderRegistry();
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('tr[data-level="product"]')).toHaveLength(5);
+    });
+    const productNames = Array.from(document.querySelectorAll('tr[data-level="product"]'))
+      .map(row => row.querySelector('td')?.textContent?.trim());
+    expect(productNames).toEqual([
+      'S50stock', 'S50future', 'S50option', 'S50crypto', 'S50mutual_fund',
+    ]);
+
+    expect(Array.from(document.querySelectorAll('.at-tab')).map(tab => tab.textContent))
+      .toEqual(['All', 'Stock', 'Future', 'Option', 'Crypto', 'Mutual Fund']);
+    const mutualTab = screen.getByRole('button', { name: 'Mutual Fund' });
+    fireEvent.click(mutualTab);
+    await waitFor(() => {
+      expect(apiMock.getProducts).toHaveBeenLastCalledWith({ asset_type: 'mutual_fund' });
+    });
+  });
+
   it('puts the identity meta in the Price cell and leaves the identity cells blank', async () => {
     renderRegistry();
 

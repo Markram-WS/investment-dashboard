@@ -28,6 +28,10 @@ from app.models import (  # noqa: E402
     Portfolio,
     TradePlan,
 )
+from app.managed_fund_models import (  # noqa: E402
+    ManagedFundHolding,
+    ManagedFundOrder,
+)
 from app.risk_calc import compute_margin_locked, compute_risk  # noqa: E402
 from app.services import asset_registry as registry  # noqa: E402
 from app.routers import assets as assets_router  # noqa: E402
@@ -1627,7 +1631,7 @@ async def test_apply_create_needs_explicit_source_and_provider(
         )
         assert bad_type.status_code == 400
         assert bad_type.json()["detail"] == (
-            "Create needs an asset type: stock, future, option or crypto"
+            "Create needs an asset type: stock, future, option, crypto or mutual_fund"
         )
 
         blank_provider = await async_client.post(
@@ -1748,6 +1752,493 @@ async def test_apply_create_needs_explicit_source_and_provider(
     finally:
         await _delete_orders(tfex_order, manual_order)
         await cleanup_brokers(broker_id)
+
+
+@pytest.mark.asyncio
+async def test_proposal_includes_managed_fund_sources(async_client):
+    broker_id = await create_broker(async_client, "MFP")
+    order_ids: list[str] = []
+    _, Session = get_test_engine()
+    async with Session() as session:
+        fund = Portfolio(
+            portfolio_name="Fund Proposal",
+            port_type="Managed Fund",
+            risk_status="Safe",
+            broker_id=broker_id,
+            x_amount=Decimal("0"),
+            available_cash=Decimal("1000"),
+            margin_locked=Decimal("0"),
+        )
+        brokerless_fund = Portfolio(
+            portfolio_name="Fund Proposal Unassigned",
+            port_type="Managed Fund",
+            risk_status="Safe",
+            broker_id=None,
+            x_amount=Decimal("0"),
+            available_cash=Decimal("0"),
+            margin_locked=Decimal("0"),
+        )
+        session.add_all([fund, brokerless_fund])
+        await session.flush()
+        session.add_all(
+            [
+                ManagedFundHolding(
+                    portfolio_id=fund.portfolio_id,
+                    asset="fund.a ",
+                    qty=Decimal("10"),
+                ),
+                ManagedFundHolding(
+                    portfolio_id=brokerless_fund.portfolio_id,
+                    asset="FUNDNULL",
+                    qty=Decimal("5"),
+                ),
+                ManagedFundOrder(
+                    portfolio_id=fund.portfolio_id,
+                    asset="FUNDP",
+                    side="Buy",
+                    qty=Decimal("1"),
+                    price=Decimal("10"),
+                    status="pending",
+                ),
+                # Final statuses are history, never proposal sources.
+                ManagedFundOrder(
+                    portfolio_id=fund.portfolio_id,
+                    asset="FUNDDONE",
+                    side="Buy",
+                    qty=Decimal("1"),
+                    status="done",
+                ),
+                ManagedFundOrder(
+                    portfolio_id=fund.portfolio_id,
+                    asset="FUNDCANC",
+                    side="Buy",
+                    qty=Decimal("1"),
+                    status="cancelled",
+                ),
+            ]
+        )
+        await session.commit()
+        fund_ids = [fund.portfolio_id, brokerless_fund.portfolio_id]
+
+    try:
+        # One active order shares the holding symbol: the pair must merge.
+        _, _, shared_order = await _seed_order(
+            "FUND.A", broker_id, contract_type="future"
+        )
+        order_ids.append(shared_order)
+
+        proposal = await async_client.get("/api/v1/assets/proposal")
+        assert proposal.status_code == 200, proposal.text
+        items = proposal.json()["items"]
+        by_key = {(item["broker_id"], item["symbol"]): item for item in items}
+
+        # Normalized dedupe: the holding ("fund.a ") and the order ("FUND.A")
+        # are one row, with the active order's contract-type hint.
+        assert len(
+            [
+                item
+                for item in items
+                if item["broker_id"] == broker_id and item["symbol"] == "FUND.A"
+            ]
+        ) == 1
+        shared = by_key[(broker_id, "FUND.A")]
+        assert shared["order_asset_types"] == ["future"]
+        assert shared["broker_required"] is False
+        assert shared["resolved"] is False
+
+        # A fund-only pair carries no contract-type guess.
+        fund_order_item = by_key[(broker_id, "FUNDP")]
+        assert fund_order_item["order_asset_types"] == []
+        assert fund_order_item["broker_required"] is False
+
+        # A brokerless fund portfolio records its symbol under NULL.
+        brokerless_item = by_key[(None, "FUNDNULL")]
+        assert brokerless_item["broker_code"] is None
+        assert brokerless_item["broker_required"] is False
+        assert brokerless_item["order_asset_types"] == []
+
+        # Final-status fund orders are not proposal sources.
+        symbols = {item["symbol"] for item in items}
+        assert "FUNDDONE" not in symbols
+        assert "FUNDCANC" not in symbols
+
+        # Apply creates the identity for a fund symbol exactly like any other
+        # source: product ticker = underlying, symbol key = order symbol.
+        created = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "FUNDP",
+                        "broker_id": broker_id,
+                        "create_product": True,
+                        "create_underlying": "FUNDUND",
+                        "create_source": "manual",
+                        "create_sync_symbol": "",
+                        "create_asset_type": "mutual_fund",
+                    }
+                ]
+            },
+        )
+        assert created.status_code == 200, created.text
+        assert created.json()["created"] == 1
+
+        async with Session() as session:
+            fund_product = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.ticker == "FUNDUND",
+                        AssetProduct.broker_id == broker_id,
+                    )
+                )
+            ).scalars().one()
+            fund_symbol = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.product_id == fund_product.product_id
+                    )
+                )
+            ).scalars().one()
+        assert fund_product.asset_type == "mutual_fund"
+        assert fund_symbol.price_symbol == "FUNDP"
+        assert fund_symbol.sync_symbol == "FUNDP"
+        assert fund_symbol.contract_kind == "mutual_fund"
+
+        # The same fund symbol is now resolved and can attach to that product.
+        refreshed = {
+            (item["broker_id"], item["symbol"]): item
+            for item in (
+                await async_client.get("/api/v1/assets/proposal")
+            ).json()["items"]
+        }
+        assert refreshed[(broker_id, "FUNDP")]["resolved"] is True
+
+        _, _, second_order = await _seed_order(
+            "FUNDP2", broker_id, contract_type="spot"
+        )
+        order_ids.append(second_order)
+        attached = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "FUNDP2",
+                        "broker_id": broker_id,
+                        "product_id": fund_product.product_id,
+                    }
+                ]
+            },
+        )
+        assert attached.status_code == 200, attached.text
+        assert attached.json()["created"] == 1
+    finally:
+        await _delete_orders(*order_ids)
+        await cleanup_brokers(broker_id)
+        async with Session() as session:
+            for model in (ManagedFundOrder, ManagedFundHolding):
+                await session.execute(
+                    delete(model).where(model.portfolio_id.in_(fund_ids))
+                )
+            await session.execute(
+                delete(Portfolio).where(Portfolio.portfolio_id.in_(fund_ids))
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_mutual_fund_identity_and_apply_create(async_client):
+    broker_id = await create_broker(async_client, "FUND")
+    plain = await create_product(
+        async_client,
+        ticker="PLAINF",
+        broker_id=broker_id,
+        asset_type="stock",
+        source="manual",
+    )
+    order_ids = []
+    try:
+        fund = await create_product(
+            async_client,
+            ticker="FUNDX",
+            broker_id=broker_id,
+            asset_type="mutual_fund",
+            multiplier=1,
+            margin_rate=0.05,
+            margin_mode="notional",
+            source="manual",
+        )
+        assert fund["asset_type"] == "mutual_fund"
+        assert fund["margin_rate"] == 0.05
+
+        # The type is a free string on products: update onto and away from it.
+        moved = await async_client.put(
+            f"/api/v1/assets/products/{plain['product_id']}",
+            json={"asset_type": "mutual_fund"},
+        )
+        assert moved.status_code == 200, moved.text
+        assert moved.json()["asset_type"] == "mutual_fund"
+
+        # A contract's type derives from the fund identity; the supplied value
+        # must match it.
+        matching = await create_symbol(
+            async_client,
+            fund["product_id"],
+            price_symbol="FUNDS",
+            sync_symbol="FUNDS",
+            contract_kind="mutual_fund",
+        )
+        assert matching.status_code == 201, matching.text
+        assert matching.json()["contract_kind"] == "mutual_fund"
+        omitted = await create_symbol(
+            async_client,
+            fund["product_id"],
+            price_symbol="FUNDS2",
+            sync_symbol="FUNDS2",
+        )
+        assert omitted.status_code == 201, omitted.text
+        assert omitted.json()["contract_kind"] == "mutual_fund"
+        mismatched = await create_symbol(
+            async_client,
+            fund["product_id"],
+            price_symbol="FUNDS3",
+            sync_symbol="FUNDS3",
+            contract_kind="stock",
+        )
+        assert mismatched.status_code == 400
+        assert mismatched.json()["detail"] == (
+            "contract type is set by the underlying + broker + type"
+        )
+
+        # Apply-create: the fund identity is created as its own product and the
+        # order symbol stays the contract key.
+        _, _, create_order = await _seed_order(
+            "FUNDORD", broker_id, contract_type="spot"
+        )
+        order_ids.append(create_order)
+        created = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "FUNDORD",
+                        "broker_id": broker_id,
+                        "create_product": True,
+                        "create_underlying": "FUNDUND",
+                        "create_source": "manual",
+                        "create_sync_symbol": "",
+                        "create_asset_type": "mutual_fund",
+                    }
+                ]
+            },
+        )
+        assert created.status_code == 200, created.text
+        assert created.json()["created"] == 1
+
+        _, Session = get_test_engine()
+        async with Session() as session:
+            fund_product = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.ticker == "FUNDUND",
+                        AssetProduct.broker_id == broker_id,
+                    )
+                )
+            ).scalars().one()
+            created_symbol = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.product_id == fund_product.product_id
+                    )
+                )
+            ).scalars().one()
+        assert fund_product.asset_type == "mutual_fund"
+        assert fund_product.source == "manual"
+        assert created_symbol.price_symbol == "FUNDORD"
+        assert created_symbol.sync_symbol == "FUNDORD"
+        assert created_symbol.contract_kind == "mutual_fund"
+
+        # The existing-product branch accepts the fund identity too (contract
+        # kind derives without the option-terms requirement).
+        _, _, second_order = await _seed_order(
+            "FUNDORD2", broker_id, contract_type="spot"
+        )
+        order_ids.append(second_order)
+        attached = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "FUNDORD2",
+                        "broker_id": broker_id,
+                        "product_id": fund_product.product_id,
+                    }
+                ]
+            },
+        )
+        assert attached.status_code == 200, attached.text
+        assert attached.json()["created"] == 1
+        async with Session() as session:
+            second_symbol = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.price_symbol == "FUNDORD2"
+                    )
+                )
+            ).scalars().one()
+        assert second_symbol.product_id == fund_product.product_id
+        assert second_symbol.contract_kind == "mutual_fund"
+
+        # Unknown types still use the widened exact message.
+        rejected = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "FUNDORD",
+                        "broker_id": broker_id,
+                        "create_product": True,
+                        "create_underlying": "BADFUND",
+                        "create_source": "manual",
+                        "create_sync_symbol": "",
+                        "create_asset_type": "fund",
+                    }
+                ]
+            },
+        )
+        assert rejected.status_code == 400
+        assert rejected.json()["detail"] == (
+            "Create needs an asset type: stock, future, option, crypto or "
+            "mutual_fund"
+        )
+    finally:
+        await _delete_orders(*order_ids)
+        await cleanup_brokers(broker_id)
+
+
+@pytest.mark.asyncio
+async def test_mutual_fund_margin_notional_and_span(async_client):
+    _, Session = get_test_engine()
+    async with Session() as session:
+        broker = Broker(code="MFMG", name="Fund Margin Broker")
+        session.add(broker)
+        await session.flush()
+        notional = AssetProduct(
+            ticker="FNDN",
+            broker_id=broker.id,
+            asset_type="mutual_fund",
+            multiplier=Decimal("1"),
+            margin_rate=Decimal("0.05"),
+            margin_mode="notional",
+            source="-",
+        )
+        span = AssetProduct(
+            ticker="FNDS",
+            broker_id=broker.id,
+            asset_type="mutual_fund",
+            multiplier=Decimal("2"),
+            margin_rate=Decimal("0"),
+            margin_mode="span",
+            margin_per_contract=Decimal("7"),
+            source="-",
+        )
+        session.add_all([notional, span])
+        await session.flush()
+        session.add_all(
+            [
+                AssetSymbol(
+                    product_id=notional.product_id,
+                    broker_id=broker.id,
+                    price_symbol="FNDN",
+                    sync_symbol="FNDN",
+                ),
+                AssetSymbol(
+                    product_id=span.product_id,
+                    broker_id=broker.id,
+                    price_symbol="FNDS",
+                    sync_symbol="FNDS",
+                ),
+            ]
+        )
+        portfolio = Portfolio(
+            portfolio_name="Fund Margin",
+            port_type="Active Trading",
+            risk_status="Safe",
+            broker_id=broker.id,
+            product_ticker="FNDN",
+            product_tickers=["FNDN"],
+            product_type="mutual_fund",
+            x_amount=Decimal("50"),
+            available_cash=Decimal("1000"),
+            margin_locked=Decimal("0"),
+        )
+        session.add(portfolio)
+        await session.flush()
+        plan = TradePlan(portfolio_id=portfolio.portfolio_id)
+        session.add(plan)
+        await session.flush()
+        for asset, qty in (("FNDN", 2), ("FNDS", 3)):
+            session.add(
+                ActiveOrder(
+                    plan_id=plan.plan_id,
+                    portfolio_id=portfolio.portfolio_id,
+                    asset_type=asset,
+                    side="Buy",
+                    qty=Decimal(str(qty)),
+                    entry_price=Decimal("100"),
+                    current_price=Decimal("100"),
+                    contract_type="spot",
+                )
+            )
+        await session.commit()
+        portfolio_id = portfolio.portfolio_id
+        broker_id = broker.id
+
+    try:
+        async with Session() as session:
+            loaded = await session.get(Portfolio, portfolio_id)
+            orders = (
+                await session.execute(
+                    select(ActiveOrder).where(
+                        ActiveOrder.portfolio_id == portfolio_id
+                    )
+                )
+            ).scalars().all()
+            margin = await compute_margin_locked(session, loaded)
+            risk = await compute_risk(session, loaded, orders)
+
+        # A fund behaves like any non-option: notional 100×1×2×0.05 = 10 and
+        # span 3×7 = 21, counted in the equity bucket.
+        assert margin == pytest.approx(31.0)
+        assert risk["margin_locked"] == pytest.approx(31.0)
+        assert risk["eq"]["orders"] == 2
+        assert risk["options"]["buckets"] == {
+            "short_call": {"orders": 0, "lots": 0.0, "avg_premium": 0.0, "pl": 0.0},
+            "short_put": {"orders": 0, "lots": 0.0, "avg_premium": 0.0, "pl": 0.0},
+            "long_call": {"orders": 0, "lots": 0.0, "avg_premium": 0.0, "pl": 0.0},
+            "long_put": {"orders": 0, "lots": 0.0, "avg_premium": 0.0, "pl": 0.0},
+        }
+        # Display values resolve the typed fund identity.
+        assert risk["multiplier"] == 1.0
+        assert risk["margin_rate"] == 0.05
+    finally:
+        async with Session() as session:
+            await session.execute(
+                delete(ActiveOrder).where(ActiveOrder.portfolio_id == portfolio_id)
+            )
+            await session.execute(
+                delete(TradePlan).where(TradePlan.portfolio_id == portfolio_id)
+            )
+            await session.execute(
+                delete(AssetSymbol).where(AssetSymbol.broker_id == broker_id)
+            )
+            await session.execute(
+                delete(AssetProduct).where(AssetProduct.broker_id == broker_id)
+            )
+            await session.execute(
+                delete(Portfolio).where(Portfolio.portfolio_id == portfolio_id)
+            )
+            await session.execute(delete(Broker).where(Broker.id == broker_id))
+            await session.commit()
 
 
 @pytest.mark.asyncio
@@ -2195,7 +2686,7 @@ async def test_portfolio_product_type_display_identity(async_client):
         )
         assert invalid.status_code == 400
         assert invalid.json()["detail"] == (
-            "product_type must be one of stock, future, option or crypto"
+            "product_type must be one of stock, future, option, crypto or mutual_fund"
         )
         cleared = await async_client.put(
             f"/api/v1/portfolios/{portfolio_id}", json={"product_type": None}

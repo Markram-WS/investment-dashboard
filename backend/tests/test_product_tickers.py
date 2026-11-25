@@ -23,6 +23,7 @@ async def test_portfolio_product_type_payload_update_and_validation(async_client
     _, Session = get_test_engine()
     typed_id = None
     untyped_id = None
+    fund_id = None
     try:
         # Create accepts the identity type and persists it; omitted = null.
         typed = await async_client.post(
@@ -46,6 +47,25 @@ async def test_portfolio_product_type_payload_update_and_validation(async_client
         untyped_id = untyped.json()["portfolio_id"]
         assert untyped.json()["product_type"] is None
 
+        # mutual_fund is a first-class identity type.
+        fund = await async_client.post(
+            "/api/v1/portfolios",
+            json={
+                "portfolio_name": "Fund Identity",
+                "port_type": "Managed Fund",
+                "product_type": "mutual_fund",
+            },
+        )
+        assert fund.status_code == 201, fund.text
+        fund_id = fund.json()["portfolio_id"]
+        assert fund.json()["product_type"] == "mutual_fund"
+        fund_update = await async_client.put(
+            f"/api/v1/portfolios/{fund_id}",
+            json={"product_type": " Mutual_Fund "},
+        )
+        assert fund_update.status_code == 200, fund_update.text
+        assert fund_update.json()["product_type"] == "mutual_fund"
+
         invalid_create = await async_client.post(
             "/api/v1/portfolios",
             json={
@@ -56,7 +76,7 @@ async def test_portfolio_product_type_payload_update_and_validation(async_client
         )
         assert invalid_create.status_code == 400
         assert invalid_create.json()["detail"] == (
-            "product_type must be one of stock, future, option or crypto"
+            "product_type must be one of stock, future, option, crypto or mutual_fund"
         )
 
         # Detail and list payloads expose it.
@@ -87,7 +107,7 @@ async def test_portfolio_product_type_payload_update_and_validation(async_client
             )
             assert rejected.status_code == 400
             assert rejected.json()["detail"] == (
-                "product_type must be one of stock, future, option or crypto"
+                "product_type must be one of stock, future, option, crypto or mutual_fund"
             )
 
         # Explicit null clears only the type; the ticker stays.
@@ -106,7 +126,11 @@ async def test_portfolio_product_type_payload_update_and_validation(async_client
             await session.execute(
                 delete(Portfolio).where(
                     Portfolio.portfolio_id.in_(
-                        [pid for pid in (typed_id, untyped_id) if pid is not None]
+                        [
+                            pid
+                            for pid in (typed_id, untyped_id, fund_id)
+                            if pid is not None
+                        ]
                     )
                 )
             )

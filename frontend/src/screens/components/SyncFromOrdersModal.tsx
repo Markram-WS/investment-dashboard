@@ -7,9 +7,10 @@ import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './modalLayou
 import { CONTROL_BUTTON_PRIMARY, CONTROL_BUTTON_SECONDARY, CONTROL_HELPER, CONTROL_INPUT, CONTROL_LABEL, CONTROL_TITLE } from './controlStyles';
 import { apiErrorDetail } from './apiError';
 import EntityCombobox from './EntityCombobox';
+import { assetTypeLabel } from './ProductSelector';
 import type { EntityOption } from './EntityCombobox';
 
-type CreateAssetType = 'stock' | 'future' | 'option' | 'crypto';
+type CreateAssetType = 'stock' | 'future' | 'option' | 'crypto' | 'mutual_fund';
 type CreateSource = 'yfinance' | 'tfex' | 'manual';
 
 interface CreateDraft {
@@ -20,7 +21,7 @@ interface CreateDraft {
 }
 
 const EMPTY_CREATE_DRAFT: CreateDraft = { underlying: '', assetType: '', source: '', syncSymbol: '' };
-const ASSET_TYPE_OPTIONS: CreateAssetType[] = ['stock', 'future', 'option', 'crypto'];
+const ASSET_TYPE_OPTIONS: CreateAssetType[] = ['stock', 'future', 'option', 'crypto', 'mutual_fund'];
 const SOURCE_OPTIONS: { value: CreateSource; label: string }[] = [
   { value: 'yfinance', label: 'yfinance (Yahoo Finance)' },
   { value: 'tfex', label: 'tfex (TFEX)' },
@@ -395,7 +396,7 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                                     >
                                       <option value="" style={{ color: 'var(--color-slate)' }}>— No type —</option>
                                       {ASSET_TYPE_OPTIONS.map((assetType) => (
-                                        <option key={assetType} value={assetType}>{assetType}</option>
+                                        <option key={assetType} value={assetType}>{assetTypeLabel(assetType)}</option>
                                       ))}
                                     </select>
                                     {!draft.assetType && (

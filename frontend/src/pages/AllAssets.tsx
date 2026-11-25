@@ -18,6 +18,7 @@ const TYPE_TABS = [
   { value: 'future', label: 'Future' },
   { value: 'option', label: 'Option' },
   { value: 'crypto', label: 'Crypto' },
+  { value: 'mutual_fund', label: 'Mutual Fund' },
 ];
 
 /** Sources the backend can fetch a quote for. */
@@ -94,9 +95,10 @@ const ASSET_TYPE_RANK: Record<string, number> = {
   future: 1,
   option: 2,
   crypto: 3,
+  mutual_fund: 4,
 };
-const UNKNOWN_TYPE_RANK = 4;
-const NULL_TYPE_RANK = 5;
+const UNKNOWN_TYPE_RANK = 5;
+const NULL_TYPE_RANK = 6;
 
 const typeRank = (type: string | null) =>
   type == null ? NULL_TYPE_RANK : ASSET_TYPE_RANK[type] ?? UNKNOWN_TYPE_RANK;

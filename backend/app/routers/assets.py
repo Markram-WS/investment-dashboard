@@ -36,6 +36,7 @@ from app.models import (
     CustomPortfolioConnection,
     Portfolio,
 )
+from app.managed_fund_models import ManagedFundHolding, ManagedFundOrder
 from app.services import asset_registry as registry
 
 from app.services import tfex_service
@@ -998,9 +999,11 @@ async def _collect_proposal_pairs(
 ) -> dict[tuple[Optional[int], str], _ProposalPair]:
     """``(broker_id, normalized symbol) -> _ProposalPair``.
 
-    Includes main, owned-custom and mapped active orders; Managed Fund holdings
-    and history are never read. ``broker_required`` marks a brokerless Active
-    Trading portfolio, which cannot receive a registry symbol.
+    Includes main, owned-custom and mapped active orders plus Managed Fund
+    holdings and open orders. A fund source records no contract type, so it
+    contributes to the pair but never to ``order_asset_types``.
+    ``broker_required`` marks a brokerless Active Trading portfolio, which
+    cannot receive a registry symbol; fund pairs never set it.
     ``order_asset_types`` is the distinct order asset type recorded on the
     orders behind the pair — a hint for the user, never a default.
     """
@@ -1095,6 +1098,41 @@ async def _collect_proposal_pairs(
                 exc_info=True,
             )
             continue
+
+    # Managed Fund sources: holdings and still-open orders. They merge into the
+    # same (broker, symbol) pairs as every other source; a fund row carries no
+    # contract type, so it never invents an ``order_asset_types`` hint.
+    fund_holdings = (
+        await db.execute(
+            select(ManagedFundHolding.asset, Portfolio.broker_id).join(
+                Portfolio,
+                Portfolio.portfolio_id == ManagedFundHolding.portfolio_id,
+            )
+        )
+    ).all()
+    for holding_asset, broker_id in fund_holdings:
+        record(
+            broker_id,
+            registry.normalise_symbol(holding_asset),
+            None,
+            broker_required=False,
+        )
+    fund_orders = (
+        await db.execute(
+            select(ManagedFundOrder.asset, Portfolio.broker_id)
+            .join(Portfolio, Portfolio.portfolio_id == ManagedFundOrder.portfolio_id)
+            .where(
+                func.lower(ManagedFundOrder.status).notin_(("done", "cancelled"))
+            )
+        )
+    ).all()
+    for order_asset, broker_id in fund_orders:
+        record(
+            broker_id,
+            registry.normalise_symbol(order_asset),
+            None,
+            broker_required=False,
+        )
     return pairs
 
 
@@ -1182,7 +1220,7 @@ async def sync_proposal(db: AsyncSession = Depends(get_db)):
 
 
 CREATE_SOURCES = ("yfinance", "tfex", "manual")
-CREATE_ASSET_TYPES = ("stock", "future", "option", "crypto")
+CREATE_ASSET_TYPES = ("stock", "future", "option", "crypto", "mutual_fund")
 
 
 def _validated_create_fields(
@@ -1203,7 +1241,9 @@ def _validated_create_fields(
     asset_type = (choice.create_asset_type or "").strip().lower()
     if asset_type and asset_type not in CREATE_ASSET_TYPES:
         raise HTTPException(
-            400, "Create needs an asset type: stock, future, option or crypto"
+            400,
+            "Create needs an asset type: stock, future, option, crypto or "
+            "mutual_fund",
         )
     sync_symbol = (choice.create_sync_symbol or "").strip()
     if source != "manual" and not sync_symbol:
@@ -1335,7 +1375,7 @@ async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db))
                         "Add the option contract in All-assets — a sync row has "
                         "no expiry, strike or type",
                     )
-                if kind not in ("stock", "future", "crypto"):
+                if kind not in ("stock", "future", "crypto", "mutual_fund"):
                     raise HTTPException(
                         400,
                         f"Set the asset type of product {product.ticker} "

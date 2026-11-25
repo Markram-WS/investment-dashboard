@@ -119,7 +119,7 @@ describe('Edit portfolio identity', () => {
     const listbox = screen.getByRole('listbox');
     expect(within(listbox).getAllByRole('option')[0]).toHaveTextContent('— No type —');
     expect(within(listbox).getAllByRole('option').map(option => option.textContent))
-      .toEqual(['— No type —', 'Stock', 'Future', 'Option', 'Crypto']);
+      .toEqual(['— No type —', 'Stock', 'Future', 'Option', 'Crypto', 'Mutual Fund']);
     rect.mockRestore();
   });
 
@@ -136,6 +136,23 @@ describe('Edit portfolio identity', () => {
     await waitFor(() => {
       expect(apiMock.updatePortfolio).toHaveBeenCalledWith(1, expect.objectContaining({
         product_type: 'future',
+      }));
+    });
+  });
+
+  it('posts product_type mutual_fund when Mutual Fund is selected', async () => {
+    renderModal();
+    await waitFor(() => expect(apiMock.getProducts).toHaveBeenCalled());
+
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Type' }), { key: 'm' });
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Type' })).toHaveTextContent('Mutual Fund');
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(apiMock.updatePortfolio).toHaveBeenCalledWith(1, expect.objectContaining({
+        product_type: 'mutual_fund',
       }));
     });
   });

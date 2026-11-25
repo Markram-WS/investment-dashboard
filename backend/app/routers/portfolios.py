@@ -174,10 +174,13 @@ def _normalize_product_type(value: Optional[str]) -> Optional[str]:
     if value is None:
         return None
     normalized = str(value).strip().lower()
-    if normalized not in ("stock", "future", "option", "crypto"):
+    if normalized not in ("stock", "future", "option", "crypto", "mutual_fund"):
         raise HTTPException(
             status_code=400,
-            detail="product_type must be one of stock, future, option or crypto",
+            detail=(
+                "product_type must be one of stock, future, option, crypto "
+                "or mutual_fund"
+            ),
         )
     return normalized
 

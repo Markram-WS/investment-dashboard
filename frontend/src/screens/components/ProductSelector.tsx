@@ -5,7 +5,11 @@ import { Field, SelectInput } from './Field';
 import { CONTROL_HELPER } from './controlStyles';
 
 /** Asset types a product identity can declare, shared by both asset modals. */
-export const ASSET_TYPES = ['stock', 'future', 'option', 'crypto'];
+export const ASSET_TYPES = ['stock', 'future', 'option', 'crypto', 'mutual_fund'];
+
+/** Display label for one asset type; mutual_fund is the only two-word value. */
+export const assetTypeLabel = (type: string): string =>
+  type === 'mutual_fund' ? 'Mutual Fund' : type.charAt(0).toUpperCase() + type.slice(1);
 
 /** The three identity dimensions that together pick one product. */
 export interface ProductSelection {
@@ -110,7 +114,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
             onChange={e => update({ type: e.target.value })}>
             <option value="" data-muted="true">— No type —</option>
             {ASSET_TYPES.map(type => (
-              <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
+              <option key={type} value={type}>{assetTypeLabel(type)}</option>
             ))}
           </SelectInput>
         </Field>

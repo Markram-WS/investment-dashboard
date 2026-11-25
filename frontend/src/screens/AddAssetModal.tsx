@@ -10,6 +10,7 @@ import { CONTROL_HELPER, CONTROL_TITLE } from './components/controlStyles';
 import { apiErrorDetail } from './components/apiError';
 import ProductSelector, {
   ASSET_TYPES,
+  assetTypeLabel,
   NO_MATCHING_PRODUCT,
   resolveProduct,
   selectionForProduct,
@@ -405,7 +406,7 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                   <SelectInput id="add-product-type" value={productForm.asset_type}
                     onChange={e => setProductForm(p => ({ ...p, asset_type: e.target.value }))}>
                     <option value="" data-muted="true">— No type —</option>
-                    {ASSET_TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                    {ASSET_TYPES.map(t => <option key={t} value={t}>{assetTypeLabel(t)}</option>)}
                   </SelectInput>
                 </Field>
               </div>

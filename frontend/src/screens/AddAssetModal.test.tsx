@@ -197,6 +197,16 @@ const productNoSymbols: AssetProduct = {
   symbol_count: 0,
 };
 
+const mutualFundProduct: AssetProduct = {
+  ...product,
+  product_id: 11,
+  asset_type: 'mutual_fund',
+  multiplier: 1,
+  margin_rate: 0,
+  source: 'manual',
+  symbol_count: 0,
+};
+
 const createdFuture: AssetProduct = {
   ...pttStock,
   product_id: 9,
@@ -738,8 +748,10 @@ describe('Unified identity null entries', () => {
     const trigger = screen.getByRole('combobox', { name });
     fireEvent.click(trigger);
     const listbox = screen.getByRole('listbox');
-    expect(within(listbox).getAllByRole('option')[0]).toHaveTextContent(label);
+    const labels = within(listbox).getAllByRole('option').map(option => option.textContent);
+    expect(labels[0]).toContain(label);
     fireEvent.keyDown(trigger, { key: 'Escape' });
+    return labels;
   };
 
   it('puts the unified null entries first in both symbol modals', async () => {
@@ -750,7 +762,9 @@ describe('Unified identity null entries', () => {
     });
     expectNullFirst('Underlying', '— No underlying —');
     expectNullFirst('Broker', '— Unassigned —');
-    expectNullFirst('Type', '— No type —');
+    expect(expectNullFirst('Type', '— No type —')).toEqual([
+      '— No type —', 'Stock', 'Future', 'Option', 'Crypto', 'Mutual Fund',
+    ]);
     unmount();
 
     renderSymbolEdit();
@@ -768,8 +782,8 @@ describe('Unified identity null entries', () => {
     const { unmount } = renderProductCreate();
     const addType = screen.getByRole('combobox', { name: 'Type' });
     fireEvent.click(addType);
-    expect(within(screen.getByRole('listbox')).getAllByRole('option')[0])
-      .toHaveTextContent('— No type —');
+    expect(within(screen.getByRole('listbox')).getAllByRole('option').map(option => option.textContent))
+      .toEqual(['— No type —', 'Stock', 'Future', 'Option', 'Crypto', 'Mutual Fund']);
     fireEvent.keyDown(addType, { key: 'Escape' });
     unmount();
 
@@ -784,8 +798,8 @@ describe('Unified identity null entries', () => {
     );
     const editType = screen.getByRole('combobox', { name: 'Type' });
     fireEvent.click(editType);
-    expect(within(screen.getByRole('listbox')).getAllByRole('option')[0])
-      .toHaveTextContent('— No type —');
+    expect(within(screen.getByRole('listbox')).getAllByRole('option').map(option => option.textContent))
+      .toEqual(['— No type —', 'Stock', 'Future', 'Option', 'Crypto', 'Mutual Fund']);
     fireEvent.keyDown(editType, { key: 'Escape' });
     spy.mockRestore();
   });
@@ -924,6 +938,32 @@ describe('Symbol modal product resolution', () => {
     expect(apiMock.createSymbol).not.toHaveBeenCalled();
     expect(apiMock.updateSymbol).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+
+  it('selects Mutual Fund and creates a mutual_fund identity', async () => {
+    const user = userEvent.setup();
+    apiMock.createProduct.mockResolvedValue(mutualFundProduct);
+    apiMock.createSymbol.mockResolvedValue({});
+
+    renderSymbolCreate(product);
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Underlying' })).toHaveTextContent('S50');
+    });
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Type' }), { key: 'm' });
+
+    expect(await screen.findByText('No product matches — this will create S50 · PI · mutual_fund.'))
+      .toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Type' })).toHaveTextContent('Mutual Fund');
+    await user.type(screen.getByLabelText(/Sync symbol/), 'S50MF');
+    fireEvent.keyDown(screen.getByRole('combobox', { name: /Price source/ }), { key: 'm' });
+    await user.click(screen.getByRole('button', { name: 'Create product & apply' }));
+
+    await waitFor(() => expect(apiMock.createProduct).toHaveBeenCalledWith(expect.objectContaining({
+      asset_type: 'mutual_fund',
+    })));
+    await waitFor(() => expect(apiMock.createSymbol).toHaveBeenCalledWith(11, expect.objectContaining({
+      sync_symbol: 'S50MF',
+    })));
   });
 
   it('does not offer creation for the existing all-dash default identity', async () => {
