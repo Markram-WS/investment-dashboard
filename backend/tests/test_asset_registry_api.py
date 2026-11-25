@@ -417,7 +417,9 @@ async def test_batch_refresh_fetches_each_key_once(async_client, monkeypatch):
     await cleanup_brokers(broker_a, broker_b, broker_c)
 
 
-async def _seed_order(symbol: str, broker_id: int | None) -> tuple[int, int, int]:
+async def _seed_order(
+    symbol: str, broker_id: int | None, contract_type: str = "stock"
+) -> tuple[int, int, int]:
     _, Session = get_test_engine()
     async with Session() as session:
         portfolio = Portfolio(
@@ -441,7 +443,7 @@ async def _seed_order(symbol: str, broker_id: int | None) -> tuple[int, int, int
             side="Buy",
             qty=Decimal("1"),
             entry_price=Decimal("10"),
-            contract_type="stock",
+            contract_type=contract_type,
         )
         session.add(order)
         await session.commit()
@@ -482,8 +484,9 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
     broker_id = await create_broker(async_client, "SYN1")
     other_broker = await create_broker(async_client, "SYN2")
     brokerless_portfolio, _, brokerless_order = await _seed_order("NOBROKER", None)
-    portfolio_id, _, order_id = await _seed_order("NEWSYM", broker_id)
-    sync_portfolio, _, sync_order = await _seed_order("THBSYM", broker_id)
+    portfolio_id, _, order_id = await _seed_order(
+        "NEWSYM", broker_id, contract_type="future"
+    )
 
     try:
         proposal = await async_client.get("/api/v1/assets/proposal")
@@ -493,11 +496,9 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
             for item in proposal.json()["items"]
         }
         item = items[(broker_id, "NEWSYM")]
-        assert item["create"]["ticker"] == "NEWSYM"
-        assert item["create"]["asset_type"] is None
-        assert item["create"]["multiplier"] == 1.0
-        assert item["create"]["margin_rate"] == 0.0
-        assert item["create"]["margin_mode"] == "notional"
+        assert item["create"] == {"ticker": "NEWSYM"}
+        assert item["order_asset_types"] == ["future"]
+        assert item["broker_required"] is False
         assert items[(None, "NOBROKER")]["broker_required"] is True
 
         # Exactly one of product_id / create_product.
@@ -568,7 +569,14 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
             "/api/v1/assets/apply",
             json={
                 "choices": [
-                    {"symbol": "NEWSYM", "broker_id": broker_id, "create_product": True}
+                    {
+                        "symbol": "NEWSYM",
+                        "broker_id": broker_id,
+                        "create_product": True,
+                        "create_source": "yfinance",
+                        "create_sync_symbol": "NEWSYM",
+                        "create_asset_type": "stock",
+                    }
                 ]
             },
         )
@@ -580,7 +588,14 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
             "/api/v1/assets/apply",
             json={
                 "choices": [
-                    {"symbol": "NOBROKER", "broker_id": None, "create_product": True}
+                    {
+                        "symbol": "NOBROKER",
+                        "broker_id": None,
+                        "create_product": True,
+                        "create_source": "yfinance",
+                        "create_sync_symbol": "NOBROKER",
+                        "create_asset_type": "stock",
+                    }
                 ]
             },
         )
@@ -599,7 +614,14 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
             "/api/v1/assets/apply",
             json={
                 "choices": [
-                    {"symbol": "NEWSYM", "broker_id": broker_id, "create_product": True}
+                    {
+                        "symbol": "NEWSYM",
+                        "broker_id": broker_id,
+                        "create_product": True,
+                        "create_source": "yfinance",
+                        "create_sync_symbol": "NEWSYM",
+                        "create_asset_type": "stock",
+                    }
                 ]
             },
         )
@@ -610,7 +632,14 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
             "/api/v1/assets/apply",
             json={
                 "choices": [
-                    {"symbol": "FRESHSYM", "broker_id": broker_id, "create_product": True}
+                    {
+                        "symbol": "FRESHSYM",
+                        "broker_id": broker_id,
+                        "create_product": True,
+                        "create_source": "yfinance",
+                        "create_sync_symbol": "FRESHSYM.BK",
+                        "create_asset_type": "stock",
+                    }
                 ]
             },
         )
@@ -634,9 +663,14 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
                     )
                 )
             ).scalars().first()
-        assert product.asset_type is None
+        assert product.asset_type == "stock"
+        assert product.source == "yfinance"
+        assert product.multiplier == 1
+        assert product.margin_rate == 0
+        assert product.margin_mode == "notional"
         assert symbol.price_symbol == "FRESHSYM"
-        assert symbol.sync_symbol == "FRESHSYM"
+        assert symbol.sync_symbol == "FRESHSYM.BK"
+        assert symbol.contract_kind == "stock"
 
         # Same-owner selection is idempotent.
         again = await async_client.post(
@@ -654,7 +688,8 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
         assert again.status_code == 200
         assert again.json()["created"] == 0
 
-        # THB broker creates a .BK sync key for yfinance.
+        # A THB broker changes nothing: the create default still carries only
+        # the dashboard ticker, with no guessed provider symbol.
         thb_broker = await create_broker(async_client, "SYN3", currency="THB")
         thb_portfolio, _, thb_order = await _seed_order("PTT", thb_broker)
         thb_proposal = await async_client.get("/api/v1/assets/proposal")
@@ -662,13 +697,225 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
             (item["broker_id"], item["symbol"]): item
             for item in thb_proposal.json()["items"]
         }
-        assert thb_items[(thb_broker, "PTT")]["create"]["sync_symbol"] == "PTT.BK"
+        assert thb_items[(thb_broker, "PTT")]["create"] == {"ticker": "PTT"}
+        assert "sync_symbol" not in thb_items[(thb_broker, "PTT")]["create"]
 
         await cleanup_brokers(broker_id, other_broker, thb_broker)
     finally:
         await _delete_orders(
-            order_id, brokerless_order, sync_order, third_order, thb_order
+            order_id, brokerless_order, third_order, thb_order
         )
+
+
+@pytest.mark.asyncio
+async def test_apply_create_needs_explicit_source_type_and_provider(
+    async_client, monkeypatch
+):
+    broker_id = await create_broker(async_client, "SYN4")
+    _, _, tfex_order = await _seed_order(
+        "S50Z26", broker_id, contract_type="future"
+    )
+    _, _, manual_order = await _seed_order(
+        "MANOPT", broker_id, contract_type="option"
+    )
+    calls = []
+
+    def fake_fetch(source, sync_symbol):
+        calls.append((source, sync_symbol))
+        return 10.0, 1.0
+
+    monkeypatch.setattr(registry, "_fetch_quote", fake_fetch)
+    base = {"broker_id": broker_id, "create_product": True}
+
+    try:
+        missing_source = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "S50Z26",
+                        **base,
+                        "create_asset_type": "future",
+                        "create_sync_symbol": "S50Z26",
+                    }
+                ]
+            },
+        )
+        assert missing_source.status_code == 400
+        assert missing_source.json()["detail"] == (
+            "Create needs a price source: yfinance, tfex or manual"
+        )
+
+        bad_source = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "S50Z26",
+                        **base,
+                        "create_source": "polygon",
+                        "create_asset_type": "future",
+                        "create_sync_symbol": "S50Z26",
+                    }
+                ]
+            },
+        )
+        assert bad_source.status_code == 400
+        assert bad_source.json()["detail"] == (
+            "Create needs a price source: yfinance, tfex or manual"
+        )
+
+        missing_type = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "S50Z26",
+                        **base,
+                        "create_source": "tfex",
+                        "create_sync_symbol": "S50Z26",
+                    }
+                ]
+            },
+        )
+        assert missing_type.status_code == 400
+        assert missing_type.json()["detail"] == (
+            "Create needs an asset type: stock, future, option or crypto"
+        )
+
+        bad_type = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "S50Z26",
+                        **base,
+                        "create_source": "tfex",
+                        "create_sync_symbol": "S50Z26",
+                        "create_asset_type": "bond",
+                    }
+                ]
+            },
+        )
+        assert bad_type.status_code == 400
+        assert bad_type.json()["detail"] == (
+            "Create needs an asset type: stock, future, option or crypto"
+        )
+
+        blank_provider = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "S50Z26",
+                        **base,
+                        "create_source": "yfinance",
+                        "create_sync_symbol": "   ",
+                        "create_asset_type": "stock",
+                    }
+                ]
+            },
+        )
+        assert blank_provider.status_code == 400
+        assert blank_provider.json()["detail"] == (
+            "Create needs the provider symbol (sync_symbol)"
+        )
+
+        # Nothing was written by the rejected choices.
+        _, Session = get_test_engine()
+        async with Session() as session:
+            assert (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.broker_id == broker_id
+                    )
+                )
+            ).scalars().first() is None
+            assert calls == []
+
+        tfex_created = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "S50Z26",
+                        **base,
+                        "create_source": "tfex",
+                        "create_sync_symbol": "S50Z26",
+                        "create_asset_type": "future",
+                    }
+                ]
+            },
+        )
+        assert tfex_created.status_code == 200, tfex_created.text
+        assert tfex_created.json()["created"] == 1
+        assert calls == [("tfex", "S50Z26")]
+
+        manual_created = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "MANOPT",
+                        **base,
+                        "create_source": "manual",
+                        "create_sync_symbol": "",
+                        "create_asset_type": "option",
+                    }
+                ]
+            },
+        )
+        assert manual_created.status_code == 200, manual_created.text
+        assert manual_created.json()["created"] == 1
+        # A manual product never reaches the provider.
+        assert calls == [("tfex", "S50Z26")]
+
+        async with Session() as session:
+            tfex_product = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.ticker == "S50Z26",
+                        AssetProduct.broker_id == broker_id,
+                    )
+                )
+            ).scalars().one()
+            tfex_symbol = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.product_id == tfex_product.product_id
+                    )
+                )
+            ).scalars().one()
+            manual_product = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.ticker == "MANOPT",
+                        AssetProduct.broker_id == broker_id,
+                    )
+                )
+            ).scalars().one()
+            manual_symbol = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.product_id == manual_product.product_id
+                    )
+                )
+            ).scalars().one()
+
+        assert tfex_product.source == "tfex"
+        assert tfex_product.asset_type == "future"
+        assert tfex_symbol.price_symbol == "S50Z26"
+        assert tfex_symbol.sync_symbol == "S50Z26"
+        assert tfex_symbol.contract_kind == "future"
+
+        assert manual_product.source == "manual"
+        assert manual_product.asset_type == "option"
+        assert manual_symbol.price_symbol == "MANOPT"
+        assert manual_symbol.sync_symbol == "MANOPT"
+        assert manual_symbol.contract_kind == "option"
+    finally:
+        await _delete_orders(tfex_order, manual_order)
+        await cleanup_brokers(broker_id)
 
 
 @pytest.mark.asyncio
@@ -1344,7 +1591,14 @@ async def test_apply_default_product_owner_collision_and_multi_choice(
             "/api/v1/assets/apply",
             json={
                 "choices": [
-                    {"symbol": "COLSYM", "broker_id": broker_id, "create_product": True}
+                    {
+                        "symbol": "COLSYM",
+                        "broker_id": broker_id,
+                        "create_product": True,
+                        "create_source": "manual",
+                        "create_sync_symbol": "",
+                        "create_asset_type": "stock",
+                    }
                 ]
             },
         )
@@ -1358,8 +1612,22 @@ async def test_apply_default_product_owner_collision_and_multi_choice(
             "/api/v1/assets/apply",
             json={
                 "choices": [
-                    {"symbol": "MULT1", "broker_id": broker_id, "create_product": True},
-                    {"symbol": "MULT2", "broker_id": broker_id, "create_product": True},
+                    {
+                        "symbol": "MULT1",
+                        "broker_id": broker_id,
+                        "create_product": True,
+                        "create_source": "tfex",
+                        "create_sync_symbol": "MULT1Z26",
+                        "create_asset_type": "future",
+                    },
+                    {
+                        "symbol": "MULT2",
+                        "broker_id": broker_id,
+                        "create_product": True,
+                        "create_source": "manual",
+                        "create_sync_symbol": "",
+                        "create_asset_type": "crypto",
+                    },
                 ]
             },
         )
@@ -1384,6 +1652,16 @@ async def test_apply_default_product_owner_collision_and_multi_choice(
             ).scalars().all()
         assert len(created_products) == 2
         assert len(created_symbols) == 2
+        by_ticker = {product.ticker: product for product in created_products}
+        assert by_ticker["MULT1"].asset_type == "future"
+        assert by_ticker["MULT1"].source == "tfex"
+        assert by_ticker["MULT2"].asset_type == "crypto"
+        assert by_ticker["MULT2"].source == "manual"
+        symbols_by_key = {symbol.price_symbol: symbol for symbol in created_symbols}
+        assert symbols_by_key["MULT1"].sync_symbol == "MULT1Z26"
+        assert symbols_by_key["MULT1"].contract_kind == "future"
+        assert symbols_by_key["MULT2"].sync_symbol == "MULT2"
+        assert symbols_by_key["MULT2"].contract_kind == "crypto"
     finally:
         await _delete_orders(*orders)
         await cleanup_brokers(broker_id)

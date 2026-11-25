@@ -33,7 +33,6 @@ from app.models import (
     ActiveOrder,
     AssetProduct,
     AssetSymbol,
-    Broker,
     CustomPortfolioConnection,
     Portfolio,
 )
@@ -371,6 +370,9 @@ class SyncChoice(BaseModel):
     broker_id: Optional[int] = None
     product_id: Optional[int] = None
     create_product: Optional[bool] = None
+    create_source: Optional[str] = None
+    create_sync_symbol: Optional[str] = None
+    create_asset_type: Optional[str] = None
 
 
 class SyncApplyRequest(BaseModel):
@@ -879,47 +881,68 @@ async def batch_update_prices(db: AsyncSession = Depends(get_db)):
 # Sync proposal / apply
 # ---------------------------------------------------------------------------
 
-def _proposed_source(broker: Optional[Broker]) -> str:
-    return "yfinance"
+class _ProposalPair:
+    """One ``(broker, symbol)`` pair plus the order asset types behind it."""
 
+    __slots__ = ("broker_required", "order_asset_types")
 
-def _proposed_sync_symbol(
-    symbol: str, source: str, broker: Optional[Broker]
-) -> str:
-    if (
-        source == "yfinance"
-        and broker is not None
-        and (broker.currency or "").upper() == "THB"
-        and not symbol.upper().endswith(".BK")
-    ):
-        return f"{symbol}.BK"
-    return symbol
+    def __init__(self) -> None:
+        self.broker_required = False
+        self.order_asset_types: set[str] = set()
+
+    def add(self, asset_type: Any, *, broker_required: bool = False) -> None:
+        self.broker_required = self.broker_required or broker_required
+        text_value = str(asset_type).strip() if asset_type is not None else ""
+        if text_value:
+            self.order_asset_types.add(text_value)
 
 
 async def _collect_proposal_pairs(
     db: AsyncSession,
-) -> dict[tuple[Optional[int], str], bool]:
-    """``(broker_id, normalized symbol) -> broker_required``.
+) -> dict[tuple[Optional[int], str], _ProposalPair]:
+    """``(broker_id, normalized symbol) -> _ProposalPair``.
 
     Includes main, owned-custom and mapped active orders; Managed Fund holdings
     and history are never read. ``broker_required`` marks a brokerless Active
     Trading portfolio, which cannot receive a registry symbol.
+    ``order_asset_types`` is the distinct order asset type recorded on the
+    orders behind the pair — a hint for the user, never a default.
     """
-    pairs: dict[tuple[Optional[int], str], bool] = {}
+    pairs: dict[tuple[Optional[int], str], _ProposalPair] = {}
+
+    def record(
+        broker_id: Optional[int],
+        symbol: Optional[str],
+        asset_type: Any,
+        *,
+        broker_required: bool,
+    ) -> None:
+        if symbol is None:
+            return
+        key = (broker_id, symbol)
+        pairs.setdefault(key, _ProposalPair()).add(
+            asset_type, broker_required=broker_required
+        )
 
     main_rows = (
         await db.execute(
-            select(ActiveOrder.asset_type, Portfolio.broker_id, Portfolio.port_type)
+            select(
+                ActiveOrder.asset_type,
+                ActiveOrder.contract_type,
+                Portfolio.broker_id,
+                Portfolio.port_type,
+            )
             .join(Portfolio, Portfolio.portfolio_id == ActiveOrder.portfolio_id)
             .where(Portfolio.is_custom.is_(False))
         )
     ).all()
-    for asset_type, broker_id, port_type in main_rows:
-        symbol = registry.normalise_symbol(asset_type)
-        if symbol is None:
-            continue
-        required = port_type == "Active Trading" and broker_id is None
-        pairs[(broker_id, symbol)] = pairs.get((broker_id, symbol), False) or required
+    for order_symbol, asset_type, broker_id, port_type in main_rows:
+        record(
+            broker_id,
+            registry.normalise_symbol(order_symbol),
+            asset_type,
+            broker_required=port_type == "Active Trading" and broker_id is None,
+        )
 
     portfolios = (
         await db.execute(select(Portfolio).where(Portfolio.is_custom.is_(True)))
@@ -935,25 +958,38 @@ async def _collect_proposal_pairs(
         ).scalar_one_or_none()
         if connection is None:
             continue
-        symbols: set[str] = set()
+        required = (
+            portfolio.port_type == "Active Trading" and portfolio.broker_id is None
+        )
         try:
             if connection.mapping_config:
                 engine = await get_or_create_custom_engine(connection)
                 orders = await fetch_mapped_orders(engine, connection.mapping_config)
-                symbols = {
-                    s for s in (registry.normalise_symbol(o.get("asset_type")) for o in orders) if s
-                }
+                for order in orders:
+                    record(
+                        portfolio.broker_id,
+                        registry.normalise_symbol(order.get("asset_type")),
+                        order.get("contract_type"),
+                        broker_required=required,
+                    )
             else:
                 session = await get_custom_session(connection)
                 try:
                     custom_symbols = (
                         await session.execute(
-                            select(CustomActiveOrder.asset_type).distinct()
+                            select(
+                                CustomActiveOrder.asset_type,
+                                CustomActiveOrder.contract_type,
+                            ).distinct()
                         )
                     ).all()
-                    symbols = {
-                        s for s in (registry.normalise_symbol(row[0]) for row in custom_symbols) if s
-                    }
+                    for order_symbol, asset_type in custom_symbols:
+                        record(
+                            portfolio.broker_id,
+                            registry.normalise_symbol(order_symbol),
+                            asset_type,
+                            broker_required=required,
+                        )
                 finally:
                     await session.close()
         except Exception:
@@ -963,20 +999,12 @@ async def _collect_proposal_pairs(
                 exc_info=True,
             )
             continue
-        required = portfolio.port_type == "Active Trading" and portfolio.broker_id is None
-        for symbol in symbols:
-            key = (portfolio.broker_id, symbol)
-            pairs[key] = pairs.get(key, False) or required
     return pairs
 
 
 async def _proposal_items(db: AsyncSession) -> list[dict]:
     pairs = await _collect_proposal_pairs(db)
     codes = await registry.broker_codes(db)
-    broker_rows = {
-        broker.id: broker
-        for broker in (await db.execute(select(Broker))).scalars().all()
-    }
     items = []
     for broker_id, symbol in sorted(
         pairs, key=lambda pair: (pair[0] is None, pair[0] or 0, pair[1])
@@ -1000,8 +1028,6 @@ async def _proposal_items(db: AsyncSession) -> list[dict]:
                 )
             )
         ).scalars().all()
-        broker = broker_rows.get(broker_id) if broker_id is not None else None
-        source = _proposed_source(broker)
         choices = []
         for product in products:
             count = int(
@@ -1030,17 +1056,12 @@ async def _proposal_items(db: AsyncSession) -> list[dict]:
                 "symbol": symbol,
                 "broker_id": broker_id,
                 "broker_code": codes.get(broker_id) if broker_id is not None else None,
-                "broker_required": pairs[(broker_id, symbol)],
+                "broker_required": pairs[(broker_id, symbol)].broker_required,
                 "products": choices,
-                "create": {
-                    "ticker": symbol,
-                    "asset_type": None,
-                    "multiplier": 1.0,
-                    "margin_rate": 0.0,
-                    "margin_mode": "notional",
-                    "source": source,
-                    "sync_symbol": _proposed_sync_symbol(symbol, source, broker),
-                },
+                "order_asset_types": sorted(
+                    pairs[(broker_id, symbol)].order_asset_types
+                ),
+                "create": {"ticker": symbol},
             }
         )
     return items
@@ -1052,6 +1073,35 @@ async def sync_proposal(db: AsyncSession = Depends(get_db)):
     return {"items": await _proposal_items(db)}
 
 
+CREATE_SOURCES = ("yfinance", "tfex", "manual")
+CREATE_ASSET_TYPES = ("stock", "future", "option", "crypto")
+
+
+def _validated_create_fields(choice: SyncChoice, symbol: str) -> tuple[str, str, str]:
+    """Validate the explicit create fields; returns ``(source, type, sync_key)``.
+
+    The dashboard never infers the provider: the user supplies the source, the
+    provider symbol and the asset type. ``manual`` keeps the dashboard symbol
+    as its sync key and is never fetched.
+    """
+    source = (choice.create_source or "").strip().lower()
+    if source not in CREATE_SOURCES:
+        raise HTTPException(
+            400, "Create needs a price source: yfinance, tfex or manual"
+        )
+    asset_type = (choice.create_asset_type or "").strip().lower()
+    if asset_type not in CREATE_ASSET_TYPES:
+        raise HTTPException(
+            400, "Create needs an asset type: stock, future, option or crypto"
+        )
+    sync_symbol = (choice.create_sync_symbol or "").strip()
+    if source != "manual" and not sync_symbol:
+        raise HTTPException(400, "Create needs the provider symbol (sync_symbol)")
+    if source == "manual" and not sync_symbol:
+        sync_symbol = symbol
+    return source, asset_type, sync_symbol
+
+
 @router.post("/apply", tags=["assets"])
 @router.post("/sync-apply", include_in_schema=False)
 async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db)):
@@ -1061,10 +1111,6 @@ async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db))
     }
     proposed_pairs = set(proposed)
     codes = await registry.broker_codes(db)
-    brokers = {
-        broker.id: broker
-        for broker in (await db.execute(select(Broker))).scalars().all()
-    }
 
     created = 0
     try:
@@ -1087,8 +1133,11 @@ async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db))
                     400, "Provide exactly one of product_id or create_product=true"
                 )
 
-            broker = brokers.get(broker_id) if broker_id is not None else None
-            source = _proposed_source(broker)
+            # No inference: assigning an existing product creates its symbol
+            # with the dashboard key as the sync key and fetches nothing.
+            source: Optional[str] = None
+            asset_type: Optional[str] = None
+            sync_symbol = symbol
 
             if has_product:
                 product = await db.get(AssetProduct, choice.product_id)
@@ -1106,6 +1155,9 @@ async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db))
                         f"is not in broker {broker_code_value}",
                     )
             else:
+                source, asset_type, sync_symbol = _validated_create_fields(
+                    choice, symbol
+                )
                 ticker = symbol
                 duplicate_ticker_query = select(AssetProduct.product_id).where(
                     func.upper(func.trim(AssetProduct.ticker)) == ticker
@@ -1125,7 +1177,7 @@ async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db))
                 product = AssetProduct(
                     ticker=ticker,
                     broker_id=broker_id,
-                    asset_type=None,
+                    asset_type=asset_type,
                     multiplier=1,
                     margin_rate=0,
                     margin_mode="notional",
@@ -1144,13 +1196,17 @@ async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db))
                 # Same owner: explicit choice is idempotent.
                 continue
 
-            sync_symbol = _proposed_sync_symbol(symbol, source, broker)
+            contract_kind = (
+                "option"
+                if asset_type == "option"
+                else (asset_type or "future")
+            )
             new_symbol = AssetSymbol(
                 product_id=product.product_id,
                 broker_id=product.broker_id,
                 price_symbol=symbol,
                 sync_symbol=sync_symbol,
-                contract_kind="future",
+                contract_kind=contract_kind,
             )
             db.add(new_symbol)
             await db.flush()

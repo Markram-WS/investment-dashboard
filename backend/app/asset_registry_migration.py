@@ -365,16 +365,9 @@ def _ensure_brokers(conn: Connection) -> int:
     )
 
 
-def _retained_portfolio_migrations(conn: Connection, df_broker_id: int) -> None:
+def _retained_portfolio_migrations(conn: Connection) -> None:
     for column, sql_type in PORTFOLIO_COLUMNS:
         _add_column(conn, "portfolios", column, sql_type)
-    conn.execute(
-        text(
-            "UPDATE portfolios SET broker_id = :df_broker_id "
-            "WHERE broker_id IS NULL AND port_type = 'Active Trading'"
-        ),
-        {"df_broker_id": df_broker_id},
-    )
     conn.execute(
         text(
             "UPDATE portfolios SET initial_capital = available_cash "
@@ -837,6 +830,15 @@ def _run_legacy_branch(conn: Connection, df_broker_id: int) -> None:
         text(f"UPDATE {LEGACY_TABLE} SET broker_id = :df_broker_id WHERE broker_id IS NULL"),
         {"df_broker_id": df_broker_id},
     )
+    # The legacy conversion owns the DF default; a retained database keeps its
+    # brokerless Active Trading portfolios blocked until the user assigns one.
+    conn.execute(
+        text(
+            "UPDATE portfolios SET broker_id = :df_broker_id "
+            "WHERE broker_id IS NULL AND port_type = 'Active Trading'"
+        ),
+        {"df_broker_id": df_broker_id},
+    )
 
     if _dialect(conn) == "postgresql":
         conn.execute(
@@ -864,7 +866,7 @@ def _run_legacy_branch(conn: Connection, df_broker_id: int) -> None:
 def run_asset_registry_migration(conn: Connection) -> None:
     """Create the registry and convert legacy rows in the caller's transaction."""
     df_broker_id = _ensure_brokers(conn)
-    _retained_portfolio_migrations(conn, df_broker_id)
+    _retained_portfolio_migrations(conn)
     _create_registry_tables(conn)
 
     legacy_exists = _table_exists(conn, LEGACY_TABLE)

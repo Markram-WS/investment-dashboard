@@ -530,13 +530,7 @@ export interface SyncProposalProduct {
 }
 
 export interface SyncProposalCreate {
-  ticker: string | null;
-  asset_type: string | null;
-  multiplier: number | null;
-  margin_rate: number | null;
-  margin_mode: string;
-  source: string;
-  sync_symbol: string;
+  ticker: string;
 }
 
 export interface SyncProposalItem {
@@ -545,6 +539,8 @@ export interface SyncProposalItem {
   broker_code: string | null;
   broker_required: boolean;
   products: SyncProposalProduct[];
+  /** Asset types recorded on the orders behind this pair — a hint, never a default. */
+  order_asset_types: string[];
   create: SyncProposalCreate;
 }
 
@@ -558,6 +554,9 @@ export interface AssetSyncChoice {
   broker_id: number | null;
   product_id?: number;
   create_product?: boolean;
+  create_source?: 'yfinance' | 'tfex' | 'manual';
+  create_sync_symbol?: string;
+  create_asset_type?: 'stock' | 'future' | 'option' | 'crypto';
 }
 
 export interface AssetSyncApplyResult {

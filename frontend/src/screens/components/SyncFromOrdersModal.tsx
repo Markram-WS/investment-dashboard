@@ -1,11 +1,43 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import type { AssetSyncChoice } from '../../types';
+import type { AssetSyncChoice, SyncProposalItem } from '../../types';
 import ModalShell from './ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './modalLayout';
-import { CONTROL_BUTTON_PRIMARY, CONTROL_BUTTON_SECONDARY, CONTROL_HELPER, CONTROL_INPUT, CONTROL_TITLE } from './controlStyles';
+import { CONTROL_BUTTON_PRIMARY, CONTROL_BUTTON_SECONDARY, CONTROL_HELPER, CONTROL_INPUT, CONTROL_LABEL, CONTROL_TITLE } from './controlStyles';
 import { apiErrorDetail } from './apiError';
+
+type CreateAssetType = 'stock' | 'future' | 'option' | 'crypto';
+type CreateSource = 'yfinance' | 'tfex' | 'manual';
+
+interface CreateDraft {
+  assetType: '' | CreateAssetType;
+  source: '' | CreateSource;
+  syncSymbol: string;
+}
+
+const EMPTY_CREATE_DRAFT: CreateDraft = { assetType: '', source: '', syncSymbol: '' };
+const ASSET_TYPE_OPTIONS: CreateAssetType[] = ['stock', 'future', 'option', 'crypto'];
+const SOURCE_OPTIONS: { value: CreateSource; label: string }[] = [
+  { value: 'yfinance', label: 'yfinance (Yahoo Finance)' },
+  { value: 'tfex', label: 'tfex (TFEX)' },
+  { value: 'manual', label: 'manual (no feed)' },
+];
+
+function joinList(values: string[]): string {
+  if (values.length <= 1) return values[0] ?? '';
+  return `${values.slice(0, -1).join(', ')} and ${values[values.length - 1]}`;
+}
+
+/** Why this create row cannot be submitted yet, or null when it is complete. */
+function incompleteCreateReason(item: SyncProposalItem, draft: CreateDraft): string | null {
+  const missing: string[] = [];
+  if (!draft.assetType) missing.push('an asset type');
+  if (!draft.source) missing.push('a price source');
+  if (draft.source !== 'manual' && !draft.syncSymbol.trim()) missing.push('a provider symbol');
+  if (missing.length === 0) return null;
+  return `${item.symbol} still needs ${joinList(missing)} before Apply.`;
+}
 
 interface SyncFromOrdersModalProps {
   open: boolean;
@@ -38,6 +70,7 @@ const headCell = {
 
 export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFromOrdersModalProps) {
   const [selections, setSelections] = useState<Record<string, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, CreateDraft>>({});
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState('');
 
@@ -50,6 +83,7 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
   useEffect(() => {
     if (open) {
       setSelections({});
+      setDrafts({});
       setError('');
     }
   }, [open]);
@@ -57,19 +91,45 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
   if (!open) return null;
 
   const items = data?.items ?? [];
-  const selectedCount = items.filter((item) => {
-    const key = `${item.broker_id ?? 'none'}:${item.symbol}`;
-    return Boolean(selections[key]);
-  }).length;
+  const rowKey = (item: SyncProposalItem) => `${item.broker_id ?? 'none'}:${item.symbol}`;
+  const draftFor = (key: string): CreateDraft => drafts[key] ?? EMPTY_CREATE_DRAFT;
+  const rememberDraft = (key: string, patch: Partial<CreateDraft>) =>
+    setDrafts((prev) => ({ ...prev, [key]: { ...(prev[key] ?? EMPTY_CREATE_DRAFT), ...patch } }));
+
+  const selectedCount = items.filter((item) => Boolean(selections[rowKey(item)])).length;
+
+  let firstIncomplete: { key: string; reason: string } | null = null;
+  for (const item of items) {
+    const key = rowKey(item);
+    if (selections[key] !== 'create') continue;
+    const reason = incompleteCreateReason(item, draftFor(key));
+    if (reason) {
+      firstIncomplete = { key, reason };
+      break;
+    }
+  }
 
   const handleApply = async () => {
     const choices: AssetSyncChoice[] = [];
     for (const item of items) {
-      const key = `${item.broker_id ?? 'none'}:${item.symbol}`;
+      const key = rowKey(item);
       const selection = selections[key];
       if (!selection) continue;
       if (selection === 'create') {
-        choices.push({ symbol: item.symbol, broker_id: item.broker_id, create_product: true });
+        const draft = draftFor(key);
+        const reason = incompleteCreateReason(item, draft);
+        if (reason) {
+          setError(reason);
+          return;
+        }
+        choices.push({
+          symbol: item.symbol,
+          broker_id: item.broker_id,
+          create_product: true,
+          create_source: draft.source as CreateSource,
+          create_asset_type: draft.assetType as CreateAssetType,
+          create_sync_symbol: draft.source === 'manual' ? '' : draft.syncSymbol.trim(),
+        });
       } else {
         choices.push({
           symbol: item.symbol,
@@ -131,8 +191,9 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                     contract specs.
                   </td></tr>
                 ) : items.map((item) => {
-                  const key = `${item.broker_id ?? 'none'}:${item.symbol}`;
+                  const key = rowKey(item);
                   const value = selections[key] ?? '';
+                  const draft = draftFor(key);
                   return (
                     <tr key={key}>
                       <td style={{ ...cell, fontWeight: 600, color: 'var(--color-ink)', whiteSpace: 'nowrap' }}>
@@ -165,10 +226,100 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                                   ))}
                                 </optgroup>
                               )}
-                              <option value="create">
-                                Create new — {item.create.ticker ?? item.symbol} (sync {item.create.sync_symbol})
-                              </option>
+                              <option value="create">Create new — {item.create.ticker || item.symbol}</option>
                             </select>
+                            {value === 'create' && (
+                              <div
+                                style={{
+                                  marginTop: 8,
+                                  padding: '8px 10px',
+                                  border: '1px solid var(--color-hairline)',
+                                  borderRadius: 8,
+                                  display: 'grid',
+                                  gap: 8,
+                                }}
+                              >
+                                {item.order_asset_types.length > 0 && (
+                                  <span style={{ ...CONTROL_HELPER, margin: 0 }}>
+                                    Orders behind this pair recorded {joinList(item.order_asset_types)} — a hint, not a default.
+                                  </span>
+                                )}
+                                <span style={{ ...CONTROL_HELPER, margin: 0 }}>
+                                  An order stores only the symbol, so the dashboard cannot tell whether it is a TFEX series or a Thai stock.
+                                </span>
+                                <span style={{ ...CONTROL_HELPER, margin: 0 }}>
+                                  Pick the source, the provider key and the asset type — PTT.BK for a THB stock on Yahoo,
+                                  S50Z26 for TFEX, or manual when there is no feed.
+                                </span>
+                                <span style={{ ...CONTROL_HELPER, margin: 0 }}>
+                                  A wrong key still saves the row, but its price stays empty until you edit it in All-assets;
+                                  a manual product is never fetched.
+                                </span>
+                                <div
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                                    gap: 8,
+                                  }}
+                                >
+                                  <label>
+                                    <span style={CONTROL_LABEL}>Asset type</span>
+                                    <select
+                                      aria-label={`Asset type for ${item.symbol}`}
+                                      value={draft.assetType}
+                                      onChange={(e) =>
+                                        rememberDraft(key, { assetType: e.target.value as CreateDraft['assetType'] })}
+                                      style={CONTROL_INPUT}
+                                    >
+                                      <option value="">Choose…</option>
+                                      {ASSET_TYPE_OPTIONS.map((assetType) => (
+                                        <option key={assetType} value={assetType}>{assetType}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  <label>
+                                    <span style={CONTROL_LABEL}>Price source</span>
+                                    <select
+                                      aria-label={`Price source for ${item.symbol}`}
+                                      value={draft.source}
+                                      onChange={(e) =>
+                                        rememberDraft(key, { source: e.target.value as CreateDraft['source'] })}
+                                      style={CONTROL_INPUT}
+                                    >
+                                      <option value="">Choose…</option>
+                                      {SOURCE_OPTIONS.map((source) => (
+                                        <option key={source.value} value={source.value}>{source.label}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  <label style={{ gridColumn: '1 / -1' }}>
+                                    <span style={CONTROL_LABEL}>Provider symbol</span>
+                                    <input
+                                      type="text"
+                                      aria-label={`Provider symbol for ${item.symbol}`}
+                                      value={draft.source === 'manual' ? '' : draft.syncSymbol}
+                                      disabled={draft.source === 'manual'}
+                                      placeholder={draft.source === 'tfex' ? 'e.g. S50Z26' : 'e.g. PTT.BK'}
+                                      onChange={(e) => rememberDraft(key, { syncSymbol: e.target.value })}
+                                      style={{
+                                        ...CONTROL_INPUT,
+                                        ...(draft.source === 'manual' ? { opacity: 0.55, cursor: 'not-allowed' } : null),
+                                      }}
+                                    />
+                                    {draft.source === 'manual' && (
+                                      <span style={{ ...CONTROL_HELPER, display: 'block' }}>
+                                        Manual products keep the dashboard key and fetch nothing
+                                      </span>
+                                    )}
+                                  </label>
+                                </div>
+                                {firstIncomplete?.key === key && (
+                                  <span style={{ ...CONTROL_HELPER, margin: 0, color: 'var(--color-danger-text)' }}>
+                                    {firstIncomplete.reason}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             <span style={{ ...CONTROL_HELPER, display: 'block', marginTop: 2 }}>
                               {item.products.length} same-broker product{item.products.length === 1 ? '' : 's'}
                             </span>
@@ -189,7 +340,8 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
           </button>
           <div className="flex" style={{ gap: 8 }}>
             <button type="button" onClick={onClose} style={CONTROL_BUTTON_SECONDARY}>Cancel</button>
-            <button type="button" onClick={handleApply} disabled={applying || selectedCount === 0}
+            <button type="button" onClick={handleApply}
+              disabled={applying || selectedCount === 0 || firstIncomplete !== null}
               style={CONTROL_BUTTON_PRIMARY}
               className="transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
               {applying ? 'Applying…' : `Apply ${selectedCount || ''}`.trim()}

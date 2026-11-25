@@ -277,6 +277,36 @@ async def test_migration_without_legacy_creates_registry_and_default():
 
 
 @pytest.mark.asyncio
+async def test_retained_startup_never_assigns_a_broker_to_active_trading():
+    engine = _engine()
+    try:
+        await _prepare(engine)
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO portfolios (portfolio_name, port_type, "
+                    "broker_id, x_amount, initial_capital, available_cash) "
+                    "VALUES ('Still Brokerless', 'Active Trading', NULL, 0, 0, 0)"
+                )
+            )
+
+        async with engine.begin() as conn:
+            await conn.run_sync(run_asset_registry_migration)
+        async with engine.begin() as conn:
+            await conn.run_sync(run_asset_registry_migration)
+
+        assert (
+            await _scalar(
+                engine,
+                "SELECT broker_id FROM portfolios "
+                "WHERE portfolio_name='Still Brokerless'",
+            )
+        ) is None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_duplicate_dashboard_key_rolls_back_the_whole_migration():
     engine = _engine()
     try:
