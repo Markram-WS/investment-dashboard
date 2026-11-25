@@ -33,7 +33,6 @@ function joinList(values: string[]): string {
 /** Why this create row cannot be submitted yet, or null when it is complete. */
 function incompleteCreateReason(item: SyncProposalItem, draft: CreateDraft): string | null {
   const missing: string[] = [];
-  if (!draft.assetType) missing.push('an asset type');
   if (!draft.source) missing.push('a price source');
   if (draft.source !== 'manual' && !draft.syncSymbol.trim()) missing.push('a provider symbol');
   if (missing.length === 0) return null;
@@ -142,7 +141,7 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
           broker_id: item.broker_id,
           create_product: true,
           create_source: draft.source as CreateSource,
-          create_asset_type: draft.assetType as CreateAssetType,
+          ...(draft.assetType ? { create_asset_type: draft.assetType } : {}),
           create_sync_symbol: draft.source === 'manual' ? '' : draft.syncSymbol.trim(),
           create_underlying: draft.underlying.trim(),
         });
@@ -298,7 +297,7 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                                       style={CONTROL_INPUT}
                                     />
                                     <span style={{ ...CONTROL_HELPER, display: 'block' }}>
-                                      Grouping key for this contract; leave blank when the contract has no underlying.
+                                      Empty = use the identity with no underlying; the row's broker still applies.
                                     </span>
                                   </label>
                                   <label>
@@ -310,11 +309,17 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                                         rememberDraft(key, { assetType: e.target.value as CreateDraft['assetType'] })}
                                       style={CONTROL_INPUT}
                                     >
-                                      <option value="">Choose…</option>
+                                      <option value="">No type — default identity</option>
                                       {ASSET_TYPE_OPTIONS.map((assetType) => (
                                         <option key={assetType} value={assetType}>{assetType}</option>
                                       ))}
                                     </select>
+                                    {!draft.assetType && (
+                                      <span style={{ ...CONTROL_HELPER, display: 'block' }}>
+                                        No type means the price symbol gets no type of its own: it joins the identity with this row's underlying (or none)
+                                        and broker, and inherits that identity's multiplier, margin and price source — a brand-new default identity is multiplier 1, margin 0 and no feed.
+                                      </span>
+                                    )}
                                   </label>
                                   <label>
                                     <span style={CONTROL_LABEL}>Price source</span>

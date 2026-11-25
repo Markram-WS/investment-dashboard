@@ -46,9 +46,9 @@ const symbol: AssetSymbol = {
   option_type: null,
   expiry_date: null,
   strike_price: null,
-  multiplier_override: null,
-  margin_rate_override: null,
-  margin_per_contract: null,
+  multiplier_override: 3,
+  margin_rate_override: 0.25,
+  margin_per_contract: 500,
   multiplier_effective: 1000,
   margin_rate_effective: 0.1,
   multiplier_inherited: true,
@@ -326,7 +326,7 @@ describe('Underlying and contract copy', () => {
     expect(screen.getByText('Ticker is required')).toBeInTheDocument();
   });
 
-  it('shows the inherited default values on the contract override fields', () => {
+  it('shows the identity values read-only and keeps only the span value per contract', () => {
     render(
       <EditAssetModal
         open
@@ -340,11 +340,61 @@ describe('Underlying and contract copy', () => {
     );
 
     expect(screen.getByLabelText('Ticker')).toHaveValue('S50H26');
-    expect(screen.getByText('This contract can override the underlying defaults.')).toBeInTheDocument();
-    expect(screen.getByLabelText('Multiplier (this contract)')).toBeInTheDocument();
-    expect(screen.getByLabelText('Margin rate (this contract)')).toBeInTheDocument();
-    expect(screen.getByText('Empty = inherit the underlying default (1000).')).toBeInTheDocument();
-    expect(screen.getByText('Empty = inherit the underlying default (10%).')).toBeInTheDocument();
-    expect(screen.getByLabelText('Margin per contract (span)')).toBeInTheDocument();
+    expect(screen.getByText('Multiplier 1000 · Margin rate 10% — set on the underlying + broker + type.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Multiplier (this contract)')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Margin rate (this contract)')).not.toBeInTheDocument();
+    expect(screen.queryByText('This contract can override the underlying defaults.')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Margin per contract (span)')).toHaveValue(500);
+  });
+
+  it('creates a contract without multiplier or margin overrides', async () => {
+    const user = userEvent.setup();
+    apiMock.createSymbol.mockResolvedValue({});
+
+    render(
+      <AddAssetModal
+        open
+        mode="symbol"
+        product={product}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        groups={[]}
+      />,
+    );
+
+    await user.type(screen.getByLabelText(/Sync symbol/), 'S50H26');
+    await user.type(screen.getByLabelText('Margin per contract (span)'), '500');
+    await user.click(screen.getByRole('button', { name: 'Add symbol' }));
+
+    await waitFor(() => expect(apiMock.createSymbol).toHaveBeenCalledTimes(1));
+    const [, payload] = apiMock.createSymbol.mock.calls[0];
+    expect(payload).not.toHaveProperty('multiplier_override');
+    expect(payload).not.toHaveProperty('margin_rate_override');
+    expect(payload).toMatchObject({ sync_symbol: 'S50H26', margin_per_contract: 500 });
+  });
+
+  it('updates a contract without echoing multiplier or margin overrides', async () => {
+    const user = userEvent.setup();
+    apiMock.updateSymbol.mockResolvedValue({});
+
+    render(
+      <EditAssetModal
+        open
+        mode="symbol"
+        product={product}
+        symbol={symbol}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        groups={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(apiMock.updateSymbol).toHaveBeenCalledTimes(1));
+    const [, payload] = apiMock.updateSymbol.mock.calls[0];
+    expect(payload).not.toHaveProperty('multiplier_override');
+    expect(payload).not.toHaveProperty('margin_rate_override');
+    expect(payload).toMatchObject({ margin_per_contract: 500 });
   });
 });

@@ -86,8 +86,6 @@ const emptySymbolForm = {
   option_type: '',
   expiry_date: '',
   strike_price: '',
-  multiplier_override: '',
-  margin_rate_override: '',
   margin_per_contract: '',
 };
 
@@ -139,8 +137,8 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
 
   const editingSymbol = mode === 'symbol';
 
-  const inheritedMultiplier = product?.multiplier != null ? String(product.multiplier) : '1';
-  const inheritedMargin = product?.margin_rate != null
+  const identityMultiplier = product?.multiplier != null ? String(product.multiplier) : '1';
+  const identityMargin = product?.margin_rate != null
     ? `${Number((product.margin_rate * 100).toFixed(2))}%`
     : '0%';
 
@@ -221,16 +219,6 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
     if (!product) { setError('Choose a product first.'); return; }
     const syncSymbol = symbolForm.sync_symbol.trim();
     if (!syncSymbol) { setError('sync_symbol is required'); return; }
-    const multiplierOverride = optionalNumber(symbolForm.multiplier_override);
-    const marginRateOverride = optionalNumber(symbolForm.margin_rate_override);
-    if (symbolForm.multiplier_override.trim() && (multiplierOverride == null || multiplierOverride <= 0)) {
-      setError('multiplier must be greater than 0');
-      return;
-    }
-    if (symbolForm.margin_rate_override.trim() && (marginRateOverride == null || marginRateOverride < 0 || marginRateOverride > 1)) {
-      setError('margin_rate must be between 0 and 1');
-      return;
-    }
     setLoading(true);
     setError('');
     try {
@@ -241,8 +229,6 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
         option_type: symbolForm.option_type || null,
         expiry_date: symbolForm.expiry_date || null,
         strike_price: optionalNumber(symbolForm.strike_price),
-        multiplier_override: multiplierOverride,
-        margin_rate_override: marginRateOverride,
         margin_per_contract: optionalNumber(symbolForm.margin_per_contract),
       });
       onSaved();
@@ -311,21 +297,13 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                 </Field>
               </div>
               <div>
-                <p style={{ ...CONTROL_HELPER, margin: '0 0 4px' }}>This contract can override the underlying defaults.</p>
+                <p style={{ ...CONTROL_HELPER, margin: '0 0 4px' }}>
+                  Multiplier {identityMultiplier} · Margin rate {identityMargin} — set on the underlying + broker + type.
+                </p>
                 <div className={rowThree}>
                   <Field className="min-w-0" label="Strike price" htmlFor="add-symbol-strike">
                     <NumberInput id="add-symbol-strike" step="any" value={symbolForm.strike_price}
                       onChange={e => setSymbolForm(p => ({ ...p, strike_price: e.target.value }))} placeholder="—" />
-                  </Field>
-                  <Field className="min-w-0" label="Multiplier (this contract)" htmlFor="add-symbol-multiplier"
-                    hint={`Empty = inherit the underlying default (${inheritedMultiplier}).`}>
-                    <NumberInput id="add-symbol-multiplier" step="any" value={symbolForm.multiplier_override}
-                      onChange={e => setSymbolForm(p => ({ ...p, multiplier_override: e.target.value }))} placeholder="Underlying default" />
-                  </Field>
-                  <Field className="min-w-0" label="Margin rate (this contract)" htmlFor="add-symbol-margin-rate"
-                    hint={`Empty = inherit the underlying default (${inheritedMargin}).`}>
-                    <NumberInput id="add-symbol-margin-rate" step="any" value={symbolForm.margin_rate_override}
-                      onChange={e => setSymbolForm(p => ({ ...p, margin_rate_override: e.target.value }))} placeholder="Underlying default" />
                   </Field>
                 </div>
               </div>

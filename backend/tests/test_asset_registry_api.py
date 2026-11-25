@@ -219,10 +219,21 @@ async def test_product_symbol_crud_exact_contract(async_client):
     for response in (put_default, delete_default):
         assert response.status_code == 400
         assert response.json()["detail"] == "The default product is not editable"
+    # The default identity itself is immutable, but it accepts symbols: its
+    # contracts carry no broker-scoped spec.
     default_symbol = await create_symbol(
         async_client, default_product.product_id, sync_symbol="BAD"
     )
-    assert default_symbol.status_code == 400
+    assert default_symbol.status_code == 201, default_symbol.text
+    default_symbol_body = default_symbol.json()
+    assert default_symbol_body["multiplier_effective"] == 1.0
+    assert default_symbol_body["margin_rate_effective"] == 0.0
+    assert default_symbol_body["multiplier_inherited"] is True
+    assert default_symbol_body["margin_rate_inherited"] is True
+    removed = await async_client.delete(
+        f"/api/v1/assets/symbols/{default_symbol_body['symbol_id']}"
+    )
+    assert removed.status_code == 204
 
     # Missing lookups.
     assert (await async_client.get("/api/v1/assets/products/999999")).status_code == 404
@@ -419,13 +430,16 @@ async def test_batch_refresh_fetches_each_key_once(async_client, monkeypatch):
 
 
 async def _seed_order(
-    symbol: str, broker_id: int | None, contract_type: str = "stock"
+    symbol: str,
+    broker_id: int | None,
+    contract_type: str = "stock",
+    port_type: str = "Active Trading",
 ) -> tuple[int, int, int]:
     _, Session = get_test_engine()
     async with Session() as session:
         portfolio = Portfolio(
             portfolio_name=f"Proposal {symbol}",
-            port_type="Active Trading",
+            port_type=port_type,
             broker_id=broker_id,
             product_tickers=None,
             x_amount=Decimal("0"),
@@ -901,7 +915,272 @@ async def test_proposal_resolved_flags_existing_symbol_spec(async_client):
 
 
 @pytest.mark.asyncio
-async def test_apply_create_needs_explicit_source_type_and_provider(
+async def test_apply_default_identity_and_identity_variants(async_client):
+    """A pair with no underlying/broker/type lands on the default identity."""
+    broker_id = await create_broker(async_client, "IDN1")
+    orders: list[str] = []
+    type_identity_id: int | None = None
+    _, Session = get_test_engine()
+    async with Session() as session:
+        default_product = (
+            await session.execute(
+                select(AssetProduct).where(
+                    AssetProduct.ticker.is_(None),
+                    AssetProduct.broker_id.is_(None),
+                    AssetProduct.asset_type.is_(None),
+                )
+            )
+        ).scalars().first()
+    assert default_product is not None
+    default_id = default_product.product_id
+
+    try:
+        # No underlying, no broker, no type: the reserved default identity.
+        _, _, default_order = await _seed_order(
+            "IDNDEF", None, port_type="Managed Fund"
+        )
+        orders.append(default_order)
+        default_choice = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "IDNDEF",
+                        "broker_id": None,
+                        "create_product": True,
+                        "create_source": "manual",
+                    }
+                ]
+            },
+        )
+        assert default_choice.status_code == 200, default_choice.text
+        assert default_choice.json()["created"] == 1
+
+        async with Session() as session:
+            default_rows = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.ticker.is_(None),
+                        AssetProduct.broker_id.is_(None),
+                        AssetProduct.asset_type.is_(None),
+                    )
+                )
+            ).scalars().all()
+            default_symbol = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.product_id == default_id,
+                        AssetSymbol.price_symbol == "IDNDEF",
+                    )
+                )
+            ).scalars().one()
+        # Reused, never duplicated: still exactly one default identity row.
+        assert len(default_rows) == 1
+        assert default_rows[0].product_id == default_id
+        assert default_rows[0].multiplier == 1
+        assert default_rows[0].margin_rate == 0
+        assert default_rows[0].margin_mode == "notional"
+        assert default_rows[0].source == "-"
+        assert default_symbol.price_symbol == "IDNDEF"
+        assert default_symbol.sync_symbol == "IDNDEF"
+        assert default_symbol.broker_id is None
+        assert default_symbol.contract_kind == "future"
+
+        # The brokerless pair now reads as resolved and re-applying is a no-op.
+        proposal = await async_client.get("/api/v1/assets/proposal")
+        by_pair = {
+            (item["broker_id"], item["symbol"]): item
+            for item in proposal.json()["items"]
+        }
+        assert by_pair[(None, "IDNDEF")]["resolved"] is True
+        again = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "IDNDEF",
+                        "broker_id": None,
+                        "create_product": True,
+                        "create_source": "manual",
+                    }
+                ]
+            },
+        )
+        assert again.status_code == 200, again.text
+        assert again.json()["created"] == 0
+
+        # Only a broker: identity (NULL, broker, NULL).
+        _, _, broker_order = await _seed_order("IDNBRK", broker_id)
+        orders.append(broker_order)
+        broker_choice = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "IDNBRK",
+                        "broker_id": broker_id,
+                        "create_product": True,
+                        "create_source": "manual",
+                    }
+                ]
+            },
+        )
+        assert broker_choice.status_code == 200, broker_choice.text
+        assert broker_choice.json()["created"] == 1
+
+        # Only a type: identity (NULL, NULL, type) from a managed-fund pair.
+        _, _, type_order = await _seed_order("IDNTYP", None, port_type="Managed Fund")
+        orders.append(type_order)
+        type_choice = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "IDNTYP",
+                        "broker_id": None,
+                        "create_product": True,
+                        "create_source": "manual",
+                        "create_asset_type": "stock",
+                    }
+                ]
+            },
+        )
+        assert type_choice.status_code == 200, type_choice.text
+        assert type_choice.json()["created"] == 1
+
+        # All three parts: the typed identity wins.
+        _, _, full_order = await _seed_order("IDNFULL", broker_id)
+        orders.append(full_order)
+        full_choice = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "IDNFULL",
+                        "broker_id": broker_id,
+                        "create_product": True,
+                        "create_underlying": " idnfullu ",
+                        "create_source": "manual",
+                        "create_asset_type": "future",
+                    }
+                ]
+            },
+        )
+        assert full_choice.status_code == 200, full_choice.text
+        assert full_choice.json()["created"] == 1
+
+        async with Session() as session:
+            broker_identity = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.ticker.is_(None),
+                        AssetProduct.broker_id == broker_id,
+                        AssetProduct.asset_type.is_(None),
+                    )
+                )
+            ).scalars().one()
+            broker_symbol = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.product_id == broker_identity.product_id
+                    )
+                )
+            ).scalars().one()
+            type_identity = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.ticker.is_(None),
+                        AssetProduct.broker_id.is_(None),
+                        AssetProduct.asset_type == "stock",
+                    )
+                )
+            ).scalars().one()
+            type_identity_id = type_identity.product_id
+            type_symbol = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.product_id == type_identity_id
+                    )
+                )
+            ).scalars().one()
+            full_identity = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.ticker == "IDNFULLU",
+                        AssetProduct.broker_id == broker_id,
+                    )
+                )
+            ).scalars().one()
+            full_symbol = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.product_id == full_identity.product_id
+                    )
+                )
+            ).scalars().one()
+        assert broker_symbol.price_symbol == "IDNBRK"
+        assert broker_symbol.contract_kind == "future"
+        assert type_symbol.price_symbol == "IDNTYP"
+        assert type_symbol.contract_kind == "stock"
+        assert full_identity.asset_type == "future"
+        assert full_identity.multiplier == 1
+        assert full_identity.margin_rate == 0
+        assert full_identity.margin_mode == "notional"
+        assert full_symbol.price_symbol == "IDNFULL"
+        assert full_symbol.contract_kind == "future"
+
+        # A symbol may be attached to the default identity directly, while the
+        # default row itself stays uneditable/undeletable.
+        attach = await async_client.post(
+            f"/api/v1/assets/products/{default_id}/symbols",
+            json={"price_symbol": "IDNDIRECT", "sync_symbol": "IDNDIRECT"},
+        )
+        assert attach.status_code == 201, attach.text
+        attached = attach.json()
+        assert attached["multiplier_effective"] == 1.0
+        assert attached["margin_rate_effective"] == 0.0
+        assert attached["multiplier_inherited"] is True
+        assert attached["margin_rate_inherited"] is True
+
+        blocked_edit = await async_client.put(
+            f"/api/v1/assets/products/{default_id}", json={"multiplier": 2}
+        )
+        assert blocked_edit.status_code == 400
+        assert blocked_edit.json()["detail"] == (
+            "The default product is not editable"
+        )
+        blocked_delete = await async_client.delete(
+            f"/api/v1/assets/products/{default_id}"
+        )
+        assert blocked_delete.status_code == 400
+        assert blocked_delete.json()["detail"] == (
+            "The default product is not editable"
+        )
+    finally:
+        _, Session = get_test_engine()
+        async with Session() as session:
+            symbols = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.price_symbol.in_(
+                            ["IDNDEF", "IDNTYP", "IDNDIRECT"]
+                        )
+                    )
+                )
+            ).scalars().all()
+            for symbol in symbols:
+                await session.delete(symbol)
+            if type_identity_id is not None:
+                type_product = await session.get(AssetProduct, type_identity_id)
+                if type_product is not None:
+                    await session.delete(type_product)
+            await session.commit()
+        await _delete_orders(*orders)
+        await cleanup_brokers(broker_id)
+
+
+@pytest.mark.asyncio
+async def test_apply_create_needs_explicit_source_and_provider(
     async_client, monkeypatch
 ):
     broker_id = await create_broker(async_client, "SYN4")
@@ -956,24 +1235,6 @@ async def test_apply_create_needs_explicit_source_type_and_provider(
         assert bad_source.status_code == 400
         assert bad_source.json()["detail"] == (
             "Create needs a price source: yfinance, tfex or manual"
-        )
-
-        missing_type = await async_client.post(
-            "/api/v1/assets/apply",
-            json={
-                "choices": [
-                    {
-                        "symbol": "S50Z26",
-                        **base,
-                        "create_source": "tfex",
-                        "create_sync_symbol": "S50Z26",
-                    }
-                ]
-            },
-        )
-        assert missing_type.status_code == 400
-        assert missing_type.json()["detail"] == (
-            "Create needs an asset type: stock, future, option or crypto"
         )
 
         bad_type = await async_client.post(
@@ -1248,7 +1509,8 @@ async def test_margin_modes_overrides_and_display_risk(async_client):
             "N": product("N", 2, 0.1, "notional"),
             "P": product("P", 2, 0.5, "premium"),
             "S": product("S", 3, 0.2, "span"),
-            "O": product("O", 2, 0.1, "notional"),
+            # O carries its 5 / 0.2 on the identity; contracts cannot override.
+            "O": product("O", 5, 0.2, "notional"),
             "S2": product("S2", 1, 0.5, "span"),
             "Z": product("Z", 1, 0, "notional"),
         }
@@ -1280,8 +1542,6 @@ async def test_margin_modes_overrides_and_display_risk(async_client):
                     broker_id=broker.id,
                     price_symbol="O",
                     sync_symbol="O",
-                    multiplier_override=Decimal("5"),
-                    margin_rate_override=Decimal("0.2"),
                 ),
                 AssetSymbol(
                     product_id=products["S2"].product_id,
@@ -1376,7 +1636,7 @@ async def test_margin_modes_overrides_and_display_risk(async_client):
         # Display fields only from the first product_tickers entry.
         assert risk["multiplier"] == 2.0
         assert risk["margin_rate"] == 0.1
-        # Per-order sizing uses overrides (O: multiplier 5).
+        # Per-order sizing uses the identity values (O: multiplier 5).
         assert risk["eq"]["orders"] == 6
         assert risk["eq"]["size0"] == pytest.approx(
             600.0 + 600.0 + 900.0 + 1000.0 + 200.0 + 900.0
@@ -1461,43 +1721,77 @@ async def test_symbol_payload_effective_and_inherited_contract_values(async_clie
         assert inherited["multiplier_inherited"] is True
         assert inherited["margin_rate_inherited"] is True
 
-        override_resp = await create_symbol(
+        rejected_multiplier = await create_symbol(
             async_client,
             product["product_id"],
-            price_symbol="EFF1-O",
-            sync_symbol="EFF1-O.BK",
+            price_symbol="EFF1-M",
+            sync_symbol="EFF1-M.BK",
             multiplier_override=4,
+        )
+        assert rejected_multiplier.status_code == 400
+        assert rejected_multiplier.json()["detail"] == (
+            "multiplier is set on the underlying + broker + type, not on the "
+            "contract"
+        )
+
+        rejected_rate = await create_symbol(
+            async_client,
+            product["product_id"],
+            price_symbol="EFF1-R",
+            sync_symbol="EFF1-R.BK",
             margin_rate_override=0.5,
         )
-        assert override_resp.status_code == 201, override_resp.text
-        override = override_resp.json()
-        assert override["multiplier_effective"] == 4.0
-        assert override["margin_rate_effective"] == 0.5
-        assert override["multiplier_inherited"] is False
-        assert override["margin_rate_inherited"] is False
+        assert rejected_rate.status_code == 400
+        assert rejected_rate.json()["detail"] == (
+            "margin_rate is set on the underlying + broker + type, not on the "
+            "contract"
+        )
 
-        # Each field resolves independently: one override, one product value.
-        partial_resp = await create_symbol(
+        # The span margin stays a contract-level value; multiplier and rate do
+        # not.
+        span_resp = await create_symbol(
             async_client,
             product["product_id"],
-            price_symbol="EFF1-P",
-            sync_symbol="EFF1-P.BK",
-            margin_rate_override=0.1,
+            price_symbol="EFF1-S",
+            sync_symbol="EFF1-S.BK",
+            margin_per_contract=7,
         )
-        assert partial_resp.status_code == 201, partial_resp.text
-        partial = partial_resp.json()
-        assert partial["multiplier_effective"] == 2.5
-        assert partial["multiplier_inherited"] is True
-        assert partial["margin_rate_effective"] == 0.1
-        assert partial["margin_rate_inherited"] is False
+        assert span_resp.status_code == 201, span_resp.text
+        span = span_resp.json()
+        assert span["margin_per_contract"] == 7.0
+        assert span["multiplier_effective"] == 2.5
+        assert span["margin_rate_effective"] == 0.25
+        assert span["multiplier_inherited"] is True
+        assert span["margin_rate_inherited"] is True
+        assert span["multiplier_override"] is None
+        assert span["margin_rate_override"] is None
 
+        rejected_update = await async_client.put(
+            f"/api/v1/assets/symbols/{span['symbol_id']}",
+            json={"multiplier_override": 3},
+        )
+        assert rejected_update.status_code == 400
+        assert rejected_update.json()["detail"] == (
+            "multiplier is set on the underlying + broker + type, not on the "
+            "contract"
+        )
+
+        # Editing the identity moves both effective values; the contract never
+        # carries its own.
+        updated_product = await async_client.put(
+            f"/api/v1/assets/products/{product['product_id']}",
+            json={"multiplier": 6, "margin_rate": 0.4},
+        )
+        assert updated_product.status_code == 200, updated_product.text
         listed = await async_client.get(
             f"/api/v1/assets/symbols?product_id={product['product_id']}"
         )
         assert listed.status_code == 200, listed.text
         by_symbol = {row["price_symbol"]: row for row in listed.json()}
-        assert by_symbol["EFF1-O"]["multiplier_effective"] == 4.0
-        assert by_symbol["EFF1-O"]["multiplier_inherited"] is False
+        assert by_symbol["EFF1"]["multiplier_effective"] == 6.0
+        assert by_symbol["EFF1"]["margin_rate_effective"] == 0.4
+        assert by_symbol["EFF1"]["multiplier_inherited"] is True
+        assert by_symbol["EFF1"]["margin_rate_inherited"] is True
 
         # A product with neither value falls back to multiplier 1 / rate 0 and
         # both stay inherited — the same rule risk_calc applies without a spec.

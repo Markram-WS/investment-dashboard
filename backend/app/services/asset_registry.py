@@ -69,29 +69,21 @@ def is_default_product(product: AssetProduct) -> bool:
     )
 
 
-def effective_value(
-    override: Any, product_value: Any, default: str
-) -> tuple[Decimal, bool]:
-    """Resolve one contract value to ``(effective, inherited)``.
-
-    The symbol override wins when set (not inherited). Otherwise the product
-    value is inherited, and a NULL product value falls back to ``default`` —
-    also inherited, because it still comes from the product side of the
-    contract. Every override/default pair follows this one rule.
-    """
-    if override is not None:
-        return Decimal(str(override)), False
-    if product_value is not None:
-        return Decimal(str(product_value)), True
-    return Decimal(default), True
+def identity_value(value: Any, default: str) -> Decimal:
+    """A value owned by the identity (product), or the documented default."""
+    if value is not None:
+        return Decimal(str(value))
+    return Decimal(default)
 
 
 def effective_multiplier(symbol: AssetSymbol, product: AssetProduct) -> Decimal:
-    return effective_value(symbol.multiplier_override, product.multiplier, "1")[0]
+    """Multiplier belongs to the identity (underlying + broker + type) only."""
+    return identity_value(product.multiplier, "1")
 
 
 def effective_margin_rate(symbol: AssetSymbol, product: AssetProduct) -> Decimal:
-    return effective_value(symbol.margin_rate_override, product.margin_rate, "0")[0]
+    """Margin rate belongs to the identity (underlying + broker + type) only."""
+    return identity_value(product.margin_rate, "0")
 
 
 async def broker_codes(db: AsyncSession) -> dict[int, str]:
@@ -337,12 +329,8 @@ async def symbol_payload(
     db: AsyncSession, symbol: AssetSymbol, product: AssetProduct
 ) -> dict:
     quote = await quote_for(db, product, symbol)
-    multiplier, multiplier_inherited = effective_value(
-        symbol.multiplier_override, product.multiplier, "1"
-    )
-    margin_rate, margin_rate_inherited = effective_value(
-        symbol.margin_rate_override, product.margin_rate, "0"
-    )
+    multiplier = identity_value(product.multiplier, "1")
+    margin_rate = identity_value(product.margin_rate, "0")
     return {
         "symbol_id": symbol.symbol_id,
         "product_id": symbol.product_id,
@@ -356,8 +344,10 @@ async def symbol_payload(
         "margin_rate_override": _float(symbol.margin_rate_override),
         "multiplier_effective": float(multiplier),
         "margin_rate_effective": float(margin_rate),
-        "multiplier_inherited": multiplier_inherited,
-        "margin_rate_inherited": margin_rate_inherited,
+        # Multiplier and margin rate are identity-owned, so a contract value is
+        # always inherited. The keys stay for payload compatibility.
+        "multiplier_inherited": True,
+        "margin_rate_inherited": True,
         "margin_per_contract": _float(symbol.margin_per_contract),
         "price": _float(quote.price) if quote else None,
         "change_24h": _float(quote.change_24h) if quote else None,

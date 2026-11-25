@@ -397,10 +397,17 @@ def _validate_symbol_values(
     multiplier_override: Optional[float],
     margin_rate_override: Optional[float],
 ) -> None:
-    if multiplier_override is not None and multiplier_override <= 0:
-        raise HTTPException(400, "multiplier must be greater than 0")
-    if margin_rate_override is not None and not (0 <= margin_rate_override <= 1):
-        raise HTTPException(400, "margin_rate must be between 0 and 1")
+    """Multiplier and margin rate belong to the identity, never the contract."""
+    if multiplier_override is not None:
+        raise HTTPException(
+            400,
+            "multiplier is set on the underlying + broker + type, not on the contract",
+        )
+    if margin_rate_override is not None:
+        raise HTTPException(
+            400,
+            "margin_rate is set on the underlying + broker + type, not on the contract",
+        )
 
 
 def _identity_filter(ticker: Optional[str], broker_id: Optional[int], asset_type: Optional[str]):
@@ -435,6 +442,18 @@ async def _product_or_404(db: AsyncSession, product_id: int) -> AssetProduct:
     if product is None:
         raise HTTPException(404, "Product not found")
     return product
+
+
+async def _default_identity_product(db: AsyncSession) -> Optional[AssetProduct]:
+    """The reserved all-NULL identity row, when it exists."""
+    return (
+        await db.execute(
+            select(AssetProduct)
+            .where(*_identity_filter(None, None, None))
+            .order_by(AssetProduct.product_id)
+            .limit(1)
+        )
+    ).scalars().first()
 
 
 async def _symbol_or_404(
@@ -682,8 +701,9 @@ async def create_symbol(
     product_id: int, data: SymbolCreate, db: AsyncSession = Depends(get_db)
 ):
     product = await _product_or_404(db, product_id)
-    if registry.is_default_product(product):
-        raise HTTPException(400, "The default product is not editable")
+    # Any identity may own symbols, including the default identity: its symbols
+    # deliberately carry no broker-scoped spec, so Active Trading orders for
+    # them stay blocked by the order guard while mapped portfolios still work.
     sync_symbol = (data.sync_symbol or "").strip()
     if not sync_symbol:
         raise HTTPException(400, "sync_symbol is required")
@@ -721,8 +741,8 @@ async def create_symbol(
         option_type=data.option_type,
         expiry_date=data.expiry_date,
         strike_price=data.strike_price,
-        multiplier_override=data.multiplier_override,
-        margin_rate_override=data.margin_rate_override,
+        # multiplier_override / margin_rate_override are rejected above: they
+        # belong to the identity. Only the span margin stays contract-level.
         margin_per_contract=data.margin_per_contract,
     )
     db.add(symbol)
@@ -1046,6 +1066,12 @@ async def _proposal_items(db: AsyncSession) -> list[dict]:
         symbol_counts: dict[int, int] = {}
         resolved = False
         product_ids = [product.product_id for product in products]
+        if broker_id is None:
+            # A brokerless pair can already be attached to the default identity,
+            # which the product list above excludes on purpose.
+            default_product = await _default_identity_product(db)
+            if default_product is not None:
+                product_ids.append(default_product.product_id)
         if product_ids:
             symbol_rows = (
                 await db.execute(
@@ -1098,12 +1124,15 @@ CREATE_SOURCES = ("yfinance", "tfex", "manual")
 CREATE_ASSET_TYPES = ("stock", "future", "option", "crypto")
 
 
-def _validated_create_fields(choice: SyncChoice, symbol: str) -> tuple[str, str, str]:
-    """Validate the explicit create fields; returns ``(source, type, sync_key)``.
+def _validated_create_fields(
+    choice: SyncChoice, symbol: str
+) -> tuple[str, Optional[str], str]:
+    """Validate the explicit create fields; ``(source, type, sync_key)``.
 
     The dashboard never infers the provider: the user supplies the source, the
-    provider symbol and the asset type. ``manual`` keeps the dashboard symbol
-    as its sync key and is never fetched.
+    provider symbol and (optionally) the asset type. ``manual`` keeps the
+    dashboard symbol as its sync key and is never fetched. An absent asset type
+    means the identity has no type — the default identity part, not a guess.
     """
     source = (choice.create_source or "").strip().lower()
     if source not in CREATE_SOURCES:
@@ -1111,7 +1140,7 @@ def _validated_create_fields(choice: SyncChoice, symbol: str) -> tuple[str, str,
             400, "Create needs a price source: yfinance, tfex or manual"
         )
     asset_type = (choice.create_asset_type or "").strip().lower()
-    if asset_type not in CREATE_ASSET_TYPES:
+    if asset_type and asset_type not in CREATE_ASSET_TYPES:
         raise HTTPException(
             400, "Create needs an asset type: stock, future, option or crypto"
         )
@@ -1120,7 +1149,7 @@ def _validated_create_fields(choice: SyncChoice, symbol: str) -> tuple[str, str,
         raise HTTPException(400, "Create needs the provider symbol (sync_symbol)")
     if source == "manual" and not sync_symbol:
         sync_symbol = symbol
-    return source, asset_type, sync_symbol
+    return source, asset_type or None, sync_symbol
 
 
 @router.post("/apply", tags=["assets"])
@@ -1177,32 +1206,44 @@ async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db))
                     )
             else:
                 underlying = registry.normalise_ticker(choice.create_underlying)
-                if (
-                    underlying is None
-                    and broker_id is None
-                    and not (choice.create_asset_type or "").strip()
-                ):
-                    # An unassigned underlying needs a broker or a type; the
-                    # all-NULL triple is the reserved default-product identity.
-                    raise HTTPException(400, "Ticker is required")
                 source, asset_type, sync_symbol = _validated_create_fields(
                     choice, symbol
                 )
-                if await _identity_exists(db, underlying, broker_id, asset_type):
-                    raise HTTPException(
-                        400, "An asset with this ticker already exists"
+                if underlying is None and broker_id is None and asset_type is None:
+                    # The reserved all-NULL identity is the seeded default
+                    # product. Reuse it (or recreate the migration's shape) and
+                    # attach the symbol there instead of erroring.
+                    product = await _default_identity_product(db)
+                    if product is None:
+                        product = AssetProduct(
+                            ticker=None,
+                            broker_id=None,
+                            asset_type=None,
+                            multiplier=1,
+                            margin_rate=0,
+                            margin_mode="notional",
+                            source="-",
+                        )
+                        db.add(product)
+                        await db.flush()
+                else:
+                    if await _identity_exists(
+                        db, underlying, broker_id, asset_type
+                    ):
+                        raise HTTPException(
+                            400, "An asset with this ticker already exists"
+                        )
+                    product = AssetProduct(
+                        ticker=underlying,
+                        broker_id=broker_id,
+                        asset_type=asset_type,
+                        multiplier=1,
+                        margin_rate=0,
+                        margin_mode="notional",
+                        source=source,
                     )
-                product = AssetProduct(
-                    ticker=underlying,
-                    broker_id=broker_id,
-                    asset_type=asset_type,
-                    multiplier=1,
-                    margin_rate=0,
-                    margin_mode="notional",
-                    source=source,
-                )
-                db.add(product)
-                await db.flush()
+                    db.add(product)
+                    await db.flush()
 
             owner = await registry.resolve_symbol_owner(db, symbol, broker_id)
             if owner is not None and owner[1].product_id != product.product_id:
@@ -1213,6 +1254,17 @@ async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db))
             if owner is not None:
                 # Same owner: explicit choice is idempotent.
                 continue
+            if owner is None and broker_id is None:
+                # Brokerless symbols (the default identity included) have no
+                # owner resolution, so check the brokerless scope directly.
+                collision = await registry.find_symbol_collision(db, symbol, None)
+                if collision is not None:
+                    if collision[1].product_id == product.product_id:
+                        continue
+                    raise HTTPException(
+                        400,
+                        await registry.symbol_collision_detail(db, collision, symbol),
+                    )
 
             if has_product:
                 # An existing product supplies the symbol's contract kind. A
@@ -1233,7 +1285,9 @@ async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db))
                     )
                 contract_kind = kind
             else:
-                contract_kind = "option" if asset_type == "option" else asset_type
+                contract_kind = (
+                    "option" if asset_type == "option" else (asset_type or "future")
+                )
             new_symbol = AssetSymbol(
                 product_id=product.product_id,
                 broker_id=product.broker_id,
@@ -1245,11 +1299,14 @@ async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db))
             await db.flush()
             created += 1
 
-            if source in registry.PRICE_SOURCES:
+            identity_source = registry.quote_source(product)
+            if identity_source in registry.PRICE_SOURCES:
                 try:
-                    price, change = registry._fetch_quote(source, sync_symbol)
+                    price, change = registry._fetch_quote(
+                        identity_source, sync_symbol
+                    )
                     await registry.upsert_quote(
-                        db, source, sync_symbol, price, change
+                        db, identity_source, sync_symbol, price, change
                     )
                 except Exception:
                     # Best effort: keep existing/null quote values.

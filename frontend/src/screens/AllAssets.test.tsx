@@ -61,6 +61,7 @@ const overriddenSymbol: AssetSymbol = {
   sync_symbol: 'S50M26',
   multiplier_override: 500,
   margin_rate_override: 0.05,
+  margin_per_contract: 500,
   multiplier_effective: 500,
   margin_rate_effective: 0.05,
   multiplier_inherited: false,
@@ -99,14 +100,14 @@ describe('All assets naming', () => {
       .toHaveAttribute('title', expect.stringContaining('Default margin rate'));
   });
 
-  it('shows the effective contract values and flags the inherited ones', async () => {
+  it('shows the identity contract values and the span when set', async () => {
     renderRegistry();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Expand S50' }));
 
-    expect(await screen.findByText('mult · 1000 · 10% (default)')).toBeInTheDocument();
-    expect(screen.getByText('mult · 500 · 5%')).toBeInTheDocument();
-    expect(screen.queryByText('mult · 500 · 5% (default)')).not.toBeInTheDocument();
+    expect(await screen.findByText('mult · 1000 · 10%')).toBeInTheDocument();
+    expect(screen.getByText('mult · 500 · 5% · span 500')).toBeInTheDocument();
+    expect(screen.queryByText(/\(default\)/)).not.toBeInTheDocument();
     expect(screen.getAllByText('S50H26').length).toBeGreaterThan(0);
     expect(screen.getAllByText('S50M26').length).toBeGreaterThan(0);
   });

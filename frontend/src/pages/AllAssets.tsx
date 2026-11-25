@@ -247,7 +247,7 @@ function SymbolRows({ product, onEditSymbol, onRefreshSymbol, onSaveQuote }: {
             formatMultiplier(symbol.multiplier_effective),
             formatMarginPct(symbol.margin_rate_effective),
           ].join(' · ')
-            + (symbol.multiplier_inherited || symbol.margin_rate_inherited ? ' (default)' : '');
+            + (symbol.margin_per_contract != null ? ` · span ${symbol.margin_per_contract}` : '');
           return (
             <tr key={symbol.symbol_id} className="transition-colors hover:bg-surface" style={{ height: 30 }}>
               <td style={{ ...cell, paddingLeft: 32, color: 'var(--color-ink)', fontWeight: 500 }}>
@@ -260,11 +260,6 @@ function SymbolRows({ product, onEditSymbol, onRefreshSymbol, onSaveQuote }: {
                   title="Effective values for this contract">
                   {effectiveSpec}
                 </span>
-                {symbol.margin_per_contract != null && (
-                  <span style={{ display: 'block', fontSize: 'var(--fs-micro)' }}>
-                    margin {symbol.margin_per_contract}
-                  </span>
-                )}
               </td>
               <td className="text-right" style={{ ...cell, cursor: 'pointer', fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)' }}
                 onClick={() => startEdit(symbol)} title="Edit the manual quote">

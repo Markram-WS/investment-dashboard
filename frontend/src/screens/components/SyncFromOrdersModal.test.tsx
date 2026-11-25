@@ -12,6 +12,8 @@ const apiMock = vi.hoisted(() => ({
 
 vi.mock('../../lib/api', () => ({ api: apiMock }));
 
+const NO_TYPE_HELPER = "No type means the price symbol gets no type of its own: it joins the identity with this row's underlying (or none) and broker, and inherits that identity's multiplier, margin and price source — a brand-new default identity is multiplier 1, margin 0 and no feed.";
+
 const proposal: AssetSyncProposal = {
   items: [
     {
@@ -66,8 +68,23 @@ describe('Sync from orders create panel', () => {
 
     expect(screen.getByLabelText('Underlying for S50H26')).toHaveValue('');
     expect(screen.getByPlaceholderText('e.g. S50, or leave blank')).toBeInTheDocument();
-    expect(screen.getByText('Grouping key for this contract; leave blank when the contract has no underlying.')).toBeInTheDocument();
+    expect(screen.getByText('Empty = use the identity with no underlying; the row\'s broker still applies.')).toBeInTheDocument();
     expect(screen.getByText(/Pick the underlying if the contract has one/)).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'No type — default identity' })).toBeInTheDocument();
+  });
+
+  it('shows the default-identity helper only while no type is selected', async () => {
+    renderSync();
+    await openCreate();
+
+    const typeSelect = screen.getByRole('combobox', { name: 'Asset type for S50H26' });
+    expect(screen.getByText(NO_TYPE_HELPER)).toBeInTheDocument();
+
+    fireEvent.change(typeSelect, { target: { value: 'future' } });
+    expect(screen.queryByText(NO_TYPE_HELPER)).not.toBeInTheDocument();
+
+    fireEvent.change(typeSelect, { target: { value: '' } });
+    expect(screen.getByText(NO_TYPE_HELPER)).toBeInTheDocument();
   });
 
   it('keeps Apply enabled with a blank underlying and sends it as an empty string', async () => {
@@ -110,8 +127,36 @@ describe('Sync from orders create panel', () => {
           create_underlying: 'S50',
           create_sync_symbol: '',
           create_source: 'manual',
+          create_asset_type: 'future',
         }),
       ]);
     });
+  });
+
+  it('accepts no type with a manual source and omits create_asset_type', async () => {
+    const onApplied = vi.fn();
+    renderSync(onApplied);
+    await openCreate();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Price source for S50H26' }), { target: { value: 'manual' } });
+
+    const apply = screen.getByRole('button', { name: 'Apply 1' });
+    expect(apply).toBeEnabled();
+    fireEvent.click(apply);
+
+    await waitFor(() => {
+      expect(apiMock.applyAssetProposal).toHaveBeenCalledWith([
+        {
+          symbol: 'S50H26',
+          broker_id: 1,
+          create_product: true,
+          create_source: 'manual',
+          create_sync_symbol: '',
+          create_underlying: '',
+        },
+      ]);
+    });
+    const [choices] = apiMock.applyAssetProposal.mock.calls[0];
+    expect(choices[0]).not.toHaveProperty('create_asset_type');
+    expect(onApplied).toHaveBeenCalled();
   });
 });
