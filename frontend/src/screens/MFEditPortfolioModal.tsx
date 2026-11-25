@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import type { CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { MFSetting, MFHolding, AssetProduct, AssetSymbol } from "../types";
+import { MFSetting, MFHolding } from "../types";
 import ModalShell from "./components/ModalShell";
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
 import { Field, NumberInput, TextInput } from "./components/Field";
@@ -27,10 +27,6 @@ const confirmTitle: CSSProperties = {
   fontWeight: 600, letterSpacing: "-0.01em", color: "var(--color-ink)", margin: 0,
 };
 const percentSuffix: CSSProperties = { color: "var(--color-slate)" };
-const ADD_LINK: CSSProperties = {
-  color: "var(--color-brand-teal)",
-  background: "transparent", border: 0, padding: 0, cursor: "pointer",
-};
 const primaryButton = CONTROL_BUTTON_PRIMARY;
 const secondaryButton = CONTROL_BUTTON_SECONDARY;
 const dangerButton = {
@@ -60,18 +56,12 @@ const FIELD_PAIR: CSSProperties = {
   alignItems: "start",
 };
 const ROW: CSSProperties = { display: "flex", alignItems: "center", gap: 6 };
-const SECTION_HEAD: CSSProperties = {
-  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6,
-};
 const SECTION_LABEL: CSSProperties = { ...CONTROL_LABEL, margin: 0 };
-const ADD_ASSET_BUTTON: CSSProperties = {
-  ...ADD_LINK, fontSize: "var(--fs-label)", whiteSpace: "nowrap",
-};
 const GROW_INPUT: CSSProperties = { flex: "1 1 auto", width: "auto", minWidth: 0 };
-const GROW_SELECT: CSSProperties = { ...GROW_INPUT, cursor: "pointer" };
 const PERCENT_INPUT: CSSProperties = { width: 56 };
 const ASSET_NAME: CSSProperties = {
-  width: 40, flex: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+  flex: "1 1 auto", minWidth: 0, maxWidth: 140,
+  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
   fontSize: "var(--fs-label)",
   fontWeight: 500, color: "var(--color-ink)",
 };
@@ -107,18 +97,6 @@ export default function MFEditPortfolioModal({
   const [cashBuffer, setCashBuffer] = useState(String(portfolio.cash_buffer_limit || 0));
   const [tagsStr, setTagsStr] = useState(
     portfolio.tags ? Object.keys(portfolio.tags).join(", ") : ""
-  );
-  // Asset registry (products, symbols) for the allocation symbol picker.
-  const [products, setProducts] = useState<AssetProduct[]>([]);
-  const [symbols, setSymbols] = useState<AssetSymbol[]>([]);
-  const [registryLoading, setRegistryLoading] = useState(false);
-  const [registryErr, setRegistryErr] = useState("");
-
-  // Target ratio
-  const [ratioEntries, setRatioEntries] = useState<{ asset: string; pct: string }[]>(() =>
-    settings?.target_ratio
-      ? Object.entries(settings.target_ratio).map(([a, p]) => ({ asset: a, pct: String(p) }))
-      : []
   );
 
   // Profit thresholds
@@ -160,77 +138,25 @@ export default function MFEditPortfolioModal({
     }
   }, [showModal, portfolio, settings]);
 
-  useEffect(() => {
-    if (!showModal) return;
-    let cancelled = false;
-    setRegistryLoading(true);
-    setRegistryErr("");
-    Promise.all([api.getProducts(), api.getSymbols()])
-      .then(([productRows, symbolRows]) => {
-        if (cancelled) return;
-        setProducts(productRows);
-        setSymbols(symbolRows);
-      })
-      .catch((err: unknown) => {
-        console.error("Failed to load the asset registry:", err);
-        if (!cancelled) setRegistryErr("Asset registry unavailable");
-      })
-      .finally(() => {
-        if (!cancelled) setRegistryLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [showModal]);
-
-  const productById = useMemo(
-    () => new Map(products.map((product) => [product.product_id, product])),
-    [products]
-  );
-
-  // One optgroup per registry product, labelled broker · underlying. The
-  // option value is the dashboard price_symbol, so holdings and rebalance keep
-  // matching the stored key; the option label is the symbol itself.
-  const symbolGroups = useMemo(() => {
-    const groups = new Map<number, { key: number; label: string; options: { value: string; label: string }[] }>();
-    for (const symbol of symbols) {
-      const priceSymbol = symbol.price_symbol?.trim();
-      if (!priceSymbol) continue;
-      const product = productById.get(symbol.product_id);
-      if (!product) continue;
-      let group = groups.get(product.product_id);
-      if (!group) {
-        const code = product.broker_code ?? "Unassigned";
-        group = { key: product.product_id, label: `${code} · ${product.ticker ?? "—"}`, options: [] };
-        groups.set(product.product_id, group);
-      }
-      group.options.push({ value: priceSymbol, label: priceSymbol });
-    }
-    return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label));
-  }, [symbols, productById]);
-
-  // Stored keys resolve case-insensitively, so an existing row stays selected
-  // instead of rendering blank against the registry's canonical casing.
-  const optionByKey = useMemo(
-    () => new Map(symbolGroups.flatMap((group) => group.options.map((option) => [option.value.trim().toUpperCase(), option.value] as const))),
-    [symbolGroups]
-  );
-
-  // Stored keys with no registry row stay selectable so saving never drops them.
-  const fallbackOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const options: { value: string; label: string }[] = [];
-    for (const entry of ratioEntries) {
-      const asset = entry.asset.trim();
-      const key = asset.toUpperCase();
-      if (!asset || optionByKey.has(key) || seen.has(key)) continue;
-      seen.add(key);
-      options.push({ value: entry.asset, label: `${entry.asset} (not in the registry)` });
-    }
-    return options;
-  }, [ratioEntries, optionByKey]);
-
   if (!showModal) return null;
 
   const cash = portfolio.available_cash || 0;
+
+  // Neutral allocation is derived, never edited: every held underlying group
+  // gets an equal 100/N share and the global threshold splits N ways.
+  const groupLabels: string[] = [];
+  for (const holding of holdings) {
+    const label = holding.underlying?.trim() || "Unassigned";
+    if (!groupLabels.includes(label)) groupLabels.push(label);
+  }
+  const orderedGroups = groupLabels.filter(label => label !== "Unassigned");
+  if (groupLabels.includes("Unassigned")) orderedGroups.push("Unassigned");
+  const globalPct = parseFloat(globalThreshold) || 0;
+  const allocationGroups = orderedGroups.map(label => ({
+    label,
+    share: 100 / orderedGroups.length,
+    threshold: globalPct / orderedGroups.length,
+  }));
 
   const handleSave = async () => {
     setSaveErr("");
@@ -252,12 +178,8 @@ export default function MFEditPortfolioModal({
         tags: Object.keys(tagsObj).length > 0 ? tagsObj : undefined,
       });
 
-      const ratio: Record<string, number> = {};
-      for (const e of ratioEntries) {
-        if (e.asset.trim()) ratio[e.asset.trim()] = parseFloat(e.pct) || 0;
-      }
       await api.mfUpdateSettings(portfolioId, {
-        target_ratio: Object.keys(ratio).length > 0 ? ratio : null,
+        allocation_mode: "neutral",
         global_profit_threshold: parseFloat(globalThreshold) || 0,
       });
 
@@ -394,55 +316,27 @@ export default function MFEditPortfolioModal({
 
             {/* Right: allocation + thresholds */}
             <div style={GROUP_STACK}>
-              {/* Target Ratios */}
+              {/* Allocation — neutral, derived from the held underlyings */}
               <div>
-                <div style={SECTION_HEAD}>
-                  <p style={SECTION_LABEL}>Target allocation ratios</p>
-                  <button onClick={() => setRatioEntries([...ratioEntries, { asset: "", pct: "0" }])}
-                    className="hover:underline" style={ADD_ASSET_BUTTON}>+ Add asset</button>
-                </div>
-                <div className="flex flex-col" style={{ gap: 6 }}>
-                  {ratioEntries.map((e, i) => (
-                    <div key={i} className="flex items-center" style={ROW}>
-                      {registryErr && symbols.length === 0 ? (
-                        <TextInput type="text" value={e.asset} onChange={v => {
-                          const copy = [...ratioEntries]; copy[i] = { ...copy[i], asset: v.target.value.toUpperCase() }; setRatioEntries(copy);
-                        }} placeholder="Asset" style={GROW_INPUT} />
-                      ) : (
-                        <select
-                          aria-label={`Asset for allocation ${i + 1}`}
-                          value={optionByKey.get(e.asset.trim().toUpperCase()) ?? e.asset}
-                          disabled={registryLoading}
-                          onChange={v => {
-                            const copy = [...ratioEntries]; copy[i] = { ...copy[i], asset: v.target.value }; setRatioEntries(copy);
-                          }}
-                          style={{ ...CONTROL_INPUT, ...GROW_SELECT, opacity: registryLoading ? 0.6 : 1 }}
-                        >
-                          <option value="">Select symbol…</option>
-                          {fallbackOptions.map(o => (
-                            <option key={`stored-${o.value}`} value={o.value}>{o.label}</option>
-                          ))}
-                          {symbolGroups.map(g => (
-                            <optgroup key={g.key} label={g.label}>
-                              {g.options.map(o => (
-                                <option key={o.value} value={o.value}>{o.label}</option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
-                      )}
-                      <NumberInput step="0.1" value={e.pct} onChange={v => {
-                        const copy = [...ratioEntries]; copy[i] = { ...copy[i], pct: v.target.value }; setRatioEntries(copy);
-                      }} placeholder="%" style={PERCENT_INPUT} />
-                      <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
-                      {ratioEntries.length > 1 && (
-                        <button onClick={() => setRatioEntries(ratioEntries.filter((_, idx) => idx !== i))}
-                          className="px-1 opacity-70 hover:opacity-100 transition-opacity text-[length:var(--fs-content)]"
-                          style={{ fontWeight: 600, color: "var(--color-danger-text)", background: "transparent", border: 0, cursor: "pointer" }}>×</button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <p style={{ ...SECTION_LABEL, marginBottom: 6 }}>Allocation</p>
+                <div style={readonlyValue}>Neutral — equal share per underlying</div>
+                {allocationGroups.length > 0 && (
+                  <div className="flex flex-col" style={{ gap: 6, marginTop: 8 }}>
+                    {allocationGroups.map(group => (
+                      <div key={group.label} className="flex items-center justify-between" style={{ gap: 8 }}>
+                        <span className="text-[length:var(--fs-label)]" style={{
+                          color: "var(--color-ink)", fontWeight: 500,
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        }}>{group.label}</span>
+                        <span className="text-[length:var(--fs-label)]" style={{
+                          color: "var(--color-slate)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap",
+                        }}>
+                          {group.share.toFixed(1)}% share · {group.threshold.toFixed(1)}% threshold
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Profit Thresholds */}

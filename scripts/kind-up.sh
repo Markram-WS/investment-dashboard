@@ -146,7 +146,7 @@ load_image localhost/investment-dashboard/frontend:dev
 
 echo "==> Verifying images are present in cluster node"
 for image in localhost/investment-dashboard/backend:dev localhost/investment-dashboard/frontend:dev; do
-    if ! podman exec "$NODE" crictl images --quiet "$image" | grep -q .; then
+    if ! podman exec "$NODE" crictl inspecti "$image" >/dev/null 2>&1; then
         echo "ERROR: image $image is missing from cluster node $NODE after image import." >&2
         exit 1
     fi

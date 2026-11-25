@@ -40,6 +40,13 @@ export default function MFRebalanceRecommendModal({
 }: MFRebalanceRecommendModalProps) {
   if (!show) return null;
 
+  // Every row carries its underlying group's drift, so a group with several
+  // holdings would otherwise be counted once per holding. Sum one drift per
+  // distinct underlying to match the backend's per-group total.
+  const totalDrift = [
+    ...new Map(recommendations.map(r => [r.underlying, r.drift] as const)).values(),
+  ].reduce((sum, drift) => sum + drift, 0);
+
   return (
     <ModalShell open={show} onClose={onClose} title="Rebalance Recommendations" closeOnBackdrop={false}>
       <div className={`${MODAL_CARD} bg-canvas border border-hairline w-full max-w-2xl mx-4`} style={modalPanelStyle}>
@@ -58,6 +65,7 @@ export default function MFRebalanceRecommendModal({
               <thead>
                 <tr className="border-b border-hairline">
                   <th className="text-left py-2 text-[length:var(--fs-label)]" style={headCell}>Asset</th>
+                  <th className="text-left py-2 text-[length:var(--fs-label)]" style={headCell}>Underlying</th>
                   <th className="text-left py-2 text-[length:var(--fs-label)]" style={headCell}>Side</th>
                   <th className="text-right py-2 text-[length:var(--fs-label)]" style={headCell}>Qty</th>
                   <th className="text-right py-2 text-[length:var(--fs-label)]" style={headCell}>Est. Price</th>
@@ -70,6 +78,7 @@ export default function MFRebalanceRecommendModal({
                 {recommendations.map((r, i) => (
                   <tr key={i} className="border-b border-hairline">
                     <td className="py-2 text-[length:var(--fs-content)]" style={{ ...cell, fontWeight: 500 }}>{r.symbol}</td>
+                    <td className="py-2 text-[length:var(--fs-label)]" style={{ color: "var(--color-slate)" }}>{r.underlying}</td>
                     <td className="py-2">
                       <span
                         className={`text-[length:var(--fs-label)] ${
@@ -98,7 +107,7 @@ export default function MFRebalanceRecommendModal({
             <div style={totalPanel}>
               <span className="text-[length:var(--fs-label)]" style={{ color: "var(--color-slate)" }}>Total drift: </span>
               <span className="text-[length:var(--fs-content)]" style={{ fontWeight: 600, color: "var(--color-ink)", fontVariantNumeric: "tabular-nums" }}>
-                {recommendations.reduce((s, r) => s + r.drift, 0).toFixed(1)}%
+                {totalDrift.toFixed(1)}%
               </span>
             </div>
           </>

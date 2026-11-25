@@ -1525,7 +1525,7 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .mf-holdings .mf-head,
 .mf-holdings .mf-row { grid-template-columns: 58px minmax(48px, 1fr) 62px 76px 80px 88px 88px 60px 32px; }
 .mf-holdings .mf-group-row {
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr auto;
   min-height: 26px;
   border-top: 1px solid var(--color-hairline);
   background: var(--color-surface-soft);
@@ -1533,6 +1533,14 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
   font-weight: 600;
   letter-spacing: 0.03em;
   color: var(--color-slate);
+}
+.mf-holdings .mf-group-row .mf-group-meta {
+  font-size: var(--fs-label);
+  font-weight: 500;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-slate);
+  text-align: right;
 }
 .mf-broker { color: var(--color-slate); }
 .mf-orders .mf-head,

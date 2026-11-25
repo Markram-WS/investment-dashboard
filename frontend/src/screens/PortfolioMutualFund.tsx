@@ -195,6 +195,13 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
   }, [holdings]);
   const totalPlPct = totalInvested > 0 ? (totalPl / totalInvested) * 100 : 0;
 
+  // Neutral allocation: equal share per underlying, global threshold split N ways.
+  const groupCount = holdingGroups.length;
+  const groupSharePct = groupCount > 0 ? 100 / groupCount : 0;
+  const groupThresholdPct = groupCount > 0
+    ? (settings?.global_profit_threshold ?? 0) / groupCount
+    : 0;
+
   // --- loading: the same shell, with pulse blocks where the data goes ---------
   if (loading) {
     return (
@@ -292,7 +299,6 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
     );
   }
 
-  const targetCount = settings?.target_ratio ? Object.keys(settings.target_ratio).length : 0;
   const lastRebalance = portfolio.last_rebalance_date ?? settings?.last_rebalance_date ?? null;
 
   return (
@@ -379,6 +385,9 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
                     <Fragment key={group.label}>
                       <div className="mf-row mf-group-row">
                         <span>{group.label}</span>
+                        <span className="mf-group-meta">
+                          {groupSharePct.toFixed(1)}% share · {groupThresholdPct.toFixed(1)}% threshold
+                        </span>
                       </div>
                       {group.holdings.map((h) => (
                         <div className="mf-row" key={h.holding_id}>
@@ -471,7 +480,7 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
             <section className="at-card mf-card" aria-label="Rebalance">
               <header className="mf-card-h">
                 <h2>Rebalance</h2>
-                {targetCount > 0 && <span className="at-count">{targetCount} targets</span>}
+                {groupCount > 0 && <span className="at-count">{groupCount} underlyings</span>}
               </header>
               <div className="mf-kv">
                 <div>

@@ -374,6 +374,7 @@ export interface MFSetting {
   id: number;
   portfolio_id: number;
   target_ratio: Record<string, number> | null;
+  allocation_mode: string | null;
   global_profit_threshold: number;
   total_invested: number;
   last_rebalance_date: string | null;
@@ -381,6 +382,7 @@ export interface MFSetting {
 
 export interface MFRebalanceRecommendation {
   symbol: string;
+  underlying: string;
   side: string;
   qty: number;
   estimated_price: number;

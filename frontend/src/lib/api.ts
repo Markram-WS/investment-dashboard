@@ -658,7 +658,11 @@ export const api = {
     request<MFSetting>(`/managed-funds/${portfolioId}/settings`),
   mfUpdateSettings: (
     portfolioId: number,
-    payload: { target_ratio?: Record<string, number> | null; global_profit_threshold?: number },
+    payload: {
+      target_ratio?: Record<string, number> | null;
+      allocation_mode?: 'neutral';
+      global_profit_threshold?: number;
+    },
   ) =>
     request<MFSetting>(`/managed-funds/${portfolioId}/settings`, {
       method: 'PUT',

@@ -394,6 +394,12 @@ def _retained_portfolio_migrations(conn: Connection) -> None:
         conn.execute(text("ALTER TABLE trade_history RENAME COLUMN comments TO remark"))
     _add_column(conn, "custom_portfolio_connections", "mapping_config", "JSON")
     _add_column(conn, "trade_history", "order_remark", "VARCHAR")
+    # Managed-fund allocation moved from per-symbol target_ratio to the
+    # underlying-group mode; existing funds adopt the neutral default.
+    _add_column(
+        conn, "managed_fund_settings", "allocation_mode",
+        "VARCHAR DEFAULT 'neutral'",
+    )
 
 
 def _ensure_default_product(conn: Connection) -> None:

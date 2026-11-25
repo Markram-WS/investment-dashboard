@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from typing import Iterable, Optional, Dict, Any, List
 from decimal import Decimal
 from datetime import datetime, date
+from dataclasses import dataclass
 
 router = APIRouter()
 
@@ -19,12 +20,14 @@ class MFSettingResponse(BaseModel):
     id: int
     portfolio_id: int
     target_ratio: Optional[Dict[str, Any]] = None
+    allocation_mode: Optional[str] = 'neutral'
     global_profit_threshold: Optional[float] = 0
     total_invested: Optional[float] = 0
     last_rebalance_date: Optional[str] = None
 
 class MFSettingUpdate(BaseModel):
     target_ratio: Optional[Dict[str, float]] = None
+    allocation_mode: Optional[str] = None
     global_profit_threshold: Optional[float] = None
 
 class MFHoldingResponse(BaseModel):
@@ -92,6 +95,7 @@ class MFHistoryResponse(BaseModel):
 
 class MFRebalanceRecommendation(BaseModel):
     symbol: str
+    underlying: str
     side: str
     qty: float
     estimated_price: float
@@ -166,6 +170,7 @@ async def get_settings(portfolio_id: int, db: AsyncSession = Depends(get_db)):
         id=setting.id,
         portfolio_id=setting.portfolio_id,
         target_ratio=target_ratio,
+        allocation_mode=setting.allocation_mode or 'neutral',
         global_profit_threshold=float(setting.global_profit_threshold or 0),
         total_invested=float(setting.total_invested or 0),
         last_rebalance_date=setting.last_rebalance_date.isoformat() if setting.last_rebalance_date else None,
@@ -174,6 +179,8 @@ async def get_settings(portfolio_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.put("/{portfolio_id}/settings", response_model=MFSettingResponse)
 async def update_settings(portfolio_id: int, body: MFSettingUpdate, db: AsyncSession = Depends(get_db)):
+    if body.allocation_mode is not None and body.allocation_mode != 'neutral':
+        raise HTTPException(status_code=400, detail="Unsupported allocation mode")
     result = await db.execute(
         select(ManagedFundSetting).where(ManagedFundSetting.portfolio_id == portfolio_id)
     )
@@ -183,6 +190,8 @@ async def update_settings(portfolio_id: int, body: MFSettingUpdate, db: AsyncSes
         db.add(setting)
     if body.target_ratio is not None:
         setting.target_ratio = body.target_ratio
+    if body.allocation_mode is not None:
+        setting.allocation_mode = body.allocation_mode
     if body.global_profit_threshold is not None:
         setting.global_profit_threshold = Decimal(str(body.global_profit_threshold))
     await db.commit()
@@ -572,10 +581,7 @@ async def list_history(portfolio_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/{portfolio_id}/rebalance/calculate", response_model=MFRebalanceResponse)
 async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_db)):
-    port_result = await db.execute(
-        select(Portfolio).where(Portfolio.portfolio_id == portfolio_id)
-    )
-    portfolio = port_result.scalar_one_or_none()
+    portfolio = await db.get(Portfolio, portfolio_id)
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
 
@@ -583,68 +589,93 @@ async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_
         select(ManagedFundSetting).where(ManagedFundSetting.portfolio_id == portfolio_id)
     )
     setting = setting_result.scalar_one_or_none()
-    if not setting or not setting.target_ratio:
-        raise HTTPException(status_code=400, detail="No target ratio configured")
-
-    target_ratio: Dict[str, float] = {
-        k: float(v) for k, v in setting.target_ratio.items()
-    }
-    vals = list(target_ratio.values())
-    if vals and max(vals) <= 1.0:
-        target_ratio = {k: v * 100 for k, v in target_ratio.items()}
+    global_threshold = float(setting.global_profit_threshold or 0) if setting else 0
 
     holdings_result = await db.execute(
         select(ManagedFundHolding).where(ManagedFundHolding.portfolio_id == portfolio_id)
     )
     holdings = holdings_result.scalars().all()
 
-    total_value = float(portfolio.current_nav or 0) or sum(
-        float(h.qty or 0) * float(h.current_price or 0) for h in holdings
+    groups, _ = await _group_holdings_by_underlying(
+        db, portfolio, holdings, global_threshold
     )
-
-    current_allocations: Dict[str, float] = {}
-    for h in holdings:
-        h_value = float(h.qty or 0) * float(h.current_price or 0)
-        current_allocations[h.asset] = round((h_value / total_value * 100) if total_value > 0 else 0, 2)
+    total_value = sum(group.value for group in groups)
 
     recommendations: List[MFRebalanceRecommendation] = []
     total_drift = 0.0
-    prices = await registry.local_prices(
-        db, portfolio.broker_id, list(target_ratio.keys())
-    )
+    target_allocations: Dict[str, float] = {}
+    current_allocations: Dict[str, float] = {}
 
-    for symbol, target_pct in target_ratio.items():
-        current_pct = current_allocations.get(symbol, 0)
-        drift = abs(target_pct - current_pct)
+    if not groups or total_value <= 0:
+        return MFRebalanceResponse(
+            portfolio_id=portfolio_id,
+            portfolio_name=portfolio.portfolio_name,
+            current_nav=float(portfolio.current_nav or 0),
+            target_allocations=target_allocations,
+            current_allocations=current_allocations,
+            recommendations=recommendations,
+            total_drift=0.0,
+        )
+
+    # Neutral mode: every underlying group gets an equal share of the fund.
+    target_pct = 100.0 / len(groups)
+    target_allocations = {group.label: round(target_pct, 2) for group in groups}
+    current_allocations = {group.label: group.share_pct for group in groups}
+
+    price_symbols = [
+        holding.asset
+        for group in groups
+        if abs(target_pct - group.share_pct) >= 0.5
+        for holding in group.holdings
+    ]
+    prices = await registry.local_prices(db, portfolio.broker_id, price_symbols)
+
+    for group in groups:
+        # Display shares are rounded, but drift keeps the exact proportion so
+        # the reported total is not biased by per-group rounding.
+        current_pct = group.share_pct
+        raw_pct = group.value / total_value * 100
+        drift = abs(target_pct - raw_pct)
         total_drift += drift
-
         if drift < 0.5:
             continue
 
-        diff_pct = target_pct - current_pct
+        diff_pct = target_pct - raw_pct
         diff_value = total_value * abs(diff_pct) / 100
-        estimated_price = 0.0
+        side = "Buy" if diff_pct > 0 else "Sell"
 
-        # Price estimate comes from the broker-scoped registry quote.
-        if diff_value > 0:
+        # Intra-group split: every holding keeps its current market-value
+        # proportion inside the group; the group's diff value scales them.
+        for holding in group.holdings:
+            holding_value = float(holding.qty or 0) * float(holding.current_price or 0)
+            if holding_value <= 0 or group.value <= 0:
+                continue
+            portion = diff_value * holding_value / group.value
             estimated_price = prices.get(
-                registry.normalise_symbol(symbol), 0.0
+                registry.normalise_symbol(holding.asset), 0.0
             )
-
+            # No registry quote: the holding's own current price is the last
+            # known mark, so the order still sizes in shares. Only both-zero
+            # falls back to the diff value itself.
+            if estimated_price <= 0:
+                estimated_price = float(holding.current_price or 0)
             if estimated_price > 0:
-                qty = round(diff_value / estimated_price, 8)
+                qty = round(portion / estimated_price, 8)
             else:
-                qty = round(diff_value, 2)
+                qty = round(portion, 2)
 
-            side = "Buy" if diff_pct > 0 else "Sell"
             recommendations.append(MFRebalanceRecommendation(
-                symbol=symbol,
+                symbol=holding.asset,
+                underlying=group.label,
                 side=side,
                 qty=qty,
                 estimated_price=estimated_price,
-                reason=f"Drift {drift:.1f}%: rebalance from {current_pct:.1f}% to {target_pct:.1f}%",
+                reason=(
+                    f"Drift {drift:.1f}%: rebalance {group.label} from "
+                    f"{current_pct:.1f}% to {target_pct:.1f}%"
+                ),
                 current_allocation=current_pct,
-                target_allocation=target_pct,
+                target_allocation=round(target_pct, 2),
                 drift=round(drift, 2),
             ))
 
@@ -652,7 +683,7 @@ async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_
         portfolio_id=portfolio_id,
         portfolio_name=portfolio.portfolio_name,
         current_nav=float(portfolio.current_nav or 0),
-        target_allocations=target_ratio,
+        target_allocations=target_allocations,
         current_allocations=current_allocations,
         recommendations=recommendations,
         total_drift=round(total_drift, 2),
@@ -759,6 +790,62 @@ async def _holding_responses(
         _holding_response(holding, identities.get(_holding_identity_key(holding.asset)))
         for holding in rows
     ]
+
+
+@dataclass
+class _UnderlyingGroup:
+    """One registry-underlying allocation group (broker is deliberately ignored)."""
+
+    label: str
+    value: float
+    share_pct: float
+    threshold: float
+    holdings: List[ManagedFundHolding]
+
+
+async def _group_holdings_by_underlying(
+    db: AsyncSession,
+    portfolio: Optional[Portfolio],
+    holdings: Iterable[ManagedFundHolding],
+    global_profit_threshold: float = 0.0,
+) -> tuple[List[_UnderlyingGroup], Dict[int, str]]:
+    """Group holdings by registry underlying — the one allocation rule.
+
+    Market value is ``qty × current_price``; cash is not part of the shares.
+    Neutral mode gives every group ``100 / N`` percent, so the global profit
+    threshold splits evenly to ``global / N`` per group. A holding whose symbol
+    is not registered lands in the ``Unassigned`` group. Returns the groups in
+    first-seen order plus a ``holding_id -> group label`` lookup.
+    """
+    rows = list(holdings)
+    broker_id = portfolio.broker_id if portfolio is not None else None
+    identities = await _resolve_holding_identities(
+        db, broker_id, [holding.asset for holding in rows]
+    )
+
+    grouped: Dict[str, _UnderlyingGroup] = {}
+    group_of_holding: Dict[int, str] = {}
+    for holding in rows:
+        identity = identities.get(_holding_identity_key(holding.asset))
+        label = (identity[2] if identity else None) or "Unassigned"
+        value = float(holding.qty or 0) * float(holding.current_price or 0)
+        group = grouped.get(label)
+        if group is None:
+            group = _UnderlyingGroup(label, 0.0, 0.0, 0.0, [])
+            grouped[label] = group
+        group.value += value
+        group.holdings.append(holding)
+        group_of_holding[holding.holding_id] = label
+
+    groups = list(grouped.values())
+    total_value = sum(group.value for group in groups)
+    group_threshold = (global_profit_threshold / len(groups)) if groups else 0.0
+    for group in groups:
+        group.share_pct = (
+            round(group.value / total_value * 100, 2) if total_value > 0 else 0.0
+        )
+        group.threshold = group_threshold
+    return groups, group_of_holding
 
 
 async def _registry_price(
@@ -1022,10 +1109,17 @@ async def check_alerts(portfolio_id: int, db: AsyncSession = Depends(get_db)):
     )
     holdings = holdings_result.scalars().all()
 
+    portfolio = await db.get(Portfolio, portfolio_id)
+    groups, group_of_holding = await _group_holdings_by_underlying(
+        db, portfolio, holdings, global_threshold
+    )
+    threshold_by_group = {group.label: group.threshold for group in groups}
+
     alerts: List[MFAlertItem] = []
     for h in holdings:
         pl_pct = float(h.unrealized_pl_pct or 0)
-        threshold = max(float(h.profit_threshold or 0), global_threshold)
+        group_threshold = threshold_by_group.get(group_of_holding.get(h.holding_id, ""), 0.0)
+        threshold = max(float(h.profit_threshold or 0), group_threshold)
         if threshold > 0 and abs(pl_pct) >= threshold:
             alerts.append(MFAlertItem(
                 asset=h.asset,

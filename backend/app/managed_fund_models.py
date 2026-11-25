@@ -66,6 +66,7 @@ class ManagedFundSetting(Base):
     id = Column(Integer, primary_key=True)
     portfolio_id = Column(Integer, ForeignKey('portfolios.portfolio_id'), nullable=False, unique=True)
     target_ratio = Column(JSON)
+    allocation_mode = Column(String, default='neutral')
     global_profit_threshold = Column(Numeric(10, 4), default=Decimal('0'))
     total_invested = Column(Numeric(20, 8), default=Decimal('0'))
     last_rebalance_date = Column(DateTime)
