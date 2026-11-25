@@ -66,17 +66,11 @@ const rowTwo = 'grid gap-2.5 grid-cols-1 min-[420px]:grid-cols-2';
 /** Three equal short columns; collapses to two (then one) as the card narrows. */
 const rowThree = 'grid gap-2.5 grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3';
 
-const emptyBrokerForm = {
-  code: '',
-  name: '',
-  currency: 'THB',
-};
-
 const emptyProductForm = {
   ticker: '',
   asset_type: '',
   source: 'manual',
-  broker_id: '',
+  broker_code: '',
   multiplier: '1',
   margin_rate: '0',
   margin_mode: 'notional',
@@ -109,11 +103,7 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
   const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [brokerPanelOpen, setBrokerPanelOpen] = useState(false);
-  const [brokerForm, setBrokerForm] = useState({ ...emptyBrokerForm });
-  const [brokerSaving, setBrokerSaving] = useState(false);
-  const [brokerError, setBrokerError] = useState('');
-  const [brokerNote, setBrokerNote] = useState('');
+  const [newBrokerCurrency, setNewBrokerCurrency] = useState('THB');
 
   useEffect(() => {
     if (!open) return;
@@ -141,11 +131,7 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
   useEffect(() => {
     if (!open) return;
     setError('');
-    setBrokerPanelOpen(false);
-    setBrokerForm({ ...emptyBrokerForm });
-    setBrokerSaving(false);
-    setBrokerError('');
-    setBrokerNote('');
+    setNewBrokerCurrency('THB');
     setSelection(selectionForProduct(product));
     setProducts(product ? [product] : []);
     setProductsLoaded(product != null);
@@ -181,9 +167,18 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
 
   if (!open) return null;
 
+  const brokerCodeInput = productForm.broker_code.trim();
+  const unassignedBroker = brokerCodeInput === ''
+    || brokerCodeInput === '—'
+    || brokerCodeInput === '— Unassigned —';
+  const matchedBroker = unassignedBroker
+    ? undefined
+    : brokers.find(broker => broker.code.trim().toLowerCase() === brokerCodeInput.toLowerCase());
+  const createBrokerCode = unassignedBroker || matchedBroker ? '' : brokerCodeInput;
+
   const handleSaveProduct = async () => {
     const ticker = productForm.ticker.trim();
-    if (!ticker && !productForm.broker_id && !productForm.asset_type) {
+    if (!ticker && unassignedBroker && !productForm.asset_type) {
       setError('Ticker is required');
       return;
     }
@@ -206,10 +201,27 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
     }
     setLoading(true);
     setError('');
+    let failedOnBroker = false;
     try {
+      let brokerId = matchedBroker?.id ?? null;
+      if (createBrokerCode) {
+        failedOnBroker = true;
+        const created = await api.createBroker({
+          code: createBrokerCode,
+          name: createBrokerCode,
+          currency: newBrokerCurrency,
+        });
+        setBrokers(prev => (
+          prev.some(broker => broker.id === created.id)
+            ? prev
+            : [...prev, created].sort((a, b) => a.code.localeCompare(b.code))
+        ));
+        brokerId = created.id;
+        failedOnBroker = false;
+      }
       await api.createProduct({
         ticker: ticker || undefined,
-        broker_id: productForm.broker_id ? Number(productForm.broker_id) : null,
+        broker_id: brokerId,
         asset_type: productForm.asset_type || null,
         multiplier,
         margin_rate: marginRate,
@@ -223,42 +235,21 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
       onClose();
     } catch (e) {
       console.error('Failed to create the product', e);
-      setError(apiErrorDetail(e, "Couldn't create the product. Try again."));
+      const message = apiErrorDetail(e, failedOnBroker
+        ? "Couldn't create the broker. Try again."
+        : "Couldn't create the product. Try again.");
+      setError(message);
+      const status = (e as { status?: number } | null)?.status;
+      if (failedOnBroker && (status === 409 || /already exists/i.test(message))) {
+        try {
+          const rows = await api.getBrokers();
+          setBrokers(rows);
+        } catch {
+          /* the existing-broker adoption needs the refreshed list; keep the inline error */
+        }
+      }
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleCreateBroker = async () => {
-    const code = brokerForm.code.trim();
-    const name = brokerForm.name.trim();
-    if (!code) { setBrokerError('Broker code is required'); return; }
-    if (!name) { setBrokerError('Broker name is required'); return; }
-    setBrokerSaving(true);
-    setBrokerError('');
-    try {
-      const created = await api.createBroker({
-        code,
-        name,
-        currency: brokerForm.currency,
-      });
-      setBrokers(prev => (
-        prev.some(b => b.id === created.id)
-          ? prev
-          : [...prev, created].sort((a, b) => a.code.localeCompare(b.code))
-      ));
-      setProductForm(p => ({ ...p, broker_id: String(created.id) }));
-      setBrokerPanelOpen(false);
-      setBrokerForm({ ...emptyBrokerForm });
-      setBrokerNote(`Broker ${created.code} created`);
-      api.getBrokers()
-        .then(rows => setBrokers(rows))
-        .catch(() => { /* the optimistic row already covers the select */ });
-    } catch (e) {
-      console.error('Failed to create the broker', e);
-      setBrokerError(apiErrorDetail(e, "Couldn't create the broker. Try again."));
-    } finally {
-      setBrokerSaving(false);
     }
   };
 
@@ -395,23 +386,19 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                   placeholder="e.g. S50, or leave blank for none" />
               </Field>
               <div className={rowTwo}>
-                <div className="min-w-0">
-                  <Field className="min-w-0" label="Broker" htmlFor="add-product-broker">
-                    <SelectInput id="add-product-broker" value={productForm.broker_id}
-                      onChange={e => setProductForm(p => ({ ...p, broker_id: e.target.value }))}>
-                      <option value="">Unassigned</option>
-                      {brokers.map(b => <option key={b.id} value={b.id}>{b.code}</option>)}
-                    </SelectInput>
-                  </Field>
-                  {!brokerPanelOpen && (
-                    <button type="button"
-                      onClick={() => { setBrokerError(''); setBrokerPanelOpen(true); }}
-                      style={secondaryButton}
-                      className="mt-1.5 text-[length:var(--fs-label)]">
-                      + New broker
-                    </button>
-                  )}
-                </div>
+                <Field className="min-w-0" label="Broker" htmlFor="add-product-broker"
+                  hint="Pick an existing broker or type a new code to create it.">
+                  <TextInput id="add-product-broker" list="broker-codes"
+                    value={productForm.broker_code}
+                    onChange={e => setProductForm(p => ({ ...p, broker_code: e.target.value }))}
+                    placeholder="DF, PI — or type a new code" />
+                </Field>
+                <datalist id="broker-codes">
+                  <option value="— Unassigned —">Unassigned</option>
+                  {brokers.map(broker => (
+                    <option key={broker.id} value={broker.code}>{broker.name}</option>
+                  ))}
+                </datalist>
                 <Field className="min-w-0" label="Default type" htmlFor="add-product-type"
                   hint="Inherited by every contract unless the contract overrides it.">
                   <SelectInput id="add-product-type" value={productForm.asset_type}
@@ -421,86 +408,35 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                   </SelectInput>
                 </Field>
               </div>
-              {brokerPanelOpen && (
+              {createBrokerCode && (
                 <div className="min-w-0 rounded-xl border border-hairline p-2.5">
-                  <div className={rowThree}>
-                    <Field className="min-w-0" label="Broker code" htmlFor="new-broker-code"
-                      required hint="e.g. DF, PI">
-                      <TextInput id="new-broker-code" value={brokerForm.code} maxLength={8}
-                        onChange={e => {
-                          setBrokerError('');
-                          setBrokerForm(p => ({
-                            ...p,
-                            code: e.target.value.replace(/[^A-Za-z]/g, ''),
-                          }));
-                        }}
-                        placeholder="DF" />
-                    </Field>
-                    <Field className="min-w-0" label="Broker name" htmlFor="new-broker-name"
-                      required hint="Display name, e.g. Phillip Securities">
-                      <TextInput id="new-broker-name" value={brokerForm.name}
-                        onChange={e => {
-                          setBrokerError('');
-                          setBrokerForm(p => ({ ...p, name: e.target.value }));
-                        }}
-                        placeholder="Phillip Securities" />
-                    </Field>
-                    <Field className="min-w-0" label="Currency" htmlFor="new-broker-currency"
-                      hint="Used for display only">
-                      <SelectInput id="new-broker-currency" value={brokerForm.currency}
-                        onChange={e => {
-                          setBrokerError('');
-                          setBrokerForm(p => ({ ...p, currency: e.target.value }));
-                        }}>
+                  <div className={rowTwo}>
+                    <p style={{ ...CONTROL_HELPER, color: 'var(--color-ink)', margin: 0 }}>
+                      New broker · {createBrokerCode}
+                    </p>
+                    <Field className="min-w-0" label="Currency" htmlFor="add-product-new-broker-currency">
+                      <SelectInput id="add-product-new-broker-currency" value={newBrokerCurrency}
+                        onChange={e => setNewBrokerCurrency(e.target.value)}>
                         <option value="THB">THB</option>
                         <option value="USD">USD</option>
                       </SelectInput>
                     </Field>
                   </div>
-                  <p style={CONTROL_HELPER}>
-                    The broker becomes selectable for this product immediately after it is created.
-                  </p>
-                  <div aria-live="polite">
-                    {brokerError && (
-                      <div style={errorText} className="text-[length:var(--fs-label)]">
-                        {brokerError}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex justify-end" style={{ gap: 8, marginTop: 8 }}>
-                    <button type="button"
-                      onClick={() => {
-                        setBrokerPanelOpen(false);
-                        setBrokerError('');
-                        setBrokerForm({ ...emptyBrokerForm });
-                      }}
-                      style={secondaryButton}
-                      className="text-[length:var(--fs-label)]">Cancel</button>
-                    <button type="button" onClick={handleCreateBroker} disabled={brokerSaving}
-                      style={primaryButton}
-                      className="text-[length:var(--fs-label)] transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
-                      {brokerSaving ? 'Creating…' : 'Create broker'}
-                    </button>
-                  </div>
+                  <p style={CONTROL_HELPER}>Creates this broker with the typed code as its name.</p>
                 </div>
               )}
-              <div aria-live="polite" role="status">
-                {brokerNote && (
-                  <p style={{ ...CONTROL_HELPER, margin: '4px 0 0' }}>{brokerNote}</p>
-                )}
-              </div>
               <div className={rowThree}>
-                <Field className="min-w-0" label="Default multiplier" htmlFor="add-product-multiplier"
+                <Field className="min-w-0" label="Multiplier" htmlFor="add-product-multiplier"
                   hint="Inherited by every contract unless the contract overrides it.">
                   <NumberInput id="add-product-multiplier" step="any" value={productForm.multiplier}
                     onChange={e => setProductForm(p => ({ ...p, multiplier: e.target.value }))} placeholder="1" />
                 </Field>
-                <Field className="min-w-0" label="Default margin rate" htmlFor="add-product-margin-rate"
+                <Field className="min-w-0" label="Margin rate" htmlFor="add-product-margin-rate"
                   hint="Inherited by every contract unless the contract overrides it.">
                   <NumberInput id="add-product-margin-rate" step="any" value={productForm.margin_rate}
                     onChange={e => setProductForm(p => ({ ...p, margin_rate: e.target.value }))} placeholder="0" />
                 </Field>
-                <Field className="min-w-0" label="Default margin mode" htmlFor="add-product-margin-mode"
+                <Field className="min-w-0" label="Margin mode" htmlFor="add-product-margin-mode"
                   hint="Inherited by every contract unless the contract overrides it.">
                   <SelectInput id="add-product-margin-mode" value={productForm.margin_mode}
                     onChange={e => setProductForm(p => ({ ...p, margin_mode: e.target.value }))}>

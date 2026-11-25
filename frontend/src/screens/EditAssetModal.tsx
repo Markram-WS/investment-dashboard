@@ -440,17 +440,17 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({
                 </Field>
               </div>
               <div className={rowThree}>
-                <Field className="min-w-0" label="Default multiplier" htmlFor="edit-product-multiplier"
+                <Field className="min-w-0" label="Multiplier" htmlFor="edit-product-multiplier"
                   hint="Inherited by every contract unless the contract overrides it.">
                   <NumberInput id="edit-product-multiplier" step="any" value={productForm.multiplier}
                     onChange={e => setProductForm(p => ({ ...p, multiplier: e.target.value }))} placeholder="1" />
                 </Field>
-                <Field className="min-w-0" label="Default margin rate" htmlFor="edit-product-margin-rate"
+                <Field className="min-w-0" label="Margin rate" htmlFor="edit-product-margin-rate"
                   hint="Inherited by every contract unless the contract overrides it.">
                   <NumberInput id="edit-product-margin-rate" step="any" value={productForm.margin_rate}
                     onChange={e => setProductForm(p => ({ ...p, margin_rate: e.target.value }))} placeholder="0" />
                 </Field>
-                <Field className="min-w-0" label="Default margin mode" htmlFor="edit-product-margin-mode"
+                <Field className="min-w-0" label="Margin mode" htmlFor="edit-product-margin-mode"
                   hint="Inherited by every contract unless the contract overrides it.">
                   <SelectInput id="edit-product-margin-mode" value={productForm.margin_mode}
                     onChange={e => setProductForm(p => ({ ...p, margin_mode: e.target.value }))}>
