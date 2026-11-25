@@ -44,13 +44,13 @@ Tables for portfolio management, managed fund, trade execution, ledger, the asse
 | `simulation_models` | Draft rebalance/simulation data per portfolio |
 | `trade_history` | Closed/canceled order records: `order_id`, `close_order_id`, `group_id`, `realized_pl`, `exit_price` |
 | `orders_groups` | Group definitions: `name`, `max_orders`, `min_price`, `max_price`, `range` (was Zone Groups) |
-| `asset_products` | Broker-scoped product / contract spec: `product_id` PK, nullable `ticker` + `broker_id` FK + `asset_type`, `multiplier`, `margin_rate`, `source`, `margin_mode` (`notional`/`premium`/`span`), `group_id` FK→`asset_groups`, `name`, timestamps; natural key `UNIQUE NULLS NOT DISTINCT (ticker, broker_id, asset_type)` |
+| `asset_products` | Broker-scoped product / contract spec: `product_id` PK, nullable `ticker` + `broker_id` FK + `asset_type`, `multiplier`, `margin_rate`, `source`, `margin_mode` (`notional`/`premium`/`span`), `group_id` FK→`asset_groups` (retired, never written by the UI), `name`, timestamps; natural key `UNIQUE NULLS NOT DISTINCT (ticker, broker_id, asset_type)` |
 | `asset_symbols` | Contract symbol under a product: `symbol_id` PK, `product_id` FK→`asset_products` ON DELETE CASCADE, broker mirror, dashboard `price_symbol`, required provider `sync_symbol`, `contract_kind`, option terms, and multiplier/rate/span overrides (an override NULL means the value is inherited from the product, not missing) |
 | `asset_quotes` | Latest provider quote keyed by `(source, sync_symbol)`: nullable `price` and `change_24h`, required `updated_at`; no FK to symbols |
 | `watchlist` | Price alerts per ticker |
 | `transactions` | Consolidated ledger: deposits, withdrawals, transfers |
 | `decision_journals` | Mini post-it notes per portfolio, linked to trade history |
-| `asset_groups` | Group definitions for asset organization: `id` SERIAL PK, `name` TEXT UNIQUE NOT NULL, `is_default` BOOLEAN, `created_at` TIMESTAMP. Seeds Ungrouped + Watchlist on first query |
+| `asset_groups` | Retired from the UI (kept for compatibility; nothing reads or writes it): `id` SERIAL PK, `name` TEXT UNIQUE NOT NULL, `is_default` BOOLEAN, `created_at` TIMESTAMP. Listing no longer seeds Ungrouped/Watchlist |
 | `managed_fund_holdings` | Managed Fund: asset holdings with avg entry, current price, P/L, profit threshold |
 | `managed_fund_orders` | Managed Fund: pending orders (Buy/Sell) before confirmation |
 | `managed_fund_order_history` | Managed Fund: completed/cancelled order archive |
@@ -87,7 +87,7 @@ CREATE TABLE custom_portfolio_connections (
 
 **Startup conversion and drop.** In the FastAPI lifespan, one transaction creates the three registry tables and the internal default product `(NULL,NULL,NULL)` (multiplier 1, rate 0, source `-`, mode `notional`, no symbols; never listed or editable). If `whitelist_assets` still exists, the migration first preflights duplicate normalized broker-scoped dashboard keys (a NULL broker is treated as the seeded `DF` broker), adds the legacy price/broker/multiplier columns, drops the old `whitelist_assets_ticker_key`, backfills `price_symbol = ticker` and NULL brokers to `DF`, converts each legacy row to exactly one product plus one symbol, upserts quotes by `(source, sync_symbol)`, translates matching `portfolios.product_tickers` contract symbols to the owning product ticker (unmatched values stay verbatim and order is preserved), asserts every conversion invariant, and only then runs `DROP TABLE whitelist_assets` — all in the same transaction. A failed preflight/assertion rolls back, so the legacy table survives and no registry rows commit. Boots where the table is already gone skip the legacy branch entirely; a second boot is a no-op. PostgreSQL uses an advisory transaction lock, `UNIQUE NULLS NOT DISTINCT`, and the partial/expression indexes; SQLite uses portable constraints and claims no PostgreSQL-only index enforcement.
 
-**Product columns.** `product_id` PK; nullable `ticker`, `broker_id` FK→`brokers`, `asset_type`; `multiplier NUMERIC(20,8) NOT NULL DEFAULT 1`; `margin_rate NUMERIC(10,6) NOT NULL DEFAULT 0`; `source` (`yfinance`/`tfex`/`manual`/`-`); `margin_mode NOT NULL DEFAULT 'notional'` with `CHECK IN ('notional','premium','span')`; nullable `group_id` FK→`asset_groups`, `name`, timestamps. Natural key: `(ticker, broker_id, asset_type)`, with `UNIQUE NULLS NOT DISTINCT` on PostgreSQL so the all-NULL default identity cannot duplicate. API payload keys are exactly `product_id,ticker,broker_id,broker_code,asset_type,multiplier,margin_rate,margin_mode,source,group_id,name,symbol_count`; only `GET /assets/products/{product_id}` adds `symbols[]`.
+**Product columns.** `product_id` PK; nullable `ticker`, `broker_id` FK→`brokers`, `asset_type`; `multiplier NUMERIC(20,8) NOT NULL DEFAULT 1`; `margin_rate NUMERIC(10,6) NOT NULL DEFAULT 0`; `source` (`yfinance`/`tfex`/`manual`/`-`); `margin_mode NOT NULL DEFAULT 'notional'` with `CHECK IN ('notional','premium','span')`; nullable `group_id` FK→`asset_groups` (retired; the column remains, always NULL in the product), `name`, timestamps. Natural key: `(ticker, broker_id, asset_type)`, with `UNIQUE NULLS NOT DISTINCT` on PostgreSQL so the all-NULL default identity cannot duplicate. API payload keys are exactly `product_id,ticker,broker_id,broker_code,asset_type,multiplier,margin_rate,margin_mode,source,group_id,name,symbol_count`; only `GET /assets/products/{product_id}` adds `symbols[]`.
 
 **Symbol columns.** `symbol_id` PK; `product_id NOT NULL FK→asset_products ON DELETE CASCADE`; nullable broker mirror (application writes keep it equal to the product's broker; never exposed by the API); `price_symbol` = dashboard/order key; `sync_symbol VARCHAR NOT NULL` = case-preserving provider key used to fetch/store the quote; `contract_kind DEFAULT 'future'`; nullable `option_type`, `expiry_date`, `strike_price`, `multiplier_override`, `margin_rate_override`, `margin_per_contract`; timestamps. **Identity ownership:** `multiplier`, `margin_rate`, `margin_mode` and `source` belong to the identity (`asset_products` row = underlying + broker + type); the contract cannot override them, and `multiplier_override` / `margin_rate_override` are legacy columns that are never read for computation and cannot be written through the API. A contract's only margin value is `margin_per_contract` (`span` mode). The API reports the identity value as `*_effective` (fallback multiplier 1 / rate 0 when NULL) with `*_inherited` always `true`. Dashboard keys must be unique per product and per broker, compared as `upper(trim(price_symbol))` only where non-NULL — the three PostgreSQL indexes are `(product_id, upper(trim(price_symbol))) WHERE price_symbol IS NOT NULL`, `(broker_id, upper(trim(price_symbol))) WHERE price_symbol IS NOT NULL`, and `(product_id, expiry_date, strike_price, option_type) WHERE contract_kind = 'option' AND price_symbol IS NULL`. Payload keys are exactly `symbol_id,product_id,price_symbol,sync_symbol,contract_kind,option_type,expiry_date,strike_price,multiplier_override,margin_rate_override,multiplier_effective,margin_rate_effective,multiplier_inherited,margin_rate_inherited,margin_per_contract,price,change_24h,updated_at`.
 
@@ -110,7 +110,7 @@ CREATE TABLE custom_portfolio_connections (
 - **TFEX quotes are delayed** — the public quotation series endpoint (`/api/set/tfex/series/{symbol}/info`) returns the last traded price, not a live tick, so values lag the exchange by roughly 15 minutes. The client warms up the quotation page once for its anti-bot cookies and retries once before reporting failure. `sync_symbol` accepts the series code or the TFEX product-page URL, and a halted or illiquid series with no last trade falls back to the bid/offer mid, settlement price, or prior settlement price.
 - A TFEX fetch failure is returned as HTTP 502 with a fixed message: unknown/expired series symbol, no usable quote, or a blocked request. Batch refresh skips individual failures; automatic `POST /assets/apply` provider fetches are best effort and retain existing/null quotes.
 
-### New table: `asset_groups`
+### Compatibility table: `asset_groups` (retired)
 
 ```sql
 CREATE TABLE asset_groups (
@@ -121,9 +121,9 @@ CREATE TABLE asset_groups (
 );
 ```
 
-- Ungrouped and Watchlist are created as defaults on first API query
-- Default groups cannot be edited or deleted (enforced by backend)
-- Frontend renders groups as collapsible, droppable section rows inside one registry table whose product rows expand to symbol/quote sub-rows
+- Retired from the product: the table and the `/api/v1/asset-groups` endpoints remain for compatibility, but nothing in the UI reads or writes them
+- Listing no longer seeds Ungrouped/Watchlist; the rows were purged, and `asset_products.group_id` is no longer written
+- The frontend has no group rows, no drag-and-drop between groups, and no Group field; All Assets sections by broker
 
 ### Key columns on `active_orders`
 
@@ -145,7 +145,7 @@ When a portfolio has `is_custom = True`, its transactional data is stored on a *
 | `transactions` | Same columns as main, but `source_portfolio_id`/`destination_portfolio_id` are plain Integer |
 | `trade_plans` | Same columns as main, `plan_id` is plain Integer (no FK) — added to avoid `ForeignKeyViolationError` on order creation referencing main-DB plan IDs |
 | `whitelist_assets` | Legacy owned-custom layout only (flat asset rows, `group_id` plain Integer, no FK). It is not the main registry and is untouched by the startup conversion; new main-registry products/symbols live only in `investment_main` |
-| `asset_groups` | Same columns as main |
+| `asset_groups` | Same columns as main (retired from the UI; compatibility only) |
 | `orders_groups` | Same columns as main, `portfolio_id` is plain Integer |
 
 Tables are created **lazily** — only on the first API request for that portfolio. Schema sync is isolated per database (no `metadata.create_all()` globals).
@@ -171,7 +171,7 @@ A non-null `custom_portfolio_connections.mapping_config` switches the same portf
 ## Notes
 
 - `portfolios.available_cash` is auto-adjusted when Margin Locked/Cash Buffer Limit change
-- `AssetGroup` seeds Ungrouped + Watchlist on first query via the `asset_groups` router
+- Asset groups are retired from the UI: the `asset_groups` table and `/api/v1/asset-groups` endpoints remain for compatibility, but nothing in the product uses them, listing does not seed defaults, and `asset_products.group_id` is never written
 - The live main registry is `asset_products` + `asset_symbols` + `asset_quotes`; `whitelist_assets` was converted and dropped by the startup migration. `price_symbol` is the dashboard/order key, `sync_symbol` the provider fetch key, and `source` (`yfinance`/`tfex`/`manual`/`-`) selects the feed
 - Managed Fund order creation never inserts into the main registry; local prices come from `asset_quotes` via normalized `asset_symbols.price_symbol`
 - Yfinance prices fetched via direct HTTP (not yfinance library) to avoid rate limiting

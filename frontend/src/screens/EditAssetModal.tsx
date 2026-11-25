@@ -24,7 +24,6 @@ interface EditAssetModalProps {
   symbol?: AssetSymbol | null;
   onClose: () => void;
   onSaved: () => void;
-  groups: { id: number; name: string }[];
 }
 
 const SOURCES = ['manual', 'yfinance', 'tfex'];
@@ -82,10 +81,10 @@ const optionalNumber = (raw: string): number | null => {
 };
 
 const EditAssetModal: React.FC<EditAssetModalProps> = ({
-  open, mode, product, symbol, onClose, onSaved, groups,
+  open, mode, product, symbol, onClose, onSaved,
 }) => {
   const [productForm, setProductForm] = useState({
-    ticker: '', name: '', asset_type: '', source: 'manual', group_id: '',
+    ticker: '', name: '', asset_type: '', source: 'manual',
     broker_id: '', multiplier: '1', margin_rate: '0', margin_mode: 'notional',
   });
   const [symbolForm, setSymbolForm] = useState({
@@ -118,7 +117,6 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({
         name: product.name ?? '',
         asset_type: product.asset_type ?? '',
         source: product.source ?? 'manual',
-        group_id: product.group_id != null ? String(product.group_id) : '',
         broker_id: product.broker_id != null ? String(product.broker_id) : '',
         multiplier: String(product.multiplier ?? 1),
         margin_rate: String(product.margin_rate ?? 0),
@@ -171,7 +169,6 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({
         name: productForm.name.trim() || null,
         asset_type: productForm.asset_type || null,
         source: productForm.source,
-        group_id: productForm.group_id ? Number(productForm.group_id) : null,
         broker_id: productForm.broker_id ? Number(productForm.broker_id) : null,
         multiplier,
         margin_rate: marginRate,
@@ -346,7 +343,7 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({
                     placeholder="Optional display name" />
                 </Field>
               </div>
-              <div className={rowThree}>
+              <div className={rowTwo}>
                 <Field className="min-w-0" label="Broker" htmlFor="edit-product-broker">
                   <SelectInput id="edit-product-broker" value={productForm.broker_id}
                     onChange={e => setProductForm(p => ({ ...p, broker_id: e.target.value }))}>
@@ -360,13 +357,6 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({
                     onChange={e => setProductForm(p => ({ ...p, asset_type: e.target.value }))}>
                     <option value="">—</option>
                     {TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-                  </SelectInput>
-                </Field>
-                <Field className="min-w-0" label="Group" htmlFor="edit-product-group">
-                  <SelectInput id="edit-product-group" value={productForm.group_id}
-                    onChange={e => setProductForm(p => ({ ...p, group_id: e.target.value }))}>
-                    <option value="">None</option>
-                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                   </SelectInput>
                 </Field>
               </div>

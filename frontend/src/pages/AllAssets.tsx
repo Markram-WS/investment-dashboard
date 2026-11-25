@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useDrag, useDrop } from 'react-dnd';
 import { api } from '../lib/api';
 import type { AssetProduct, AssetSymbol } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -8,7 +7,6 @@ import PageLayout from '../components/PageLayout';
 import IconButton from '../components/IconButton';
 import AddAssetModal from '../screens/AddAssetModal';
 import EditAssetModal from '../screens/EditAssetModal';
-import AssetGroupModal from '../screens/AssetGroupModal';
 import SyncFromOrdersModal from '../screens/components/SyncFromOrdersModal';
 import { apiErrorDetail } from '../screens/components/apiError';
 import { CONTROL_INPUT } from '../screens/components/controlStyles';
@@ -21,8 +19,6 @@ const TYPE_TABS = [
   { value: 'option', label: 'Option' },
   { value: 'crypto', label: 'Crypto' },
 ];
-
-const ITEM_TYPE = 'ASSET_PRODUCT_ROW';
 
 /** Sources the backend can fetch a quote for. */
 const PRICE_SOURCES = ['yfinance', 'tfex'];
@@ -61,7 +57,10 @@ const badgeStyle = {
 const COL_SPEC = 'hidden md:table-cell';
 const COL_SOURCE = 'hidden sm:table-cell';
 
-const COLUMN_COUNT = 9;
+/** Displayed wherever a nullable ticker has no value. */
+const NO_TICKER = '—';
+
+const COLUMN_COUNT = 8;
 
 /** Effective multiplier for a contract: the symbol override or the product default. */
 const formatMultiplier = (value: number) =>
@@ -70,11 +69,6 @@ const formatMultiplier = (value: number) =>
 /** Effective margin rate as a percentage, e.g. 0.10 → 10%. */
 const formatMarginPct = (rate: number) =>
   Number.isFinite(rate) ? `${Number((rate * 100).toFixed(2))}%` : '—';
-
-interface ProductDragItem {
-  productId: number;
-  groupId: number | null;
-}
 
 function ProductRow({
   product, expanded, onToggle, onEdit, onAddSymbol, onEditSymbol, onRefreshSymbol, onSaveQuote,
@@ -88,21 +82,15 @@ function ProductRow({
   onRefreshSymbol: (product: AssetProduct, symbol: AssetSymbol) => Promise<void>;
   onSaveQuote: (symbol: AssetSymbol, price: number) => Promise<void>;
 }) {
-  const [{ isDragging }, dragRef] = useDrag(() => ({
-    type: ITEM_TYPE,
-    item: { productId: product.product_id, groupId: product.group_id },
-    collect: (m) => ({ isDragging: m.isDragging() }),
-  }), [product.product_id, product.group_id]);
-
   return (
     <>
-      <tr ref={dragRef} className={`transition-colors hover:bg-surface ${isDragging ? 'opacity-40' : ''}`} style={{ height: 32 }}>
+      <tr className="transition-colors hover:bg-surface" style={{ height: 32 }}>
         <td style={cell} title={product.ticker ?? undefined}>
           <div className="flex items-center" style={{ gap: 6 }}>
             <button
               type="button"
               aria-expanded={expanded}
-              aria-label={expanded ? `Collapse ${product.ticker}` : `Expand ${product.ticker}`}
+              aria-label={expanded ? `Collapse ${product.ticker ?? NO_TICKER}` : `Expand ${product.ticker ?? NO_TICKER}`}
               onClick={onToggle}
               className="flex items-center justify-center"
               style={{ width: 14, height: 14, color: 'var(--color-slate)', padding: 0, border: 0, background: 'transparent' }}
@@ -113,15 +101,12 @@ function ProductRow({
               </svg>
             </button>
             <div className="truncate" style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--color-ink)', lineHeight: 1.05 }}>
-              {product.ticker ?? '—'}
+              {product.ticker ?? NO_TICKER}
               {product.name && product.name !== product.ticker && (
                 <span style={{ fontWeight: 400, color: 'var(--color-slate)', marginLeft: 6 }}>{product.name}</span>
               )}
             </div>
           </div>
-        </td>
-        <td className={COL_SPEC} style={{ ...cell, color: 'var(--color-slate)' }}>
-          {product.broker_code ?? '—'}
         </td>
         <td className={COL_SPEC} style={{ ...cell, color: 'var(--color-slate)' }}>
           {product.asset_type ?? '—'}
@@ -144,13 +129,13 @@ function ProductRow({
         </td>
         <td style={{ ...cell, paddingInline: 8 }}>
           <div className="flex items-center justify-end" style={{ gap: 4 }}>
-            <IconButton label="Add symbol" onClick={() => onAddSymbol(product)}>
+            <IconButton label={`New contract for ${product.ticker ?? NO_TICKER}`} onClick={() => onAddSymbol(product)}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             </IconButton>
-            <IconButton label="Edit product" onClick={() => onEdit(product)}>
+            <IconButton label="Edit identity" onClick={() => onEdit(product)}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
@@ -303,7 +288,7 @@ function SymbolRows({ product, onEditSymbol, onRefreshSymbol, onSaveQuote }: {
                       </svg>
                     </IconButton>
                   )}
-                  <IconButton label={`Edit ${symbol.sync_symbol}`} onClick={() => onEditSymbol(product, symbol)}>
+                  <IconButton label="Edit contract" onClick={() => onEditSymbol(product, symbol)}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
@@ -319,9 +304,15 @@ function SymbolRows({ product, onEditSymbol, onRefreshSymbol, onSaveQuote }: {
   );
 }
 
-function GroupRows({ groupId, groupName, products, expanded, onToggle, onEdit, onAddSymbol, onEditSymbol, onRefreshSymbol, onSaveQuote, onDrop }: {
-  groupId: number | null;
-  groupName: string;
+interface BrokerSectionModel {
+  key: string;
+  label: string;
+  products: AssetProduct[];
+}
+
+/** One collapsible table section per broker, labelled `CODE · count`. */
+function BrokerSection({ sectionLabel, products, expanded, onToggle, onEdit, onAddSymbol, onEditSymbol, onRefreshSymbol, onSaveQuote }: {
+  sectionLabel: string;
   products: AssetProduct[];
   expanded: Set<number>;
   onToggle: (productId: number) => void;
@@ -330,42 +321,25 @@ function GroupRows({ groupId, groupName, products, expanded, onToggle, onEdit, o
   onEditSymbol: (product: AssetProduct, symbol: AssetSymbol) => void;
   onRefreshSymbol: (product: AssetProduct, symbol: AssetSymbol) => Promise<void>;
   onSaveQuote: (symbol: AssetSymbol, price: number) => Promise<void>;
-  onDrop: (productId: number) => void;
 }) {
-  const [{ isOver }, dropRef] = useDrop<ProductDragItem, void, { isOver: boolean }>(() => ({
-    accept: ITEM_TYPE,
-    drop: (item) => {
-      if (item.groupId === groupId) return;
-      onDrop(item.productId);
-    },
-    collect: (m) => ({ isOver: m.isOver() }),
-  }), [groupId, onDrop]);
-
   const [collapsed, setCollapsed] = useState(false);
 
   return (
     <>
       <tr
-        ref={dropRef}
         onClick={() => setCollapsed(c => !c)}
         className="cursor-pointer select-none transition-colors"
-        style={{
-          height: 32,
-          background: isOver
-            ? 'color-mix(in srgb, var(--color-brand-teal) 10%, var(--color-surface))'
-            : 'var(--color-surface)',
-        }}
+        style={{ height: 32, background: 'var(--color-surface)' }}
       >
         <td colSpan={COLUMN_COUNT} style={{
           padding: '4px 12px',
           borderBottom: '1px solid var(--color-hairline)',
-          boxShadow: isOver ? 'inset 0 0 0 1px var(--color-brand-teal)' : undefined,
         }}>
           <div className="flex items-center" style={{ gap: 6 }}>
             <button
               type="button"
               aria-expanded={!collapsed}
-              aria-label={collapsed ? `Expand ${groupName}` : `Collapse ${groupName}`}
+              aria-label={collapsed ? `Expand ${sectionLabel}` : `Collapse ${sectionLabel}`}
               onClick={e => { e.stopPropagation(); setCollapsed(c => !c); }}
               className="flex items-center justify-center"
               style={{ width: 14, height: 14, color: 'var(--color-slate)', padding: 0, border: 0, background: 'transparent' }}
@@ -375,18 +349,18 @@ function GroupRows({ groupId, groupName, products, expanded, onToggle, onEdit, o
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </button>
-            <span style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--color-ink)' }}>{groupName}</span>
-            <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 500, color: 'var(--color-slate)', fontVariantNumeric: 'tabular-nums' }}>
-              {products.length}
+            <span style={{
+              fontSize: 'var(--fs-label)',
+              fontWeight: 600,
+              color: 'var(--color-ink)',
+              fontVariantNumeric: 'tabular-nums',
+            }}>
+              {sectionLabel} · {products.length}
             </span>
           </div>
         </td>
       </tr>
-      {!collapsed && (products.length === 0 ? (
-        <tr style={{ height: 32 }}>
-          <td colSpan={COLUMN_COUNT} style={{ ...cell, color: 'var(--color-slate)', paddingLeft: 30 }}>No products</td>
-        </tr>
-      ) : products.map((product) => (
+      {!collapsed && products.map((product) => (
         <ProductRow
           key={product.product_id}
           product={product}
@@ -398,7 +372,7 @@ function GroupRows({ groupId, groupName, products, expanded, onToggle, onEdit, o
           onRefreshSymbol={onRefreshSymbol}
           onSaveQuote={onSaveQuote}
         />
-      )))}
+      ))}
     </>
   );
 }
@@ -409,7 +383,6 @@ export default function AllAssets() {
     return (localStorage.getItem('asset_refresh_mode') as 'manual' | 'auto') || 'manual';
   });
   const [showProductModal, setShowProductModal] = useState(false);
-  const [showGroupModal, setShowGroupModal] = useState(false);
   const [showSync, setShowSync] = useState(false);
   const [editProduct, setEditProduct] = useState<AssetProduct | null>(null);
   const [addSymbolFor, setAddSymbolFor] = useState<AssetProduct | null>(null);
@@ -419,11 +392,6 @@ export default function AllAssets() {
   const queryClient = useQueryClient();
   const autoTimerRef = useRef<number | null>(null);
 
-  const { data: groups = [], isLoading: groupsLoading } = useQuery({
-    queryKey: ['asset-groups'],
-    queryFn: () => api.getAssetGroups(),
-  });
-
   const { data: products = [], isLoading: productsLoading } = useQuery({
     queryKey: ['asset-products', typeFilter],
     queryFn: () => api.getProducts({ asset_type: typeFilter || undefined }),
@@ -432,7 +400,6 @@ export default function AllAssets() {
   const invalidateRegistry = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['asset-products'] });
     await queryClient.invalidateQueries({ queryKey: ['asset-symbols'] });
-    await queryClient.invalidateQueries({ queryKey: ['asset-groups'] });
   }, [queryClient]);
 
   const refetchAll = useCallback(async () => {
@@ -489,16 +456,6 @@ export default function AllAssets() {
     }
   }, [refreshMode, refetchAll]);
 
-  const handleDrop = async (productId: number, targetGroupId: number | null) => {
-    try {
-      await api.updateProduct(productId, { group_id: targetGroupId });
-      await invalidateRegistry();
-    } catch (e) {
-      console.error('Failed to move the product', e);
-      notify(apiErrorDetail(e, "Couldn't move the product"), 'warning');
-    }
-  };
-
   const toggleExpanded = (productId: number) => {
     setExpanded(prev => {
       const next = new Set(prev);
@@ -507,49 +464,32 @@ export default function AllAssets() {
     });
   };
 
+  /** Sections follow the broker code; the unassigned bucket is always last. */
   const sections = useMemo(() => {
-    const ungroupedGroup = groups.find(g => g.name === 'Ungrouped');
-    const ungroupedId = ungroupedGroup ? ungroupedGroup.id : null;
-    const map: Record<string, AssetProduct[]> = {};
-    for (const g of groups) map[`group_${g.id}`] = [];
-    if (ungroupedId == null) map.ungrouped = [];
-
+    const byBroker = new Map<string, BrokerSectionModel>();
     for (const product of products) {
-      if (product.group_id != null) {
-        const key = `group_${product.group_id}`;
-        if (map[key]) map[key].push(product);
-        else map[key] = [product];
-      } else if (ungroupedId != null) {
-        map[`group_${ungroupedId}`].push(product);
-      } else {
-        map.ungrouped.push(product);
-      }
+      const key = product.broker_id != null ? `broker_${product.broker_id}` : 'unassigned';
+      const label = product.broker_code ?? 'Unassigned';
+      const existing = byBroker.get(key);
+      if (existing) existing.products.push(product);
+      else byBroker.set(key, { key, label, products: [product] });
     }
-
-    const result: { groupId: number | null; groupName: string; products: AssetProduct[] }[] = [];
-    for (const g of groups) {
-      result.push({ groupId: g.id, groupName: g.name, products: map[`group_${g.id}`] || [] });
-    }
-    if (ungroupedId == null) {
-      result.push({ groupId: null, groupName: 'Ungrouped', products: map.ungrouped || [] });
-    }
-    return result;
-  }, [products, groups]);
+    const unassigned = byBroker.get('unassigned');
+    const assigned = [...byBroker.values()]
+      .filter(section => section.key !== 'unassigned')
+      .sort((a, b) => a.label.localeCompare(b.label));
+    return unassigned ? [...assigned, unassigned] : assigned;
+  }, [products]);
 
   const totalSymbols = useMemo(
     () => products.reduce((sum, product) => sum + product.symbol_count, 0),
     [products],
   );
-  const pricedCount = useMemo(
-    () => products.filter(product => product.symbol_count > 0).length,
-    [products],
-  );
 
-  const loading = productsLoading || groupsLoading;
+  const loading = productsLoading;
   const summary = [
-    `${products.length} product${products.length === 1 ? '' : 's'}`,
-    `${totalSymbols} symbol${totalSymbols === 1 ? '' : 's'}`,
-    `${pricedCount} spec${pricedCount === 1 ? '' : 's'}`,
+    `${products.length} identit${products.length === 1 ? 'y' : 'ies'}`,
+    `${totalSymbols} contract${totalSymbols === 1 ? '' : 's'}`,
   ].join(' · ');
 
   return (
@@ -559,7 +499,6 @@ export default function AllAssets() {
         mode="product"
         onClose={() => setShowProductModal(false)}
         onSaved={() => { void invalidateRegistry(); }}
-        groups={groups}
       />
       <AddAssetModal
         open={!!addSymbolFor}
@@ -567,7 +506,6 @@ export default function AllAssets() {
         product={addSymbolFor}
         onClose={() => setAddSymbolFor(null)}
         onSaved={() => { void invalidateRegistry(); }}
-        groups={groups}
       />
       <EditAssetModal
         open={!!editProduct}
@@ -575,7 +513,6 @@ export default function AllAssets() {
         product={editProduct}
         onClose={() => setEditProduct(null)}
         onSaved={() => { void invalidateRegistry(); }}
-        groups={groups}
       />
       <EditAssetModal
         open={!!editSymbol}
@@ -584,9 +521,7 @@ export default function AllAssets() {
         symbol={editSymbol?.symbol ?? null}
         onClose={() => setEditSymbol(null)}
         onSaved={() => { void invalidateRegistry(); }}
-        groups={groups}
       />
-      <AssetGroupModal open={showGroupModal} onClose={() => { setShowGroupModal(false); void invalidateRegistry(); }} />
       <SyncFromOrdersModal
         open={showSync}
         onClose={() => setShowSync(false)}
@@ -632,9 +567,8 @@ export default function AllAssets() {
           })}
         </div>
         <div className="flex items-center" style={{ gap: 6, marginLeft: 'auto' }}>
-          <button type="button" className="at-znew" onClick={() => setShowGroupModal(true)}>+ New group</button>
           <button type="button" className="at-znew" onClick={() => setShowSync(true)}>Sync from orders</button>
-          <button type="button" className="at-znew" onClick={() => setShowProductModal(true)}>+ New product</button>
+          <button type="button" className="at-znew" onClick={() => setShowProductModal(true)}>+ New symbol</button>
         </div>
       </div>
 
@@ -642,15 +576,14 @@ export default function AllAssets() {
         <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
             <tr>
-              <th style={{ ...headTh, width: '20%' }} title="Underlying: the product that owns these contracts">Underlying</th>
-              <th className={COL_SPEC} style={{ ...headTh, width: '8%' }}>Broker</th>
-              <th className={COL_SPEC} style={{ ...headTh, width: '9%' }}>Type</th>
-              <th className="text-right" style={{ ...headTh, width: '10%', textAlign: 'right' }} title="Default multiplier — inherited by every contract unless the contract overrides it">Multiplier</th>
-              <th className="text-right" style={{ ...headTh, width: '9%', textAlign: 'right' }} title="Default margin rate, 0.10 = 10% — inherited by every contract unless the contract overrides it">Margin</th>
-              <th className={COL_SPEC} style={{ ...headTh, width: '9%' }}>Mode</th>
-              <th className={COL_SOURCE} style={{ ...headTh, width: '9%' }}>Source</th>
-              <th className="text-right" style={{ ...headTh, width: '8%', textAlign: 'right' }}>Symbols</th>
-              <th style={{ ...headTh, width: '8%', paddingInline: 8 }}>
+              <th style={{ ...headTh, width: '24%' }} title="Underlying: the product that owns these contracts">Underlying</th>
+              <th className={COL_SPEC} style={{ ...headTh, width: '11%' }}>Type</th>
+              <th className="text-right" style={{ ...headTh, width: '12%', textAlign: 'right' }} title="Default multiplier — inherited by every contract unless the contract overrides it">Multiplier</th>
+              <th className="text-right" style={{ ...headTh, width: '11%', textAlign: 'right' }} title="Default margin rate, 0.10 = 10% — inherited by every contract unless the contract overrides it">Margin</th>
+              <th className={COL_SPEC} style={{ ...headTh, width: '11%' }}>Mode</th>
+              <th className={COL_SOURCE} style={{ ...headTh, width: '11%' }}>Source</th>
+              <th className="text-right" style={{ ...headTh, width: '10%', textAlign: 'right' }}>Contracts</th>
+              <th style={{ ...headTh, width: '10%', paddingInline: 8 }}>
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -664,13 +597,16 @@ export default function AllAssets() {
                   </td>
                 </tr>
               ))
+            ) : sections.length === 0 ? (
+              <tr style={{ height: 32 }}>
+                <td colSpan={COLUMN_COUNT} style={{ ...cell, color: 'var(--color-slate)' }}>No identities</td>
+              </tr>
             ) : (
-              sections.map(s => (
-                <GroupRows
-                  key={s.groupId ?? 'ungrouped'}
-                  groupId={s.groupId}
-                  groupName={s.groupName}
-                  products={s.products}
+              sections.map(section => (
+                <BrokerSection
+                  key={section.key}
+                  sectionLabel={section.label}
+                  products={section.products}
                   expanded={expanded}
                   onToggle={toggleExpanded}
                   onEdit={setEditProduct}
@@ -678,7 +614,6 @@ export default function AllAssets() {
                   onEditSymbol={(product, symbol) => setEditSymbol({ product, symbol })}
                   onRefreshSymbol={handleRefreshSymbol}
                   onSaveQuote={handleSaveQuote}
-                  onDrop={(productId) => handleDrop(productId, s.groupId)}
                 />
               ))
             )}

@@ -27,14 +27,8 @@ class AssetGroupUpdate(BaseModel):
 
 router = APIRouter()
 
-async def seed_default_groups(db: AsyncSession):
-    result = await db.execute(select(AssetGroup).limit(1))
-    if result.scalars().first() is None:
-        db.add_all([
-            AssetGroup(name="Ungrouped", is_default=True),
-            AssetGroup(name="Watchlist", is_default=True),
-        ])
-        await db.commit()
+# Asset groups are retired from the product: the endpoints remain for
+# compatibility, but listing no longer seeds the Ungrouped/Watchlist rows.
 
 @router.get("", response_model=list[AssetGroupResponse], tags=["asset-groups"])
 async def list_groups(
@@ -46,8 +40,6 @@ async def list_groups(
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
     try:
         ModelClass = CustomAssetGroup if is_custom else AssetGroup
-        if not is_custom:
-            await seed_default_groups(session)
         result = await session.execute(select(ModelClass).order_by(ModelClass.id))
         return result.scalars().all()
     finally:

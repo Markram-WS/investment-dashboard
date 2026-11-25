@@ -17,7 +17,6 @@ interface AddAssetModalProps {
   product?: AssetProduct | null;
   onClose: () => void;
   onSaved: () => void;
-  groups: { id: number; name: string }[];
 }
 
 const SOURCES = ['manual', 'yfinance', 'tfex'];
@@ -72,7 +71,6 @@ const emptyProductForm = {
   name: '',
   asset_type: '',
   source: 'manual',
-  group_id: '',
   broker_id: '',
   multiplier: '1',
   margin_rate: '0',
@@ -96,7 +94,7 @@ const optionalNumber = (raw: string): number | null => {
 };
 
 const AddAssetModal: React.FC<AddAssetModalProps> = ({
-  open, mode, product, onClose, onSaved, groups,
+  open, mode, product, onClose, onSaved,
 }) => {
   const [productForm, setProductForm] = useState({ ...emptyProductForm });
   const [symbolForm, setSymbolForm] = useState({ ...emptySymbolForm });
@@ -170,7 +168,6 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
         margin_rate: marginRate,
         margin_mode: productForm.margin_mode,
         source: productForm.source,
-        group_id: productForm.group_id ? Number(productForm.group_id) : null,
       });
       onSaved();
       onClose();
@@ -241,7 +238,7 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
     }
   };
 
-  const title = editingSymbol ? 'Add symbol' : 'Add product';
+  const title = 'Add symbol';
 
   return (
     <ModalShell open={open} onClose={onClose} title={title} zIndex={9999}>
@@ -249,7 +246,7 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
         <h3 className={`${MODAL_HEADER} block`} style={{ ...CONTROL_TITLE, margin: '0 0 12px' }}>
           {editingSymbol
             ? `Add symbol to ${product?.ticker ?? 'product'}`
-            : 'Add product'}
+            : 'Add symbol'}
         </h3>
 
         <div className={MODAL_BODY}>
@@ -328,7 +325,7 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                     placeholder="Optional display name" />
                 </Field>
               </div>
-              <div className={rowThree}>
+              <div className={rowTwo}>
                 <div className="min-w-0">
                   <Field className="min-w-0" label="Broker" htmlFor="add-product-broker">
                     <SelectInput id="add-product-broker" value={productForm.broker_id}
@@ -352,13 +349,6 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                     onChange={e => setProductForm(p => ({ ...p, asset_type: e.target.value }))}>
                     <option value="">—</option>
                     {TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-                  </SelectInput>
-                </Field>
-                <Field className="min-w-0" label="Group" htmlFor="add-product-group">
-                  <SelectInput id="add-product-group" value={productForm.group_id}
-                    onChange={e => setProductForm(p => ({ ...p, group_id: e.target.value }))}>
-                    <option value="">None</option>
-                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                   </SelectInput>
                 </Field>
               </div>
@@ -468,7 +458,7 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
           <button type="button" onClick={editingSymbol ? handleSaveSymbol : handleSaveProduct}
             disabled={loading} style={primaryButton}
             className="text-xs transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
-            {loading ? 'Saving...' : editingSymbol ? 'Add symbol' : 'Add product'}
+            {loading ? 'Saving...' : 'Add symbol'}
           </button>
         </div>
       </div>

@@ -64,7 +64,6 @@ const renderProductCreate = () => render(
     mode="product"
     onClose={vi.fn()}
     onSaved={vi.fn()}
-    groups={[]}
   />,
 );
 
@@ -174,7 +173,7 @@ describe('AddAssetModal new broker', () => {
     consoleError.mockRestore();
   });
 
-  it('is absent outside product create (symbol mode and Edit product)', async () => {
+  it('is absent outside product create (symbol mode and Edit identity)', async () => {
     const { unmount } = render(
       <AddAssetModal
         open
@@ -182,7 +181,6 @@ describe('AddAssetModal new broker', () => {
         product={product}
         onClose={vi.fn()}
         onSaved={vi.fn()}
-        groups={[]}
       />,
     );
     expect(screen.queryByRole('button', { name: /new broker/i })).not.toBeInTheDocument();
@@ -196,7 +194,6 @@ describe('AddAssetModal new broker', () => {
         product={product}
         onClose={vi.fn()}
         onSaved={vi.fn()}
-        groups={[]}
       />,
     );
     expect(screen.queryByRole('button', { name: /new broker/i })).not.toBeInTheDocument();
@@ -208,6 +205,7 @@ describe('Underlying and contract copy', () => {
   it('names the product identity Underlying and marks its spec as defaults', () => {
     renderProductCreate();
 
+    expect(screen.getByRole('heading', { name: 'Add symbol' })).toBeInTheDocument();
     expect(screen.getByLabelText('Underlying')).toBeInTheDocument();
     expect(screen.queryByLabelText('Ticker')).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('e.g. S50, or leave blank for none')).toBeInTheDocument();
@@ -217,6 +215,7 @@ describe('Underlying and contract copy', () => {
     expect(screen.getByLabelText('Default margin rate')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Default margin mode' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Default type' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument();
     expect(screen.getAllByText('Inherited by every contract unless the contract overrides it.')).toHaveLength(4);
   });
 
@@ -224,7 +223,7 @@ describe('Underlying and contract copy', () => {
     const user = userEvent.setup();
     renderProductCreate();
 
-    await user.click(screen.getByRole('button', { name: 'Add product' }));
+    await user.click(screen.getByRole('button', { name: 'Add symbol' }));
 
     expect(apiMock.createProduct).not.toHaveBeenCalled();
     expect(screen.getByText('Ticker is required')).toBeInTheDocument();
@@ -250,7 +249,7 @@ describe('Underlying and contract copy', () => {
       expect(brokerSelect).toHaveTextContent('PI');
     });
 
-    await user.click(screen.getByRole('button', { name: 'Add product' }));
+    await user.click(screen.getByRole('button', { name: 'Add symbol' }));
 
     await waitFor(() => {
       expect(apiMock.createProduct).toHaveBeenCalledWith(expect.objectContaining({
@@ -259,6 +258,7 @@ describe('Underlying and contract copy', () => {
         asset_type: null,
       }));
     });
+    expect(apiMock.createProduct.mock.calls[0][0]).not.toHaveProperty('group_id');
   });
 
   it('renames the edit product spec fields to underlying defaults', () => {
@@ -269,7 +269,6 @@ describe('Underlying and contract copy', () => {
         product={product}
         onClose={vi.fn()}
         onSaved={vi.fn()}
-        groups={[]}
       />,
     );
 
@@ -278,6 +277,7 @@ describe('Underlying and contract copy', () => {
     expect(screen.getByLabelText('Default margin rate')).toHaveValue(0.1);
     expect(screen.getByRole('combobox', { name: 'Default margin mode' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Default type' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument();
     expect(screen.getAllByText('Inherited by every contract unless the contract overrides it.')).toHaveLength(4);
   });
 
@@ -292,7 +292,6 @@ describe('Underlying and contract copy', () => {
         product={product}
         onClose={vi.fn()}
         onSaved={vi.fn()}
-        groups={[]}
       />,
     );
 
@@ -302,6 +301,7 @@ describe('Underlying and contract copy', () => {
     await waitFor(() => {
       expect(apiMock.updateProduct).toHaveBeenCalledWith(1, expect.objectContaining({ ticker: '' }));
     });
+    expect(apiMock.updateProduct.mock.calls[0][1]).not.toHaveProperty('group_id');
   });
 
   it('rejects clearing the underlying with no broker and no default type', async () => {
@@ -315,7 +315,6 @@ describe('Underlying and contract copy', () => {
         product={unassigned}
         onClose={vi.fn()}
         onSaved={vi.fn()}
-        groups={[]}
       />,
     );
 
@@ -335,7 +334,6 @@ describe('Underlying and contract copy', () => {
         symbol={symbol}
         onClose={vi.fn()}
         onSaved={vi.fn()}
-        groups={[]}
       />,
     );
 
@@ -358,7 +356,6 @@ describe('Underlying and contract copy', () => {
         product={product}
         onClose={vi.fn()}
         onSaved={vi.fn()}
-        groups={[]}
       />,
     );
 
@@ -385,7 +382,6 @@ describe('Underlying and contract copy', () => {
         symbol={symbol}
         onClose={vi.fn()}
         onSaved={vi.fn()}
-        groups={[]}
       />,
     );
 

@@ -219,9 +219,11 @@ The main registry is two levels: a **product** (broker-scoped contract spec) own
 - `manual` — never fetched; `update-price` only refreshes `updated_at`.
 
 ### Asset Groups
+Asset groups are retired from the UI: the endpoints and the `asset_groups` table remain for compatibility, but nothing in the product uses them and `asset_products.group_id` is no longer written. `GET` returns the stored rows and no longer seeds the `Ungrouped`/`Watchlist` defaults.
+
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
-| `GET` | `/api/v1/asset-groups` | List asset groups (seeds Ungrouped/Watchlist on first query) |
+| `GET` | `/api/v1/asset-groups` | List asset groups (returns the stored rows; no seeding) |
 | `POST` | `/api/v1/asset-groups` | Create a new group |
 | `PUT` | `/api/v1/asset-groups/{id}` | Update group name (default groups cannot be edited; duplicate name is a 400) |
 | `DELETE` | `/api/v1/asset-groups/{id}` | Delete group (default groups cannot be deleted) |
@@ -278,7 +280,7 @@ backend/
 │       ├── trade_history.py     # Historical trade records
 │       ├── transfers.py         # Cash pool transfers
 │       ├── assets.py            # Product/symbol/quote CRUD, proposal/apply, price refresh; custom flat branch
-│       ├── asset_groups.py      # Asset group CRUD
+│       ├── asset_groups.py      # Asset group CRUD (retired from the UI; compatibility only)
 │       ├── orders_groups.py     # Orders group CRUD
 │       ├── trade_plans.py       # Trade plan CRUD
 │       ├── journal.py           # Decision journal

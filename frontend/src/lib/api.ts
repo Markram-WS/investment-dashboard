@@ -275,17 +275,6 @@ export interface TransferRecord {
   confirmed_at: string | null;
 }
 
-export interface AssetGroupRecord {
-  id: number;
-  name: string;
-  is_default: boolean;
-  created_at: string;
-}
-
-export interface AssetGroupPayload {
-  name: string;
-}
-
 export interface ZoneGroupRecord extends GroupOption {
   portfolio_id: number;
   range: number | null;
@@ -578,21 +567,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ choices }),
     }),
-
-  // Asset groups
-  getAssetGroups: () => request<AssetGroupRecord[]>('/asset-groups'),
-  createAssetGroup: (payload: AssetGroupPayload) =>
-    request<AssetGroupRecord>('/asset-groups', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  updateAssetGroup: (groupId: number, payload: AssetGroupPayload) =>
-    request<AssetGroupRecord>(`/asset-groups/${groupId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
-  deleteAssetGroup: (groupId: number) =>
-    request<void>(`/asset-groups/${groupId}`, { method: 'DELETE' }),
 
   // Order groups ("zones")
   getZoneGroups: (portfolioId: number) =>
