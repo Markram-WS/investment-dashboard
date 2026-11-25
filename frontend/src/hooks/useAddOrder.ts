@@ -3,8 +3,15 @@ import { api } from '../lib/api';
 import type { OrderPayload } from '../lib/api';
 import type { MappedOrderFields } from '../types';
 
+/**
+ * Storage destination for a mapped portfolio's create form:
+ * `mapped` = connected database, `dashboard` = local dashboard option.
+ */
+export type AddOrderDestination = 'mapped' | 'dashboard';
+
 export interface AddOrderForm {
   order_id: string;
+  destination: AddOrderDestination;
   asset_type: string;
   side: string;
   qty: number | string;
@@ -37,7 +44,11 @@ interface UseAddOrderReturn {
   closeModal: () => void;
   /** `unknown`: the form modals carry loosely typed input values. */
   handleFormChange: (field: keyof AddOrderForm, value: unknown) => void;
-  handleCreateOrder: (portfolioId: number, mapped?: MappedOrderFields) => Promise<CreateOrderResult>;
+  handleCreateOrder: (
+    portfolioId: number,
+    mapped?: MappedOrderFields,
+    destination?: AddOrderDestination,
+  ) => Promise<CreateOrderResult>;
   setOnCreated: (callback: () => void) => void;
 }
 
@@ -80,6 +91,7 @@ const createErrorMessage = (error: unknown): string => {
 
 const defaultForm: AddOrderForm = {
   order_id: genId(),
+  destination: 'dashboard',
   asset_type: '',
   side: 'BUY',
   qty: '',
@@ -118,10 +130,12 @@ export const useAddOrder = (): UseAddOrderReturn => {
   const handleCreateOrder = useCallback(async (
     portfolioId: number,
     mapped?: MappedOrderFields,
+    destination?: AddOrderDestination,
   ): Promise<CreateOrderResult> => {
     const orderId = String(formData.order_id ?? '').trim() || genId();
+    const toConnectedDb = Boolean(mapped) && (destination ?? formData.destination) === 'mapped';
     try {
-      if (mapped) {
+      if (toConnectedDb && mapped) {
         const fields = new Set(mapped.fields);
         const payload: OrderPayload = { portfolio_id: portfolioId };
         if (!mapped.keyGenerated) payload.order_id = orderId;
@@ -141,6 +155,9 @@ export const useAddOrder = (): UseAddOrderReturn => {
         }
         await api.createOrder(payload);
       } else {
+        // The mapped Dashboard path is option-only; non-mapped callers omit the
+        // destination and keep the full local form (spot/future/option).
+        const contractType = destination === 'dashboard' ? 'option' : formData.contract_type;
         await api.createOrder({
           order_id: orderId,
           portfolio_id: portfolioId,
@@ -152,7 +169,7 @@ export const useAddOrder = (): UseAddOrderReturn => {
           sl_price: formData.sl_price !== '' ? parseFloat(formData.sl_price as string) : null,
           group_id: formData.group_id,
           order_status: formData.order_status,
-          contract_type: formData.contract_type,
+          contract_type: contractType,
           direction: formData.direction || undefined,
           option_type: formData.option_type || undefined,
           expiry_date: formData.expiry_date ? new Date(formData.expiry_date).toISOString() : undefined,

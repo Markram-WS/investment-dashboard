@@ -297,8 +297,12 @@ async def test_portfolio_detail_mapped_unreachable_degrades(async_client, monkey
         assert data["risk"] is None
         assert data["read_only"] is True
         assert data["mapping_template"] == "tfex-settrade-v1"
-        # No write capabilities are advertised while the foreign DB is down.
-        assert data["order_writes"] is None
+        # The foreign DB is down: mapped capabilities are null, but the
+        # dashboard-local option path stays advertised.
+        assert data["order_writes"] == {
+            "mapped": None,
+            "dashboard_options": {"insert": True, "update": True, "delete": True},
+        }
         # Local metadata is still served so the page header/actions render.
         assert data["available_cash"] == 5000
         assert data["cash_buffer_limit"] == 1000

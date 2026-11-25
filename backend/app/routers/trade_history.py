@@ -6,8 +6,14 @@ from app.models import TradeHistory, Portfolio, CustomPortfolioConnection
 from app.custom_models import CustomTransaction
 from app.custom_mapping import (
     fetch_mapped_history,
-    mapped_history_records,
     raise_if_mapped_readonly,
+)
+from app.services.hybrid_portfolio import (
+    ORDER_SOURCE_DASHBOARD,
+    fetch_local_history,
+    local_history_row,
+    mapped_history_row,
+    merge_history_rows,
 )
 from pydantic import BaseModel
 from typing import List, Optional
@@ -52,6 +58,8 @@ class TransactionResponse(BaseModel):
     flow: Optional[str] = None  # For transfers: "Source -> Destination", else null
     remark: Optional[dict] = None
     order_remark: Optional[str] = None
+    history_source: Optional[str] = None
+    history_key: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -83,17 +91,32 @@ async def get_trade_history(
                 )
             ).scalar_one_or_none()
             if connection is not None and connection.mapping_config:
-                engine = await get_or_create_custom_engine(connection)
-                history = await fetch_mapped_history(engine, connection.mapping_config)
+                local_history = await fetch_local_history(db, portfolio_id)
+                dashboard_rows = [
+                    local_history_row(row, portfolio.portfolio_name)
+                    for row in local_history
+                ]
+                mapped_rows: list[dict] = []
+                try:
+                    engine = await get_or_create_custom_engine(connection)
+                    history = await fetch_mapped_history(
+                        engine, connection.mapping_config
+                    )
+                    mapped_rows = [
+                        mapped_history_row(
+                            row, portfolio.portfolio_id, portfolio.portfolio_name
+                        )
+                        for row in history
+                    ]
+                except Exception:
+                    # Connected source down: serve dashboard-local history only.
+                    mapped_rows = []
+                merged = merge_history_rows(dashboard_rows, mapped_rows)
+                start = max(int(offset or 0), 0)
+                end = None if limit is None else start + max(int(limit), 0)
                 return [
                     TransactionResponse(**record)
-                    for record in mapped_history_records(
-                        history,
-                        portfolio.portfolio_id,
-                        portfolio.portfolio_name,
-                        offset=offset,
-                        limit=limit,
-                    )
+                    for record in merged[start:end]
                 ]
 
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)
@@ -133,6 +156,8 @@ async def get_trade_history(
                     flow=None,
                     remark=th.remark,
                     order_remark=th.order_remark,
+                    history_source=ORDER_SOURCE_DASHBOARD,
+                    history_key=str(th.history_id),
                 )
             )
 

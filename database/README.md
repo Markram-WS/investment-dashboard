@@ -73,7 +73,7 @@ CREATE TABLE custom_portfolio_connections (
 ```
 
 - `encrypted_password` is encrypted with Fernet (`FERNET_KEY` env var), never stored in plaintext
-- `mapping_config` is nullable: `NULL` means the legacy mode (the backend creates and owns its tables in the external DB); a JSON object is a read-through mapping over an existing broker schema — see *Mapped read-only mode* below
+- `mapping_config` is nullable: `NULL` means the legacy mode (the backend creates and owns its tables in the external DB); a JSON object is a read-through mapping over an existing broker schema — see *Mapped read-through mode* below
 - One record per custom portfolio (enforced by UNIQUE constraint)
 - Used by the dynamic engine manager to create on-demand `AsyncEngine` instances
 
@@ -130,7 +130,7 @@ CREATE TABLE asset_groups (
 - `order_id TEXT PRIMARY KEY` — UUID string
 - `linked_order_id TEXT` — one-way link or cross-link
 - `group_id INTEGER FK → orders_groups(id)`
-- `contract_type TEXT` — `'spot'`, `'future'`, or `'option'`
+- `contract_type TEXT` — `'spot'`, `'future'`, or `'option'`; a mapped portfolio's dashboard-local option rows are ordinary main rows on this table, selected by normalized `contract_type == 'option'` (no extra table or source column)
 - `option_type TEXT` — `'Call'` or `'Put'`
 - `side TEXT` — `'BUY'`/`'SELL'` (spot), `'LONG'`/`'SHORT'` (futures/options)
 - `expiry_date TIMESTAMP`, `strike_price NUMERIC(20,8)`, `cost NUMERIC(20,8)`
@@ -152,7 +152,7 @@ Tables are created **lazily** — only on the first API request for that portfol
 
 On first access, `ensure_custom_tables()` runs an auto-migration: it queries `information_schema.columns` for each table and runs `ALTER TABLE ADD COLUMN IF NOT EXISTS` for any columns missing from the external DB. It also **drops all existing FK constraints** via `ALTER TABLE ... DROP CONSTRAINT` to ensure the tables are FK-free (main-DB IDs like `plan_id`, `portfolio_id`, `group_id` don't exist in external DBs).
 
-### Mapped read-only mode (`mapping_config`)
+### Mapped read-through mode (`mapping_config`)
 
 A non-null `custom_portfolio_connections.mapping_config` switches the same portfolio to a **read-through view** over a schema that already exists (a broker's database). The JSON is the contract; nothing about the foreign schema is assumed beyond what it declares.
 
@@ -162,7 +162,7 @@ A non-null `custom_portfolio_connections.mapping_config` switches the same portf
 - **Value maps** — `side` is a plain column spec (`side` ← `side`, no value map; the raw LONG/SHORT passes through); `order_status` maps `M`/`MP` → `open`, `C*` → `cancelled`, `E*` → `expired`, `R*` → `rejected`. `mark_price` ← `mark_price` on the `orders` entity (display only: it feeds the read-only EQ · Future ladder's `Mark` column and nothing else; both foreign tables carry the column, but `history` does not map it); `current_price` is not mapped from the foreign schema — the backend resolves it per order ticker from the local registry: `asset_symbols.price_symbol` (matched with `upper(trim(...))` in the portfolio's broker scope) joined to `asset_quotes.price`, preferring the portfolio's `broker_id` and otherwise the lowest `broker_id`, and a `NULL` price is missing (the order falls back to its entry price, so its Net P&L is 0; the foreign mark is never substituted), so Net P&L and the risk block's Sum P/L (`risk.pl_total`) read that local asset price maintained in All Assets. `tp` is an exit-only price (falling back to `tp_price`, then `exit_price`) surfaced as the ladder's `Price out` for mapped orders and never read as P/L; `remark` carries the Mark note (`remark.note` is `Close` or `Canceled` on history rows). Money comes from the account row: `available_cash` ← `excessequity`, `margin_locked` ← `initialmargin`, `current_nav` ← `equity`; cash buffer and initial capital stay manual.
 - **No DDL** — every path that opens a custom session checks `mapping_config` and skips `ensure_custom_tables()`, so `active_orders`/`transactions`/… are never created inside the foreign database.
 - **No auto-sync** — the order-derived `sync-from-orders`/`sync-from-all` writers are removed and their routes return `404`. `GET /api/v1/assets/proposal` only reads distinct normalized active-order symbols across main, owned-custom, and mapped portfolios (never creating anything and never reading Managed Fund holdings/history); `POST /api/v1/assets/apply` writes only the product/symbol choices the user explicitly submits. An unreachable custom database is skipped while building the proposal. All Assets data cells render at `var(--fs-label)` (11px), the same size as the order-detail numeric cells.
-- **Read-only** — every data-plane write against a mapped portfolio — orders, assets, order groups, trade plans, trade history, ledger transactions — is refused by `raise_if_mapped_readonly` with `409 Portfolio is read-only (mapped external database)`. The analytics grid response carries `read_only: true` plus `mapping_template`, and the frontend hides every write affordance.
+- **Read-only foreign rows** — every data-plane write against the connected rows of a mapped portfolio — foreign orders, assets, order groups, trade plans, foreign trade history, ledger transactions — is refused by `raise_if_mapped_readonly` with `409 Portfolio is read-only (mapped external database)`. The one hybrid exception is a dashboard-local option row: a mapped `POST /orders` whose normalized `contract_type` is `option` writes main `active_orders` + the default main `trade_plan` (broker + broker-scoped `price_symbol` spec required), and its edit/close/cancel writes main `trade_history`; non-option creates keep the foreign writer. Source-routed single-row routes require `?order_source=dashboard|mapped` (missing/unknown → `400 Order source is required for a mapped portfolio: dashboard or mapped`, absent row → `404`, no fallback), and responses carry `order_source` / `history_source` + `history_key` as API metadata only. The analytics grid response carries `read_only: true` plus `mapping_template` and the store-scoped `order_writes: {mapped: {insert, update, delete, fields, key_generated} | null, dashboard_options: {insert, update, delete}}`; the frontend gates mapped affordances on `order_writes.mapped` and option affordances on `order_writes.dashboard_options`. No new table, column or migration exists for the hybrid path: local option rows reuse the main `active_orders`/`trade_history` shape, and `order_source`/`history_source`/`history_key` are derived at read time. When the connected read fails, analytics keeps dashboard-local option rows/history and `load_error`, reports `mapped: null`, and keeps `dashboard_options` true.
 
 `mock/usd_pct_abc_dev_seed.sql` is the reference fixture for this mode: it creates `usd_pct_abc` with the three tables and loads 6 open orders, 4 history rows, and 3 account snapshots (dev only; idempotent).
 
@@ -188,4 +188,4 @@ A non-null `custom_portfolio_connections.mapping_config` switches the same portf
 
 ---
 
-*Last updated: 24 November 2026 (broker-scoped `asset_products`/`asset_symbols`/`asset_quotes` registry replacing the main `whitelist_assets` table; one-time startup conversion + drop; product/symbol/proposal API contracts; margin modes and the Active Trading order guard; price_symbol vs sync_symbol; mapped read-only mode retained)*
+*Last updated: 25 November 2026 (hybrid mapped-portfolio options: dashboard-local option orders/history in main PostgreSQL, source-routed active/history reads with `order_source`/`history_source`/`history_key`, store-scoped `order_writes`, union margin/performance and degraded local rows; broker-scoped `asset_products`/`asset_symbols`/`asset_quotes` registry replacing the main `whitelist_assets` table; one-time startup conversion + drop; product/symbol/proposal API contracts; margin modes and the Active Trading order guard; price_symbol vs sync_symbol; mapped read-through mode retained)*

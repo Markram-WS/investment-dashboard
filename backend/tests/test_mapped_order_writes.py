@@ -296,7 +296,7 @@ async def test_update_changes_mapped_row(
     created = await create_mapped_order(async_client, mapped_portfolio)
 
     resp = await async_client.put(
-        f"/api/v1/orders/{created['order_id']}?portfolio_id={mapped_portfolio}",
+        f"/api/v1/orders/{created['order_id']}?portfolio_id={mapped_portfolio}&order_source=mapped",
         json={"entry_price": 901.5, "remark": "updated note"},
     )
     assert resp.status_code == 200, resp.text
@@ -321,7 +321,7 @@ async def test_close_moves_row_to_history(
 
     resp = await async_client.post(
         f"/api/v1/orders/{created['order_id']}/close"
-        f"?portfolio_id={mapped_portfolio}",
+        f"?portfolio_id={mapped_portfolio}&order_source=mapped",
         json={"exit_price": 910.0, "realized_pl": 20.0},
     )
     assert resp.status_code == 200, resp.text
@@ -365,7 +365,7 @@ async def test_cancel_moves_row_to_history_with_cx(
 
     resp = await async_client.patch(
         f"/api/v1/orders/{created['order_id']}/status"
-        f"?portfolio_id={mapped_portfolio}",
+        f"?portfolio_id={mapped_portfolio}&order_source=mapped",
         json={"new_status": "CANCELED"},
     )
     assert resp.status_code == 200, resp.text
@@ -391,7 +391,7 @@ async def test_get_returns_mapped_order_with_ref(
 ):
     created = await create_mapped_order(async_client, mapped_portfolio)
     resp = await async_client.get(
-        f"/api/v1/orders/{created['order_id']}?portfolio_id={mapped_portfolio}"
+        f"/api/v1/orders/{created['order_id']}?portfolio_id={mapped_portfolio}&order_source=mapped"
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["order_id"] == created["order_id"]
@@ -427,7 +427,7 @@ async def test_unwritable_update_field_is_a_400(
 ):
     created = await create_mapped_order(async_client, mapped_portfolio)
     resp = await async_client.put(
-        f"/api/v1/orders/{created['order_id']}?portfolio_id={mapped_portfolio}",
+        f"/api/v1/orders/{created['order_id']}?portfolio_id={mapped_portfolio}&order_source=mapped",
         json={"leverage": 5.0},
     )
     assert resp.status_code == 400

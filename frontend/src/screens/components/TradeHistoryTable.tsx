@@ -24,6 +24,15 @@ const badgeStyle = {
 
 const dragSurface = "color-mix(in srgb, var(--color-brand-teal) 8%, var(--color-canvas))";
 
+const sourceText = (source?: string | null) =>
+  source === "mapped" ? "Connected DB" : source === "dashboard" ? "Dashboard" : null;
+
+/** React identity is (source, key): colliding legacy integers are not identity. */
+const historyKey = (h: TradeHistoryRecord) =>
+  `${h.history_source ?? "legacy"}:${h.history_key ?? h.history_id}`;
+
+const sourceRank = (source?: string | null) => (source === "dashboard" ? 0 : source === "mapped" ? 1 : 2);
+
 const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
   tradeHistory, showHistory, onToggleHistory, onDropOnTradeHistory,
 }) => {
@@ -59,7 +68,11 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
     const sorted = [...tradeHistory].sort((a, b) => {
       const da = a.exit_date || '';
       const db = b.exit_date || '';
-      return da.localeCompare(db);
+      return (
+        da.localeCompare(db)
+        || sourceRank(a.history_source) - sourceRank(b.history_source)
+        || String(a.history_key ?? a.history_id).localeCompare(String(b.history_key ?? b.history_id))
+      );
     });
     const groups: Record<string, TradeHistoryRecord[]> = {};
     for (const h of sorted) {
@@ -112,6 +125,7 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                   <thead className="bg-surface text-[length:var(--fs-label)]">
                     <tr>
                       <th className="px-3 py-1.5 text-left" style={headCell}>Open ID</th>
+                      <th className="hidden md:table-cell px-3 py-1.5 text-left" style={headCell}>Source</th>
                       <th className="hidden md:table-cell px-3 py-1.5 text-left" style={headCell}>Close ID</th>
                       <th className="px-3 py-1.5 text-left" style={headCell}>Side</th>
                       <th className="px-3 py-1.5 text-right" style={{ ...headCell, textAlign: 'right' }}>Qty</th>
@@ -125,8 +139,13 @@ const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                   </thead>
                   <tbody>
                     {rows.map((h) => (
-                      <tr key={h.history_id} className="border-b border-hairline-soft">
+                      <tr key={historyKey(h)} className="border-b border-hairline-soft">
                         <td className="px-3 py-1.5 text-slate text-[length:var(--fs-content)]">{h.order_id ?? "-"}</td>
+                        <td className="hidden md:table-cell px-3 py-1.5">
+                          {sourceText(h.history_source) ? (
+                            <span className="text-[length:var(--fs-label)]" style={badgeStyle}>{sourceText(h.history_source)}</span>
+                          ) : "-"}
+                        </td>
                         <td className="hidden md:table-cell px-3 py-1.5 text-slate text-[length:var(--fs-content)]">{h.close_order_id ?? "-"}</td>
                         <td className="px-3 py-1.5">
                           <span className="text-[length:var(--fs-label)]" style={badgeStyle}>

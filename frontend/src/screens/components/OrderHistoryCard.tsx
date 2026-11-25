@@ -46,6 +46,31 @@ const closeStatus = (h: TradeHistoryRecord) => {
 const who = (v?: string | null) =>
   v ? v.charAt(0).toUpperCase() + v.slice(1).toLowerCase() : "—";
 
+const sourceText = (source?: string | null) =>
+  source === "mapped" ? "Connected DB" : source === "dashboard" ? "Dashboard" : null;
+
+/** React identity is (source, key): colliding legacy integers are not identity. */
+const historyKey = (h: TradeHistoryRecord) =>
+  `${h.history_source ?? "legacy"}:${h.history_key ?? h.history_id}`;
+
+/** 11px pill on the helper surface; no new colour token. */
+const sourceBadgeStyle: React.CSSProperties = {
+  display: "inline-block",
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  fontSize: "var(--fs-label)",
+  fontWeight: 500,
+  lineHeight: "14px",
+  color: "var(--color-slate)",
+  background: "var(--color-surface-soft)",
+  borderRadius: "var(--rounded-full)",
+  padding: "0 5px",
+};
+
+const sourceRank = (source?: string | null) => (source === "dashboard" ? 0 : source === "mapped" ? 1 : 2);
+
 /** Closed-trade card: a 32px disclosure bar by default, expanding to 138px with the column heads and newest three rows. */
 const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onViewAll, onDropOrder }) => {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -54,7 +79,13 @@ const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onVie
   const rows = useMemo(
     () =>
       [...tradeHistory]
-        .sort((a, b) => String(b.exit_date ?? "").localeCompare(String(a.exit_date ?? "")))
+        .sort((a, b) => {
+          const byExit = String(b.exit_date ?? "").localeCompare(String(a.exit_date ?? ""));
+          if (byExit !== 0) return byExit;
+          const bySource = sourceRank(a.history_source) - sourceRank(b.history_source);
+          if (bySource !== 0) return bySource;
+          return String(a.history_key ?? a.history_id).localeCompare(String(b.history_key ?? b.history_id));
+        })
         .slice(0, Math.max(MAX_ROWS, VISIBLE_ROWS)),
     [tradeHistory],
   );
@@ -138,7 +169,7 @@ const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onVie
               const net = Number(h.realized_pl ?? 0);
               const note = (h.remark as { note?: string } | null | undefined)?.note;
               return (
-                <div className="at-histrow" key={h.history_id ?? `${h.order_id}-${h.exit_date}`}>
+                <div className="at-histrow" key={historyKey(h)}>
                   <span title={h.exit_date ?? undefined}>{shortDate(h.exit_date)}</span>
                   <span title={h.asset ?? undefined}>{h.asset ?? "—"}</span>
                   <SideChip side={h.type} />
@@ -153,7 +184,12 @@ const OrderHistoryCard: React.FC<OrderHistoryCardProps> = ({ tradeHistory, onVie
                     {closeStatus(h)}
                   </span>
                   <span className="at-hist-by">{who(h.executed_by)}</span>
-                  <span className="at-hist-remark" title={h.order_remark ?? undefined}>{h.order_remark ?? "—"}</span>
+                  <span className="at-hist-remark" title={h.order_remark ?? undefined}>
+                    {sourceText(h.history_source) && (
+                      <span style={{ ...sourceBadgeStyle, marginRight: 6 }}>{sourceText(h.history_source)}</span>
+                    )}
+                    {h.order_remark ?? "—"}
+                  </span>
                 </div>
               );
             })}

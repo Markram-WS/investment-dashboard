@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { GroupOption } from '../types';
 import type { MappedOrderFields } from '../types';
 import { GroupCombobox } from './components/GroupCombobox';
-import type { AddOrderForm } from '../hooks/useAddOrder';
+import type { AddOrderDestination, AddOrderForm } from '../hooks/useAddOrder';
 import ModalShell from './components/ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
 import { Field, NumberInput, TextInput } from './components/Field';
@@ -49,7 +49,57 @@ interface AddOrderModalProps {
   assetTypeOptions: string[];
   /** Present for a mapped portfolio: render only the foreign-writable fields. */
   mapped?: MappedOrderFields;
+  /** Mapped portfolio: offer the store choice, not one portfolio-wide form. */
+  mappedPortfolio?: boolean;
+  /** Local dashboard option inserts are allowed by `order_writes.dashboard_options`. */
+  dashboardOption?: boolean;
 }
+
+/** Destination switch: "Connected DB" or the local "Dashboard option" path. */
+const DestinationSwitch = React.memo(function DestinationSwitch({
+  canMapped,
+  canDashboard,
+  value,
+  onChange,
+}: {
+  canMapped: boolean;
+  canDashboard: boolean;
+  value: AddOrderDestination;
+  onChange: (value: AddOrderDestination) => void;
+}) {
+  return (
+    <div>
+      <label style={CONTROL_LABEL}>Destination</label>
+      <div role="group" aria-label="Order destination" style={{ display: 'flex', gap: 6 }}>
+        {canMapped && (
+          <button
+            type="button"
+            className="tg-pill"
+            data-active={value === 'mapped'}
+            onClick={() => onChange('mapped')}
+          >
+            Connected DB
+          </button>
+        )}
+        {canDashboard && (
+          <button
+            type="button"
+            className="tg-pill"
+            data-active={value === 'dashboard'}
+            onClick={() => onChange('dashboard')}
+          >
+            Dashboard option
+          </button>
+        )}
+      </div>
+      <p style={{ ...CONTROL_HELPER, margin: '4px 0 0' }}>
+        {value === 'mapped'
+          ? 'Saves to the connected database.'
+          : 'Saves a local option order to this dashboard.'}
+      </p>
+    </div>
+  );
+});
 
 const CONTRACT_TYPE_OPTS = [
   { value: 'spot', label: 'Spot' },
@@ -110,6 +160,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   groupOrderCounts,
   assetTypeOptions,
   mapped,
+  mappedPortfolio = false,
+  dashboardOption = false,
 }) => {
   const entryPrice = parseFloat(formData.entry_price as string) || 0;
   const selectedGroup = groups.find(g => g.id === formData.group_id);
@@ -166,6 +218,177 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
 
   if (!showModal) return null;
 
+  const destination: AddOrderDestination =
+    mappedPortfolio && mapped && (!dashboardOption || (formData.destination ?? 'dashboard') === 'mapped')
+      ? 'mapped'
+      : 'dashboard';
+
+  const changeDestination = (value: AddOrderDestination) => {
+    onChange('destination', value);
+    if (value === 'dashboard') {
+      // The dashboard path is option-only and its side values are LONG/SHORT.
+      onChange('contract_type', 'option');
+      if (formData.side !== 'LONG' && formData.side !== 'SHORT') {
+        onChange('side', formData.side === 'SELL' ? 'SHORT' : 'LONG');
+      }
+    }
+  };
+
+  if (mappedPortfolio && destination === 'dashboard') {
+    const optionSide = formData.side === 'SHORT' ? 'SHORT' : 'LONG';
+    return (
+      <ModalShell open={showModal} onClose={onClose} title="Add order" closeOnBackdrop={false} zIndex={110}>
+        <div className={`${MODAL_CARD} ${modalPanel}`} style={modalPanelStyle}>
+          <div className={`${MODAL_HEADER} flex items-baseline justify-between`} style={{ gap: 12, margin: '0 0 12px' }}>
+            <h3 style={CONTROL_TITLE}>Add order</h3>
+            <Field label="Order ID" htmlFor="add-option-order-id" className="flex items-baseline gap-1.5">
+              <TextInput
+                id="add-option-order-id"
+                type="text"
+                value={formData.order_id}
+                onChange={(e) => onChange('order_id', e.target.value)}
+                autoComplete="off"
+                aria-label="Order ID"
+                style={{ width: 132 }}
+              />
+            </Field>
+          </div>
+
+          <div className={`${MODAL_BODY} space-y-3`}>
+            <DestinationSwitch
+              canMapped={Boolean(mapped)}
+              canDashboard={dashboardOption}
+              value="dashboard"
+              onChange={changeDestination}
+            />
+            <Field label="Asset symbol" htmlFor="add-option-asset-type">
+              <TextInput
+                id="add-option-asset-type"
+                type="text"
+                value={formData.asset_type}
+                onChange={(e) => onChange('asset_type', e.target.value)}
+                list="asset-types-add"
+                className="w-full"
+              />
+            </Field>
+            <datalist id="asset-types-add">
+              {assetTypeOptions.map((t) => <option key={t} value={t} />)}
+            </datalist>
+            <div style={twoCol}>
+              <div className="min-w-0">
+                <label style={CONTROL_LABEL}>Side</label>
+                <ToggleBtn
+                  options={MAPPED_SIDE_OPTS}
+                  value={optionSide}
+                  onChange={(v) => onChange('side', v)}
+                  fullWidth
+                />
+              </div>
+              <div className="min-w-0">
+                <label style={CONTROL_LABEL}>Option type</label>
+                <ToggleBtn
+                  options={OPTION_TYPE_OPTS}
+                  value={formData.option_type}
+                  onChange={(v) => onChange('option_type', v)}
+                  fullWidth
+                />
+              </div>
+            </div>
+            <div style={twoCol}>
+              <Field className="min-w-0" label="Qty" htmlFor="add-option-qty">
+                <NumberInput
+                  id="add-option-qty"
+                  step="any"
+                  value={formData.qty}
+                  onChange={(e) => onChange('qty', e.target.value)}
+                  className="w-full"
+                />
+              </Field>
+              <Field className="min-w-0" label="Entry price" htmlFor="add-option-entry-price">
+                <NumberInput
+                  id="add-option-entry-price"
+                  step="any"
+                  value={formData.entry_price}
+                  onChange={(e) => onChange('entry_price', e.target.value)}
+                  className="w-full"
+                />
+              </Field>
+            </div>
+            <div style={twoCol}>
+              <Field className="min-w-0" label="Strike price" htmlFor="add-option-strike-price">
+                <NumberInput
+                  id="add-option-strike-price"
+                  step="any"
+                  value={formData.strike_price}
+                  onChange={(e) => onChange('strike_price', e.target.value)}
+                  className="w-full"
+                />
+              </Field>
+              <Field className="min-w-0" label="Expiry date" htmlFor="add-option-expiry-date">
+                <TextInput
+                  id="add-option-expiry-date"
+                  type="date"
+                  value={formData.expiry_date}
+                  onChange={(e) => onChange('expiry_date', e.target.value)}
+                  className="w-full"
+                  style={{ minWidth: 0, maxWidth: '100%', height: 'var(--control-h)' }}
+                />
+              </Field>
+            </div>
+            <div style={twoCol}>
+              <Field className="min-w-0" label="Cost" htmlFor="add-option-cost">
+                <NumberInput
+                  id="add-option-cost"
+                  step="any"
+                  value={formData.cost}
+                  onChange={(e) => onChange('cost', e.target.value)}
+                  className="w-full"
+                />
+              </Field>
+              <div className="min-w-0">
+                <label style={CONTROL_LABEL}>Status</label>
+                <ToggleBtn
+                  options={STATUS_OPTS}
+                  value={formData.order_status}
+                  onChange={(v) => onChange('order_status', v)}
+                  fullWidth
+                />
+              </div>
+            </div>
+            <div style={twoCol}>
+              <Field className="min-w-0" label="TP price" htmlFor="add-option-tp-price">
+                <NumberInput
+                  id="add-option-tp-price"
+                  step="any"
+                  value={formData.tp_price}
+                  onChange={(e) => onChange('tp_price', e.target.value)}
+                  className="w-full"
+                />
+              </Field>
+              <Field className="min-w-0" label="SL price" htmlFor="add-option-sl-price">
+                <NumberInput
+                  id="add-option-sl-price"
+                  step="any"
+                  value={formData.sl_price}
+                  onChange={(e) => onChange('sl_price', e.target.value)}
+                  className="w-full"
+                />
+              </Field>
+            </div>
+            <p style={{ ...CONTROL_HELPER, margin: 0 }}>
+              Contract type: Option. Requires the portfolio broker and a broker-scoped option symbol.
+            </p>
+          </div>
+
+          <div className={`${MODAL_FOOTER} flex justify-end`} style={{ gap: 8, marginTop: 12 }}>
+            <button type="button" onClick={onClose} style={secondaryButton}>Cancel</button>
+            <button type="button" onClick={onSave} style={primaryButton}>Create order</button>
+          </div>
+        </div>
+      </ModalShell>
+    );
+  }
+
   if (mapped) {
     const mappedFields = new Set(mapped.fields);
     const mappedSideValue = formData.side === 'BUY'
@@ -192,6 +415,17 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               </Field>
             )}
           </div>
+
+          {mappedPortfolio && (
+            <div style={{ margin: '0 0 12px' }}>
+              <DestinationSwitch
+                canMapped
+                canDashboard={dashboardOption}
+                value="mapped"
+                onChange={changeDestination}
+              />
+            </div>
+          )}
 
           <div className={`${MODAL_BODY} space-y-3`}>
             {mappedFields.has('asset_type') && (

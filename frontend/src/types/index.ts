@@ -25,14 +25,37 @@ export interface OverviewResponse {
 
 // === Portfolio Analytics ===
 
-/** Write capabilities for a mapped portfolio's foreign active orders. */
-export interface OrderWrites {
+/** Which store an active order or history row came from. */
+export type OrderSource = "dashboard" | "mapped";
+export type HistorySource = OrderSource;
+
+/** Write capabilities for a mapped portfolio's connected (foreign) active orders. */
+export interface MappedOrderWriteCapabilities {
   insert: boolean;
   update: boolean;
   delete: boolean;
   /** Canonical order fields writable on the foreign table. */
   fields: string[];
   key_generated: boolean;
+}
+
+/** Local option CRUD always lives in the dashboard PostgreSQL. */
+export interface DashboardOptionWrites {
+  insert: boolean;
+  update: boolean;
+  delete: boolean;
+}
+
+/**
+ * Store-scoped write capabilities for a mapped portfolio.
+ *
+ * `mapped === null` when the connected database is unreachable or the mapping
+ * has no write block; `dashboard_options` stays true so local option CRUD is
+ * still offered.
+ */
+export interface OrderWrites {
+  mapped: MappedOrderWriteCapabilities | null;
+  dashboard_options: DashboardOptionWrites;
 }
 
 /** Compact mapped-write descriptor handed to the order form modals. */
@@ -43,6 +66,8 @@ export interface MappedOrderFields {
 
 export interface SpreadOrder {
   order_id: string;
+  /** Store that owns this row; source-qualified identity is (source, order_id). */
+  order_source?: OrderSource | null;
   /** Foreign broker's human order number for a mapped order. */
   order_ref?: string | null;
   asset_type: string;
@@ -93,7 +118,10 @@ export interface SpreadPair {
 }
 
 export interface RecentTrade {
+  /** Legacy integer id retained for compatibility; identity is (source, key). */
   history_id: number;
+  history_source?: HistorySource | null;
+  history_key?: string;
   type: string;
   asset: string;
   amount: number;

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import type { SpreadOrder } from "../../types";
+import type { OrderSource, SpreadOrder } from "../../types";
 import type { ZoneGroupRecord } from "../../lib/api";
 import { formatMoney, formatQty, priceLabel } from "../../utils/format";
 import IconButton from "../../components/IconButton";
@@ -29,6 +29,10 @@ interface OrderDetailLadderProps {
   canLink?: boolean;
   canZone?: boolean;
   canRemark?: boolean;
+  /** Per-row overrides: the store that owns the row decides the action. */
+  canEditOrder?: (order: SpreadOrder) => boolean;
+  canCloseOrder?: (order: SpreadOrder) => boolean;
+  canRemarkOrder?: (order: SpreadOrder) => boolean;
 }
 
 /** One visual ladder line: a price level, or one leg when a level holds several. */
@@ -66,6 +70,50 @@ const sortZones = (zones: ZoneGroupRecord[]) =>
 const signedMoney = (v: number) =>
   `${v > 0 ? "+" : ""}${formatMoney(v)}`;
 
+/** 11px pill on the helper surface; no new colour token. */
+const sourceBadgeStyle: React.CSSProperties = {
+  display: "inline-block",
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  fontSize: "var(--fs-label)",
+  fontWeight: 500,
+  lineHeight: "14px",
+  color: "var(--color-slate)",
+  background: "var(--color-surface-soft)",
+  borderRadius: "var(--rounded-full)",
+  padding: "0 5px",
+};
+
+const sourceText = (source?: string | null) =>
+  source === "mapped" ? "Connected DB" : source === "dashboard" ? "Dashboard" : null;
+
+/** React identity is (source, order_id): the same id may exist in both stores. */
+const orderKey = (o?: SpreadOrder) =>
+  o ? `${o.order_source ?? "unknown"}:${o.order_id}` : "";
+
+/** Source column: one badge per distinct store on the row (EQ and option). */
+const SourceCell = ({ orders }: { orders: (SpreadOrder | undefined)[] }) => {
+  const sources: OrderSource[] = [];
+  for (const order of orders) {
+    const source = order?.order_source;
+    if ((source === "dashboard" || source === "mapped") && !sources.includes(source)) {
+      sources.push(source);
+    }
+  }
+  if (sources.length === 0) return <Dash />;
+  return (
+    <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1, minWidth: 0 }}>
+      {sources.map((source) => (
+        <span key={source} style={sourceBadgeStyle} title={sourceText(source) ?? undefined}>
+          {sourceText(source)}
+        </span>
+      ))}
+    </span>
+  );
+};
+
 const statusText = (s?: string | null) =>
   s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : "—";
 
@@ -98,11 +146,26 @@ const TEMPLATE: Record<string, string> = {
   narrow: "76px minmax(0, 1fr) 72px",
 };
 
+/** Mapped portfolios add one Source column after the symbol (or the EQ net cell). */
+const TEMPLATE_WITH_SOURCE: Record<string, string> = {
+  all: "63px 56px 47px 62px 62px 69px 84px 49px 48px 58px 47px minmax(48px, 1fr)",
+  eqFull: "63px 56px 84px 56px 70px 56px 50px 66px 66px 68px minmax(48px, 1fr)",
+  optFull: "63px 60px 84px 50px 62px 44px 40px 48px 36px 50px 50px 58px minmax(48px, 1fr)",
+  narrow: TEMPLATE.narrow,
+};
+
 const HEADS: Record<string, string[]> = {
   all: ["Mark", "Side", "qty", "In", "Out", "Net P&L", "Type", "DTE", "Strike", "Size", "Net P&L"],
   eqFull: ["Mark", "Symbol", "Status", "Date", "Side", "qty", "Price in", "Price out", "Net P&L", "Remark"],
   optFull: ["Mark", "Symbol", "Status", "Date", "Type", "DTE", "Strike", "Size", "Pre in", "Pre out", "Net P&L", "Remark"],
   narrow: ["Mark", "Leg", "Net P&L"],
+};
+
+const HEADS_WITH_SOURCE: Record<string, string[]> = {
+  all: ["Mark", "Side", "qty", "In", "Out", "Net P&L", "Source", "Type", "DTE", "Strike", "Size", "Net P&L"],
+  eqFull: ["Mark", "Symbol", "Source", "Status", "Date", "Side", "qty", "Price in", "Price out", "Net P&L", "Remark"],
+  optFull: ["Mark", "Symbol", "Source", "Status", "Date", "Type", "DTE", "Strike", "Size", "Pre in", "Pre out", "Net P&L", "Remark"],
+  narrow: HEADS.narrow,
 };
 
 type Band = { label: string; start: number; tone: "eq" | "opt" };
@@ -114,8 +177,14 @@ const BANDS: Record<string, Band[]> = {
   option: [{ label: "Options", start: 0, tone: "opt" }],
 };
 
+const BANDS_WITH_SOURCE: Record<string, Band[]> = {
+  all: [{ label: "EQ · Future", start: 1, tone: "eq" }, { label: "Options", start: 7, tone: "opt" }],
+  eq: BANDS.eq,
+  option: BANDS.option,
+};
+
 /** Column heads whose content is a word, not a number. */
-const LEFT_HEADS = new Set(["Mark", "Symbol", "Side", "Status", "Date", "Remark"]);
+const LEFT_HEADS = new Set(["Mark", "Symbol", "Side", "Status", "Date", "Remark", "Source"]);
 
 const roundPrice = (v: number) => Math.round(v * 1e8) / 1e8;
 
@@ -187,7 +256,7 @@ const buildLines = (zones: ZoneGroupRecord[], orders: SpreadOrder[]): LadderLine
       const count = Math.max(eq.length, opt.length, 1);
       for (let i = 0; i < count; i += 1) {
         lines.push({
-          key: `${zoneId ?? "none"}-${li}-${i}`,
+          key: `${zoneId ?? "none"}-${li}-${i}:${orderKey(eq[i])}:${orderKey(opt[i])}`,
           zoneId,
           price: level.price,
           label: i === 0 ? level.label : "",
@@ -207,7 +276,7 @@ const buildLines = (zones: ZoneGroupRecord[], orders: SpreadOrder[]): LadderLine
     const count = Math.max(eq.length, opt.length, 1);
     for (let i = 0; i < count; i += 1) {
       lines.push({
-        key: `none-${i}`,
+        key: `none-${i}:${orderKey(eq[i])}:${orderKey(opt[i])}`,
         zoneId: null,
         price: null,
         label: i === 0 ? "—" : "",
@@ -321,6 +390,9 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
   canLink = !mapped,
   canZone = !mapped,
   canRemark = !mapped,
+  canEditOrder,
+  canCloseOrder,
+  canRemarkOrder,
 }) => {
   const [linkSource, setLinkSource] = useState<string | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
@@ -403,7 +475,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         </IconButton>,
       );
     }
-    if (canEdit) {
+    if (canEditOrder ? canEditOrder(o) : canEdit) {
       actions.push(
         <IconButton key="edit" label={`Edit ${legLabel(o)}`} onClick={() => onEditOrder(o)}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
@@ -413,7 +485,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         </IconButton>,
       );
     }
-    if (canClose) {
+    if (canCloseOrder ? canCloseOrder(o) : canClose) {
       actions.push(
         <IconButton key="close" label={`Close ${legLabel(o)}`} danger onClick={() => onCloseOrder(o)}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
@@ -474,7 +546,18 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
       return (
         <>
           {mark}
-          <span className="at-left">{leg ? legLabel(leg) : <span className="at-muted">No order</span>}</span>
+          <span className="at-left">
+            {leg ? (
+              <>
+                {legLabel(leg)}
+                {mapped && sourceText(leg.order_source) ? (
+                  <span style={{ ...sourceBadgeStyle, marginLeft: 6 }}>{sourceText(leg.order_source)}</span>
+                ) : null}
+              </>
+            ) : (
+              <span className="at-muted">No order</span>
+            )}
+          </span>
           {leg ? (
             <span className="at-net">
               <span className={`at-num ${total < 0 ? "at-neg" : "at-pos"}`}>{signedMoney(total)}</span>
@@ -492,6 +575,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         return (
           <>
             {mark}
+            {mapped && <SourceCell orders={[]} />}
             {dasher(9)}
           </>
         );
@@ -500,6 +584,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         <>
           {mark}
           <span className="at-left">{eq.asset_type || "—"}</span>
+          {mapped && <SourceCell orders={[eq]} />}
           <span className="at-left at-muted">{statusText(eq.order_status)}</span>
           <span className="at-left at-muted">{shortDate(eq.created_at)}</span>
           <SideChip side={eq.side} />
@@ -511,7 +596,11 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
             {money(mapped ? (eq.tp_price ?? eq.current_price) : eq.current_price)}
           </span>
           {netCell(eq)}
-          <RemarkCell order={eq} onSave={onUpdateRemark} readOnly={!canRemark} />
+          <RemarkCell
+            order={eq}
+            onSave={onUpdateRemark}
+            readOnly={canRemarkOrder ? !canRemarkOrder(eq) : !canRemark}
+          />
         </>
       );
     }
@@ -521,6 +610,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         return (
           <>
             {mark}
+            {mapped && <SourceCell orders={[]} />}
             {dasher(11)}
           </>
         );
@@ -530,6 +620,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         <>
           {mark}
           <span className="at-left">{opt.asset_type || "—"}</span>
+          {mapped && <SourceCell orders={[opt]} />}
           <span className="at-left at-muted">{statusText(opt.order_status)}</span>
           <span className="at-left at-muted">{shortDate(opt.expiry_date)}</span>
           <TypeChip order={opt} />
@@ -539,7 +630,11 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
           <span className="at-num">{money(opt.entry_price)}</span>
           <span className="at-num">{money(opt.current_price)}</span>
           {netCell(opt)}
-          <RemarkCell order={opt} onSave={onUpdateRemark} readOnly={!canRemark} />
+          <RemarkCell
+            order={opt}
+            onSave={onUpdateRemark}
+            readOnly={canRemarkOrder ? !canRemarkOrder(opt) : !canRemark}
+          />
         </>
       );
     }
@@ -559,6 +654,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         {eq ? <span className="at-num">{money(eq.entry_price)}</span> : <Dash />}
         {eq ? <span className="at-num">{money(eq.current_price)}</span> : <Dash />}
         {netCell(eq)}
+        {mapped && <SourceCell orders={[eq, opt]} />}
         {opt ? <TypeChip order={opt} /> : <Dash />}
         {opt ? <span className="at-num at-muted">{dte ?? "—"}</span> : <Dash />}
         {opt ? <span className="at-num">{money(opt.strike_price)}</span> : <Dash />}
@@ -568,20 +664,14 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
     );
   };
 
+  const layoutKey = view === "eq" ? "eqFull" : view === "option" ? "optFull" : "all";
   const template = narrow
     ? TEMPLATE.narrow
-    : view === "eq"
-      ? TEMPLATE.eqFull
-      : view === "option"
-        ? TEMPLATE.optFull
-        : TEMPLATE.all;
+    : (mapped ? TEMPLATE_WITH_SOURCE : TEMPLATE)[layoutKey];
   const heads = narrow
     ? HEADS.narrow
-    : view === "eq"
-      ? HEADS.eqFull
-      : view === "option"
-        ? HEADS.optFull
-        : HEADS.all;
+    : (mapped ? HEADS_WITH_SOURCE : HEADS)[layoutKey];
+  const bands = mapped ? BANDS_WITH_SOURCE[view] : BANDS[view];
 
   return (
     <section className="at-card at-detail" aria-label="Order detail">
@@ -643,8 +733,8 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
                 className="at-groups"
                 style={{ gridTemplateColumns: template }}
               >
-                {(BANDS[view] ?? []).map((band, i) => {
-                  const span = ((BANDS[view] ?? [])[i + 1]?.start ?? heads.length) - band.start;
+                {(bands ?? []).map((band, i) => {
+                  const span = ((bands ?? [])[i + 1]?.start ?? heads.length) - band.start;
                   const lead = i === 0 ? band.start : 0;
                   return (
                     <React.Fragment key={band.label}>

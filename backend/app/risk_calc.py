@@ -64,29 +64,8 @@ def _order_multiplier(spec) -> Decimal:
     return registry.effective_multiplier(symbol, product)
 
 
-async def compute_margin_locked(db: AsyncSession, portfolio: Portfolio) -> float:
-    """Margin locked from product/symbol specs for Active Trading only.
-
-    Missing broker, spec, mark or quantity contributes zero. Options are
-    included. The product's ``margin_mode`` selects exactly one formula:
-    notional / premium / span.
-    """
-    if db is None:
-        return _stored_margin(portfolio)
-    if getattr(portfolio, "port_type", None) != "Active Trading":
-        return _stored_margin(portfolio)
-    if portfolio.broker_id is None:
-        return 0.0
-
-    orders = (
-        await db.execute(
-            select(ActiveOrder).where(
-                ActiveOrder.portfolio_id == portfolio.portfolio_id
-            )
-        )
-    ).scalars().all()
-    specs = await _load_order_specs(db, portfolio, orders)
-
+def _margin_for_orders(orders, specs) -> Decimal:
+    """Apply the broker-scoped formula to an explicit order list."""
     total = Decimal("0")
     for order in orders:
         spec = specs.get(_norm_symbol(order.asset_type))
@@ -109,7 +88,46 @@ async def compute_margin_locked(db: AsyncSession, portfolio: Portfolio) -> float
         else:
             rate = registry.effective_margin_rate(symbol, product)
             total += dec(mark) * multiplier * dec(order.qty) * rate
-    return float(total)
+    return total
+
+
+async def compute_orders_margin_locked(
+    db: AsyncSession, portfolio: Portfolio, orders: list
+) -> float:
+    """Margin from broker-scoped specs over a caller-supplied order list.
+
+    Used by the hybrid mapped path to price only dashboard-local option rows.
+    A missing broker/spec/mark/quantity contributes zero; the caller decides
+    which orders belong to the calculation.
+    """
+    if db is None or portfolio is None or portfolio.broker_id is None:
+        return 0.0
+    specs = await _load_order_specs(db, portfolio, orders)
+    return float(_margin_for_orders(orders, specs))
+
+
+async def compute_margin_locked(db: AsyncSession, portfolio: Portfolio) -> float:
+    """Margin locked from product/symbol specs for Active Trading only.
+
+    Missing broker, spec, mark or quantity contributes zero. Options are
+    included. The product's ``margin_mode`` selects exactly one formula:
+    notional / premium / span.
+    """
+    if db is None:
+        return _stored_margin(portfolio)
+    if getattr(portfolio, "port_type", None) != "Active Trading":
+        return _stored_margin(portfolio)
+    if portfolio.broker_id is None:
+        return 0.0
+
+    orders = (
+        await db.execute(
+            select(ActiveOrder).where(
+                ActiveOrder.portfolio_id == portfolio.portfolio_id
+            )
+        )
+    ).scalars().all()
+    return await compute_orders_margin_locked(db, portfolio, orders)
 
 
 def _spec_fallback(value, default: str) -> Decimal:

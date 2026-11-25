@@ -12,7 +12,17 @@ from app.custom_mapping import (
     fetch_mapped_account, fetch_mapped_history, fetch_mapped_orders,
     mapped_orders_write_capabilities,
 )
-from app.risk_calc import compute_margin_locked, compute_risk
+from app.risk_calc import compute_margin_locked, compute_orders_margin_locked, compute_risk
+from app.services.hybrid_portfolio import (
+    fetch_local_history,
+    fetch_local_option_orders,
+    local_history_row,
+    local_order_row,
+    mapped_history_row,
+    merge_history_rows,
+    merge_order_rows,
+    recent_trade_row,
+)
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from types import SimpleNamespace
@@ -315,6 +325,19 @@ async def _resolve_asset_prices(
     return _pick_asset_prices(result.all(), portfolio_broker_id)
 
 
+def _dashboard_option_writes() -> dict:
+    """Dashboard-local option CRUD is always advertised on a mapped portfolio."""
+    return {"insert": True, "update": True, "delete": True}
+
+
+def _hybrid_order_writes(mapped_capabilities: Optional[dict]) -> dict:
+    """The frozen store-scoped capability shape."""
+    return {
+        "mapped": mapped_capabilities,
+        "dashboard_options": _dashboard_option_writes(),
+    }
+
+
 def _risk_order_proxy(order: dict, current_price: float | None) -> SimpleNamespace:
     """Order-shaped view of a mapped order dict for ``compute_risk``.
 
@@ -373,22 +396,7 @@ def _serialize_mapped_order(
         "remark": order.get("remark"),
         "link_type": "none",
         "created_at": order.get("created_at"),
-    }
-
-
-def _serialize_mapped_trade(trade: dict) -> dict:
-    return {
-        "history_id": trade.get("history_id"),
-        "type": trade.get("type"),
-        "asset": trade.get("asset"),
-        "amount": _to_float(trade.get("amount")),
-        "exit_price": _to_float(trade.get("exit_price")),
-        "realized_pl": _to_float(trade.get("realized_pl")),
-        "executed_by": trade.get("executed_by"),
-        "decision_note": trade.get("decision_note"),
-        "remark": trade.get("remark"),
-        "entry_date": trade.get("entry_date"),
-        "exit_date": trade.get("exit_date"),
+        "order_source": "mapped",
     }
 
 
@@ -410,8 +418,9 @@ async def _degraded_grid_data(
     """Local metadata row for a portfolio whose data source failed.
 
     Never raises for the local lookups: a failure here must not mask the
-    original error. ``mapping_config`` is set for a mapped portfolio, whose
-    rows are read-only and carry the template's write capabilities.
+    original error. A mapped portfolio still serves its dashboard-local option
+    orders/history and advertises only dashboard option writes; the connected
+    rows are absent (never fabricated) until the foreign source recovers.
     """
     mapped = mapping_config is not None
     try:
@@ -419,8 +428,34 @@ async def _degraded_grid_data(
     except Exception:
         trade_plan, broker_code = None, None
 
+    local_orders: list = []
+    recent_trades: list[dict] = []
+    local_margin = 0.0
+    if mapped:
+        try:
+            local_orders = await fetch_local_option_orders(
+                db, portfolio.portfolio_id
+            )
+            local_history = await fetch_local_history(db, portfolio.portfolio_id)
+            recent_trades = [
+                recent_trade_row(row)
+                for row in merge_history_rows(
+                    [
+                        local_history_row(row, portfolio.portfolio_name)
+                        for row in local_history
+                    ],
+                    [],
+                )[:5]
+            ]
+            local_margin = await compute_orders_margin_locked(
+                db, portfolio, local_orders
+            )
+        except Exception:
+            local_orders, recent_trades, local_margin = [], [], 0.0
+
     available_cash = _to_float(portfolio.available_cash)
-    margin_locked = _to_float(portfolio.margin_locked)
+    margin_locked = (_to_float(portfolio.margin_locked) or 0.0) + local_margin
+    margin_locked = round(margin_locked, 2)
     cash_buffer_limit = _to_float(portfolio.cash_buffer_limit)
 
     return PortfolioGridData(
@@ -447,14 +482,14 @@ async def _degraded_grid_data(
         initial_capital=_to_float(portfolio.initial_capital) or 0,
         tags=portfolio.tags,
         spread_pairs=[],
-        active_orders=[],
-        recent_trades=[],
+        active_orders=[local_order_row(order) for order in local_orders],
+        recent_trades=recent_trades,
         risk=None,
         read_only=mapped,
         mapping_template=(mapping_config or {}).get("template"),
-        # A degraded row advertises no write capabilities: the foreign database
-        # is unreachable, so Add/Edit/Close would only fail.
-        order_writes=None,
+        # The foreign database is unreachable, so mapped writes are null; the
+        # dashboard-local option path remains advertised and usable.
+        order_writes=_hybrid_order_writes(None) if mapped else None,
         load_error=_failure_message(
             "Mapped database unreachable"
             if mapped
@@ -470,8 +505,14 @@ async def _build_mapped_grid_data(
     connection,
     include_risk: bool,
 ) -> PortfolioGridData:
-    """Read-through view over a foreign broker schema (never writes)."""
+    """Read-through view over a foreign broker schema plus local options."""
     config = connection.mapping_config
+    local_orders = await fetch_local_option_orders(db, portfolio.portfolio_id)
+    local_history = await fetch_local_history(db, portfolio.portfolio_id)
+    local_margin = await compute_orders_margin_locked(
+        db, portfolio, local_orders
+    )
+
     try:
         engine = await get_or_create_custom_engine(connection)
 
@@ -480,8 +521,8 @@ async def _build_mapped_grid_data(
         history = await fetch_mapped_history(engine, config)
         account = await fetch_mapped_account(engine, config)
     except Exception as exc:
-        # An unreachable foreign database degrades to the local metadata row so
-        # the page still renders (header, actions) with a visible load error.
+        # An unreachable foreign database still serves the dashboard-local
+        # option rows and history, with a visible load error.
         return await _degraded_grid_data(
             db, portfolio, exc, mapping_config=config
         )
@@ -495,16 +536,36 @@ async def _build_mapped_grid_data(
         return _to_float(fallback)
 
     available_cash = money("available_cash", portfolio.available_cash)
-    margin_locked = money("margin_locked", portfolio.margin_locked)
+    margin_locked = (
+        (money("margin_locked", portfolio.margin_locked) or 0.0) + local_margin
+    )
+    margin_locked = round(margin_locked, 2)
     cash_buffer_limit = _to_float(portfolio.cash_buffer_limit)
 
     trade_plan, broker_code = await _load_portfolio_context(db, portfolio)
     plan_id = trade_plan.plan_id if trade_plan else None
 
-    history.sort(key=lambda row: row.get("exit_date") or "", reverse=True)
-    recent_trades = [
-        _serialize_mapped_trade(row) for row in history[:5]
+    merged_history = merge_history_rows(
+        [
+            local_history_row(row, portfolio.portfolio_name)
+            for row in local_history
+        ],
+        [
+            mapped_history_row(row, portfolio.portfolio_id, portfolio.portfolio_name)
+            for row in history
+        ],
+    )
+    recent_trades = [recent_trade_row(row) for row in merged_history[:5]]
+
+    mapped_order_rows = [
+        _serialize_mapped_order(order, plan_id, order_price(order))
+        for order in orders
     ]
+    dashboard_order_rows = [local_order_row(order) for order in local_orders]
+    active_orders = merge_order_rows(
+        dashboard_order_rows,
+        mapped_order_rows,
+    )
 
     risk = None
     if include_risk:
@@ -517,11 +578,17 @@ async def _build_mapped_grid_data(
             available_cash=available_cash or 0,
             margin_locked=margin_locked or 0,
         )
-        risk = await compute_risk(
-            db, proxy, [_risk_order_proxy(order, order_price(order)) for order in orders]
-        )
-        # Money comes from the foreign account row, not from local orders.
-        risk["margin_locked"] = round(margin_locked or 0.0, 2)
+        risk_orders = [
+            _risk_order_proxy(order, order_price(order)) for order in orders
+        ] + [
+            _risk_order_proxy(row, row.get("current_price"))
+            for row in dashboard_order_rows
+        ]
+        risk = await compute_risk(db, proxy, risk_orders)
+        # Money comes from the foreign account row plus the local option
+        # margin that is not part of the foreign account; foreign rows are
+        # never recomputed and local non-options never contribute.
+        risk["margin_locked"] = margin_locked
         risk["available_cash"] = round(available_cash or 0.0, 2)
 
     return PortfolioGridData(
@@ -548,15 +615,14 @@ async def _build_mapped_grid_data(
         initial_capital=_to_float(portfolio.initial_capital) or 0,
         tags=portfolio.tags,
         spread_pairs=[],
-        active_orders=[
-            _serialize_mapped_order(order, plan_id, order_price(order))
-            for order in orders
-        ],
+        active_orders=active_orders,
         recent_trades=recent_trades,
         risk=risk,
         read_only=True,
         mapping_template=config.get("template"),
-        order_writes=mapped_orders_write_capabilities(config),
+        order_writes=_hybrid_order_writes(
+            mapped_orders_write_capabilities(config)
+        ),
     )
 
 

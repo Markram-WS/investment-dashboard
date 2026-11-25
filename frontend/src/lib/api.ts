@@ -22,6 +22,7 @@ import type {
   MFRebalanceResponse,
   MFSetting,
   MFAlert,
+  OrderSource,
   OverviewResponse,
   PortfolioData,
   PortfolioRisk,
@@ -190,7 +191,11 @@ export interface PerformanceResult {
 }
 
 export interface TradeHistoryRecord {
+  /** Legacy integer id retained for compatibility; identity is (source, key). */
   history_id: number;
+  history_source?: OrderSource | null;
+  /** Stable string identity within its source; sameness across sources is not identity. */
+  history_key?: string;
   portfolio_id: number;
   portfolio_name: string;
   type: string;
@@ -399,6 +404,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
+/**
+ * Query string for a single-order call. Mapped portfolios require
+ * `order_source`; non-mapped callers omit it and keep today's URL.
+ */
+const orderQuery = (portfolioId?: number, orderSource?: OrderSource): string => {
+  const query = new URLSearchParams();
+  if (portfolioId != null) query.set('portfolio_id', String(portfolioId));
+  if (orderSource) query.set('order_source', orderSource);
+  const suffix = query.toString();
+  return suffix ? `?${suffix}` : '';
+};
+
 // === API client ===
 
 export const api = {
@@ -593,33 +610,44 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  updateOrder: (orderId: string, payload: OrderUpdatePayload, portfolioId?: number) => {
-    const suffix = portfolioId != null ? `?portfolio_id=${portfolioId}` : '';
-    return request<SpreadOrder>(`/orders/${encodeURIComponent(orderId)}${suffix}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
-  },
-  cancelOrder: (orderId: string, portfolioId?: number) => {
-    const suffix = portfolioId != null ? `?portfolio_id=${portfolioId}` : '';
-    return request<CancelOrderResult>(
-      `/orders/${encodeURIComponent(orderId)}/status${suffix}`,
+  getOrder: (orderId: string, portfolioId?: number, orderSource?: OrderSource) =>
+    request<SpreadOrder>(
+      `/orders/${encodeURIComponent(orderId)}${orderQuery(portfolioId, orderSource)}`,
+    ),
+  updateOrder: (
+    orderId: string,
+    payload: OrderUpdatePayload,
+    portfolioId?: number,
+    orderSource?: OrderSource,
+  ) =>
+    request<SpreadOrder>(
+      `/orders/${encodeURIComponent(orderId)}${orderQuery(portfolioId, orderSource)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+    ),
+  cancelOrder: (orderId: string, portfolioId?: number, orderSource?: OrderSource) =>
+    request<CancelOrderResult>(
+      `/orders/${encodeURIComponent(orderId)}/status${orderQuery(portfolioId, orderSource)}`,
       {
         method: 'PATCH',
         body: JSON.stringify({ new_status: 'CANCELED' }),
       },
-    );
-  },
-  closeOrder: (orderId: string, payload: CloseOrderPayload, portfolioId?: number) => {
-    const suffix = portfolioId != null ? `?portfolio_id=${portfolioId}` : '';
-    return request<CloseOrderResult>(
-      `/orders/${encodeURIComponent(orderId)}/close${suffix}`,
+    ),
+  closeOrder: (
+    orderId: string,
+    payload: CloseOrderPayload,
+    portfolioId?: number,
+    orderSource?: OrderSource,
+  ) =>
+    request<CloseOrderResult>(
+      `/orders/${encodeURIComponent(orderId)}/close${orderQuery(portfolioId, orderSource)}`,
       {
         method: 'POST',
         body: JSON.stringify(payload),
       },
-    );
-  },
+    ),
   linkOrder: (orderId: string, targetOrderId: string, portfolioId?: number) => {
     const suffix = portfolioId != null ? `?portfolio_id=${portfolioId}` : '';
     return request<LinkOrderResult>(

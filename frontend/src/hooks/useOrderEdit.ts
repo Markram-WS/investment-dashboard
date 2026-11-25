@@ -53,6 +53,8 @@ const seedMappedFields = (order: SpreadOrder, fields: string[]): OrderEditForm =
 export const useOrderEdit = (
   portfolioId?: number,
   mapped?: MappedOrderFields,
+  /** Mapped portfolios require `order_source` on single-row writes. */
+  mappedPortfolio = false,
 ): UseOrderEditReturn => {
   const [editingOrder, setEditingOrder] = useState<SpreadOrder | null>(null);
   const [formData, setFormData] = useState<OrderEditForm>({});
@@ -61,12 +63,16 @@ export const useOrderEdit = (
   portfolioIdRef.current = portfolioId;
   const mappedRef = useRef(mapped);
   mappedRef.current = mapped;
+  const mappedPortfolioRef = useRef(mappedPortfolio);
+  mappedPortfolioRef.current = mappedPortfolio;
   const onRefreshRef = useRef<() => void>(() => {});
 
   const startEdit = useCallback((order: SpreadOrder) => {
     setEditingOrder(order);
     const write = mappedRef.current;
-    if (write) {
+    // Only a mapped-source row gets the foreign field list; a dashboard row on
+    // the same portfolio uses the ordinary local option form.
+    if (write && order.order_source === 'mapped') {
       setFormData(seedMappedFields(order, write.fields));
     } else {
       setFormData({
@@ -103,7 +109,8 @@ export const useOrderEdit = (
 
     try {
       const write = mappedRef.current;
-      if (write) {
+      const orderSource = mappedPortfolioRef.current ? editingOrder.order_source ?? undefined : undefined;
+      if (write && editingOrder.order_source === 'mapped') {
         const writable = new Set(write.fields);
         const payload: OrderUpdatePayload = {};
         if (writable.has('order_ref')) payload.order_ref = formData.order_ref ?? '';
@@ -117,9 +124,9 @@ export const useOrderEdit = (
           if (fee !== null) payload.fee = fee;
         }
         if (writable.has('remark')) payload.remark = formData.remark ?? '';
-        await api.updateOrder(editingOrder.order_id, payload, portfolioIdRef.current);
+        await api.updateOrder(editingOrder.order_id, payload, portfolioIdRef.current, orderSource);
       } else {
-        await api.updateOrder(editingOrder.order_id, formData, portfolioIdRef.current);
+        await api.updateOrder(editingOrder.order_id, formData, portfolioIdRef.current, orderSource);
       }
       if (onRefreshRef.current) {
         onRefreshRef.current();

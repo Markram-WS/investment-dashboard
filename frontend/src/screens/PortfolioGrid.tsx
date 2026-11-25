@@ -8,9 +8,10 @@ import EditPortfolioModal from "./EditPortfolioModal";
 import MappingModal from "./MappingModal";
 import { useOrderEdit } from "../hooks/useOrderEdit";
 import { useAddOrder } from "../hooks/useAddOrder";
+import type { AddOrderDestination } from "../hooks/useAddOrder";
 import { usePortfolioManager } from "../hooks/usePortfolioManager";
 import { SpreadOrder } from "../types";
-import type { AssetProduct, MappedOrderFields } from "../types";
+import type { AssetProduct, MappedOrderFields, OrderSource, OrderWrites } from "../types";
 import { api } from "../lib/api";
 import type { ZoneGroupRecord, TradeHistoryRecord, PerformanceResult } from "../lib/api";
 
@@ -36,6 +37,47 @@ interface PortfolioGridProps {
 }
 
 const LADDER_VIEW_VALUES: readonly LadderView[] = ["all", "eq", "option"];
+
+export interface OrderRowWrites {
+  edit: boolean;
+  close: boolean;
+  remark: boolean;
+}
+
+/** Merge order: dashboard rows before connected rows. */
+const sourceRank = (source?: OrderSource | null) =>
+  source === "dashboard" ? 0 : source === "mapped" ? 1 : 2;
+
+/**
+ * Per-row capabilities for a mapped portfolio. A row is actionable only when
+ * the store that owns it advertises the action; a dashboard row is never gated
+ * by the connected database's capabilities (and vice versa). Non-mapped
+ * portfolios keep the existing always-writable behaviour.
+ */
+export const orderRowWrites = (
+  order: Pick<SpreadOrder, "order_source">,
+  writes: OrderWrites | null | undefined,
+  mappedPortfolio: boolean,
+): OrderRowWrites => {
+  if (!mappedPortfolio) return { edit: true, close: true, remark: true };
+  if (order.order_source === "mapped") {
+    return {
+      edit: Boolean(writes?.mapped?.update),
+      close: Boolean(writes?.mapped?.delete),
+      remark: Boolean(writes?.mapped?.update),
+    };
+  }
+  if (order.order_source === "dashboard") {
+    const local = writes?.dashboard_options;
+    return {
+      edit: Boolean(local?.update),
+      close: Boolean(local?.delete),
+      remark: Boolean(local?.update),
+    };
+  }
+  // No source means no safe store to target; never guess.
+  return { edit: false, close: false, remark: false };
+};
 
 /** One ladder tab per portfolio, so an unmount or reload reopens the last view. */
 const ladderStorageKey = (portfolioId: number) => `at-ladder-view:${portfolioId}`;
@@ -171,7 +213,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   }, [selectedPortfolio?.portfolio_id, firstPortfolioTicker, portfolioProducts]);
 
   const mappedOrderFields = useMemo<MappedOrderFields | undefined>(() => {
-    const writes = selectedPortfolio?.order_writes;
+    const writes = selectedPortfolio?.order_writes?.mapped;
     return writes ? { fields: writes.fields, keyGenerated: writes.key_generated } : undefined;
   }, [selectedPortfolio?.order_writes]);
 
@@ -280,7 +322,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     handleFormChange,
     handleSaveOrder,
     setOnRefresh,
-  } = useOrderEdit(selectedPortfolio?.portfolio_id, mappedOrderFields);
+  } = useOrderEdit(selectedPortfolio?.portfolio_id, mappedOrderFields, isMapped);
 
   const {
     formData: addFormData,
@@ -305,7 +347,15 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
     () => (selectedPortfolio?.active_orders || []).filter((o) => o.order_status !== "closed").sort((a, b) => {
       const cmp = (a.asset_type || '').localeCompare(b.asset_type || '');
       if (cmp !== 0) return cmp;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : NaN;
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : NaN;
+      const aMissing = Number.isNaN(aTime);
+      const bMissing = Number.isNaN(bTime);
+      if (aMissing !== bMissing) return aMissing ? 1 : -1;
+      if (!aMissing && aTime !== bTime) return bTime - aTime;
+      const sourceCmp = sourceRank(a.order_source) - sourceRank(b.order_source);
+      if (sourceCmp !== 0) return sourceCmp;
+      return a.order_id.localeCompare(b.order_id);
     }),
     [selectedPortfolio?.active_orders],
   );
@@ -327,10 +377,11 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
 
   const handleCloseOrder = useCallback((order: SpreadOrder) => {
     const status = (order.order_status || "").toUpperCase();
-    // A mapped close always writes history then removes the open row; there is
-    // no local PENDING->CANCELED transition on the foreign schema.
-    if (!isMapped && status === "PENDING") {
-      api.cancelOrder(order.order_id, selectedPortfolio?.portfolio_id).then(() => {
+    // A mapped-source close always writes foreign history then removes the open
+    // row; a dashboard row on the same portfolio keeps the local cancel path.
+    const orderSource = isMapped ? order.order_source ?? undefined : undefined;
+    if (order.order_source !== "mapped" && status === "PENDING") {
+      api.cancelOrder(order.order_id, selectedPortfolio?.portfolio_id, orderSource).then(() => {
         fetchAnalyticsData();
         if (selectedPortfolio) {
           api.getTradeHistory(selectedPortfolio.portfolio_id).then(setTradeHistory).catch(() => {});
@@ -384,11 +435,13 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   /** Inline remark edits save one field and refresh the ladder. */
   const handleUpdateRemark = useCallback(async (order: SpreadOrder, remark: string | null) => {
     try {
+      const foreignRow = order.order_source === "mapped";
       // Mapped updates skip nulls; an empty string is how a column is cleared.
       await api.updateOrder(
         order.order_id,
-        { remark: isMapped ? remark ?? '' : remark },
+        { remark: foreignRow ? remark ?? '' : remark },
         selectedPortfolio?.portfolio_id,
+        isMapped ? order.order_source ?? undefined : undefined,
       );
       await fetchAnalyticsData();
     } catch {
@@ -408,13 +461,19 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
    * contract symbol, so the order can resolve a spec without picking. */
   const handleAddOrder = useCallback((preset?: { groupId: number | null; entryPrice: number | null }) => {
     const assetType = addOrderAssetType.trim();
+    // Mapped portfolios start on the connected path when it is writable;
+    // otherwise the modal opens on the only remaining path (Dashboard option).
+    const destination: AddOrderDestination | undefined = isMapped
+      ? (selectedPortfolio?.order_writes?.mapped?.insert ? 'mapped' : 'dashboard')
+      : undefined;
     openModal({
+      ...(destination ? { destination } : {}),
       group_id: isMapped ? null : preset?.groupId ?? null,
       entry_price: preset?.entryPrice ?? '',
-      ...(isMapped ? { side: 'LONG' } : {}),
+      ...(isMapped ? { side: 'LONG', contract_type: 'option' } : {}),
       ...(assetType ? { asset_type: assetType } : {}),
     });
-  }, [openModal, isMapped, addOrderAssetType]);
+  }, [openModal, isMapped, addOrderAssetType, selectedPortfolio?.order_writes]);
 
   const handleLinkOrder = useCallback(async (sourceOrderId: string, targetOrderId: string) => {
     try {
@@ -428,16 +487,22 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const handleConfirmClose = useCallback(
     async (orderId: string, closeOrderId: string, exitPrice: number | null, realizedPl: number | null, cost?: number) => {
       try {
-        const resp = isMapped
+        // The clicked row owns the store; a dashboard row on a mapped portfolio
+        // closes locally, a mapped row closes in the connected database.
+        const foreignRow = closingOrder?.order_source === 'mapped';
+        const orderSource = isMapped ? closingOrder?.order_source ?? undefined : undefined;
+        const resp = foreignRow
           ? await api.closeOrder(
               orderId,
               { exit_price: exitPrice, realized_pl: realizedPl },
               selectedPortfolio?.portfolio_id,
+              orderSource,
             )
           : await api.closeOrder(
               orderId,
               { close_order_id: closeOrderId, exit_price: exitPrice, realized_pl: realizedPl, cost },
               selectedPortfolio?.portfolio_id,
+              orderSource,
             );
         setShowCloseModal(false);
         setClosingOrder(null);
@@ -459,7 +524,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
         console.error("Failed to close order:", err);
       }
     },
-    [fetchAnalyticsData, selectedPortfolio, activeOrders, isMapped],
+    [fetchAnalyticsData, selectedPortfolio, activeOrders, isMapped, closingOrder],
   );
 
   if (loading) return (
@@ -555,9 +620,14 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   const readOnly = isMapped;
   const loadErrorDetail = stripLoadErrorPrefix(selectedPortfolio.load_error);
   const orderWrites = selectedPortfolio.order_writes ?? null;
-  const canInsert = !readOnly || Boolean(orderWrites?.insert);
-  const canUpdate = !readOnly || Boolean(orderWrites?.update);
-  const canDelete = !readOnly || Boolean(orderWrites?.delete);
+  const mappedWrites = orderWrites?.mapped ?? null;
+  const dashboardWrites = orderWrites?.dashboard_options ?? null;
+  // Store-scoped: either store may be writable on a mapped portfolio.
+  const canInsertMapped = !readOnly || Boolean(mappedWrites?.insert);
+  const canInsertDashboard = !readOnly || Boolean(dashboardWrites?.insert);
+  const canInsert = canInsertMapped || canInsertDashboard;
+  const canUpdate = !readOnly || Boolean(mappedWrites?.update) || Boolean(dashboardWrites?.update);
+  const canDelete = !readOnly || Boolean(mappedWrites?.delete) || Boolean(dashboardWrites?.delete);
   // Grouping, linking and zones are local-only concepts.
   const canGroup = !readOnly;
   const cumulativePl = performanceData?.total_pl || 0;
@@ -673,6 +743,9 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
               canLink={canGroup}
               canZone={canGroup}
               canRemark={canUpdate}
+              canEditOrder={(order) => orderRowWrites(order, orderWrites, readOnly).edit}
+              canCloseOrder={(order) => orderRowWrites(order, orderWrites, readOnly).close}
+              canRemarkOrder={(order) => orderRowWrites(order, orderWrites, readOnly).remark}
             />
             <OrderHistoryCard
               tradeHistory={tradeHistory}
@@ -737,7 +810,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           assetTypeOptions={assetTypeOptions}
           onRefresh={fetchAnalyticsData}
           portfolioId={selectedPortfolio?.portfolio_id}
-          mapped={mappedOrderFields}
+          mapped={editingOrder?.order_source === 'mapped' ? mappedOrderFields : undefined}
         />
       )}
       {canGroup && (
@@ -758,7 +831,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           onClose={() => { setShowCloseModal(false); setClosingOrder(null); }}
           onConfirm={handleConfirmClose}
           activeOrders={activeOrders}
-          mapped={isMapped}
+          mapped={closingOrder?.order_source === 'mapped'}
         />
       )}
       {canInsert && (
@@ -767,14 +840,28 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           showModal={showAddModal}
           onClose={closeAddModal}
           onSave={async () => {
-            if (!mappedOrderFields) {
-              const id = String(addFormData.order_id ?? '').trim();
-              if (id && activeOrders.some((o) => o.order_id === id)) {
+            const destination: AddOrderDestination = isMapped
+              ? (canInsertMapped && (!canInsertDashboard || addFormData.destination === 'mapped') ? 'mapped' : 'dashboard')
+              : 'dashboard';
+            const id = String(addFormData.order_id ?? '').trim();
+            if (id) {
+              // Duplicate ids only collide inside one store.
+              const collides = activeOrders.some((o) => {
+                if (o.order_id !== id) return false;
+                if (!isMapped) return true;
+                return o.order_source === (destination === 'mapped' ? 'mapped' : 'dashboard');
+              });
+              const generatedKey = destination === 'mapped' && mappedOrderFields?.keyGenerated;
+              if (collides && !generatedKey) {
                 notify('Order ID already exists', 'warning');
                 return;
               }
             }
-            const result = await handleCreateOrder(selectedPortfolio.portfolio_id, mappedOrderFields);
+            const result = await handleCreateOrder(
+              selectedPortfolio.portfolio_id,
+              destination === 'mapped' ? mappedOrderFields : undefined,
+              isMapped ? destination : undefined,
+            );
             if (result.ok) {
               fetchAnalyticsData();
             } else {
@@ -785,7 +872,9 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           groups={groups}
           groupOrderCounts={groupOrderCounts}
           assetTypeOptions={assetTypeOptions}
-          mapped={mappedOrderFields}
+          mapped={canInsertMapped ? mappedOrderFields : undefined}
+          mappedPortfolio={isMapped}
+          dashboardOption={canInsertDashboard}
         />
       )}
 
