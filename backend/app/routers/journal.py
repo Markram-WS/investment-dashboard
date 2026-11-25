@@ -28,7 +28,7 @@ class JournalEntryResponse(BaseModel):
 
 router = APIRouter()
 
-@router.post("/", tags=["journal"], status_code=status.HTTP_201_CREATED)
+@router.post("", tags=["journal"], status_code=status.HTTP_201_CREATED)
 async def create_journal_entry(
     entry_data: JournalEntryCreate,
     db: AsyncSession = Depends(get_db)

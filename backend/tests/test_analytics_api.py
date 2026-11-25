@@ -94,7 +94,7 @@ async def test_portfolio_grid_endpoint_with_data(async_client):
     # Create a portfolio (with a broker-scoped contract spec for the order)
     broker_id = await _seed_contract(async_client, "AN1")
     portfolio_resp = await async_client.post(
-        "/api/v1/portfolios/", json={**portfolio_payload(), "broker_id": broker_id}
+        "/api/v1/portfolios", json={**portfolio_payload(), "broker_id": broker_id}
     )
     assert portfolio_resp.status_code == 201
     portfolio = portfolio_resp.json()
@@ -102,14 +102,14 @@ async def test_portfolio_grid_endpoint_with_data(async_client):
 
     # Create a trade plan for the portfolio
     plan_payload = trade_plan_payload(portfolio_id)
-    plan_resp = await async_client.post("/api/v1/trade-plans/", json=plan_payload)
+    plan_resp = await async_client.post("/api/v1/trade-plans", json=plan_payload)
     assert plan_resp.status_code == 201
     plan = plan_resp.json()
     plan_id = plan["plan_id"]
 
     # Create an active order for the trade plan
     order_payload = active_order_payload(plan_id, portfolio_id)
-    order_resp = await async_client.post("/api/v1/orders/", json=order_payload)
+    order_resp = await async_client.post("/api/v1/orders", json=order_payload)
     assert order_resp.status_code == 201
     order = order_resp.json()
     order_id = order["order_id"]
@@ -160,7 +160,7 @@ async def test_portfolio_detail_endpoint_with_data(async_client):
     # Create a portfolio (with a broker-scoped contract spec for the order)
     broker_id = await _seed_contract(async_client, "AN2")
     portfolio_resp = await async_client.post(
-        "/api/v1/portfolios/", json={**portfolio_payload(), "broker_id": broker_id}
+        "/api/v1/portfolios", json={**portfolio_payload(), "broker_id": broker_id}
     )
     assert portfolio_resp.status_code == 201
     portfolio = portfolio_resp.json()
@@ -168,14 +168,14 @@ async def test_portfolio_detail_endpoint_with_data(async_client):
 
     # Create a trade plan for the portfolio
     plan_payload = trade_plan_payload(portfolio_id)
-    plan_resp = await async_client.post("/api/v1/trade-plans/", json=plan_payload)
+    plan_resp = await async_client.post("/api/v1/trade-plans", json=plan_payload)
     assert plan_resp.status_code == 201
     plan = plan_resp.json()
     plan_id = plan["plan_id"]
 
     # Create an active order
     order_payload = active_order_payload(plan_id, portfolio_id)
-    order_resp = await async_client.post("/api/v1/orders/", json=order_payload)
+    order_resp = await async_client.post("/api/v1/orders", json=order_payload)
     assert order_resp.status_code == 201
 
     # Call the portfolio detail endpoint
@@ -212,7 +212,7 @@ async def _create_portfolio(client, name: str, broker_id: int | None = None) -> 
     payload["portfolio_name"] = name
     if broker_id is not None:
         payload["broker_id"] = broker_id
-    resp = await client.post("/api/v1/portfolios/", json=payload)
+    resp = await client.post("/api/v1/portfolios", json=payload)
     assert resp.status_code == 201, resp.text
     return resp.json()["portfolio_id"]
 
@@ -316,12 +316,12 @@ async def test_portfolio_grid_isolates_unreachable_mapped(async_client, monkeypa
     broken_id = await _create_portfolio(async_client, "Broken Mapped")
     try:
         plan_resp = await async_client.post(
-            "/api/v1/trade-plans/", json=trade_plan_payload(healthy_id)
+            "/api/v1/trade-plans", json=trade_plan_payload(healthy_id)
         )
         assert plan_resp.status_code == 201, plan_resp.text
         plan_id = plan_resp.json()["plan_id"]
         order_resp = await async_client.post(
-            "/api/v1/orders/", json=active_order_payload(plan_id, healthy_id)
+            "/api/v1/orders", json=active_order_payload(plan_id, healthy_id)
         )
         assert order_resp.status_code == 201, order_resp.text
 

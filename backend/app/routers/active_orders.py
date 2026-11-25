@@ -154,7 +154,7 @@ async def _assert_order_contract_spec(db: AsyncSession, portfolio: Portfolio, sy
     )
 
 
-@router.get("/", tags=["orders"], response_model=List[ActiveOrderResponse])
+@router.get("", tags=["orders"], response_model=List[ActiveOrderResponse])
 async def list_orders(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
@@ -179,7 +179,7 @@ async def list_orders(
             await session.close()
 
 
-@router.post("/", tags=["orders"], status_code=status.HTTP_201_CREATED, response_model=ActiveOrderResponse)
+@router.post("", tags=["orders"], status_code=status.HTTP_201_CREATED, response_model=ActiveOrderResponse)
 async def create_order(order: ActiveOrderCreate, db: AsyncSession = Depends(get_db)):
     """Create a new active order. If plan_id is omitted, auto-resolve or create a default trade plan."""
     connection = await load_mapped_connection(db, order.portfolio_id)

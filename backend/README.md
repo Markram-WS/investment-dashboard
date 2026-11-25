@@ -98,6 +98,8 @@ open http://localhost:8000/docs
 
 ## API Reference
 
+Collection endpoints are registered **without a trailing slash** (e.g. `/api/v1/portfolios`, `/api/v1/orders`, `/api/v1/trade-plans`). The slashed form still works: Starlette's `redirect_slashes` answers it with a `307 Temporary Redirect` to the canonical path.
+
 ### Portfolios
 | Method | Endpoint | Description |
 |--------|-----------|-------------|

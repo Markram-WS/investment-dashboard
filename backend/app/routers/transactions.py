@@ -162,8 +162,10 @@ async def get_transactions(
                 await custom_session.close()
 
     # Global query: investment_main + all custom DBs
+    # Offset/limit are applied once, after the main and custom results are
+    # merged and sorted (see all_results slicing below).
     main_result = await db.execute(
-        select(Transaction).order_by(Transaction.created_at.asc()).offset(offset).limit(limit)
+        select(Transaction).order_by(Transaction.created_at.asc())
     )
     all_results.extend([_build_response(t, portfolio_names) for t in main_result.scalars().all()])
 

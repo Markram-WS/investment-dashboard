@@ -14,7 +14,7 @@ async def test_create_trade_plan(async_client):
         "target_ratio": {"BTC": 0.4, "ETH": 0.3, "USD": 0.3},
         "cash_buffer_limit": 1000,
     }
-    portfolio_resp = await async_client.post("/api/v1/portfolios/", json=portfolio_payload)
+    portfolio_resp = await async_client.post("/api/v1/portfolios", json=portfolio_payload)
     assert portfolio_resp.status_code == 201
     portfolio_id = portfolio_resp.json()["portfolio_id"]
 
@@ -30,7 +30,7 @@ async def test_create_trade_plan(async_client):
         "entry_reason": "momentum breakout",
     }
     
-    response = await async_client.post("/api/v1/trade-plans/", json=plan_payload)
+    response = await async_client.post("/api/v1/trade-plans", json=plan_payload)
     assert response.status_code == 201, f"Expected 201 Created, got {response.status_code}"
     data = response.json()
     assert "plan_id" in data

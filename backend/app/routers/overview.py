@@ -35,7 +35,7 @@ class OverviewResponse(BaseModel):
 
 router = APIRouter()
 
-@router.get("/", tags=["overview"])
+@router.get("", tags=["overview"])
 async def get_overview(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,

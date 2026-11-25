@@ -98,7 +98,7 @@ async def foreign_rows(engine, sql: str, params: dict | None = None) -> list[dic
 
 async def create_portfolio(client, name: str, cash: float = 1000.0) -> int:
     resp = await client.post(
-        "/api/v1/portfolios/",
+        "/api/v1/portfolios",
         json={
             "portfolio_name": name,
             "port_type": "Active Trading",
@@ -200,7 +200,7 @@ async def create_mapped_order(client, portfolio_id: int, **overrides) -> dict:
         "remark": MARKER,
     }
     payload.update(overrides)
-    resp = await client.post("/api/v1/orders/", json=payload)
+    resp = await client.post("/api/v1/orders", json=payload)
     assert resp.status_code == 201, resp.text
     return resp.json()
 
@@ -408,7 +408,7 @@ async def test_readonly_config_rejects_insert(
 ):
     await set_mapping(mapped_portfolio, readonly_config())
     resp = await async_client.post(
-        "/api/v1/orders/",
+        "/api/v1/orders",
         json={
             "portfolio_id": mapped_portfolio,
             "asset_type": "S50Z26",

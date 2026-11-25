@@ -23,7 +23,7 @@ from app.routers.performance import empty_performance_response  # noqa: E402
 
 async def create_portfolio(client, name: str, cash: float = 1000.0) -> int:
     resp = await client.post(
-        "/api/v1/portfolios/",
+        "/api/v1/portfolios",
         json={
             "portfolio_name": name,
             "port_type": "Active Trading",
@@ -93,7 +93,7 @@ async def mapped_portfolio(async_client):
 @pytest.mark.asyncio
 async def test_orders_groups_mapped_returns_empty(async_client, mapped_portfolio):
     resp = await async_client.get(
-        f"/api/v1/orders-groups/?portfolio_id={mapped_portfolio}"
+        f"/api/v1/orders-groups?portfolio_id={mapped_portfolio}"
     )
     assert resp.status_code == 200
     assert resp.json() == []
@@ -235,7 +235,7 @@ async def test_journal_write_allowed_for_mapped_portfolio(
     async_client, mapped_portfolio
 ):
     resp = await async_client.post(
-        "/api/v1/journal/",
+        "/api/v1/journal",
         json={"portfolio_id": mapped_portfolio, "entry_text": "Local note"},
     )
     assert resp.status_code == 201, resp.text
@@ -250,13 +250,13 @@ async def test_non_mapped_reads_still_return_local_rows(async_client):
     portfolio_id = await create_portfolio(async_client, "Local reads")
 
     create_group = await async_client.post(
-        f"/api/v1/orders-groups/?portfolio_id={portfolio_id}",
+        f"/api/v1/orders-groups?portfolio_id={portfolio_id}",
         json={"name": "Zone A", "max_orders": 2},
     )
     assert create_group.status_code == 201, create_group.text
 
     orders_groups = await async_client.get(
-        f"/api/v1/orders-groups/?portfolio_id={portfolio_id}"
+        f"/api/v1/orders-groups?portfolio_id={portfolio_id}"
     )
     assert orders_groups.status_code == 200
     assert [group["name"] for group in orders_groups.json()] == ["Zone A"]

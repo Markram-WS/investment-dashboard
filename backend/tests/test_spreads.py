@@ -1,12 +1,17 @@
-"""Tests for portfolio spreads endpoint."""
+"""Spread-pair coverage via the portfolio analytics endpoint.
+
+Spread pairs used to be exposed by a dedicated /portfolios/{id}/spreads route.
+They now live in the portfolio analytics payload as ``spread_pairs``: two
+active orders form a pair only when they cross-link each other
+(``a.linked_order_id == b.order_id`` and ``b.linked_order_id == a.order_id``).
+"""
 import pytest
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.database import get_db
-from app.models import Base, configure_mappers, Portfolio, ActiveOrder, TradeHistory
+from app.models import Base, configure_mappers
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from decimal import Decimal
 
 
 # Test engine setup
@@ -48,45 +53,37 @@ async def async_client():
 
 
 @pytest.mark.asyncio
-async def test_portfolio_spreads_endpoint_empty(async_client):
-    """Test the portfolio spreads endpoint with no spread pairs."""
-    # Create a portfolio without spread pairs
-    portfolio_resp = await async_client.post("/api/v1/portfolios/", json={
+async def test_portfolio_analytics_spread_pairs_empty(async_client):
+    """A portfolio without cross-linked orders reports no spread pairs."""
+    portfolio_resp = await async_client.post("/api/v1/portfolios", json={
         "portfolio_name": "Test Portfolio",
-        "port_type": "Spread Strategy",
+        "port_type": "Managed Fund",
         "risk_status": "Safe",
     })
     assert portfolio_resp.status_code == 201
     portfolio_id = portfolio_resp.json()["portfolio_id"]
 
-    # Call the spreads endpoint
-    resp = await async_client.get(f"/api/v1/portfolios/{portfolio_id}/spreads")
+    resp = await async_client.get(f"/api/v1/analytics/portfolio/{portfolio_id}")
     assert resp.status_code == 200
     data = resp.json()
-    
-    # Verify response structure
+
     assert data["portfolio_id"] == portfolio_id
     assert data["portfolio_name"] == "Test Portfolio"
-    assert data["port_type"] == "Spread Strategy"
-    assert data["risk_status"] == "Safe"
     assert data["spread_pairs"] == []
-    assert data["unpaired_orders"] == []
 
 
 @pytest.mark.asyncio
-async def test_portfolio_spreads_endpoint_with_pairs(async_client):
-    """Test the portfolio spreads endpoint with spread pairs."""
-    # Create a portfolio
-    portfolio_resp = await async_client.post("/api/v1/portfolios/", json={
+async def test_portfolio_analytics_spread_pairs_with_pair(async_client):
+    """Two mutually cross-linked orders form exactly one spread pair."""
+    portfolio_resp = await async_client.post("/api/v1/portfolios", json={
         "portfolio_name": "Spread Portfolio",
-        "port_type": "Spread Strategy",
+        "port_type": "Managed Fund",
         "risk_status": "Safe",
     })
     assert portfolio_resp.status_code == 201
     portfolio_id = portfolio_resp.json()["portfolio_id"]
 
-    # Create a trade plan
-    plan_resp = await async_client.post("/api/v1/trade-plans/", json={
+    plan_resp = await async_client.post("/api/v1/trade-plans", json={
         "portfolio_id": portfolio_id,
         "entry_zone": "100-110",
         "exit_zone": "90-80",
@@ -99,38 +96,38 @@ async def test_portfolio_spreads_endpoint_with_pairs(async_client):
     assert plan_resp.status_code == 201
     plan_id = plan_resp.json()["plan_id"]
 
-    # Create two orders with the same linked_order_id to form a pair
-    for i in range(2):
-        order_resp = await async_client.post("/api/v1/orders/", json={
+    legs = [
+        {"order_id": "spread_leg_a", "side": "Buy", "entry_price": 100.0, "linked_order_id": "spread_leg_b"},
+        {"order_id": "spread_leg_b", "side": "Sell", "entry_price": 101.0, "linked_order_id": "spread_leg_a"},
+    ]
+    for leg in legs:
+        order_resp = await async_client.post("/api/v1/orders", json={
             "plan_id": plan_id,
             "portfolio_id": portfolio_id,
             "asset_type": "Crypto",
-            "side": "Buy" if i == 0 else "Sell",
             "qty": 1.0,
-            "entry_price": 100.0 + i,
             "tp_price": 115.0,
-            "linked_order_id": "spread_test_1",
+            **leg,
         })
-        assert order_resp.status_code == 201
+        assert order_resp.status_code == 201, order_resp.text
 
-    # Call the spreads endpoint
-    resp = await async_client.get(f"/api/v1/portfolios/{portfolio_id}/spreads")
+    resp = await async_client.get(f"/api/v1/analytics/portfolio/{portfolio_id}")
     assert resp.status_code == 200
     data = resp.json()
-    
-    # Verify the spread pair was formed
+
+    # Exactly one pair is detected for the two mutually-linked orders.
     assert len(data["spread_pairs"]) == 1
     pair = data["spread_pairs"][0]
-    assert pair["pair_id"] == "spread_test_1"
-    assert "leg_a" in pair
-    assert "leg_b" in pair
-    
-    # Verify zone is calculated based on spread_diff (not index-based)
+
+    leg_ids = {pair["leg_a"]["order_id"], pair["leg_b"]["order_id"]}
+    assert leg_ids == {"spread_leg_a", "spread_leg_b"}
+    assert pair["pair_id"] in leg_ids
+    assert pair["leg_a"]["side"] != pair["leg_b"]["side"]
+    assert abs(pair["spread_diff"]) == pytest.approx(1.0)
+    # The detail payload keeps the zone field; no zone is derived for a pair.
     assert "zone" in pair
-    # spread_diff = 101 - 100 = 1, so Zone 1 (< 5)
-    assert pair["zone"] == "Zone 1"
-    
-    # Verify one leg is Buy and one is Sell (they should be different)
-    assert pair["leg_a"]["side"] in ["Buy", "Sell"]
-    assert pair["leg_b"]["side"] in ["Buy", "Sell"]
-    assert pair["leg_a"]["side"] != pair["leg_b"]["side"]  # One Buy, one Sell
+
+    # Both orders are marked as spread legs in the order list.
+    link_types = {o["order_id"]: o["link_type"] for o in data["active_orders"]}
+    assert link_types["spread_leg_a"] == "spread"
+    assert link_types["spread_leg_b"] == "spread"

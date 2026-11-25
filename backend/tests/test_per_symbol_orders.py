@@ -123,7 +123,7 @@ async def test_order_for_second_symbol_with_spec_is_accepted(async_client):
     )
     try:
         resp = await async_client.post(
-            "/api/v1/orders/", json=order_payload(portfolio_id, "BBB")
+            "/api/v1/orders", json=order_payload(portfolio_id, "BBB")
         )
         assert resp.status_code == 201, resp.text
         assert resp.json()["asset_type"] == "BBB"
@@ -141,7 +141,7 @@ async def test_order_symbol_without_spec_returns_400(async_client):
     )
     try:
         resp = await async_client.post(
-            "/api/v1/orders/", json=order_payload(portfolio_id, "CCC")
+            "/api/v1/orders", json=order_payload(portfolio_id, "CCC")
         )
         assert resp.status_code == 400, resp.text
         assert (

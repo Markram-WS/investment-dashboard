@@ -6,7 +6,7 @@ from datetime import datetime
 @pytest.mark.asyncio
 async def test_get_trade_history_empty(async_client):
     """Test getting trade history when database is empty"""
-    resp = await async_client.get("/api/v1/trade-history/")
+    resp = await async_client.get("/api/v1/trade-history")
     assert resp.status_code == 200
     assert resp.json() == []
 
@@ -21,7 +21,7 @@ async def test_get_trade_history_with_data(async_client):
         "target_ratio": {"BTC": 0.5, "ETH": 0.3, "USD": 0.2},
         "cash_buffer_limit": 1000,
     }
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data)
     assert resp.status_code == 201
     portfolio_id = resp.json()["portfolio_id"]
 
@@ -62,7 +62,7 @@ async def test_get_trade_history_with_data(async_client):
         pass
 
     # For now, test with empty state and verify the endpoint works
-    resp = await async_client.get("/api/v1/trade-history/")
+    resp = await async_client.get("/api/v1/trade-history")
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, list)
@@ -77,12 +77,12 @@ async def test_trade_history_response_fields(async_client):
         "port_type": "Active Trading",
         "target_ratio": {"BTC": 0.6, "USD": 0.4},
     }
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data)
     assert resp.status_code == 201
     portfolio_id = resp.json()["portfolio_id"]
 
     # Get trade history - should return empty list if no records
-    resp = await async_client.get("/api/v1/trade-history/")
+    resp = await async_client.get("/api/v1/trade-history")
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, list)

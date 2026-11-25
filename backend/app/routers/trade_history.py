@@ -57,7 +57,7 @@ class TransactionResponse(BaseModel):
         orm_mode = True
 
 
-@router.get("/", tags=["trade-history"], response_model=List[TransactionResponse])
+@router.get("", tags=["trade-history"], response_model=List[TransactionResponse])
 async def get_trade_history(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
@@ -142,7 +142,7 @@ async def get_trade_history(
             await session.close()
 
 
-@router.post("/", tags=["trade-history"], status_code=status.HTTP_201_CREATED)
+@router.post("", tags=["trade-history"], status_code=status.HTTP_201_CREATED)
 async def create_trade_history(
     history: TradeHistoryCreate,
     db: AsyncSession = Depends(get_db)

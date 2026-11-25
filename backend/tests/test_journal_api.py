@@ -27,7 +27,7 @@ class TestJournalAPI:
     async def test_create_journal_entry_invalid_portfolio(self, async_client):
         """Test creating journal entry with non-existent portfolio"""
         response = await async_client.post(
-            "/api/v1/journal/",
+            "/api/v1/journal",
             json={
                 "portfolio_id": 99999,
                 "entry_text": "This should fail"

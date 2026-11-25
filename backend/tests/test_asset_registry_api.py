@@ -1498,7 +1498,7 @@ async def test_custom_flat_assets_rename_cascade_validations_and_order_bypass(
 
         # Custom order creation bypasses the main-broker contract-spec guard.
         order = await async_client.post(
-            "/api/v1/orders/",
+            "/api/v1/orders",
             json={
                 "order_id": "custom-new",
                 "portfolio_id": 777,
@@ -1528,7 +1528,7 @@ async def test_create_portfolio_translates_contract_symbols_verbatim_unmatched(
     assert created_symbol.status_code == 201, created_symbol.text
     try:
         resp = await async_client.post(
-            "/api/v1/portfolios/",
+            "/api/v1/portfolios",
             json={
                 "portfolio_name": "Translated Create",
                 "port_type": "Active Trading",
@@ -1604,7 +1604,7 @@ async def test_order_guard_create_update_and_port_type_bypasses(async_client):
     order_id = None
     try:
         created = await async_client.post(
-            "/api/v1/orders/",
+            "/api/v1/orders",
             json={
                 "portfolio_id": portfolio_id,
                 "asset_type": "AAA",
@@ -1636,7 +1636,7 @@ async def test_order_guard_create_update_and_port_type_bypasses(async_client):
         assert side_update.status_code == 200, side_update.text
 
         null_broker_resp = await async_client.post(
-            "/api/v1/orders/",
+            "/api/v1/orders",
             json={
                 "portfolio_id": null_broker_id,
                 "asset_type": "AAA",
@@ -1652,7 +1652,7 @@ async def test_order_guard_create_update_and_port_type_bypasses(async_client):
 
         for bypass_id in (spread_id, managed_id):
             bypass = await async_client.post(
-                "/api/v1/orders/",
+                "/api/v1/orders",
                 json={
                     "portfolio_id": bypass_id,
                     "asset_type": "UNREGISTERED",

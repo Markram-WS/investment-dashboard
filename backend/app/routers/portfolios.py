@@ -257,7 +257,7 @@ async def list_portfolios(db: AsyncSession = Depends(get_db)):
     } for p in portfolios]
 
 
-@router.post("/", tags=["portfolios"], status_code=status.HTTP_201_CREATED, response_model=PortfolioResponse)
+@router.post("", tags=["portfolios"], status_code=status.HTTP_201_CREATED, response_model=PortfolioResponse)
 async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depends(get_db)):
     """Create a new portfolio. If port_type is 'Custom Portfolio', requires connection details."""
     is_custom = portfolio.port_type == "Custom Portfolio"

@@ -15,7 +15,7 @@ async def test_initiate_transfer_success(async_client):
         "port_type": "Active Trading",
         "available_cash": 1000.0
     }
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_1)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_1)
     assert resp.status_code == 201
     source_id = resp.json()["portfolio_id"]
 
@@ -24,7 +24,7 @@ async def test_initiate_transfer_success(async_client):
         "port_type": "Active Trading",
         "available_cash": 500.0
     }
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_2)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_2)
     assert resp.status_code == 201
     dest_id = resp.json()["portfolio_id"]
 
@@ -37,7 +37,7 @@ async def test_initiate_transfer_success(async_client):
         "executed_by": "Manual",
         "reference_id": "TRANSFER_TEST_001"
     }
-    resp = await async_client.post("/api/v1/transfers/", json=transfer_data)
+    resp = await async_client.post("/api/v1/transfers", json=transfer_data)
     assert resp.status_code == 201
     data = resp.json()
     assert data["status"] == "pending_confirmation"
@@ -55,7 +55,7 @@ async def test_initiate_transfer_insufficient_balance(async_client):
         "port_type": "Active Trading",
         "available_cash": 100.0
     }
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_1)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_1)
     source_id = resp.json()["portfolio_id"]
 
     portfolio_data_2 = {
@@ -63,7 +63,7 @@ async def test_initiate_transfer_insufficient_balance(async_client):
         "port_type": "Active Trading",
         "available_cash": 500.0
     }
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_2)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_2)
     dest_id = resp.json()["portfolio_id"]
 
     # Try to transfer more than available
@@ -72,7 +72,7 @@ async def test_initiate_transfer_insufficient_balance(async_client):
         "destination_portfolio_id": dest_id,
         "amount": 500.0  # More than 100 available
     }
-    resp = await async_client.post("/api/v1/transfers/", json=transfer_data)
+    resp = await async_client.post("/api/v1/transfers", json=transfer_data)
     assert resp.status_code == 400
     assert "Insufficient balance" in resp.json()["detail"]
 
@@ -85,7 +85,7 @@ async def test_initiate_transfer_same_portfolio(async_client):
         "destination_portfolio_id": 1,  # Same as source
         "amount": 100.0
     }
-    resp = await async_client.post("/api/v1/transfers/", json=transfer_data)
+    resp = await async_client.post("/api/v1/transfers", json=transfer_data)
     assert resp.status_code == 400
     assert "different" in resp.json()["detail"].lower()
 
@@ -99,7 +99,7 @@ async def test_confirm_transfer_success(async_client):
         "port_type": "Active Trading",
         "available_cash": 1000.0
     }
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_1)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_1)
     source_id = resp.json()["portfolio_id"]
 
     portfolio_data_2 = {
@@ -107,7 +107,7 @@ async def test_confirm_transfer_success(async_client):
         "port_type": "Active Trading",
         "available_cash": 500.0
     }
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_2)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_2)
     dest_id = resp.json()["portfolio_id"]
 
     # Initiate transfer
@@ -116,7 +116,7 @@ async def test_confirm_transfer_success(async_client):
         "destination_portfolio_id": dest_id,
         "amount": 250.0
     }
-    resp = await async_client.post("/api/v1/transfers/", json=transfer_data)
+    resp = await async_client.post("/api/v1/transfers", json=transfer_data)
     tx_id = resp.json()["transaction_id"]
 
     # Verify initial balances
@@ -166,7 +166,7 @@ async def test_confirm_already_completed_transfer(async_client):
         "port_type": "Active Trading",
         "available_cash": 1000.0
     }
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_1)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_1)
     source_id = resp.json()["portfolio_id"]
 
     portfolio_data_2 = {
@@ -174,7 +174,7 @@ async def test_confirm_already_completed_transfer(async_client):
         "port_type": "Active Trading",
         "available_cash": 500.0
     }
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_2)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_2)
     dest_id = resp.json()["portfolio_id"]
 
     # Initiate and confirm
@@ -183,7 +183,7 @@ async def test_confirm_already_completed_transfer(async_client):
         "destination_portfolio_id": dest_id,
         "amount": 100.0
     }
-    resp = await async_client.post("/api/v1/transfers/", json=transfer_data)
+    resp = await async_client.post("/api/v1/transfers", json=transfer_data)
     tx_id = resp.json()["transaction_id"]
 
     confirm_data = {
@@ -206,7 +206,7 @@ async def test_list_pending_transfers(async_client):
         "port_type": "Active Trading",
         "available_cash": 1000.0
     }
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_1)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_1)
     source_id = resp.json()["portfolio_id"]
 
     portfolio_data_2 = {
@@ -214,7 +214,7 @@ async def test_list_pending_transfers(async_client):
         "port_type": "Active Trading",
         "available_cash": 500.0
     }
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_2)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_2)
     dest_id = resp.json()["portfolio_id"]
 
     # Create multiple pending transfers
@@ -224,7 +224,7 @@ async def test_list_pending_transfers(async_client):
             "destination_portfolio_id": dest_id,
             "amount": 100.0 * (i + 1)
         }
-        await async_client.post("/api/v1/transfers/", json=transfer_data)
+        await async_client.post("/api/v1/transfers", json=transfer_data)
 
     # List pending
     resp = await async_client.get("/api/v1/transfers/pending")
@@ -245,11 +245,11 @@ async def test_get_specific_transfer(async_client):
     """Test getting a specific transfer by ID."""
     # Setup
     portfolio_data_1 = {"portfolio_name": "Source", "port_type": "Active Trading", "available_cash": 1000.0}
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_1)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_1)
     source_id = resp.json()["portfolio_id"]
 
     portfolio_data_2 = {"portfolio_name": "Dest", "port_type": "Active Trading", "available_cash": 500.0}
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_2)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_2)
     dest_id = resp.json()["portfolio_id"]
 
     # Create transfer
@@ -258,7 +258,7 @@ async def test_get_specific_transfer(async_client):
         "destination_portfolio_id": dest_id,
         "amount": 150.0
     }
-    resp = await async_client.post("/api/v1/transfers/", json=transfer_data)
+    resp = await async_client.post("/api/v1/transfers", json=transfer_data)
     tx_id = resp.json()["transaction_id"]
 
     # Get transfer
@@ -278,11 +278,11 @@ async def test_transfer_debits_available_cash_only(async_client):
         "port_type": "Active Trading",
         "available_cash": 600.0
     }
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_1)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_1)
     source_id = resp.json()["portfolio_id"]
 
     portfolio_data_2 = {"portfolio_name": "Dest", "port_type": "Active Trading", "available_cash": 500.0}
-    resp = await async_client.post("/api/v1/portfolios/", json=portfolio_data_2)
+    resp = await async_client.post("/api/v1/portfolios", json=portfolio_data_2)
     dest_id = resp.json()["portfolio_id"]
 
     # Transfer should succeed (600 available_cash covers it)
@@ -291,7 +291,7 @@ async def test_transfer_debits_available_cash_only(async_client):
         "destination_portfolio_id": dest_id,
         "amount": 300.0
     }
-    resp = await async_client.post("/api/v1/transfers/", json=transfer_data)
+    resp = await async_client.post("/api/v1/transfers", json=transfer_data)
     assert resp.status_code == 201
     tx_id = resp.json()["transaction_id"]
 
@@ -310,14 +310,14 @@ async def test_transfer_debits_available_cash_only(async_client):
 async def test_transfer_validation_required_fields(async_client):
     """Test validation of required fields."""
     # Missing amount
-    resp = await async_client.post("/api/v1/transfers/", json={
+    resp = await async_client.post("/api/v1/transfers", json={
         "source_portfolio_id": 1,
         "destination_portfolio_id": 2
     })
     assert resp.status_code == 422
 
     # Missing portfolio IDs
-    resp = await async_client.post("/api/v1/transfers/", json={
+    resp = await async_client.post("/api/v1/transfers", json={
         "amount": 100.0
     })
     assert resp.status_code == 422
@@ -326,7 +326,7 @@ async def test_transfer_validation_required_fields(async_client):
 @pytest.mark.asyncio
 async def test_transfer_negative_amount(async_client):
     """Test that negative amounts are rejected."""
-    resp = await async_client.post("/api/v1/transfers/", json={
+    resp = await async_client.post("/api/v1/transfers", json={
         "source_portfolio_id": 1,
         "destination_portfolio_id": 2,
         "amount": -100.0

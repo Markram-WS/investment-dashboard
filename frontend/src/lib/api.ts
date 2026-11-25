@@ -403,13 +403,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   // Overview
-  getOverview: () => request<OverviewResponse>('/overview/'),
+  getOverview: () => request<OverviewResponse>('/overview'),
 
   // Portfolios
   getPortfolios: () => request<PortfolioSummary[]>('/portfolios'),
   getPortfolio: (portfolioId: number) => request<PortfolioRecord>(`/portfolios/${portfolioId}`),
   createPortfolio: (payload: PortfolioPayload) =>
-    request<PortfolioRecord>('/portfolios/', {
+    request<PortfolioRecord>('/portfolios', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
@@ -457,7 +457,7 @@ export const api = {
     const query = new URLSearchParams({ portfolio_id: String(portfolioId) });
     if (offset != null) query.set('offset', String(offset));
     if (limit != null) query.set('limit', String(limit));
-    return request<TradeHistoryRecord[]>(`/trade-history/?${query.toString()}`);
+    return request<TradeHistoryRecord[]>(`/trade-history?${query.toString()}`);
   },
 
   // Transactions
@@ -569,9 +569,9 @@ export const api = {
 
   // Order groups ("zones")
   getZoneGroups: (portfolioId: number) =>
-    request<ZoneGroupRecord[]>(`/orders-groups/?portfolio_id=${portfolioId}`),
+    request<ZoneGroupRecord[]>(`/orders-groups?portfolio_id=${portfolioId}`),
   createZoneGroup: (portfolioId: number, payload: Record<string, unknown>) =>
-    request<ZoneGroupRecord>(`/orders-groups/?portfolio_id=${portfolioId}`, {
+    request<ZoneGroupRecord>(`/orders-groups?portfolio_id=${portfolioId}`, {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
@@ -589,7 +589,7 @@ export const api = {
 
   // Active orders
   createOrder: (payload: OrderPayload) =>
-    request<SpreadOrder>('/orders/', {
+    request<SpreadOrder>('/orders', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),

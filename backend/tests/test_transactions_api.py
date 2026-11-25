@@ -37,7 +37,7 @@ def payloads():
 @pytest.mark.asyncio
 async def test_get_transactions_empty(async_client):
     """Test getting transactions when database is empty"""
-    resp = await async_client.get("/api/v1/transactions/")
+    resp = await async_client.get("/api/v1/transactions")
     assert resp.status_code == 200
     assert resp.json() == []
 
@@ -58,7 +58,7 @@ async def test_create_and_get_transaction(async_client):
     }
 
     # Create transaction
-    resp = await async_client.post("/api/v1/transactions/", json=transaction_data)
+    resp = await async_client.post("/api/v1/transactions", json=transaction_data)
     assert resp.status_code == 201
     created = resp.json()
     transaction_id = created["transaction_id"]
@@ -105,12 +105,12 @@ async def test_get_transactions_with_data(async_client):
 
     created_ids = []
     for tx_data in transactions:
-        resp = await async_client.post("/api/v1/transactions/", json=tx_data)
+        resp = await async_client.post("/api/v1/transactions", json=tx_data)
         assert resp.status_code == 201
         created_ids.append(resp.json()["transaction_id"])
 
     # Get all transactions
-    resp = await async_client.get("/api/v1/transactions/")
+    resp = await async_client.get("/api/v1/transactions")
     assert resp.status_code == 200
     data = resp.json()
     # Check that each transaction is present by reference_id
@@ -150,7 +150,7 @@ async def test_transaction_types(async_client):
             "status": "completed"
         }
 
-        resp = await async_client.post("/api/v1/transactions/", json=transaction_data)
+        resp = await async_client.post("/api/v1/transactions", json=transaction_data)
         assert resp.status_code == 201
         created = resp.json()
         assert created["transaction_type"] == tx_type
@@ -170,12 +170,12 @@ async def test_transaction_pagination(async_client):
             "executed_by": "Manual",
             "reference_id": f"PAG_{i+1:03d}"
         }
-        resp = await async_client.post("/api/v1/transactions/", json=transaction_data)
+        resp = await async_client.post("/api/v1/transactions", json=transaction_data)
         assert resp.status_code == 201
         created_ref_ids.append(f"PAG_{i+1:03d}")
 
     # Get all transactions to find where our batch starts
-    resp = await async_client.get("/api/v1/transactions/")
+    resp = await async_client.get("/api/v1/transactions")
     assert resp.status_code == 200
     all_data = resp.json()
 
@@ -185,7 +185,7 @@ async def test_transaction_pagination(async_client):
 
     # Get first page (limit 2) starting from our first transaction
     offset = start_idx
-    resp = await async_client.get(f"/api/v1/transactions/?offset={offset}&limit=2")
+    resp = await async_client.get(f"/api/v1/transactions?offset={offset}&limit=2")
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 2
@@ -196,7 +196,7 @@ async def test_transaction_pagination(async_client):
     assert data[1]["amount"] == 200.0
 
     # Get second page (offset 2 from start, limit 2)
-    resp = await async_client.get(f"/api/v1/transactions/?offset={offset+2}&limit=2")
+    resp = await async_client.get(f"/api/v1/transactions?offset={offset+2}&limit=2")
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 2
@@ -209,7 +209,7 @@ async def test_transaction_pagination(async_client):
 async def test_transaction_validation(async_client):
     """Test validation of transaction data"""
     # Test missing required fields
-    resp = await async_client.post("/api/v1/transactions/", json={
+    resp = await async_client.post("/api/v1/transactions", json={
         "transaction_type": "Funding",
         # missing amount
         "executed_by": "Manual"
@@ -217,7 +217,7 @@ async def test_transaction_validation(async_client):
     assert resp.status_code == 422  # Validation error
 
     # Test invalid transaction type
-    resp = await async_client.post("/api/v1/transactions/", json={
+    resp = await async_client.post("/api/v1/transactions", json={
         "transaction_type": "Invalid",
         "asset": "USD",
         "amount": 100.0,
@@ -226,7 +226,7 @@ async def test_transaction_validation(async_client):
     assert resp.status_code == 422
 
     # Test negative amount
-    resp = await async_client.post("/api/v1/transactions/", json={
+    resp = await async_client.post("/api/v1/transactions", json={
         "transaction_type": "Funding",
         "asset": "USD",
         "amount": -10.0,

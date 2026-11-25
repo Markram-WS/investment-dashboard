@@ -40,7 +40,7 @@ class OrdersGroupResponse(BaseModel):
         from_attributes = True
 
 
-@router.get("/", response_model=List[OrdersGroupResponse], tags=["orders-groups"])
+@router.get("", response_model=List[OrdersGroupResponse], tags=["orders-groups"])
 async def list_orders_groups(
     db: AsyncSession = Depends(get_db),
     portfolio_id: Optional[int] = None,
@@ -59,7 +59,7 @@ async def list_orders_groups(
             await session.close()
 
 
-@router.post("/", response_model=OrdersGroupResponse, status_code=status.HTTP_201_CREATED, tags=["orders-groups"])
+@router.post("", response_model=OrdersGroupResponse, status_code=status.HTTP_201_CREATED, tags=["orders-groups"])
 async def create_orders_group(portfolio_id: int, data: OrdersGroupCreate, db: AsyncSession = Depends(get_db)):
     await raise_if_mapped_readonly(db, portfolio_id)
     session, is_custom = await resolve_portfolio_db(db, portfolio_id)

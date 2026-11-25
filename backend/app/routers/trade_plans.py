@@ -9,7 +9,7 @@ from app.schemas.trade_plan import TradePlanCreate, TradePlanResponse, TradePlan
 
 router = APIRouter()
 
-@router.post("/", response_model=TradePlanResponse, status_code=status.HTTP_201_CREATED, tags=["trade-plans"])
+@router.post("", response_model=TradePlanResponse, status_code=status.HTTP_201_CREATED, tags=["trade-plans"])
 async def create_trade_plan(plan: TradePlanCreate, db: AsyncSession = Depends(get_db)):
     await raise_if_mapped_readonly(db, plan.portfolio_id)
     # Check if portfolio exists
@@ -25,7 +25,7 @@ async def create_trade_plan(plan: TradePlanCreate, db: AsyncSession = Depends(ge
     await db.refresh(db_plan)
     return db_plan
 
-@router.get("/", response_model=List[TradePlanResponse], tags=["trade-plans"])
+@router.get("", response_model=List[TradePlanResponse], tags=["trade-plans"])
 async def list_trade_plans(portfolio_id: int = None, db: AsyncSession = Depends(get_db)):
     query = select(TradePlan)
     if portfolio_id:
