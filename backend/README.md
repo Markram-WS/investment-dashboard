@@ -132,7 +132,7 @@ Collection endpoints are registered **without a trailing slash** (e.g. `/api/v1/
 | `PATCH` | `/api/v1/managed-funds/{portfolio_id}/orders/{order_id}/status` | Confirm (→done) or Cancel order; on done: updates holdings, adjusts available_cash, records NAV history, moves to history table |
 | `GET` | `/api/v1/managed-funds/{portfolio_id}/history` | List order history |
 | `POST` | `/api/v1/managed-funds/{portfolio_id}/rebalance/calculate` | Calculate rebalance recommendations from target_ratio vs current allocation (auto-normalizes decimal→percentage) |
-| `POST` | `/api/v1/managed-funds/{portfolio_id}/sync-prices` | Sync current prices from local `asset_quotes`, resolving each holding's symbol through normalized `asset_symbols.price_symbol` (portfolio broker first, else lowest broker) |
+| `POST` | `/api/v1/managed-funds/{portfolio_id}/sync-prices` | Refresh each holding's price from the asset registry: resolve the holding's normalized asset to the `asset_symbols` row that prices it (portfolio broker first, else lowest broker, then lowest symbol id), fetch the provider quote once per `(source, sync_symbol)` for `yfinance`/`tfex` (manual rows are never fetched), then recompute price, market value and P/L. Returns `synced`/`total`/`missing`/`failed`; a provider failure keeps the stored quote and lists the symbol in `failed` without aborting the request |
 | `GET` | `/api/v1/managed-funds/{portfolio_id}/alerts` | Get profit threshold alerts |
 
 ### Active Orders

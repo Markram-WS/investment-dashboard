@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.models import Portfolio, PortfolioNavHistory
+from app.models import AssetProduct, AssetSymbol, Portfolio, PortfolioNavHistory
 from app.managed_fund_models import ManagedFundHolding, ManagedFundOrder, ManagedFundOrderHistory, ManagedFundSetting
 from app.services import asset_registry as registry
 from pydantic import BaseModel
@@ -680,24 +680,90 @@ async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_
     )
 
 
-# ─── Price Sync from Whitelist Assets ───
+# ─── Price Sync from the Asset Registry ───
 
 @router.post("/{portfolio_id}/sync-prices")
 async def sync_prices(portfolio_id: int, db: AsyncSession = Depends(get_db)):
+    """Refresh the registry quote behind every holding, then reprice the fund.
+
+    The registry is the single price authority: each holding's ``asset`` is
+    resolved to the same ``asset_symbols`` row ``local_prices`` prices from
+    (portfolio broker first, else the lowest broker id, then the lowest symbol
+    id). Price sources are fetched from the provider once per
+    ``(source, sync_symbol)`` pair; a provider failure keeps the quote already
+    stored in ``asset_quotes`` and never aborts the request.
+    """
     portfolio = await db.get(Portfolio, portfolio_id)
     holdings_result = await db.execute(
         select(ManagedFundHolding).where(ManagedFundHolding.portfolio_id == portfolio_id)
     )
     holdings = holdings_result.scalars().all()
+    broker_id = portfolio.broker_id if portfolio is not None else None
+
+    wanted = sorted({
+        symbol
+        for symbol in (registry.normalise_symbol(holding.asset) for holding in holdings)
+        if symbol
+    })
+
+    # Resolve the winning registry row per holding symbol.
+    best_rows: dict[str, tuple[tuple[int, int, int], AssetSymbol, AssetProduct]] = {}
+    if wanted:
+        rows = (
+            await db.execute(
+                select(AssetSymbol, AssetProduct)
+                .join(AssetProduct, AssetProduct.product_id == AssetSymbol.product_id)
+                .where(
+                    AssetSymbol.price_symbol.isnot(None),
+                    func.upper(func.trim(AssetSymbol.price_symbol)).in_(wanted),
+                )
+            )
+        ).all()
+        for symbol, product in rows:
+            key = registry.normalise_symbol(symbol.price_symbol)
+            if key is None:
+                continue
+            row_broker_id = symbol.broker_id
+            preferred = broker_id is not None and row_broker_id == broker_id
+            rank = (
+                0 if preferred else 1,
+                row_broker_id if row_broker_id is not None else 1_000_000_000,
+                symbol.symbol_id,
+            )
+            current = best_rows.get(key)
+            if current is None or rank < current[0]:
+                best_rows[key] = (rank, symbol, product)
+
+    # One provider fetch per (source, sync_symbol); manual rows are never fetched.
+    refresh_pairs: dict[tuple[str, str], tuple[AssetSymbol, AssetProduct, list[str]]] = {}
+    for key, (_, symbol, product) in best_rows.items():
+        source = registry.quote_source(product)
+        if source not in registry.PRICE_SOURCES:
+            continue
+        pair = (source, symbol.sync_symbol)
+        entry = refresh_pairs.get(pair)
+        if entry is None:
+            refresh_pairs[pair] = (symbol, product, [key])
+        else:
+            entry[2].append(key)
+
+    refresh_failed: set[str] = set()
+    for symbol, product, keys in refresh_pairs.values():
+        try:
+            await registry.refresh_symbol_quote(db, symbol, product)
+        except Exception:
+            # Keep the stored quote; the holding is repriced from it below.
+            refresh_failed.update(keys)
+
     prices = await registry.local_prices(
-        db,
-        portfolio.broker_id if portfolio is not None else None,
-        [holding.asset for holding in holdings],
+        db, broker_id, [holding.asset for holding in holdings]
     )
 
     updated_count = 0
+    synced_symbols: set[str] = set()
     for holding in holdings:
-        price = prices.get(registry.normalise_symbol(holding.asset))
+        key = registry.normalise_symbol(holding.asset)
+        price = prices.get(key) if key else None
         if price and price > 0:
             holding.current_price = Decimal(str(price))
             holding.market_value = holding.qty * holding.current_price
@@ -706,9 +772,22 @@ async def sync_prices(portfolio_id: int, db: AsyncSession = Depends(get_db)):
                 pl_pct = ((float(holding.current_price) - float(holding.avg_entry_price)) / float(holding.avg_entry_price)) * 100
                 holding.unrealized_pl_pct = Decimal(str(round(pl_pct, 4)))
             updated_count += 1
+            synced_symbols.add(key)
+
+    missing = [key for key in wanted if key not in best_rows]
+    failed = [
+        key
+        for key in wanted
+        if key in best_rows and (key not in synced_symbols or key in refresh_failed)
+    ]
 
     await db.commit()
-    return {"synced": updated_count, "total": len(holdings)}
+    return {
+        "synced": updated_count,
+        "total": len(holdings),
+        "missing": missing,
+        "failed": failed,
+    }
 
 
 # ─── Profit Threshold Alerts ───
