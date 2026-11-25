@@ -22,7 +22,6 @@ import type {
   MFRebalanceResponse,
   MFSetting,
   MFAlert,
-  MFSyncPricesResult,
   OrderSource,
   OverviewResponse,
   PortfolioData,
@@ -707,8 +706,4 @@ export const api = {
     }),
   mfAlerts: (portfolioId: number) =>
     request<MFAlertsResult>(`/managed-funds/${portfolioId}/alerts`),
-  mfSyncPrices: (portfolioId: number) =>
-    request<MFSyncPricesResult>(`/managed-funds/${portfolioId}/sync-prices`, {
-      method: 'POST',
-    }),
 };

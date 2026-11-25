@@ -37,6 +37,7 @@ from app.models import (
     Portfolio,
 )
 from app.managed_fund_models import ManagedFundHolding, ManagedFundOrder
+from app.routers.managed_funds import reprice_holdings_for_symbols
 from app.services import asset_registry as registry
 
 from app.services import tfex_service
@@ -918,6 +919,7 @@ async def update_symbol_quote(
         if "change_24h" in fields:
             quote.change_24h = fields["change_24h"]
         quote.updated_at = datetime.utcnow()
+    await reprice_holdings_for_symbols(db, [(source, symbol.sync_symbol)])
     await db.commit()
     await db.refresh(symbol)
     return await registry.symbol_payload(db, symbol, product)
@@ -931,6 +933,9 @@ async def update_symbol_price(symbol_id: int, db: AsyncSession = Depends(get_db)
     except Exception as exc:  # provider error is reported, never swallowed
         await db.rollback()
         raise HTTPException(502, f"Failed to fetch price: {exc}")
+    await reprice_holdings_for_symbols(
+        db, [(registry.quote_source(product), symbol.sync_symbol)]
+    )
     await db.commit()
     await db.refresh(symbol)
     return await registry.symbol_payload(db, symbol, product)
@@ -962,14 +967,17 @@ async def batch_update_prices(db: AsyncSession = Depends(get_db)):
 
     updated = 0
     tickers: set[str] = set()
+    written_pairs: list[tuple[str, str]] = []
     for (source, sync_symbol), entry in by_key.items():
         try:
             price, change = registry._fetch_quote(source, sync_symbol)
         except Exception:
             continue
         await registry.upsert_quote(db, source, sync_symbol, price, change)
+        written_pairs.append((source, sync_symbol))
         updated += 1
         tickers.update(str(value) for value in entry["price_symbols"])
+    await reprice_holdings_for_symbols(db, written_pairs)
     await db.commit()
     return {"updated": updated, "tickers": sorted(tickers)}
 

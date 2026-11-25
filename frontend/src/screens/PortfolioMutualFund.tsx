@@ -13,8 +13,6 @@ import MFSellHoldingModal from "./MFSellHoldingModal";
 import MFEditPortfolioModal from "./MFEditPortfolioModal";
 import PageLayout from "../components/PageLayout";
 import PortfolioHeader from "./components/PortfolioHeader";
-import { useNotification } from "../contexts/NotificationContext";
-import { apiErrorDetail } from "./components/apiError";
 import { formatDate, formatMoney, formatPct } from "../utils/format";
 
 interface ManagedFundProps {
@@ -87,8 +85,6 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
   const [sellHoldingTarget, setSellHoldingTarget] = useState<MFHolding | null>(null);
   const [rebalanceRecs, setRebalanceRecs] = useState<MFRebalanceRecommendation[]>([]);
   const [rebalanceLoading, setRebalanceLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const { notify } = useNotification();
 
 
   const fetchData = useCallback(async () => {
@@ -177,40 +173,6 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
     setShowSellHolding(false);
     setSellHoldingTarget(null);
     await fetchData();
-  };
-
-  const handleSyncPrices = async () => {
-    setSyncing(true);
-    try {
-      const result = await api.mfSyncPrices(parseInt(resolvedId));
-      await fetchData();
-      if (result.total === 0) {
-        notify("No holdings to price", "success");
-      } else {
-        const parts: string[] = [];
-        if (result.missing.length > 0) {
-          parts.push(
-            `not in the registry: ${result.missing.join(", ")} — add them from All Assets → Sync from orders`,
-          );
-        }
-        if (result.failed.length > 0) {
-          parts.push(
-            `price not refreshed: ${result.failed.join(", ")} — check the quote in All Assets`,
-          );
-        }
-        const prefix = `Synced ${result.synced} of ${result.total} prices`;
-        if (parts.length === 0) {
-          notify(prefix, "success");
-        } else {
-          notify(`${prefix} · ${parts.join(" · ")}`, "warning");
-        }
-      }
-    } catch (e) {
-      console.error("Failed to sync managed fund prices", e);
-      notify(apiErrorDetail(e, "Couldn't sync prices"), "warning");
-    } finally {
-      setSyncing(false);
-    }
   };
 
   const totalPl = holdings.reduce((s, h) => s + (h.unrealized_pl || 0), 0);
@@ -376,15 +338,6 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
               <header className="mf-card-h">
                 <h2>Asset list</h2>
                 <span className="at-count">{holdings.length}</span>
-                <button
-                  type="button"
-                  className="at-btn-ghost"
-                  onClick={handleSyncPrices}
-                  disabled={syncing}
-                  title="Refresh every holding's price from the asset registry"
-                >
-                  {syncing ? "Syncing…" : "Sync prices"}
-                </button>
                 <button type="button" className="at-btn-ghost" onClick={fetchData}>
                   Refresh
                 </button>

@@ -403,13 +403,6 @@ export interface MFAlert {
   message: string;
 }
 
-export interface MFSyncPricesResult {
-  synced: number;
-  total: number;
-  missing: string[];
-  failed: string[];
-}
-
 // === Spread Pairing ===
 export interface PortfolioSpreadsData {
   portfolio_id: number;

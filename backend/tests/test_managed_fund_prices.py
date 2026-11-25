@@ -372,3 +372,57 @@ async def test_sync_prices_fetches_once_for_duplicate_holdings(async_client, mon
     finally:
         await drop_fund(fund)
         await drop_brokers(broker_id)
+
+
+@pytest.mark.asyncio
+async def test_quote_write_reprices_fund_holding(async_client):
+    broker_id = await make_broker("MFP6")
+    fund = await seed_fund(
+        broker_id=broker_id,
+        symbols=[(broker_id, "PTT", "PTT.BK", "yfinance")],
+        holdings=[(" ptt ", 10, 20)],
+        quotes=[("yfinance", "PTT.BK", 21)],
+    )
+    try:
+        resp = await async_client.put(
+            f"/api/v1/assets/symbols/{fund.symbol_ids[0]}/quote",
+            json={"price": 42.0},
+        )
+        assert resp.status_code == 200, resp.text
+        print("QUOTE_RESPONSE", resp.json())
+        assert resp.json()["price"] == 42.0
+
+        holding = await load_holding(fund.holding_ids[0])
+        assert float(holding.current_price) == 42.0
+        assert float(holding.market_value) == 420.0
+        assert float(holding.unrealized_pl) == 220.0
+    finally:
+        await drop_fund(fund)
+        await drop_brokers(broker_id)
+
+
+@pytest.mark.asyncio
+async def test_batch_update_reprices_fund_holding(async_client, monkeypatch):
+    broker_id = await make_broker("MFP7")
+    fund = await seed_fund(
+        broker_id=broker_id,
+        symbols=[(broker_id, "BATCH", "BATCH.BK", "yfinance")],
+        holdings=[("BATCH", 4, 20)],
+        quotes=[("yfinance", "BATCH.BK", 10)],
+    )
+    fetch_prices = {"BATCH.BK": 33.5}
+    fallback = patch_provider(monkeypatch, fetch_prices)
+    try:
+        resp = await async_client.post("/api/v1/assets/symbols/batch-update-prices")
+        assert resp.status_code == 200, resp.text
+        print("BATCH_RESPONSE", resp.json())
+        assert ("yfinance", "BATCH.BK") in fallback
+        assert fallback.count(("yfinance", "BATCH.BK")) == 1
+
+        holding = await load_holding(fund.holding_ids[0])
+        assert float(holding.current_price) == 33.5
+        assert float(holding.market_value) == 134.0
+        assert float(holding.unrealized_pl) == 54.0
+    finally:
+        await drop_fund(fund)
+        await drop_brokers(broker_id)

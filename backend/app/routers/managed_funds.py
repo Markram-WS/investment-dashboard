@@ -6,7 +6,7 @@ from app.models import AssetProduct, AssetSymbol, Portfolio, PortfolioNavHistory
 from app.managed_fund_models import ManagedFundHolding, ManagedFundOrder, ManagedFundOrderHistory, ManagedFundSetting
 from app.services import asset_registry as registry
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
+from typing import Iterable, Optional, Dict, Any, List
 from decimal import Decimal
 from datetime import datetime, date
 
@@ -682,6 +682,154 @@ async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_
 
 # ─── Price Sync from the Asset Registry ───
 
+def _holding_symbol_rank(
+    portfolio_broker_id: Optional[int],
+    row_broker_id: Optional[int],
+    symbol_id: int,
+) -> tuple[int, int, int]:
+    """Registry row ranking: portfolio broker first, then lowest broker/symbol."""
+    preferred = portfolio_broker_id is not None and row_broker_id == portfolio_broker_id
+    fallback_broker = row_broker_id if row_broker_id is not None else 1_000_000_000
+    return (0 if preferred else 1, fallback_broker, symbol_id)
+
+
+def _pick_registry_rows(
+    rows: Iterable[tuple[AssetSymbol, AssetProduct]],
+    portfolio_broker_id: Optional[int],
+) -> dict[str, tuple[AssetSymbol, AssetProduct]]:
+    """Winning ``asset_symbols`` row per normalized ``price_symbol``."""
+    best: dict[str, tuple[tuple[int, int, int], AssetSymbol, AssetProduct]] = {}
+    for symbol, product in rows:
+        key = registry.normalise_symbol(symbol.price_symbol)
+        if key is None:
+            continue
+        rank = _holding_symbol_rank(
+            portfolio_broker_id, symbol.broker_id, symbol.symbol_id
+        )
+        current = best.get(key)
+        if current is None or rank < current[0]:
+            best[key] = (rank, symbol, product)
+    return {key: (symbol, product) for key, (_, symbol, product) in best.items()}
+
+
+def _apply_holding_price(
+    holding: ManagedFundHolding, price: Optional[Decimal]
+) -> bool:
+    """Apply one registry price to a holding; a missing/non-positive price is a no-op."""
+    if price is None or price <= 0:
+        return False
+    holding.current_price = Decimal(str(price))
+    holding.market_value = holding.qty * holding.current_price
+    holding.unrealized_pl = (holding.current_price - holding.avg_entry_price) * holding.qty
+    if holding.avg_entry_price and holding.avg_entry_price > 0:
+        pl_pct = (
+            (float(holding.current_price) - float(holding.avg_entry_price))
+            / float(holding.avg_entry_price)
+        ) * 100
+        holding.unrealized_pl_pct = Decimal(str(round(pl_pct, 4)))
+    return True
+
+
+async def reprice_holdings_for_symbols(
+    db: AsyncSession, pairs: Iterable[tuple[str, str]]
+) -> int:
+    """Reprice holdings whose resolved registry row is one of ``pairs``.
+
+    ``pairs`` are the ``(source, sync_symbol)`` quotes a registry write just
+    stored. A holding is repriced only when its own resolution — portfolio
+    broker first, else the lowest broker id, then the lowest symbol id — picks
+    that pair, so another broker's quote never moves it. The caller owns the
+    transaction: this helper flushes and never commits.
+    """
+    wanted_pairs = {
+        (registry.normalise_source(source), sync_symbol)
+        for source, sync_symbol in pairs
+        if sync_symbol
+    }
+    if not wanted_pairs:
+        return 0
+
+    sync_symbols = {sync_symbol for _, sync_symbol in wanted_pairs}
+    sources = {source for source, _ in wanted_pairs}
+    source_expr = func.coalesce(func.nullif(func.trim(AssetProduct.source), ""), "-")
+    written_rows = (
+        await db.execute(
+            select(AssetSymbol, AssetProduct)
+            .join(AssetProduct, AssetProduct.product_id == AssetSymbol.product_id)
+            .where(
+                AssetSymbol.price_symbol.isnot(None),
+                AssetSymbol.sync_symbol.in_(sync_symbols),
+                source_expr.in_(sources),
+            )
+        )
+    ).all()
+    written_keys = {
+        key
+        for symbol, product in written_rows
+        if (registry.quote_source(product), symbol.sync_symbol) in wanted_pairs
+        for key in [registry.normalise_symbol(symbol.price_symbol)]
+        if key
+    }
+    if not written_keys:
+        return 0
+
+    # Every registry row for the affected keys, so a non-written winner still wins.
+    registry_rows = (
+        await db.execute(
+            select(AssetSymbol, AssetProduct)
+            .join(AssetProduct, AssetProduct.product_id == AssetSymbol.product_id)
+            .where(
+                AssetSymbol.price_symbol.isnot(None),
+                func.upper(func.trim(AssetSymbol.price_symbol)).in_(written_keys),
+            )
+        )
+    ).all()
+
+    holding_rows = (
+        await db.execute(
+            select(ManagedFundHolding, Portfolio.broker_id)
+            .join(Portfolio, Portfolio.portfolio_id == ManagedFundHolding.portfolio_id)
+            .where(func.upper(func.trim(ManagedFundHolding.asset)).in_(written_keys))
+        )
+    ).all()
+
+    resolutions: dict[
+        tuple[str, Optional[int]], tuple[AssetSymbol, AssetProduct]
+    ] = {}
+    quotes: dict[tuple[str, str], Optional[Decimal]] = {}
+    updated = 0
+    for holding, broker_id in holding_rows:
+        key = registry.normalise_symbol(holding.asset)
+        if key is None:
+            continue
+        resolution_key = (key, broker_id)
+        winner = resolutions.get(resolution_key)
+        if resolution_key not in resolutions:
+            matches = [
+                (symbol, product)
+                for symbol, product in registry_rows
+                if registry.normalise_symbol(symbol.price_symbol) == key
+            ]
+            winner = _pick_registry_rows(matches, broker_id).get(key)
+            resolutions[resolution_key] = winner
+        if winner is None:
+            continue
+        symbol, product = winner
+        pair = (registry.quote_source(product), symbol.sync_symbol)
+        if pair not in wanted_pairs:
+            continue
+        price = quotes.get(pair)
+        if pair not in quotes:
+            quote = await registry.quote_for(db, product, symbol)
+            price = quote.price if quote is not None else None
+            quotes[pair] = price
+        if _apply_holding_price(holding, price):
+            updated += 1
+
+    await db.flush()
+    return updated
+
+
 @router.post("/{portfolio_id}/sync-prices")
 async def sync_prices(portfolio_id: int, db: AsyncSession = Depends(get_db)):
     """Refresh the registry quote behind every holding, then reprice the fund.
@@ -707,7 +855,7 @@ async def sync_prices(portfolio_id: int, db: AsyncSession = Depends(get_db)):
     })
 
     # Resolve the winning registry row per holding symbol.
-    best_rows: dict[str, tuple[tuple[int, int, int], AssetSymbol, AssetProduct]] = {}
+    best_rows: dict[str, tuple[AssetSymbol, AssetProduct]] = {}
     if wanted:
         rows = (
             await db.execute(
@@ -719,24 +867,11 @@ async def sync_prices(portfolio_id: int, db: AsyncSession = Depends(get_db)):
                 )
             )
         ).all()
-        for symbol, product in rows:
-            key = registry.normalise_symbol(symbol.price_symbol)
-            if key is None:
-                continue
-            row_broker_id = symbol.broker_id
-            preferred = broker_id is not None and row_broker_id == broker_id
-            rank = (
-                0 if preferred else 1,
-                row_broker_id if row_broker_id is not None else 1_000_000_000,
-                symbol.symbol_id,
-            )
-            current = best_rows.get(key)
-            if current is None or rank < current[0]:
-                best_rows[key] = (rank, symbol, product)
+        best_rows = _pick_registry_rows(rows, broker_id)
 
     # One provider fetch per (source, sync_symbol); manual rows are never fetched.
     refresh_pairs: dict[tuple[str, str], tuple[AssetSymbol, AssetProduct, list[str]]] = {}
-    for key, (_, symbol, product) in best_rows.items():
+    for key, (symbol, product) in best_rows.items():
         source = registry.quote_source(product)
         if source not in registry.PRICE_SOURCES:
             continue
@@ -764,13 +899,7 @@ async def sync_prices(portfolio_id: int, db: AsyncSession = Depends(get_db)):
     for holding in holdings:
         key = registry.normalise_symbol(holding.asset)
         price = prices.get(key) if key else None
-        if price and price > 0:
-            holding.current_price = Decimal(str(price))
-            holding.market_value = holding.qty * holding.current_price
-            holding.unrealized_pl = (holding.current_price - holding.avg_entry_price) * holding.qty
-            if holding.avg_entry_price and holding.avg_entry_price > 0:
-                pl_pct = ((float(holding.current_price) - float(holding.avg_entry_price)) / float(holding.avg_entry_price)) * 100
-                holding.unrealized_pl_pct = Decimal(str(round(pl_pct, 4)))
+        if key and _apply_holding_price(holding, price):
             updated_count += 1
             synced_symbols.add(key)
 
