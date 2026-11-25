@@ -137,13 +137,13 @@ describe('All assets naming', () => {
       .toHaveAttribute('title', expect.stringContaining('Default margin rate'));
   });
 
-  it('drops the Broker column and counts contracts', async () => {
+  it('drops the Broker column and counts symbols', async () => {
     renderRegistry();
 
     expect(await screen.findByRole('columnheader', { name: 'Contracts' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Symbols' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Broker' })).not.toBeInTheDocument();
-    expect(await screen.findByText('1 identity · 2 contracts')).toBeInTheDocument();
+    expect(await screen.findByText('1 product · 2 symbols')).toBeInTheDocument();
   });
 
   it('shows the identity contract values and the span when set', async () => {
@@ -158,18 +158,20 @@ describe('All assets naming', () => {
     expect(screen.getAllByText('S50M26').length).toBeGreaterThan(0);
   });
 
-  it('renames the identity and contract actions', async () => {
+  it('names the toolbar and row actions for products and symbols', async () => {
     renderRegistry();
 
-    expect(await screen.findByRole('button', { name: '+ New symbol' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '+ New group' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '+ New product' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sync from orders' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add symbol' })).not.toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: 'Edit identity' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'New contract for S50' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit identity' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Edit product' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '+ New symbol' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand S50' }));
 
-    expect(await screen.findAllByRole('button', { name: 'Edit contract' })).toHaveLength(2);
+    expect(await screen.findAllByRole('button', { name: 'Edit symbol' })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Edit contract' })).not.toBeInTheDocument();
   });
 });
 
@@ -187,7 +189,36 @@ describe('All assets broker sections', () => {
     expect(screen.getByRole('button', { name: 'Collapse DF' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Collapse PI' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Collapse Unassigned' })).toBeInTheDocument();
-    expect(screen.getByText('3 identities · 2 contracts')).toBeInTheDocument();
+    expect(screen.getByText('3 products · 2 symbols')).toBeInTheDocument();
+  });
+
+  it('renders one table per broker with its own head, ordered, collapsed independently', async () => {
+    apiMock.getProducts.mockResolvedValue([unassignedProduct, product, dfProduct]);
+    renderRegistry();
+
+    await screen.findByText('DF · 1');
+
+    const tables = Array.from(document.querySelectorAll('table'));
+    expect(tables).toHaveLength(3);
+    for (const table of tables) {
+      expect(table.querySelector('thead')).not.toBeNull();
+      expect(table.querySelector('tbody')).not.toBeNull();
+    }
+
+    const brokerHeadings = screen.getAllByRole('button', { name: /^(Collapse|Expand) (DF|PI|Unassigned)$/ })
+      .map(button => button.getAttribute('aria-label'));
+    expect(brokerHeadings).toEqual(['Collapse DF', 'Collapse PI', 'Collapse Unassigned']);
+
+    for (const table of tables) {
+      expect(table.querySelector('tbody')?.textContent ?? '')
+        .not.toMatch(/(DF|PI|Unassigned) · \d/);
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse DF' }));
+
+    expect(screen.queryByText('PTT')).not.toBeInTheDocument();
+    expect(screen.getByText('S50')).toBeInTheDocument();
+    expect(document.querySelectorAll('table')).toHaveLength(3);
   });
 
   it('hides the Unassigned section when every identity has a broker', async () => {
@@ -204,15 +235,15 @@ describe('All assets broker sections', () => {
     const toggle = await screen.findByRole('button', { name: 'Expand —' });
 
     expect(toggle).toHaveAttribute('aria-label', 'Expand —');
-    expect(screen.getByRole('button', { name: 'New contract for —' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '+ New symbol' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /null/ })).not.toBeInTheDocument();
-    expect(screen.getByText('1 identity · 1 contract')).toBeInTheDocument();
+    expect(screen.getByText('1 product · 1 symbol')).toBeInTheDocument();
   });
 
-  it('counts identities and contracts from the filtered query result', async () => {
+  it('counts products and symbols from the filtered query result', async () => {
     renderRegistry();
 
-    expect(await screen.findByText('1 identity · 2 contracts')).toBeInTheDocument();
+    expect(await screen.findByText('1 product · 2 symbols')).toBeInTheDocument();
 
     apiMock.getProducts.mockResolvedValue([dfProduct]);
     fireEvent.click(screen.getByRole('button', { name: 'Stock' }));
@@ -220,7 +251,7 @@ describe('All assets broker sections', () => {
     await waitFor(() => {
       expect(apiMock.getProducts).toHaveBeenLastCalledWith({ asset_type: 'stock' });
     });
-    expect(await screen.findByText('1 identity · 0 contracts')).toBeInTheDocument();
+    expect(await screen.findByText('1 product · 0 symbols')).toBeInTheDocument();
   });
 
   it('collapses a broker section without hiding the other sections', async () => {

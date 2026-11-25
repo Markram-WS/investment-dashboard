@@ -349,6 +349,7 @@ class SymbolCreate(BaseModel):
 
 
 class SymbolUpdate(BaseModel):
+    product_id: Optional[int] = None
     price_symbol: Optional[str] = None
     sync_symbol: Optional[str] = None
     contract_kind: Optional[str] = None
@@ -772,14 +773,28 @@ async def update_symbol(
             raise HTTPException(400, "sync_symbol is required")
         fields["sync_symbol"] = sync_symbol
 
+    # A contract may change its owning identity: multiplier, margin_rate and
+    # margin_mode are identity-owned, so the move is what re-bases them.
+    # An omitted (or explicit null) product_id never moves the symbol.
+    target_product = product
+    requested_product_id = fields.pop("product_id", None)
+    moving = (
+        requested_product_id is not None
+        and requested_product_id != symbol.product_id
+    )
+    if moving:
+        target_product = await _product_or_404(db, requested_product_id)
+
     new_price_symbol = symbol.price_symbol
-    if "price_symbol" in fields:
+    price_symbol_supplied = "price_symbol" in fields
+    if price_symbol_supplied:
         raw = fields.pop("price_symbol")
         new_price_symbol = raw.strip() if isinstance(raw, str) and raw.strip() else None
+    if price_symbol_supplied or moving:
         collision = await registry.find_symbol_collision(
             db,
             new_price_symbol,
-            product.broker_id,
+            target_product.broker_id,
             exclude_symbol_id=symbol.symbol_id,
         )
         if collision is not None:
@@ -793,7 +808,7 @@ async def update_symbol(
     effective_kind = fields.get("contract_kind", symbol.contract_kind)
     await registry.assert_option_identity_available(
         db,
-        product,
+        target_product,
         contract_kind=effective_kind,
         price_symbol=new_price_symbol,
         option_type=fields.get("option_type", symbol.option_type),
@@ -802,7 +817,7 @@ async def update_symbol(
         exclude_symbol_id=symbol.symbol_id,
     )
 
-    if "price_symbol" in data.model_fields_set:
+    if price_symbol_supplied:
         symbol.price_symbol = new_price_symbol
     for field in (
         "sync_symbol",
@@ -816,7 +831,8 @@ async def update_symbol(
     ):
         if field in fields:
             setattr(symbol, field, fields[field])
-    symbol.broker_id = product.broker_id
+    symbol.product_id = target_product.product_id
+    symbol.broker_id = target_product.broker_id
     symbol.updated_at = datetime.utcnow()
     try:
         await db.commit()
@@ -824,7 +840,7 @@ async def update_symbol(
         await db.rollback()
         raise HTTPException(400, "Symbol already exists")
     await db.refresh(symbol)
-    return await registry.symbol_payload(db, symbol, product)
+    return await registry.symbol_payload(db, symbol, target_product)
 
 
 @router.delete("/symbols/{symbol_id}", status_code=204, tags=["assets"])
@@ -1156,26 +1172,23 @@ def _validated_create_fields(
 @router.post("/sync-apply", include_in_schema=False)
 async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db)):
     items = await _proposal_items(db)
-    proposed = {
-        (item["broker_id"], item["symbol"]): item for item in items
-    }
-    proposed_pairs = set(proposed)
+    proposed_symbols = {item["symbol"] for item in items}
     codes = await registry.broker_codes(db)
 
     created = 0
     try:
         for choice in data.choices:
             symbol = registry.normalise_symbol(choice.symbol)
+            # The chosen broker is the sync-time decision; the proposal only
+            # proves the order symbol exists somewhere. Every identity lookup,
+            # product validation and owner collision below uses this choice.
             broker_id = choice.broker_id
-            if symbol is None or (broker_id, symbol) not in proposed_pairs:
+            if symbol is None or symbol not in proposed_symbols:
                 raise HTTPException(
                     400, f"Symbol {choice.symbol} was not in the proposal"
                 )
-            item = proposed[(broker_id, symbol)]
-            if item["broker_required"]:
-                raise HTTPException(
-                    400, "Assign a broker in Edit portfolio before adding orders"
-                )
+            if broker_id is not None and broker_id not in codes:
+                raise HTTPException(400, f"Broker {broker_id} not found")
             has_product = choice.product_id is not None
             wants_create = choice.create_product is True
             if has_product == wants_create:

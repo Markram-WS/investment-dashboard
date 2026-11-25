@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import type { AssetSyncChoice, SyncProposalItem } from '../../types';
+import type { AssetProduct, AssetSyncChoice, SyncProposalItem, SyncProposalProduct } from '../../types';
 import ModalShell from './ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './modalLayout';
 import { CONTROL_BUTTON_PRIMARY, CONTROL_BUTTON_SECONDARY, CONTROL_HELPER, CONTROL_INPUT, CONTROL_LABEL, CONTROL_TITLE } from './controlStyles';
@@ -28,6 +28,24 @@ const SOURCE_OPTIONS: { value: CreateSource; label: string }[] = [
 function joinList(values: string[]): string {
   if (values.length <= 1) return values[0] ?? '';
   return `${values.slice(0, -1).join(', ')} and ${values[values.length - 1]}`;
+}
+
+/** Unassigned broker in a `<select>` round-trips as `''`. */
+const UNASSIGNED_BROKER = '';
+const PRODUCT_PREFIX = 'product:';
+
+/**
+ * Products offered for one row after the broker pick: the full registry
+ * filtered by broker (`null` = Unassigned). Until that list arrives the
+ * proposal's own same-broker products stand in for the pair's original broker.
+ */
+function productsForBroker(
+  all: AssetProduct[] | undefined,
+  item: SyncProposalItem,
+  brokerId: number | null,
+): SyncProposalProduct[] {
+  if (!all) return brokerId === item.broker_id ? item.products : [];
+  return all.filter((product) => (product.broker_id ?? null) === brokerId);
 }
 
 /** Why this create row cannot be submitted yet, or null when it is complete. */
@@ -84,6 +102,7 @@ const specChipStyle = {
 
 export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFromOrdersModalProps) {
   const [selections, setSelections] = useState<Record<string, string>>({});
+  const [brokerChoices, setBrokerChoices] = useState<Record<string, number | null>>({});
   const [drafts, setDrafts] = useState<Record<string, CreateDraft>>({});
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState('');
@@ -94,9 +113,24 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
     enabled: open,
   });
 
+  const { data: brokers } = useQuery({
+    queryKey: ['brokers'],
+    queryFn: () => api.getBrokers(),
+    enabled: open,
+    staleTime: 30_000,
+  });
+
+  const { data: allProducts } = useQuery({
+    queryKey: ['asset-products', ''],
+    queryFn: () => api.getProducts(),
+    enabled: open,
+    staleTime: 30_000,
+  });
+
   useEffect(() => {
     if (open) {
       setSelections({});
+      setBrokerChoices({});
       setDrafts({});
       setError('');
     }
@@ -109,6 +143,24 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
   const draftFor = (key: string): CreateDraft => drafts[key] ?? EMPTY_CREATE_DRAFT;
   const rememberDraft = (key: string, patch: Partial<CreateDraft>) =>
     setDrafts((prev) => ({ ...prev, [key]: { ...(prev[key] ?? EMPTY_CREATE_DRAFT), ...patch } }));
+
+  /** The row's broker: the user's pick when set (`null` = Unassigned), else the proposal's. */
+  const brokerFor = (key: string, item: SyncProposalItem): number | null =>
+    key in brokerChoices ? brokerChoices[key] : item.broker_id;
+
+  const changeBroker = (item: SyncProposalItem, key: string, raw: string) => {
+    const nextBroker = raw === UNASSIGNED_BROKER ? null : Number(raw);
+    setBrokerChoices((prev) => ({ ...prev, [key]: nextBroker }));
+    const nextProducts = productsForBroker(allProducts, item, nextBroker);
+    setSelections((prev) => {
+      const current = prev[key];
+      if (!current || current === 'create') return prev;
+      const productId = Number(current.slice(PRODUCT_PREFIX.length));
+      return nextProducts.some((product) => product.product_id === productId)
+        ? prev
+        : { ...prev, [key]: '' };
+    });
+  };
 
   const selectedCount = items.filter((item) => Boolean(selections[rowKey(item)])).length;
 
@@ -138,7 +190,7 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
         }
         choices.push({
           symbol: item.symbol,
-          broker_id: item.broker_id,
+          broker_id: brokerFor(key, item),
           create_product: true,
           create_source: draft.source as CreateSource,
           ...(draft.assetType ? { create_asset_type: draft.assetType } : {}),
@@ -148,8 +200,8 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
       } else {
         choices.push({
           symbol: item.symbol,
-          broker_id: item.broker_id,
-          product_id: Number(selection.replace('product:', '')),
+          broker_id: brokerFor(key, item),
+          product_id: Number(selection.slice(PRODUCT_PREFIX.length)),
         });
       }
     }
@@ -209,6 +261,8 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                   const key = rowKey(item);
                   const value = selections[key] ?? '';
                   const draft = draftFor(key);
+                  const broker = brokerFor(key, item);
+                  const products = productsForBroker(allProducts, item, broker);
                   return (
                     <tr key={key}>
                       <td style={{ ...cell, fontWeight: 600, color: 'var(--color-ink)', whiteSpace: 'nowrap' }}>
@@ -223,35 +277,48 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                           </span>
                         )}
                       </td>
-                      <td style={{ ...cell, color: 'var(--color-slate)', whiteSpace: 'nowrap' }}>
-                        {item.broker_code ?? 'Unassigned'}
+                      <td style={{ ...cell, color: 'var(--color-slate)', minWidth: 150 }}>
+                        <select
+                          aria-label={`Broker for ${item.symbol}`}
+                          value={broker === null ? UNASSIGNED_BROKER : String(broker)}
+                          onChange={(e) => changeBroker(item, key, e.target.value)}
+                          style={CONTROL_INPUT}
+                        >
+                          <option value={UNASSIGNED_BROKER}>Unassigned</option>
+                          {(brokers ?? []).map((record) => (
+                            <option key={record.id} value={String(record.id)}>{record.code}</option>
+                          ))}
+                          {broker !== null && !(brokers ?? []).some((record) => record.id === broker) && (
+                            <option value={String(broker)}>{item.broker_code ?? `Broker ${broker}`}</option>
+                          )}
+                        </select>
+                        {item.broker_required && (
+                          <span style={{ ...CONTROL_HELPER, display: 'block', marginTop: 2 }}>
+                            No broker on the portfolio — pick one here to attach this symbol to a broker-scoped product.
+                          </span>
+                        )}
                       </td>
                       <td style={cell}>
-                        {item.broker_required ? (
-                          <span style={{ color: 'var(--color-danger-text)' }}>
-                            Assign a broker in Edit portfolio before adding orders
-                          </span>
-                        ) : (
-                          <>
-                            <select
-                              aria-label={`Assign ${item.symbol}`}
-                              value={value}
-                              onChange={(e) => setSelections(prev => ({ ...prev, [key]: e.target.value }))}
-                              style={CONTROL_INPUT}
-                            >
-                              <option value="">Select…</option>
-                              {item.products.length > 0 && (
-                                <optgroup label="Same-broker products">
-                                  {item.products.map((product) => (
-                                    <option key={product.product_id} value={`product:${product.product_id}`}>
-                                      {product.ticker ?? '—'} · {product.asset_type ?? '—'} ·{' '}
-                                      {product.symbol_count} symbol{product.symbol_count === 1 ? '' : 's'}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              )}
-                              <option value="create">Create new — {item.create.symbol}</option>
-                            </select>
+                        <>
+                          <select
+                            aria-label={`Assign ${item.symbol}`}
+                            value={value}
+                            onChange={(e) => setSelections(prev => ({ ...prev, [key]: e.target.value }))}
+                            style={CONTROL_INPUT}
+                          >
+                            <option value="">Select…</option>
+                            {products.length > 0 && (
+                              <optgroup label={broker === null ? 'Unassigned products' : 'Same-broker products'}>
+                                {products.map((product) => (
+                                  <option key={product.product_id} value={`${PRODUCT_PREFIX}${product.product_id}`}>
+                                    {product.ticker ?? '—'} · {product.asset_type ?? '—'} ·{' '}
+                                    {product.symbol_count} symbol{product.symbol_count === 1 ? '' : 's'}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            <option value="create">Create new — {item.create.symbol}</option>
+                          </select>
                             {value === 'create' && (
                               <div
                                 style={{
@@ -268,6 +335,9 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                                     Orders behind this pair recorded {joinList(item.order_asset_types)} — a hint, not a default.
                                   </span>
                                 )}
+                                <span style={{ ...CONTROL_HELPER, margin: 0 }}>
+                                  The price symbol joins the identity with the underlying below and the broker above.
+                                </span>
                                 <span style={{ ...CONTROL_HELPER, margin: 0 }}>
                                   An order stores only the symbol, so the dashboard cannot tell whether it is a TFEX series or a Thai stock.
                                 </span>
@@ -365,10 +435,10 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                               </div>
                             )}
                             <span style={{ ...CONTROL_HELPER, display: 'block', marginTop: 2 }}>
-                              {item.products.length} same-broker product{item.products.length === 1 ? '' : 's'}
+                              {products.length} {broker === null ? 'unassigned' : 'same-broker'} product
+                              {products.length === 1 ? '' : 's'}
                             </span>
                           </>
-                        )}
                       </td>
                     </tr>
                   );

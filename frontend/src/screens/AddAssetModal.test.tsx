@@ -9,6 +9,7 @@ import type { AssetProduct, AssetSymbol } from '../types';
 
 const apiMock = vi.hoisted(() => ({
   getBrokers: vi.fn(),
+  getProducts: vi.fn(),
   createBroker: vi.fn(),
   createProduct: vi.fn(),
   createSymbol: vi.fn(),
@@ -22,6 +23,24 @@ const apiMock = vi.hoisted(() => ({
 
 vi.mock('../lib/api', () => ({ api: apiMock }));
 
+const piBroker = {
+  id: 1,
+  code: 'PI',
+  name: 'Phillip Securities',
+  default_margin_rate: 0,
+  currency: 'THB',
+  created_at: null,
+};
+
+const dfBroker = {
+  id: 2,
+  code: 'DF',
+  name: 'Finansia Syrus',
+  default_margin_rate: 0,
+  currency: 'THB',
+  created_at: null,
+};
+
 const product: AssetProduct = {
   product_id: 1,
   ticker: 'S50',
@@ -34,6 +53,36 @@ const product: AssetProduct = {
   source: 'tfex',
   group_id: null,
   name: 'SET50 Future',
+  symbol_count: 1,
+};
+
+const dfProduct: AssetProduct = {
+  product_id: 2,
+  ticker: 'S50',
+  broker_id: 2,
+  broker_code: 'DF',
+  asset_type: 'future',
+  multiplier: 2000,
+  margin_rate: 0.2,
+  margin_mode: 'span',
+  source: 'tfex',
+  group_id: null,
+  name: null,
+  symbol_count: 0,
+};
+
+const nullUnderlyingProduct: AssetProduct = {
+  product_id: 4,
+  ticker: null,
+  broker_id: null,
+  broker_code: null,
+  asset_type: 'future',
+  multiplier: 1,
+  margin_rate: 0.05,
+  margin_mode: 'notional',
+  source: 'manual',
+  group_id: null,
+  name: null,
   symbol_count: 1,
 };
 
@@ -67,13 +116,35 @@ const renderProductCreate = () => render(
   />,
 );
 
+const renderSymbolCreate = (owner: AssetProduct) => render(
+  <AddAssetModal
+    open
+    mode="symbol"
+    product={owner}
+    onClose={vi.fn()}
+    onSaved={vi.fn()}
+  />,
+);
+
+const renderSymbolEdit = () => render(
+  <EditAssetModal
+    open
+    mode="symbol"
+    product={product}
+    symbol={symbol}
+    onClose={vi.fn()}
+    onSaved={vi.fn()}
+  />,
+);
+
 const openBrokerPanel = async (user: UserEvent) => {
   await user.click(screen.getByRole('button', { name: /new broker/i }));
 };
 
 beforeEach(() => {
   Object.values(apiMock).forEach(fn => fn.mockReset());
-  apiMock.getBrokers.mockResolvedValue([]);
+  apiMock.getBrokers.mockResolvedValue([piBroker, dfBroker]);
+  apiMock.getProducts.mockResolvedValue([product, dfProduct, nullUnderlyingProduct]);
 });
 
 describe('AddAssetModal new broker', () => {
@@ -173,7 +244,7 @@ describe('AddAssetModal new broker', () => {
     consoleError.mockRestore();
   });
 
-  it('is absent outside product create (symbol mode and Edit identity)', async () => {
+  it('is absent outside product create (symbol mode and Edit product)', async () => {
     const { unmount } = render(
       <AddAssetModal
         open
@@ -201,15 +272,14 @@ describe('AddAssetModal new broker', () => {
   });
 });
 
-describe('Underlying and contract copy', () => {
-  it('names the product identity Underlying and marks its spec as defaults', () => {
+describe('Product create modal', () => {
+  it('titles the modal Add product and owns the product spec without a Name field', () => {
     renderProductCreate();
 
-    expect(screen.getByRole('heading', { name: 'Add symbol' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Add product' })).toBeInTheDocument();
     expect(screen.getByLabelText('Underlying')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Ticker')).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText('e.g. S50, or leave blank for none')).toBeInTheDocument();
-    expect(screen.getByText('Leave blank for no underlying — allowed only when a broker or a default type is set.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Optional display name')).not.toBeInTheDocument();
 
     expect(screen.getByLabelText('Default multiplier')).toBeInTheDocument();
     expect(screen.getByLabelText('Default margin rate')).toBeInTheDocument();
@@ -223,23 +293,14 @@ describe('Underlying and contract copy', () => {
     const user = userEvent.setup();
     renderProductCreate();
 
-    await user.click(screen.getByRole('button', { name: 'Add symbol' }));
+    await user.click(screen.getByRole('button', { name: 'Add product' }));
 
     expect(apiMock.createProduct).not.toHaveBeenCalled();
     expect(screen.getByText('Ticker is required')).toBeInTheDocument();
   });
 
-  it('creates a product with a blank underlying when a broker is set', async () => {
+  it('creates a product with a blank underlying when a broker is set and never sends a name', async () => {
     const user = userEvent.setup();
-    const broker = {
-      id: 1,
-      code: 'PI',
-      name: 'Phillip Securities',
-      default_margin_rate: 0,
-      currency: 'THB',
-      created_at: null,
-    };
-    apiMock.getBrokers.mockResolvedValue([broker]);
     apiMock.createProduct.mockResolvedValue({});
 
     renderProductCreate();
@@ -249,7 +310,7 @@ describe('Underlying and contract copy', () => {
       expect(brokerSelect).toHaveTextContent('PI');
     });
 
-    await user.click(screen.getByRole('button', { name: 'Add symbol' }));
+    await user.click(screen.getByRole('button', { name: 'Add product' }));
 
     await waitFor(() => {
       expect(apiMock.createProduct).toHaveBeenCalledWith(expect.objectContaining({
@@ -258,10 +319,15 @@ describe('Underlying and contract copy', () => {
         asset_type: null,
       }));
     });
-    expect(apiMock.createProduct.mock.calls[0][0]).not.toHaveProperty('group_id');
+    const payload = apiMock.createProduct.mock.calls[0][0];
+    expect(payload).not.toHaveProperty('group_id');
+    expect(payload).not.toHaveProperty('name');
   });
 
-  it('renames the edit product spec fields to underlying defaults', () => {
+  it('renames the edit product spec fields to underlying defaults without a Name field', async () => {
+    const user = userEvent.setup();
+    apiMock.updateProduct.mockResolvedValue({});
+
     render(
       <EditAssetModal
         open
@@ -273,12 +339,17 @@ describe('Underlying and contract copy', () => {
     );
 
     expect(screen.getByLabelText(/^Underlying/)).toHaveValue('S50');
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Default multiplier')).toHaveValue(1000);
     expect(screen.getByLabelText('Default margin rate')).toHaveValue(0.1);
     expect(screen.getByRole('combobox', { name: 'Default margin mode' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Default type' })).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument();
     expect(screen.getAllByText('Inherited by every contract unless the contract overrides it.')).toHaveLength(4);
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(apiMock.updateProduct.mock.calls[0][1]).not.toHaveProperty('name');
   });
 
   it('clears the underlying with an empty ticker when a broker is set', async () => {
@@ -324,73 +395,134 @@ describe('Underlying and contract copy', () => {
     expect(apiMock.updateProduct).not.toHaveBeenCalled();
     expect(screen.getByText('Ticker is required')).toBeInTheDocument();
   });
+});
 
-  it('shows the identity values read-only and keeps only the span value per contract', () => {
-    render(
-      <EditAssetModal
-        open
-        mode="symbol"
-        product={product}
-        symbol={symbol}
-        onClose={vi.fn()}
-        onSaved={vi.fn()}
-      />,
-    );
+describe('Symbol modal product resolution', () => {
+  it('picks the product with three dropdowns and reads back its spec, with no multiplier or margin input', async () => {
+    renderSymbolEdit();
 
-    expect(screen.getByLabelText('Ticker')).toHaveValue('S50H26');
-    expect(screen.getByText('Multiplier 1000 · Margin rate 10% — set on the underlying + broker + type.')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Multiplier (this contract)')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Margin rate (this contract)')).not.toBeInTheDocument();
-    expect(screen.queryByText('This contract can override the underlying defaults.')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Broker' })).toHaveTextContent('PI');
+    });
+    expect(screen.getByRole('combobox', { name: 'Underlying' })).toHaveTextContent('S50');
+    expect(screen.getByRole('combobox', { name: 'Type' })).toHaveTextContent('Future');
+
+    expect(screen.getByText('Product S50 · PI · future')).toBeInTheDocument();
+    expect(screen.getByText('Multiplier 1000 · Margin rate 10% · Mode notional · Source tfex'))
+      .toBeInTheDocument();
+
+    expect(screen.queryByLabelText(/multiplier/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/margin rate/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText('Margin per contract (span)')).toHaveValue(500);
   });
 
-  it('creates a contract without multiplier or margin overrides', async () => {
+  it('disables Save and explains an unmatched Underlying + Broker + Type', async () => {
+    const user = userEvent.setup();
+    renderSymbolEdit();
+
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Type' }), { key: 'o' });
+
+    expect(screen.getByText('No product matches Underlying + Broker + Type — create it with + New product.'))
+      .toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(apiMock.updateSymbol).not.toHaveBeenCalled();
+  });
+
+  it('creates a symbol under the resolved product without multiplier or margin overrides', async () => {
     const user = userEvent.setup();
     apiMock.createSymbol.mockResolvedValue({});
 
-    render(
-      <AddAssetModal
-        open
-        mode="symbol"
-        product={product}
-        onClose={vi.fn()}
-        onSaved={vi.fn()}
-      />,
-    );
+    renderSymbolCreate(product);
 
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Underlying' })).toHaveFocus();
+    });
     await user.type(screen.getByLabelText(/Sync symbol/), 'S50H26');
     await user.type(screen.getByLabelText('Margin per contract (span)'), '500');
-    await user.click(screen.getByRole('button', { name: 'Add symbol' }));
-
+    await user.click(screen.getByRole('button', { name: 'Create symbol' }));
     await waitFor(() => expect(apiMock.createSymbol).toHaveBeenCalledTimes(1));
-    const [, payload] = apiMock.createSymbol.mock.calls[0];
+    const [productId, payload] = apiMock.createSymbol.mock.calls[0];
+    expect(productId).toBe(1);
     expect(payload).not.toHaveProperty('multiplier_override');
     expect(payload).not.toHaveProperty('margin_rate_override');
     expect(payload).toMatchObject({ sync_symbol: 'S50H26', margin_per_contract: 500 });
   });
 
-  it('updates a contract without echoing multiplier or margin overrides', async () => {
+  it('keeps the update payload free of product_id when the product is unchanged', async () => {
     const user = userEvent.setup();
     apiMock.updateSymbol.mockResolvedValue({});
 
-    render(
-      <EditAssetModal
-        open
-        mode="symbol"
-        product={product}
-        symbol={symbol}
-        onClose={vi.fn()}
-        onSaved={vi.fn()}
-      />,
-    );
+    renderSymbolEdit();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(apiMock.updateSymbol).toHaveBeenCalledTimes(1));
+    const [, payload] = apiMock.updateSymbol.mock.calls[0];
+    expect(payload).not.toHaveProperty('product_id');
+    expect(payload).not.toHaveProperty('multiplier_override');
+    expect(payload).not.toHaveProperty('margin_rate_override');
+    expect(payload).toMatchObject({ margin_per_contract: 500 });
+  });
+
+  it('sends product_id only when the dropdowns resolve a different product', async () => {
+    const user = userEvent.setup();
+    apiMock.updateSymbol.mockResolvedValue({});
+
+    renderSymbolEdit();
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Broker' })).toHaveTextContent('PI');
+    });
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Broker' }), { key: 'D' });
+
+    expect(await screen.findByText('Product S50 · DF · future')).toBeInTheDocument();
+    expect(screen.getByText('Multiplier 2000 · Margin rate 20% · Mode span · Source tfex'))
+      .toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(apiMock.updateSymbol).toHaveBeenCalledTimes(1));
     const [, payload] = apiMock.updateSymbol.mock.calls[0];
-    expect(payload).not.toHaveProperty('multiplier_override');
-    expect(payload).not.toHaveProperty('margin_rate_override');
-    expect(payload).toMatchObject({ margin_per_contract: 500 });
+    expect(payload).toMatchObject({ product_id: 2, sync_symbol: 'S50H26' });
+  });
+
+  it('selects a NULL-ticker product through — (none) and posts to it', async () => {
+    const user = userEvent.setup();
+    apiMock.createSymbol.mockResolvedValue({});
+
+    renderSymbolCreate(nullUnderlyingProduct);
+
+    expect(screen.getByRole('combobox', { name: 'Underlying' })).toHaveTextContent('— (none)');
+    expect(screen.getByText('Product — · Unassigned · future')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Underlying' })).toHaveFocus();
+    });
+    await user.type(screen.getByLabelText(/Sync symbol/), 'XAUUSD');
+    await user.click(screen.getByRole('button', { name: 'Create symbol' }));
+
+    await waitFor(() => expect(apiMock.createSymbol).toHaveBeenCalledTimes(1));
+    expect(apiMock.createSymbol.mock.calls[0][0]).toBe(4);
+  });
+
+  it('moves an existing symbol onto a NULL-ticker product via — (none)', async () => {
+    const user = userEvent.setup();
+    apiMock.updateSymbol.mockResolvedValue({});
+
+    renderSymbolEdit();
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Broker' })).toHaveTextContent('PI');
+    });
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Underlying' }), { key: '—' });
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Broker' }), { key: 'U' });
+
+    expect(await screen.findByText('Product — · Unassigned · future')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(apiMock.updateSymbol).toHaveBeenCalledTimes(1));
+    expect(apiMock.updateSymbol.mock.calls[0][1]).toMatchObject({ product_id: 4 });
   });
 });

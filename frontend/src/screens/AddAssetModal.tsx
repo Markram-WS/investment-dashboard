@@ -7,6 +7,13 @@ import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components
 import { Field, NumberInput, SelectInput, TextInput } from './components/Field';
 import { CONTROL_HELPER, CONTROL_TITLE } from './components/controlStyles';
 import { apiErrorDetail } from './components/apiError';
+import ProductSelector, {
+  ASSET_TYPES,
+  NO_MATCHING_PRODUCT,
+  resolveProduct,
+  selectionForProduct,
+} from './components/ProductSelector';
+import type { ProductSelection } from './components/ProductSelector';
 
 export type AssetModalMode = 'product' | 'symbol';
 
@@ -21,7 +28,6 @@ interface AddAssetModalProps {
 
 const SOURCES = ['manual', 'yfinance', 'tfex'];
 const SOURCE_NONE = '-';
-const TYPES = ['stock', 'future', 'option', 'crypto'];
 const MARGIN_MODES = ['notional', 'premium', 'span'];
 const CONTRACT_KINDS = ['future', 'stock', 'option', 'crypto'];
 
@@ -68,7 +74,6 @@ const emptyBrokerForm = {
 
 const emptyProductForm = {
   ticker: '',
-  name: '',
   asset_type: '',
   source: 'manual',
   broker_id: '',
@@ -98,6 +103,8 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
 }) => {
   const [productForm, setProductForm] = useState({ ...emptyProductForm });
   const [symbolForm, setSymbolForm] = useState({ ...emptySymbolForm });
+  const [selection, setSelection] = useState<ProductSelection>(selectionForProduct(product));
+  const [products, setProducts] = useState<AssetProduct[]>([]);
   const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -108,11 +115,20 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
   const [brokerNote, setBrokerNote] = useState('');
 
   useEffect(() => {
-    if (!open || mode !== 'product') return;
+    if (!open) return;
     let cancelled = false;
     api.getBrokers()
       .then((rows) => { if (!cancelled) setBrokers(rows); })
       .catch(() => { /* the broker list is optional */ });
+    return () => { cancelled = true; };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || mode !== 'symbol') return;
+    let cancelled = false;
+    api.getProducts()
+      .then((rows) => { if (!cancelled) setProducts(rows); })
+      .catch(() => { /* the preselected product still resolves the dropdowns */ });
     return () => { cancelled = true; };
   }, [open, mode]);
 
@@ -124,21 +140,20 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
     setBrokerSaving(false);
     setBrokerError('');
     setBrokerNote('');
+    setSelection(selectionForProduct(product));
+    setProducts(product ? [product] : []);
     if (mode === 'product') {
       setProductForm({ ...emptyProductForm });
     } else {
       setSymbolForm({ ...emptySymbolForm });
     }
-  }, [open, mode]);
+  }, [open, mode, product]);
 
   if (!open) return null;
 
   const editingSymbol = mode === 'symbol';
-
-  const identityMultiplier = product?.multiplier != null ? String(product.multiplier) : '1';
-  const identityMargin = product?.margin_rate != null
-    ? `${Number((product.margin_rate * 100).toFixed(2))}%`
-    : '0%';
+  const resolvedProduct = editingSymbol ? resolveProduct(products, selection) : undefined;
+  const symbolUnresolved = editingSymbol && !resolvedProduct;
 
   const handleSaveProduct = async () => {
     const ticker = productForm.ticker.trim();
@@ -161,7 +176,6 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
     try {
       await api.createProduct({
         ticker: ticker || undefined,
-        name: productForm.name.trim() || undefined,
         broker_id: productForm.broker_id ? Number(productForm.broker_id) : null,
         asset_type: productForm.asset_type || null,
         multiplier,
@@ -213,13 +227,13 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
   };
 
   const handleSaveSymbol = async () => {
-    if (!product) { setError('Choose a product first.'); return; }
+    if (!resolvedProduct) { setError(NO_MATCHING_PRODUCT); return; }
     const syncSymbol = symbolForm.sync_symbol.trim();
     if (!syncSymbol) { setError('sync_symbol is required'); return; }
     setLoading(true);
     setError('');
     try {
-      await api.createSymbol(product.product_id, {
+      await api.createSymbol(resolvedProduct.product_id, {
         price_symbol: symbolForm.price_symbol.trim() || undefined,
         sync_symbol: syncSymbol,
         contract_kind: symbolForm.contract_kind,
@@ -238,15 +252,13 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
     }
   };
 
-  const title = 'Add symbol';
+  const title = editingSymbol ? 'New symbol' : 'Add product';
 
   return (
     <ModalShell open={open} onClose={onClose} title={title} zIndex={9999}>
       <div className={`${MODAL_CARD} ${modalPanel}`}>
         <h3 className={`${MODAL_HEADER} block`} style={{ ...CONTROL_TITLE, margin: '0 0 12px' }}>
-          {editingSymbol
-            ? `Add symbol to ${product?.ticker ?? 'product'}`
-            : 'Add symbol'}
+          {title}
         </h3>
 
         <div className={MODAL_BODY}>
@@ -254,10 +266,14 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
 
           {editingSymbol ? (
             <div className="space-y-2.5">
-              <p style={{ ...CONTROL_HELPER, margin: 0 }}>
-                Product {product?.ticker ?? '—'} · broker {product?.broker_code ?? 'Unassigned'} ·
-                source {product?.source ?? '—'}
-              </p>
+              <ProductSelector
+                idPrefix="add-symbol"
+                className={rowThree}
+                products={products}
+                brokers={brokers}
+                selection={selection}
+                onChange={setSelection}
+              />
               <div>
                 <div className={rowTwo}>
                   <Field className="min-w-0" label="Ticker" htmlFor="add-symbol-price-symbol">
@@ -293,38 +309,26 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                     onChange={e => setSymbolForm(p => ({ ...p, expiry_date: e.target.value }))} />
                 </Field>
               </div>
-              <div>
-                <p style={{ ...CONTROL_HELPER, margin: '0 0 4px' }}>
-                  Multiplier {identityMultiplier} · Margin rate {identityMargin} — set on the underlying + broker + type.
-                </p>
-                <div className={rowThree}>
-                  <Field className="min-w-0" label="Strike price" htmlFor="add-symbol-strike">
-                    <NumberInput id="add-symbol-strike" step="any" value={symbolForm.strike_price}
-                      onChange={e => setSymbolForm(p => ({ ...p, strike_price: e.target.value }))} placeholder="—" />
-                  </Field>
-                </div>
+              <div className={rowTwo}>
+                <Field className="min-w-0" label="Strike price" htmlFor="add-symbol-strike">
+                  <NumberInput id="add-symbol-strike" step="any" value={symbolForm.strike_price}
+                    onChange={e => setSymbolForm(p => ({ ...p, strike_price: e.target.value }))} placeholder="—" />
+                </Field>
+                <Field className="min-w-0" label="Margin per contract (span)" htmlFor="add-symbol-margin-per-contract">
+                  <NumberInput id="add-symbol-margin-per-contract" step="any" value={symbolForm.margin_per_contract}
+                    onChange={e => setSymbolForm(p => ({ ...p, margin_per_contract: e.target.value }))}
+                    placeholder="Used by span margin mode" />
+                </Field>
               </div>
-              <Field className="min-w-0" label="Margin per contract (span)" htmlFor="add-symbol-margin-per-contract">
-                <NumberInput id="add-symbol-margin-per-contract" step="any" value={symbolForm.margin_per_contract}
-                  onChange={e => setSymbolForm(p => ({ ...p, margin_per_contract: e.target.value }))}
-                  placeholder="Used by span margin mode" />
-              </Field>
             </div>
           ) : (
             <div className="space-y-2.5">
-              <div className={rowTwo}>
-                <Field className="min-w-0" label="Underlying" htmlFor="add-product-ticker"
-                  hint="Leave blank for no underlying — allowed only when a broker or a default type is set.">
-                  <TextInput id="add-product-ticker" value={productForm.ticker}
-                    onChange={e => setProductForm(p => ({ ...p, ticker: e.target.value }))}
-                    placeholder="e.g. S50, or leave blank for none" />
-                </Field>
-                <Field className="min-w-0" label="Name" htmlFor="add-product-name">
-                  <TextInput id="add-product-name" value={productForm.name}
-                    onChange={e => setProductForm(p => ({ ...p, name: e.target.value }))}
-                    placeholder="Optional display name" />
-                </Field>
-              </div>
+              <Field className="min-w-0" label="Underlying" htmlFor="add-product-ticker"
+                hint="Leave blank for no underlying — allowed only when a broker or a default type is set.">
+                <TextInput id="add-product-ticker" value={productForm.ticker}
+                  onChange={e => setProductForm(p => ({ ...p, ticker: e.target.value }))}
+                  placeholder="e.g. S50, or leave blank for none" />
+              </Field>
               <div className={rowTwo}>
                 <div className="min-w-0">
                   <Field className="min-w-0" label="Broker" htmlFor="add-product-broker">
@@ -348,7 +352,7 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                   <SelectInput id="add-product-type" value={productForm.asset_type}
                     onChange={e => setProductForm(p => ({ ...p, asset_type: e.target.value }))}>
                     <option value="">—</option>
-                    {TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                    {ASSET_TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
                   </SelectInput>
                 </Field>
               </div>
@@ -456,9 +460,9 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
         <div className={`${MODAL_FOOTER} flex justify-end`} style={{ gap: 8, marginTop: 12 }}>
           <button type="button" onClick={onClose} style={secondaryButton} className="text-xs">Cancel</button>
           <button type="button" onClick={editingSymbol ? handleSaveSymbol : handleSaveProduct}
-            disabled={loading} style={primaryButton}
+            disabled={loading || symbolUnresolved} style={primaryButton}
             className="text-xs transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
-            {loading ? 'Saving...' : 'Add symbol'}
+            {loading ? 'Saving...' : (editingSymbol ? 'Create symbol' : 'Add product')}
           </button>
         </div>
       </div>

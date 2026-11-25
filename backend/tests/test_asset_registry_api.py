@@ -601,8 +601,51 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
             "An asset with this ticker already exists"
         )
 
-        # Brokerless Active Trading portfolio cannot receive a symbol.
+        # A brokerless Active Trading pair may now receive an explicit broker
+        # at sync time: the identity is created under the chosen broker.
         brokerless = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "NOBROKER",
+                        "broker_id": other_broker,
+                        "create_product": True,
+                        "create_underlying": "NOBROKERU",
+                        "create_source": "manual",
+                        "create_sync_symbol": "",
+                        "create_asset_type": "stock",
+                    }
+                ]
+            },
+        )
+        assert brokerless.status_code == 200, brokerless.text
+        assert brokerless.json()["created"] == 1
+        _, Session = get_test_engine()
+        async with Session() as session:
+            brokerless_product = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.ticker == "NOBROKERU",
+                        AssetProduct.broker_id == other_broker,
+                    )
+                )
+            ).scalars().first()
+            brokerless_symbol = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.price_symbol == "NOBROKER",
+                        AssetSymbol.broker_id == other_broker,
+                    )
+                )
+            ).scalars().first()
+        assert brokerless_product is not None
+        assert brokerless_symbol.product_id == brokerless_product.product_id
+
+        # Leaving the broker unassigned stays allowed: the symbol lands on the
+        # brokerless default identity while the proposal flag stays informational.
+        assert items[(None, "NOBROKER")]["broker_required"] is True
+        unassigned = await async_client.post(
             "/api/v1/assets/apply",
             json={
                 "choices": [
@@ -610,17 +653,32 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
                         "symbol": "NOBROKER",
                         "broker_id": None,
                         "create_product": True,
-                        "create_source": "yfinance",
-                        "create_sync_symbol": "NOBROKER",
-                        "create_asset_type": "stock",
+                        "create_source": "manual",
                     }
                 ]
             },
         )
-        assert brokerless.status_code == 400
-        assert brokerless.json()["detail"] == (
-            "Assign a broker in Edit portfolio before adding orders"
-        )
+        assert unassigned.status_code == 200, unassigned.text
+        assert unassigned.json()["created"] == 1
+        async with Session() as session:
+            unassigned_symbol = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.price_symbol == "NOBROKER",
+                        AssetSymbol.broker_id.is_(None),
+                    )
+                )
+            ).scalars().first()
+            default_product = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.ticker.is_(None),
+                        AssetProduct.broker_id.is_(None),
+                        AssetProduct.asset_type.is_(None),
+                    )
+                )
+            ).scalars().first()
+        assert unassigned_symbol.product_id == default_product.product_id
 
         # Successful create: the product ticker is the explicit underlying and
         # the contract row keeps the order symbol as its price symbol.
@@ -759,9 +817,171 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
 
         await cleanup_brokers(broker_id, other_broker, thb_broker)
     finally:
+        _, Session = get_test_engine()
+        async with Session() as session:
+            await session.execute(
+                delete(AssetSymbol).where(
+                    AssetSymbol.price_symbol == "NOBROKER",
+                    AssetSymbol.broker_id.is_(None),
+                )
+            )
+            await session.commit()
         await _delete_orders(
             order_id, brokerless_order, third_order, fourth_order, thb_order
         )
+
+
+@pytest.mark.asyncio
+async def test_apply_choice_broker_is_independent_of_pair(async_client):
+    """A sync choice may attach a price symbol to any existing broker.
+
+    The proposal pair only proves the order symbol exists somewhere; the
+    per-choice broker decides the identity, collision scope and product
+    validation, so two rows of one symbol with different brokers are allowed
+    in a single request.
+    """
+    pair_broker = await create_broker(async_client, "APX1")
+    chosen_broker = await create_broker(async_client, "APX2")
+    third_broker = await create_broker(async_client, "APX3")
+    orders = []
+    for symbol in ("CHOOSESYM", "TWOBROKERSYM"):
+        _, _, order_id = await _seed_order(symbol, pair_broker)
+        orders.append(order_id)
+
+    try:
+        # Unknown broker is rejected before anything is written.
+        unknown = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "CHOOSESYM",
+                        "broker_id": 999999,
+                        "create_product": True,
+                        "create_source": "manual",
+                        "create_asset_type": "stock",
+                    }
+                ]
+            },
+        )
+        assert unknown.status_code == 400
+        assert unknown.json()["detail"] == "Broker 999999 not found"
+
+        # A broker different from the pair creates the identity and the symbol
+        # under the chosen broker, never under the pair's broker.
+        created = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "CHOOSESYM",
+                        "broker_id": chosen_broker,
+                        "create_product": True,
+                        "create_underlying": "CHOOSEU",
+                        "create_source": "manual",
+                        "create_asset_type": "stock",
+                    }
+                ]
+            },
+        )
+        assert created.status_code == 200, created.text
+        assert created.json()["created"] == 1
+        _, Session = get_test_engine()
+        async with Session() as session:
+            chosen_product = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.ticker == "CHOOSEU",
+                        AssetProduct.broker_id == chosen_broker,
+                    )
+                )
+            ).scalars().one()
+            chosen_symbol = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.price_symbol == "CHOOSESYM",
+                        AssetSymbol.broker_id == chosen_broker,
+                    )
+                )
+            ).scalars().one()
+            pair_products = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.ticker == "CHOOSEU",
+                        AssetProduct.broker_id == pair_broker,
+                    )
+                )
+            ).scalars().all()
+        assert chosen_symbol.product_id == chosen_product.product_id
+        assert pair_products == []
+
+        # Two rows of one symbol under different brokers, one request.
+        first_product = await create_product(
+            async_client, ticker="TWOPA", broker_id=chosen_broker, asset_type="stock"
+        )
+        second_product = await create_product(
+            async_client, ticker="TWOPB", broker_id=third_broker, asset_type="stock"
+        )
+        both_choices = [
+            {
+                "symbol": "TWOBROKERSYM",
+                "broker_id": chosen_broker,
+                "product_id": first_product["product_id"],
+            },
+            {
+                "symbol": "TWOBROKERSYM",
+                "broker_id": third_broker,
+                "product_id": second_product["product_id"],
+            },
+        ]
+        both = await async_client.post(
+            "/api/v1/assets/apply", json={"choices": both_choices}
+        )
+        assert both.status_code == 200, both.text
+        assert both.json() == {"created": 2, "choices": 2}
+        async with Session() as session:
+            rows = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.price_symbol == "TWOBROKERSYM"
+                    )
+                )
+            ).scalars().all()
+        assert {row.broker_id for row in rows} == {chosen_broker, third_broker}
+        assert {row.product_id for row in rows} == {
+            first_product["product_id"],
+            second_product["product_id"],
+        }
+
+        again = await async_client.post(
+            "/api/v1/assets/apply", json={"choices": both_choices}
+        )
+        assert again.status_code == 200, again.text
+        assert again.json() == {"created": 0, "choices": 2}
+
+        # An existing product must belong to the chosen broker; the message
+        # names the chosen broker, not the proposal pair's broker.
+        wrong = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "CHOOSESYM",
+                        "broker_id": chosen_broker,
+                        "product_id": second_product["product_id"],
+                    }
+                ]
+            },
+        )
+        assert wrong.status_code == 400
+        assert wrong.json()["detail"] == (
+            f"Product TWOPB (product_id={second_product['product_id']}) "
+            "is not in broker APX2"
+        )
+
+        await cleanup_brokers(pair_broker, chosen_broker, third_broker)
+    finally:
+        await _delete_orders(*orders)
 
 
 @pytest.mark.asyncio
@@ -2367,3 +2587,271 @@ async def test_rename_uses_effective_broker_for_symbol_collision(async_client):
         assert resp.json()["detail"] == "An asset with this ticker already exists"
     finally:
         await cleanup_brokers(broker_one, broker_two)
+
+
+@pytest.mark.asyncio
+async def test_symbol_move_to_another_product_identity(async_client):
+    broker_id = await create_broker(async_client, "MOV1")
+    other_broker = await create_broker(async_client, "MOV2")
+    alpha = await create_product(
+        async_client,
+        ticker="ALPHA",
+        broker_id=broker_id,
+        asset_type="stock",
+        multiplier=2,
+        margin_rate=0.1,
+        margin_mode="notional",
+        source="manual",
+    )
+    beta = await create_product(
+        async_client,
+        ticker="BETA",
+        broker_id=broker_id,
+        asset_type="stock",
+        multiplier=5,
+        margin_rate=0.25,
+        margin_mode="premium",
+        source="manual",
+    )
+    gamma = await create_product(
+        async_client,
+        ticker="GAMMA",
+        broker_id=other_broker,
+        asset_type="stock",
+        multiplier=3,
+        margin_rate=0.4,
+        margin_mode="notional",
+        source="manual",
+    )
+    _, Session = get_test_engine()
+
+    async def stored(symbol_id: int) -> AssetSymbol:
+        async with Session() as session:
+            return await session.get(AssetSymbol, symbol_id)
+
+    async def default_product_id() -> int:
+        async with Session() as session:
+            row = (
+                await session.execute(
+                    select(AssetProduct)
+                    .where(
+                        AssetProduct.ticker.is_(None),
+                        AssetProduct.broker_id.is_(None),
+                        AssetProduct.asset_type.is_(None),
+                    )
+                    .order_by(AssetProduct.product_id)
+                )
+            ).scalars().first()
+            return row.product_id
+
+    try:
+        created = await create_symbol(
+            async_client,
+            alpha["product_id"],
+            price_symbol="MOVE.ME",
+            sync_symbol="MOVE",
+            contract_kind="stock",
+            margin_per_contract=7,
+        )
+        assert created.status_code == 201, created.text
+        symbol = created.json()
+        symbol_id = symbol["symbol_id"]
+        assert symbol["multiplier_effective"] == 2.0
+        assert symbol["margin_rate_effective"] == 0.1
+
+        # Move inside the same broker: identity-owned values re-base, the
+        # contract-level span and every other symbol field stay put.
+        moved = await async_client.put(
+            f"/api/v1/assets/symbols/{symbol_id}",
+            json={"product_id": beta["product_id"]},
+        )
+        assert moved.status_code == 200, moved.text
+        body = moved.json()
+        assert set(body) == SYMBOL_KEYS
+        assert body["product_id"] == beta["product_id"]
+        assert body["price_symbol"] == "MOVE.ME"
+        assert body["sync_symbol"] == "MOVE"
+        assert body["contract_kind"] == "stock"
+        assert body["margin_per_contract"] == 7.0
+        assert body["multiplier_effective"] == 5.0
+        assert body["margin_rate_effective"] == 0.25
+        assert (await stored(symbol_id)).broker_id == broker_id
+
+        # Move to a product owned by a different broker: the broker mirror
+        # follows the new owner.
+        across = await async_client.put(
+            f"/api/v1/assets/symbols/{symbol_id}",
+            json={"product_id": gamma["product_id"]},
+        )
+        assert across.status_code == 200, across.text
+        assert across.json()["product_id"] == gamma["product_id"]
+        assert across.json()["multiplier_effective"] == 3.0
+        assert across.json()["margin_rate_effective"] == 0.4
+        row = await stored(symbol_id)
+        assert row.product_id == gamma["product_id"]
+        assert row.broker_id == other_broker
+
+        # Unknown target product is a pure validation failure.
+        unknown = await async_client.put(
+            f"/api/v1/assets/symbols/{symbol_id}", json={"product_id": 999999}
+        )
+        assert unknown.status_code == 404
+        assert unknown.json()["detail"] == "Product not found"
+        row = await stored(symbol_id)
+        assert row.product_id == gamma["product_id"]
+        assert row.broker_id == other_broker
+
+        # A rejected identity-owned override leaves the symbol where it was.
+        for field, detail in (
+            (
+                "multiplier_override",
+                "multiplier is set on the underlying + broker + type, "
+                "not on the contract",
+            ),
+            (
+                "margin_rate_override",
+                "margin_rate is set on the underlying + broker + type, "
+                "not on the contract",
+            ),
+        ):
+            rejected = await async_client.put(
+                f"/api/v1/assets/symbols/{symbol_id}",
+                json={"product_id": beta["product_id"], field: 4},
+            )
+            assert rejected.status_code == 400
+            assert rejected.json()["detail"] == detail
+            row = await stored(symbol_id)
+            assert row.product_id == gamma["product_id"]
+            assert row.broker_id == other_broker
+
+        # Omitted product_id keeps ownership; remaining fields still update.
+        renamed = await async_client.put(
+            f"/api/v1/assets/symbols/{symbol_id}", json={"sync_symbol": "MOVE2"}
+        )
+        assert renamed.status_code == 200, renamed.text
+        assert renamed.json()["product_id"] == gamma["product_id"]
+        assert renamed.json()["sync_symbol"] == "MOVE2"
+        # An explicit null is the same no-op move (it is not a target).
+        null_move = await async_client.put(
+            f"/api/v1/assets/symbols/{symbol_id}",
+            json={"product_id": None, "price_symbol": "move.me"},
+        )
+        assert null_move.status_code == 200, null_move.text
+        assert null_move.json()["product_id"] == gamma["product_id"]
+        assert null_move.json()["price_symbol"] == "move.me"
+        # The current owner is an explicit no-op move as well.
+        same = await async_client.put(
+            f"/api/v1/assets/symbols/{symbol_id}",
+            json={"product_id": gamma["product_id"], "margin_per_contract": 9},
+        )
+        assert same.status_code == 200, same.text
+        assert same.json()["product_id"] == gamma["product_id"]
+        assert same.json()["margin_per_contract"] == 9.0
+        row = await stored(symbol_id)
+        assert row.product_id == gamma["product_id"]
+        assert row.broker_id == other_broker
+
+        # A normalized key already owned in the target broker scope blocks the
+        # move with the existing collision detail and changes no rows.
+        assert (
+            await create_symbol(
+                async_client,
+                alpha["product_id"],
+                price_symbol="DUP",
+                sync_symbol="DUPA",
+            )
+        ).status_code == 201
+        gamma_dup = await create_symbol(
+            async_client,
+            gamma["product_id"],
+            price_symbol="DUP",
+            sync_symbol="DUPG",
+        )
+        assert gamma_dup.status_code == 201, gamma_dup.text
+        gamma_dup_id = gamma_dup.json()["symbol_id"]
+        collision = await async_client.put(
+            f"/api/v1/assets/symbols/{gamma_dup_id}",
+            json={"product_id": beta["product_id"]},
+        )
+        assert collision.status_code == 400
+        assert collision.json()["detail"] == (
+            f"Symbol DUP on broker MOV1 already belongs to product ALPHA "
+            f"(product_id={alpha['product_id']})"
+        )
+        row = await stored(gamma_dup_id)
+        assert row.product_id == gamma["product_id"]
+        assert row.price_symbol == "DUP"
+        assert row.broker_id == other_broker
+
+        # Option identity must stay available inside the target product.
+        opt_home = await create_product(
+            async_client, ticker="OPTA", broker_id=broker_id, asset_type="option"
+        )
+        opt_target = await create_product(
+            async_client, ticker="OPTB", broker_id=broker_id, asset_type="option"
+        )
+        for product, sync in ((opt_home, "OA1"), (opt_target, "OB1")):
+            seeded = await create_symbol(
+                async_client,
+                product["product_id"],
+                contract_kind="option",
+                option_type="call",
+                expiry_date="2026-03-31",
+                strike_price=10,
+                sync_symbol=sync,
+            )
+            assert seeded.status_code == 201, seeded.text
+        dated = (
+            await async_client.get(
+                f"/api/v1/assets/symbols?product_id={opt_home['product_id']}"
+            )
+        ).json()[0]
+        option_conflict = await async_client.put(
+            f"/api/v1/assets/symbols/{dated['symbol_id']}",
+            json={"product_id": opt_target["product_id"]},
+        )
+        assert option_conflict.status_code == 400
+        assert option_conflict.json()["detail"] == (
+            f"Option contract already exists on product OPTB "
+            f"(product_id={opt_target['product_id']})"
+        )
+        row = await stored(dated["symbol_id"])
+        assert row.product_id == opt_home["product_id"]
+        assert row.broker_id == broker_id
+
+        # The default identity accepts moved symbols too.
+        default_id = await default_product_id()
+        movable = await create_symbol(
+            async_client,
+            alpha["product_id"],
+            price_symbol="DEFMOVE",
+            sync_symbol="DEFSYNC",
+            contract_kind="stock",
+        )
+        assert movable.status_code == 201, movable.text
+        to_default = await async_client.put(
+            f"/api/v1/assets/symbols/{movable.json()['symbol_id']}",
+            json={"product_id": default_id},
+        )
+        assert to_default.status_code == 200, to_default.text
+        assert to_default.json()["product_id"] == default_id
+        assert to_default.json()["multiplier_effective"] == 1.0
+        assert to_default.json()["margin_rate_effective"] == 0.0
+        default_row = await stored(movable.json()["symbol_id"])
+        assert default_row.product_id == default_id
+        assert default_row.broker_id is None
+        removed = await async_client.delete(
+            f"/api/v1/assets/symbols/{movable.json()['symbol_id']}"
+        )
+        assert removed.status_code == 204
+    finally:
+        async with Session() as session:
+            stray = (
+                await session.execute(
+                    select(AssetSymbol).where(AssetSymbol.sync_symbol == "DEFSYNC")
+                )
+            ).scalars().all()
+            for item in stray:
+                await session.delete(item)
+            await session.commit()
+        await cleanup_brokers(broker_id, other_broker)

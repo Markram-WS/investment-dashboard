@@ -70,6 +70,29 @@ const formatMultiplier = (value: number) =>
 const formatMarginPct = (rate: number) =>
   Number.isFinite(rate) ? `${Number((rate * 100).toFixed(2))}%` : '—';
 
+/** Column head shared by every broker table. */
+function RegistryHead() {
+  return (
+    <thead>
+      <tr>
+        <th style={{ ...headTh, width: '24%' }} title="Underlying: the product that owns these contracts">Underlying</th>
+        <th className={COL_SPEC} style={{ ...headTh, width: '11%' }}>Type</th>
+        <th className="text-right" style={{ ...headTh, width: '12%', textAlign: 'right' }} title="Default multiplier — inherited by every contract unless the contract overrides it">Multiplier</th>
+        <th className="text-right" style={{ ...headTh, width: '11%', textAlign: 'right' }} title="Default margin rate, 0.10 = 10% — inherited by every contract unless the contract overrides it">Margin</th>
+        <th className={COL_SPEC} style={{ ...headTh, width: '11%' }}>Mode</th>
+        <th className={COL_SOURCE} style={{ ...headTh, width: '11%' }}>Source</th>
+        <th className="text-right" style={{ ...headTh, width: '10%', textAlign: 'right' }}>Contracts</th>
+        <th style={{ ...headTh, width: '10%', paddingInline: 8 }}>
+          <span className="sr-only">Actions</span>
+        </th>
+      </tr>
+    </thead>
+  );
+}
+
+/** Fixed layout for a registry table, stacked inside the page card. */
+const registryTable = { borderCollapse: 'separate', borderSpacing: 0 } as const;
+
 function ProductRow({
   product, expanded, onToggle, onEdit, onAddSymbol, onEditSymbol, onRefreshSymbol, onSaveQuote,
 }: {
@@ -129,13 +152,13 @@ function ProductRow({
         </td>
         <td style={{ ...cell, paddingInline: 8 }}>
           <div className="flex items-center justify-end" style={{ gap: 4 }}>
-            <IconButton label={`New contract for ${product.ticker ?? NO_TICKER}`} onClick={() => onAddSymbol(product)}>
+            <IconButton label="+ New symbol" onClick={() => onAddSymbol(product)}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             </IconButton>
-            <IconButton label="Edit identity" onClick={() => onEdit(product)}>
+            <IconButton label="Edit product" onClick={() => onEdit(product)}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
@@ -288,7 +311,7 @@ function SymbolRows({ product, onEditSymbol, onRefreshSymbol, onSaveQuote }: {
                       </svg>
                     </IconButton>
                   )}
-                  <IconButton label="Edit contract" onClick={() => onEditSymbol(product, symbol)}>
+                  <IconButton label="Edit symbol" onClick={() => onEditSymbol(product, symbol)}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
@@ -310,10 +333,11 @@ interface BrokerSectionModel {
   products: AssetProduct[];
 }
 
-/** One collapsible table section per broker, labelled `CODE · count`. */
-function BrokerSection({ sectionLabel, products, expanded, onToggle, onEdit, onAddSymbol, onEditSymbol, onRefreshSymbol, onSaveQuote }: {
+/** One collapsible table per broker, headed by the code and its product count. */
+function BrokerSection({ sectionLabel, products, first, expanded, onToggle, onEdit, onAddSymbol, onEditSymbol, onRefreshSymbol, onSaveQuote }: {
   sectionLabel: string;
   products: AssetProduct[];
+  first: boolean;
   expanded: Set<number>;
   onToggle: (productId: number) => void;
   onEdit: (product: AssetProduct) => void;
@@ -325,55 +349,54 @@ function BrokerSection({ sectionLabel, products, expanded, onToggle, onEdit, onA
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <>
-      <tr
+    <div style={{ marginTop: first ? 0 : 16 }}>
+      <button
+        type="button"
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? `Expand ${sectionLabel}` : `Collapse ${sectionLabel}`}
         onClick={() => setCollapsed(c => !c)}
-        className="cursor-pointer select-none transition-colors"
-        style={{ height: 32, background: 'var(--color-surface)' }}
+        className="flex w-full items-center select-none"
+        style={{
+          gap: 6,
+          padding: '6px 12px 2px',
+          background: 'transparent',
+          border: 0,
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
       >
-        <td colSpan={COLUMN_COUNT} style={{
-          padding: '4px 12px',
-          borderBottom: '1px solid var(--color-hairline)',
+        <svg className="transition-transform" style={{ width: 12, height: 12, flexShrink: 0, color: 'var(--color-slate)', transform: collapsed ? 'rotate(-90deg)' : 'none' }}
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+        <span style={{
+          fontSize: 'var(--fs-label)',
+          fontWeight: 600,
+          color: 'var(--color-ink)',
+          fontVariantNumeric: 'tabular-nums',
         }}>
-          <div className="flex items-center" style={{ gap: 6 }}>
-            <button
-              type="button"
-              aria-expanded={!collapsed}
-              aria-label={collapsed ? `Expand ${sectionLabel}` : `Collapse ${sectionLabel}`}
-              onClick={e => { e.stopPropagation(); setCollapsed(c => !c); }}
-              className="flex items-center justify-center"
-              style={{ width: 14, height: 14, color: 'var(--color-slate)', padding: 0, border: 0, background: 'transparent' }}
-            >
-              <svg className="transition-transform" style={{ width: 12, height: 12, transform: collapsed ? 'rotate(-90deg)' : 'none' }}
-                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-            <span style={{
-              fontSize: 'var(--fs-label)',
-              fontWeight: 600,
-              color: 'var(--color-ink)',
-              fontVariantNumeric: 'tabular-nums',
-            }}>
-              {sectionLabel} · {products.length}
-            </span>
-          </div>
-        </td>
-      </tr>
-      {!collapsed && products.map((product) => (
-        <ProductRow
-          key={product.product_id}
-          product={product}
-          expanded={expanded.has(product.product_id)}
-          onToggle={() => onToggle(product.product_id)}
-          onEdit={onEdit}
-          onAddSymbol={onAddSymbol}
-          onEditSymbol={onEditSymbol}
-          onRefreshSymbol={onRefreshSymbol}
-          onSaveQuote={onSaveQuote}
-        />
-      ))}
-    </>
+          {sectionLabel} · {products.length}
+        </span>
+      </button>
+      <table className="w-full text-left" style={registryTable}>
+        <RegistryHead />
+        <tbody>
+          {!collapsed && products.map((product) => (
+            <ProductRow
+              key={product.product_id}
+              product={product}
+              expanded={expanded.has(product.product_id)}
+              onToggle={() => onToggle(product.product_id)}
+              onEdit={onEdit}
+              onAddSymbol={onAddSymbol}
+              onEditSymbol={onEditSymbol}
+              onRefreshSymbol={onRefreshSymbol}
+              onSaveQuote={onSaveQuote}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -488,8 +511,8 @@ export default function AllAssets() {
 
   const loading = productsLoading;
   const summary = [
-    `${products.length} identit${products.length === 1 ? 'y' : 'ies'}`,
-    `${totalSymbols} contract${totalSymbols === 1 ? '' : 's'}`,
+    `${products.length} product${products.length === 1 ? '' : 's'}`,
+    `${totalSymbols} symbol${totalSymbols === 1 ? '' : 's'}`,
   ].join(' · ');
 
   return (
@@ -568,57 +591,47 @@ export default function AllAssets() {
         </div>
         <div className="flex items-center" style={{ gap: 6, marginLeft: 'auto' }}>
           <button type="button" className="at-znew" onClick={() => setShowSync(true)}>Sync from orders</button>
-          <button type="button" className="at-znew" onClick={() => setShowProductModal(true)}>+ New symbol</button>
+          <button type="button" className="at-znew" onClick={() => setShowProductModal(true)}>+ New product</button>
         </div>
       </div>
 
       <div className="at-card" style={{ overflow: 'clip' }}>
-        <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
-          <thead>
-            <tr>
-              <th style={{ ...headTh, width: '24%' }} title="Underlying: the product that owns these contracts">Underlying</th>
-              <th className={COL_SPEC} style={{ ...headTh, width: '11%' }}>Type</th>
-              <th className="text-right" style={{ ...headTh, width: '12%', textAlign: 'right' }} title="Default multiplier — inherited by every contract unless the contract overrides it">Multiplier</th>
-              <th className="text-right" style={{ ...headTh, width: '11%', textAlign: 'right' }} title="Default margin rate, 0.10 = 10% — inherited by every contract unless the contract overrides it">Margin</th>
-              <th className={COL_SPEC} style={{ ...headTh, width: '11%' }}>Mode</th>
-              <th className={COL_SOURCE} style={{ ...headTh, width: '11%' }}>Source</th>
-              <th className="text-right" style={{ ...headTh, width: '10%', textAlign: 'right' }}>Contracts</th>
-              <th style={{ ...headTh, width: '10%', paddingInline: 8 }}>
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                <tr key={i} style={{ height: 32 }} className="animate-pulse">
-                  <td colSpan={COLUMN_COUNT} style={cell}>
-                    <div style={{ height: 8, width: `${62 - i * 9}%`, borderRadius: 999, background: 'var(--color-hairline-soft)' }} />
-                  </td>
+        {(loading || sections.length === 0) ? (
+          <table className="w-full text-left" style={registryTable}>
+            <RegistryHead />
+            <tbody>
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i} style={{ height: 32 }} className="animate-pulse">
+                    <td colSpan={COLUMN_COUNT} style={cell}>
+                      <div style={{ height: 8, width: `${62 - i * 9}%`, borderRadius: 999, background: 'var(--color-hairline-soft)' }} />
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr style={{ height: 32 }}>
+                  <td colSpan={COLUMN_COUNT} style={{ ...cell, color: 'var(--color-slate)' }}>No products</td>
                 </tr>
-              ))
-            ) : sections.length === 0 ? (
-              <tr style={{ height: 32 }}>
-                <td colSpan={COLUMN_COUNT} style={{ ...cell, color: 'var(--color-slate)' }}>No identities</td>
-              </tr>
-            ) : (
-              sections.map(section => (
-                <BrokerSection
-                  key={section.key}
-                  sectionLabel={section.label}
-                  products={section.products}
-                  expanded={expanded}
-                  onToggle={toggleExpanded}
-                  onEdit={setEditProduct}
-                  onAddSymbol={setAddSymbolFor}
-                  onEditSymbol={(product, symbol) => setEditSymbol({ product, symbol })}
-                  onRefreshSymbol={handleRefreshSymbol}
-                  onSaveQuote={handleSaveQuote}
-                />
-              ))
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        ) : (
+          sections.map((section, index) => (
+            <BrokerSection
+              key={section.key}
+              sectionLabel={section.label}
+              products={section.products}
+              first={index === 0}
+              expanded={expanded}
+              onToggle={toggleExpanded}
+              onEdit={setEditProduct}
+              onAddSymbol={setAddSymbolFor}
+              onEditSymbol={(product, symbol) => setEditSymbol({ product, symbol })}
+              onRefreshSymbol={handleRefreshSymbol}
+              onSaveQuote={handleSaveQuote}
+            />
+          ))
+        )}
       </div>
     </PageLayout>
   );

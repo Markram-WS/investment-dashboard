@@ -537,6 +537,8 @@ export interface AssetSymbolPayload {
 export interface AssetSymbolUpdatePayload {
   price_symbol?: string | null;
   sync_symbol?: string;
+  /** Move the symbol to another product; omitted when the product is unchanged. */
+  product_id?: number;
   contract_kind?: string;
   option_type?: string | null;
   expiry_date?: string | null;
