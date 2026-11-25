@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { MFSetting, MFHolding } from "../types";
+import { MFSetting, MFHolding, AssetProduct, AssetSymbol } from "../types";
 import ModalShell from "./components/ModalShell";
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
 import { Field, NumberInput, TextInput } from "./components/Field";
@@ -68,6 +68,7 @@ const ADD_ASSET_BUTTON: CSSProperties = {
   ...ADD_LINK, fontSize: "var(--fs-label)", whiteSpace: "nowrap",
 };
 const GROW_INPUT: CSSProperties = { flex: "1 1 auto", width: "auto", minWidth: 0 };
+const GROW_SELECT: CSSProperties = { ...GROW_INPUT, cursor: "pointer" };
 const PERCENT_INPUT: CSSProperties = { width: 56 };
 const ASSET_NAME: CSSProperties = {
   width: 40, flex: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -107,6 +108,11 @@ export default function MFEditPortfolioModal({
   const [tagsStr, setTagsStr] = useState(
     portfolio.tags ? Object.keys(portfolio.tags).join(", ") : ""
   );
+  // Asset registry (products, symbols) for the allocation symbol picker.
+  const [products, setProducts] = useState<AssetProduct[]>([]);
+  const [symbols, setSymbols] = useState<AssetSymbol[]>([]);
+  const [registryLoading, setRegistryLoading] = useState(false);
+  const [registryErr, setRegistryErr] = useState("");
 
   // Target ratio
   const [ratioEntries, setRatioEntries] = useState<{ asset: string; pct: string }[]>(() =>
@@ -153,6 +159,74 @@ export default function MFEditPortfolioModal({
       setDeleteErr("");
     }
   }, [showModal, portfolio, settings]);
+
+  useEffect(() => {
+    if (!showModal) return;
+    let cancelled = false;
+    setRegistryLoading(true);
+    setRegistryErr("");
+    Promise.all([api.getProducts(), api.getSymbols()])
+      .then(([productRows, symbolRows]) => {
+        if (cancelled) return;
+        setProducts(productRows);
+        setSymbols(symbolRows);
+      })
+      .catch((err: unknown) => {
+        console.error("Failed to load the asset registry:", err);
+        if (!cancelled) setRegistryErr("Asset registry unavailable");
+      })
+      .finally(() => {
+        if (!cancelled) setRegistryLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [showModal]);
+
+  const productById = useMemo(
+    () => new Map(products.map((product) => [product.product_id, product])),
+    [products]
+  );
+
+  // One optgroup per registry product, labelled broker · underlying. The
+  // option value is the dashboard price_symbol, so holdings and rebalance keep
+  // matching the stored key; the option label is the symbol itself.
+  const symbolGroups = useMemo(() => {
+    const groups = new Map<number, { key: number; label: string; options: { value: string; label: string }[] }>();
+    for (const symbol of symbols) {
+      const priceSymbol = symbol.price_symbol?.trim();
+      if (!priceSymbol) continue;
+      const product = productById.get(symbol.product_id);
+      if (!product) continue;
+      let group = groups.get(product.product_id);
+      if (!group) {
+        const code = product.broker_code ?? "Unassigned";
+        group = { key: product.product_id, label: `${code} · ${product.ticker ?? "—"}`, options: [] };
+        groups.set(product.product_id, group);
+      }
+      group.options.push({ value: priceSymbol, label: priceSymbol });
+    }
+    return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label));
+  }, [symbols, productById]);
+
+  // Stored keys resolve case-insensitively, so an existing row stays selected
+  // instead of rendering blank against the registry's canonical casing.
+  const optionByKey = useMemo(
+    () => new Map(symbolGroups.flatMap((group) => group.options.map((option) => [option.value.trim().toUpperCase(), option.value] as const))),
+    [symbolGroups]
+  );
+
+  // Stored keys with no registry row stay selectable so saving never drops them.
+  const fallbackOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const options: { value: string; label: string }[] = [];
+    for (const entry of ratioEntries) {
+      const asset = entry.asset.trim();
+      const key = asset.toUpperCase();
+      if (!asset || optionByKey.has(key) || seen.has(key)) continue;
+      seen.add(key);
+      options.push({ value: entry.asset, label: `${entry.asset} (not in the registry)` });
+    }
+    return options;
+  }, [ratioEntries, optionByKey]);
 
   if (!showModal) return null;
 
@@ -279,6 +353,9 @@ export default function MFEditPortfolioModal({
                 <Field label="Portfolio name" htmlFor="mf-portfolio-name">
                   <TextInput id="mf-portfolio-name" value={name} onChange={e => setName(e.target.value)} />
                 </Field>
+                <Field label="Type">
+                  <div style={readonlyValue}>Mutual Fund</div>
+                </Field>
                 <div style={FIELD_PAIR}>
                   <Field label="Available cash">
                     <div style={readonlyValue}>{formatMoney(availableDisplay)}</div>
@@ -327,9 +404,33 @@ export default function MFEditPortfolioModal({
                 <div className="flex flex-col" style={{ gap: 6 }}>
                   {ratioEntries.map((e, i) => (
                     <div key={i} className="flex items-center" style={ROW}>
-                      <TextInput type="text" value={e.asset} onChange={v => {
-                        const copy = [...ratioEntries]; copy[i] = { ...copy[i], asset: v.target.value.toUpperCase() }; setRatioEntries(copy);
-                      }} placeholder="Asset" style={GROW_INPUT} />
+                      {registryErr && symbols.length === 0 ? (
+                        <TextInput type="text" value={e.asset} onChange={v => {
+                          const copy = [...ratioEntries]; copy[i] = { ...copy[i], asset: v.target.value.toUpperCase() }; setRatioEntries(copy);
+                        }} placeholder="Asset" style={GROW_INPUT} />
+                      ) : (
+                        <select
+                          aria-label={`Asset for allocation ${i + 1}`}
+                          value={optionByKey.get(e.asset.trim().toUpperCase()) ?? e.asset}
+                          disabled={registryLoading}
+                          onChange={v => {
+                            const copy = [...ratioEntries]; copy[i] = { ...copy[i], asset: v.target.value }; setRatioEntries(copy);
+                          }}
+                          style={{ ...CONTROL_INPUT, ...GROW_SELECT, opacity: registryLoading ? 0.6 : 1 }}
+                        >
+                          <option value="">Select symbol…</option>
+                          {fallbackOptions.map(o => (
+                            <option key={`stored-${o.value}`} value={o.value}>{o.label}</option>
+                          ))}
+                          {symbolGroups.map(g => (
+                            <optgroup key={g.key} label={g.label}>
+                              {g.options.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                      )}
                       <NumberInput step="0.1" value={e.pct} onChange={v => {
                         const copy = [...ratioEntries]; copy[i] = { ...copy[i], pct: v.target.value }; setRatioEntries(copy);
                       }} placeholder="%" style={PERCENT_INPUT} />

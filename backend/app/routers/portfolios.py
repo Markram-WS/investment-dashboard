@@ -323,7 +323,13 @@ async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depend
         broker_id=portfolio.broker_id,
         product_ticker=product_ticker,
         product_tickers=product_tickers,
-        product_type=_normalize_product_type(portfolio.product_type),
+        # A Managed Fund's identity is always a mutual fund: the client value
+        # is accepted but never overrides it.
+        product_type=(
+            "mutual_fund"
+            if portfolio.port_type == "Managed Fund"
+            else _normalize_product_type(portfolio.product_type)
+        ),
         x_amount=portfolio.x_amount or 0,
         initial_capital=portfolio.initial_capital or 0,
         target_ratio=portfolio.target_ratio,
@@ -489,9 +495,13 @@ async def update_portfolio(portfolio_id: int, update: PortfolioUpdate, db: Async
         )
         update_data["product_tickers"] = tickers
         update_data["product_ticker"] = tickers[0] if tickers else None
-    # The identity type is display-only metadata: null clears it, and a value
-    # outside the allow-list is rejected (it never rewrites the ticker).
-    if "product_type" in update_data:
+    # The identity type is display-only metadata: for a Managed Fund it is
+    # fixed to mutual_fund (a client value, including null, never overrides
+    # it); otherwise null clears it and a value outside the allow-list is
+    # rejected (it never rewrites the ticker).
+    if update_data.get("port_type", portfolio.port_type) == "Managed Fund":
+        update_data["product_type"] = "mutual_fund"
+    elif "product_type" in update_data:
         update_data["product_type"] = _normalize_product_type(
             update_data["product_type"]
         )

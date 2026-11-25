@@ -19,108 +19,50 @@ from app.models import (  # noqa: E402
 
 
 @pytest.mark.asyncio
-async def test_portfolio_product_type_payload_update_and_validation(async_client):
+async def test_managed_fund_identity_type_is_fixed(async_client):
     _, Session = get_test_engine()
-    typed_id = None
-    untyped_id = None
     fund_id = None
+    untyped_id = None
     try:
-        # Create accepts the identity type and persists it; omitted = null.
-        typed = await async_client.post(
-            "/api/v1/portfolios",
-            json={
-                "portfolio_name": "Typed Identity",
-                "port_type": "Managed Fund",
-                "product_type": "future",
-            },
-        )
-        assert typed.status_code == 201, typed.text
-        typed_body = typed.json()
-        typed_id = typed_body["portfolio_id"]
-        assert typed_body["product_type"] == "future"
-
-        untyped = await async_client.post(
-            "/api/v1/portfolios",
-            json={"portfolio_name": "Untyped Identity", "port_type": "Managed Fund"},
-        )
-        assert untyped.status_code == 201, untyped.text
-        untyped_id = untyped.json()["portfolio_id"]
-        assert untyped.json()["product_type"] is None
-
-        # mutual_fund is a first-class identity type.
-        fund = await async_client.post(
+        # A Managed Fund always stores mutual_fund: a client value is accepted
+        # but never overrides the identity.
+        created = await async_client.post(
             "/api/v1/portfolios",
             json={
                 "portfolio_name": "Fund Identity",
                 "port_type": "Managed Fund",
-                "product_type": "mutual_fund",
+                "product_type": "option",
             },
         )
-        assert fund.status_code == 201, fund.text
-        fund_id = fund.json()["portfolio_id"]
-        assert fund.json()["product_type"] == "mutual_fund"
-        fund_update = await async_client.put(
-            f"/api/v1/portfolios/{fund_id}",
-            json={"product_type": " Mutual_Fund "},
-        )
-        assert fund_update.status_code == 200, fund_update.text
-        assert fund_update.json()["product_type"] == "mutual_fund"
+        assert created.status_code == 201, created.text
+        fund_id = created.json()["portfolio_id"]
+        assert created.json()["product_type"] == "mutual_fund"
 
-        invalid_create = await async_client.post(
+        # An omitted type is still mutual_fund.
+        untyped = await async_client.post(
             "/api/v1/portfolios",
-            json={
-                "portfolio_name": "Bad Type",
-                "port_type": "Managed Fund",
-                "product_type": "futures",
-            },
+            json={"portfolio_name": "Untyped Fund", "port_type": "Managed Fund"},
         )
-        assert invalid_create.status_code == 400
-        assert invalid_create.json()["detail"] == (
-            "product_type must be one of stock, future, option, crypto or mutual_fund"
-        )
+        assert untyped.status_code == 201, untyped.text
+        untyped_id = untyped.json()["portfolio_id"]
+        assert untyped.json()["product_type"] == "mutual_fund"
 
-        # Detail and list payloads expose it.
-        detail = await async_client.get(f"/api/v1/portfolios/{typed_id}")
+        for payload in ({"product_type": None}, {"product_type": "option"},
+                        {"product_type": "futures"}, {}):
+            updated = await async_client.put(
+                f"/api/v1/portfolios/{fund_id}", json=payload
+            )
+            assert updated.status_code == 200, updated.text
+            assert updated.json()["product_type"] == "mutual_fund"
+
+        detail = await async_client.get(f"/api/v1/portfolios/{fund_id}")
         assert detail.status_code == 200, detail.text
-        assert detail.json()["product_type"] == "future"
+        assert detail.json()["product_type"] == "mutual_fund"
         listed = {
             row["portfolio_id"]: row
             for row in (await async_client.get("/api/v1/portfolios")).json()
         }
-        assert listed[typed_id]["product_type"] == "future"
-        assert listed[untyped_id]["product_type"] is None
-
-        # Update normalizes case/whitespace and leaves the ticker handling as is.
-        combined = await async_client.put(
-            f"/api/v1/portfolios/{typed_id}",
-            json={"product_tickers": ["ABC"], "product_type": " STOCK "},
-        )
-        assert combined.status_code == 200, combined.text
-        assert combined.json()["product_tickers"] == ["ABC"]
-        assert combined.json()["product_ticker"] == "ABC"
-        assert combined.json()["product_type"] == "stock"
-
-        for invalid in ("bond", "", "futures"):
-            rejected = await async_client.put(
-                f"/api/v1/portfolios/{typed_id}",
-                json={"product_type": invalid},
-            )
-            assert rejected.status_code == 400
-            assert rejected.json()["detail"] == (
-                "product_type must be one of stock, future, option, crypto or mutual_fund"
-            )
-
-        # Explicit null clears only the type; the ticker stays.
-        cleared = await async_client.put(
-            f"/api/v1/portfolios/{typed_id}", json={"product_type": None}
-        )
-        assert cleared.status_code == 200, cleared.text
-        assert cleared.json()["product_type"] is None
-        assert cleared.json()["product_ticker"] == "ABC"
-        assert cleared.json()["product_tickers"] == ["ABC"]
-
-        stored = await async_client.get(f"/api/v1/portfolios/{typed_id}")
-        assert stored.json()["product_type"] is None
+        assert listed[fund_id]["product_type"] == "mutual_fund"
     finally:
         async with Session() as session:
             await session.execute(
@@ -128,12 +70,102 @@ async def test_portfolio_product_type_payload_update_and_validation(async_client
                     Portfolio.portfolio_id.in_(
                         [
                             pid
-                            for pid in (typed_id, untyped_id, fund_id)
+                            for pid in (fund_id, untyped_id)
                             if pid is not None
                         ]
                     )
                 )
             )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_active_trading_product_type_payload_unchanged(async_client):
+    _, Session = get_test_engine()
+    active_id = None
+    try:
+        created = await async_client.post(
+            "/api/v1/portfolios",
+            json={
+                "portfolio_name": "Active Identity",
+                "port_type": "Active Trading",
+                "product_type": "option",
+            },
+        )
+        assert created.status_code == 201, created.text
+        active_id = created.json()["portfolio_id"]
+        assert created.json()["product_type"] == "option"
+
+        combined = await async_client.put(
+            f"/api/v1/portfolios/{active_id}",
+            json={"product_tickers": ["ABC"], "product_type": " STOCK "},
+        )
+        assert combined.status_code == 200, combined.text
+        assert combined.json()["product_tickers"] == ["ABC"]
+        assert combined.json()["product_ticker"] == "ABC"
+        assert combined.json()["product_type"] == "stock"
+
+        cleared = await async_client.put(
+            f"/api/v1/portfolios/{active_id}", json={"product_type": None}
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["product_type"] is None
+        assert cleared.json()["product_ticker"] == "ABC"
+
+        for invalid in ("bond", "", "futures"):
+            rejected = await async_client.put(
+                f"/api/v1/portfolios/{active_id}",
+                json={"product_type": invalid},
+            )
+            assert rejected.status_code == 400
+            assert rejected.json()["detail"] == (
+                "product_type must be one of stock, future, option, crypto or mutual_fund"
+            )
+    finally:
+        async with Session() as session:
+            await session.execute(
+                delete(Portfolio).where(Portfolio.portfolio_id == active_id)
+            )
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_managed_fund_broker_id_update_persists(async_client):
+    _, Session = get_test_engine()
+    async with Session() as session:
+        broker = Broker(code="MFBRK", name="Managed Fund Broker")
+        session.add(broker)
+        await session.commit()
+        broker_id = broker.id
+
+    fund_id = None
+    try:
+        created = await async_client.post(
+            "/api/v1/portfolios",
+            json={"portfolio_name": "Broker Fund", "port_type": "Managed Fund"},
+        )
+        assert created.status_code == 201, created.text
+        fund_id = created.json()["portfolio_id"]
+        assert created.json()["broker_id"] is None
+
+        updated = await async_client.put(
+            f"/api/v1/portfolios/{fund_id}", json={"broker_id": broker_id}
+        )
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["broker_id"] == broker_id
+        assert updated.json()["product_type"] == "mutual_fund"
+
+        detail = await async_client.get(f"/api/v1/portfolios/{fund_id}")
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["broker_id"] == broker_id
+        assert detail.json()["product_type"] == "mutual_fund"
+    finally:
+        async with Session() as session:
+            if fund_id is not None:
+                await session.execute(
+                    delete(Portfolio).where(Portfolio.portfolio_id == fund_id)
+                )
+            await session.execute(delete(Broker).where(Broker.id == broker_id))
             await session.commit()
 
 

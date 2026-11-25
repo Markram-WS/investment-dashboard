@@ -16,8 +16,14 @@ from app.models import (  # noqa: E402
     AssetSymbol,
     Broker,
     Portfolio,
+    PortfolioNavHistory,
 )
-from app.managed_fund_models import ManagedFundHolding  # noqa: E402
+from app.managed_fund_models import (  # noqa: E402
+    ManagedFundHolding,
+    ManagedFundOrder,
+    ManagedFundOrderHistory,
+    ManagedFundSetting,
+)
 
 
 class _Fund:
@@ -128,6 +134,26 @@ async def drop_fund(fund: _Fund) -> None:
         await session.execute(
             delete(ManagedFundHolding).where(
                 ManagedFundHolding.portfolio_id == fund.portfolio_id
+            )
+        )
+        await session.execute(
+            delete(ManagedFundOrder).where(
+                ManagedFundOrder.portfolio_id == fund.portfolio_id
+            )
+        )
+        await session.execute(
+            delete(ManagedFundOrderHistory).where(
+                ManagedFundOrderHistory.portfolio_id == fund.portfolio_id
+            )
+        )
+        await session.execute(
+            delete(ManagedFundSetting).where(
+                ManagedFundSetting.portfolio_id == fund.portfolio_id
+            )
+        )
+        await session.execute(
+            delete(PortfolioNavHistory).where(
+                PortfolioNavHistory.portfolio_id == fund.portfolio_id
             )
         )
         await session.execute(
@@ -426,3 +452,116 @@ async def test_batch_update_reprices_fund_holding(async_client, monkeypatch):
     finally:
         await drop_fund(fund)
         await drop_brokers(broker_id)
+
+
+@pytest.mark.asyncio
+async def test_confirmed_buy_starts_holding_at_registry_quote(async_client):
+    broker_id = await make_broker("MFP8")
+    fund = await seed_fund(
+        broker_id=broker_id,
+        symbols=[(broker_id, "ENTRY", "ENTRY.BK", "yfinance")],
+        quotes=[("yfinance", "ENTRY.BK", 25)],
+    )
+    try:
+        created = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/orders",
+            json={"asset": "ENTRY", "side": "Buy", "qty": 4, "price": 10},
+        )
+        assert created.status_code == 201, created.text
+        order_id = created.json()["order_id"]
+
+        confirmed = await async_client.patch(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/orders/{order_id}/status",
+            json={"status": "done"},
+        )
+        assert confirmed.status_code == 200, confirmed.text
+
+        holdings = (
+            await async_client.get(
+                f"/api/v1/managed-funds/{fund.portfolio_id}/holdings"
+            )
+        ).json()
+        assert len(holdings) == 1, holdings
+        holding = holdings[0]
+        assert holding["asset"] == "ENTRY"
+        # Entry is the cost basis; Current starts at the registry quote.
+        assert holding["avg_entry_price"] == 10.0
+        assert holding["current_price"] == 25.0
+        assert holding["market_value"] == 100.0
+    finally:
+        await drop_fund(fund)
+        await drop_brokers(broker_id)
+
+
+@pytest.mark.asyncio
+async def test_created_holding_starts_at_registry_quote(async_client):
+    broker_id = await make_broker("MFP9")
+    fund = await seed_fund(
+        broker_id=broker_id,
+        symbols=[(broker_id, "DIRECT", "DIRECT.BK", "yfinance")],
+        quotes=[("yfinance", "DIRECT.BK", 40)],
+    )
+    try:
+        created = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/holdings",
+            json={"asset": "direct", "side": "Buy", "qty": 2, "price": 15},
+        )
+        assert created.status_code == 201, created.text
+        body = created.json()
+        assert body["asset"] == "DIRECT"
+        assert body["avg_entry_price"] == 15.0
+        assert body["current_price"] == 40.0
+        assert body["market_value"] == 80.0
+        # Registry identity is derived, not stored on the holding.
+        assert body["broker_id"] == broker_id
+        assert body["broker_code"] == "MFP9"
+        assert body["underlying"] == f"DIRECT-{broker_id}"
+    finally:
+        await drop_fund(fund)
+        await drop_brokers(broker_id)
+
+
+@pytest.mark.asyncio
+async def test_holdings_payload_derives_broker_and_underlying(async_client):
+    broker_a = await make_broker("MFPA")
+    broker_b = await make_broker("MFPB")
+    fund = await seed_fund(
+        broker_id=broker_a,
+        symbols=[
+            (broker_a, "SCBS&P500-SSF", "SCBS&P500-SSF.BK", "yfinance"),
+            (broker_b, "SCBCHAA", "SCBCHAA.BK", "yfinance"),
+        ],
+        holdings=[
+            ("SCBS&P500-SSF", 1, 10),
+            ("SCBCHAA", 2, 20),
+            ("NOTREGISTERED", 3, 30),
+        ],
+    )
+    try:
+        holdings = (
+            await async_client.get(
+                f"/api/v1/managed-funds/{fund.portfolio_id}/holdings"
+            )
+        ).json()
+        by_asset = {row["asset"]: row for row in holdings}
+        assert len(by_asset) == 3
+
+        first = by_asset["SCBS&P500-SSF"]
+        assert first["broker_id"] == broker_a
+        assert first["broker_code"] == "MFPA"
+        assert first["underlying"] == f"SCBS&P500-SSF-{broker_a}"
+
+        # A second holding under another broker keeps its own identity.
+        second = by_asset["SCBCHAA"]
+        assert second["broker_id"] == broker_b
+        assert second["broker_code"] == "MFPB"
+        assert second["underlying"] == f"SCBCHAA-{broker_b}"
+
+        # An unregistered symbol stays visible with a null identity.
+        unmatched = by_asset["NOTREGISTERED"]
+        assert unmatched["broker_id"] is None
+        assert unmatched["broker_code"] is None
+        assert unmatched["underlying"] is None
+    finally:
+        await drop_fund(fund)
+        await drop_brokers(broker_a, broker_b)

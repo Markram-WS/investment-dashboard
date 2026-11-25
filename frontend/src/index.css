@@ -1523,7 +1523,18 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .mf-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; }
 
 .mf-holdings .mf-head,
-.mf-holdings .mf-row { grid-template-columns: minmax(48px, 1fr) 62px 76px 80px 88px 88px 60px 32px; }
+.mf-holdings .mf-row { grid-template-columns: 58px minmax(48px, 1fr) 62px 76px 80px 88px 88px 60px 32px; }
+.mf-holdings .mf-group-row {
+  grid-template-columns: 1fr;
+  min-height: 26px;
+  border-top: 1px solid var(--color-hairline);
+  background: var(--color-surface-soft);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--color-slate);
+}
+.mf-broker { color: var(--color-slate); }
 .mf-orders .mf-head,
 .mf-orders .mf-row { grid-template-columns: minmax(48px, 1fr) 54px 60px 72px 70px 84px; }
 .mf-history .mf-head,

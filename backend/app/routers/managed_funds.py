@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, update, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.models import AssetProduct, AssetSymbol, Portfolio, PortfolioNavHistory
+from app.models import AssetProduct, AssetSymbol, Broker, Portfolio, PortfolioNavHistory
 from app.managed_fund_models import ManagedFundHolding, ManagedFundOrder, ManagedFundOrderHistory, ManagedFundSetting
 from app.services import asset_registry as registry
 from pydantic import BaseModel
@@ -38,6 +38,10 @@ class MFHoldingResponse(BaseModel):
     unrealized_pl: float
     unrealized_pl_pct: float
     profit_threshold: float
+    # Registry identity of `asset`, derived per holding — never stored.
+    broker_id: Optional[int] = None
+    broker_code: Optional[str] = None
+    underlying: Optional[str] = None
 
 class MFOrderResponse(BaseModel):
     order_id: int
@@ -194,48 +198,28 @@ async def list_holdings(portfolio_id: int, db: AsyncSession = Depends(get_db)):
         select(ManagedFundHolding).where(ManagedFundHolding.portfolio_id == portfolio_id)
     )
     holdings = result.scalars().all()
-    return [
-        MFHoldingResponse(
-            holding_id=h.holding_id,
-            portfolio_id=h.portfolio_id,
-            asset=h.asset,
-            qty=float(h.qty or 0),
-            avg_entry_price=float(h.avg_entry_price or 0),
-            current_price=float(h.current_price or 0),
-            market_value=float(h.market_value or 0),
-            unrealized_pl=float(h.unrealized_pl or 0),
-            unrealized_pl_pct=float(h.unrealized_pl_pct or 0),
-            profit_threshold=float(h.profit_threshold or 0),
-        )
-        for h in holdings
-    ]
+    return await _holding_responses(db, portfolio_id, holdings)
 
 
 @router.post("/{portfolio_id}/holdings", response_model=MFHoldingResponse, status_code=201)
 async def create_holding(portfolio_id: int, body: MFOrderCreate, db: AsyncSession = Depends(get_db)):
+    portfolio = await db.get(Portfolio, portfolio_id)
+    broker_id = portfolio.broker_id if portfolio is not None else None
+    entry_price = Decimal(str(body.price or 0))
+    market_price = await _registry_price(db, broker_id, body.asset)
+    current_price = market_price if market_price is not None else entry_price
     holding = ManagedFundHolding(
         portfolio_id=portfolio_id,
         asset=body.asset.upper(),
         qty=Decimal(str(body.qty)),
-        avg_entry_price=Decimal(str(body.price or 0)),
-        current_price=Decimal(str(body.price or 0)),
-        market_value=Decimal(str(body.qty * (body.price or 0))),
+        avg_entry_price=entry_price,
+        current_price=current_price,
+        market_value=Decimal(str(body.qty)) * current_price,
     )
     db.add(holding)
     await db.commit()
     await db.refresh(holding)
-    return MFHoldingResponse(
-        holding_id=holding.holding_id,
-        portfolio_id=holding.portfolio_id,
-        asset=holding.asset,
-        qty=float(holding.qty or 0),
-        avg_entry_price=float(holding.avg_entry_price or 0),
-        current_price=float(holding.current_price or 0),
-        market_value=float(holding.market_value or 0),
-        unrealized_pl=float(holding.unrealized_pl or 0),
-        unrealized_pl_pct=float(holding.unrealized_pl_pct or 0),
-        profit_threshold=float(holding.profit_threshold or 0),
-    )
+    return (await _holding_responses(db, portfolio_id, [holding]))[0]
 
 
 @router.put("/{portfolio_id}/holdings/{holding_id}", response_model=MFHoldingResponse)
@@ -261,18 +245,7 @@ async def update_holding(portfolio_id: int, holding_id: int, body: MFOrderUpdate
         ))
     await db.commit()
     await db.refresh(holding)
-    return MFHoldingResponse(
-        holding_id=holding.holding_id,
-        portfolio_id=holding.portfolio_id,
-        asset=holding.asset,
-        qty=float(holding.qty or 0),
-        avg_entry_price=float(holding.avg_entry_price or 0),
-        current_price=float(holding.current_price or 0),
-        market_value=float(holding.market_value or 0),
-        unrealized_pl=float(holding.unrealized_pl or 0),
-        unrealized_pl_pct=float(holding.unrealized_pl_pct or 0),
-        profit_threshold=float(holding.profit_threshold or 0),
-    )
+    return (await _holding_responses(db, portfolio_id, [holding]))[0]
 
 
 @router.post("/{portfolio_id}/holdings/{holding_id}/sell", response_model=MFOrderResponse, status_code=201)
@@ -465,6 +438,8 @@ async def update_order_status(portfolio_id: int, order_id: int, body: MFOrderSta
 
 async def _confirm_order_done(db: AsyncSession, portfolio_id: int, order: ManagedFundOrder):
     order.status = "done"
+    portfolio = await db.get(Portfolio, portfolio_id)
+    broker_id = portfolio.broker_id if portfolio is not None else None
 
     # Update holdings
     if order.side.lower() == "buy":
@@ -488,13 +463,21 @@ async def _confirm_order_done(db: AsyncSession, portfolio_id: int, order: Manage
             holding.qty = Decimal(str(total_qty))
             holding.market_value = holding.qty * holding.current_price
         else:
+            # A new holding starts at the registry quote when one exists; the
+            # order price is only the entry/cost basis fallback.
+            market_price = await _registry_price(db, broker_id, order.asset)
+            current_price = (
+                market_price
+                if market_price is not None
+                else (order.price or Decimal('0'))
+            )
             holding = ManagedFundHolding(
                 portfolio_id=portfolio_id,
                 asset=order.asset,
                 qty=order.qty,
                 avg_entry_price=order.price or Decimal('0'),
-                current_price=order.price or Decimal('0'),
-                market_value=(order.qty * (order.price or Decimal('0'))),
+                current_price=current_price,
+                market_value=(order.qty * current_price),
             )
             db.add(holding)
     elif order.side.lower() == "sell":
@@ -514,10 +497,6 @@ async def _confirm_order_done(db: AsyncSession, portfolio_id: int, order: Manage
                 holding.market_value = new_qty * holding.current_price
 
     # Update NAV via PortfolioNavHistory
-    port_result = await db.execute(
-        select(Portfolio).where(Portfolio.portfolio_id == portfolio_id)
-    )
-    portfolio = port_result.scalar_one_or_none()
     if portfolio:
         order_value = float(order.qty) * float(order.price or 0)
         if order.side.lower() == "buy":
@@ -691,6 +670,115 @@ def _holding_symbol_rank(
     preferred = portfolio_broker_id is not None and row_broker_id == portfolio_broker_id
     fallback_broker = row_broker_id if row_broker_id is not None else 1_000_000_000
     return (0 if preferred else 1, fallback_broker, symbol_id)
+
+
+def _holding_identity_key(asset: Any) -> str:
+    """The uppercase/trimmed ``price_symbol`` key a holding stores."""
+    return str(asset or "").strip().upper()
+
+
+async def _resolve_holding_identities(
+    db: AsyncSession,
+    portfolio_broker_id: Optional[int],
+    assets: Iterable[Any],
+) -> Dict[str, tuple[Optional[int], Optional[str], Optional[str]]]:
+    """Registry identity (broker id/code, underlying) per holding asset.
+
+    One query joins ``asset_symbols`` to ``asset_products`` (and the broker)
+    on the same normalized ``price_symbol`` the holding stores. When several
+    registry rows match, ``_holding_symbol_rank`` picks the winner — portfolio
+    broker first, then lowest broker id, then lowest symbol id. The identity
+    belongs to the registry row, never to the holding.
+    """
+    keys = {_holding_identity_key(asset) for asset in assets}
+    keys.discard("")
+    if not keys:
+        return {}
+    rows = (
+        await db.execute(
+            select(AssetSymbol, AssetProduct, Broker)
+            .join(AssetProduct, AssetSymbol.product_id == AssetProduct.product_id)
+            .outerjoin(Broker, AssetProduct.broker_id == Broker.id)
+            .where(func.upper(func.trim(AssetSymbol.price_symbol)).in_(keys))
+        )
+    ).all()
+    best: Dict[str, tuple[tuple[int, int, int], Optional[int], Optional[str], Optional[str]]] = {}
+    for symbol, product, broker in rows:
+        key = _holding_identity_key(symbol.price_symbol)
+        if not key:
+            continue
+        rank = _holding_symbol_rank(
+            portfolio_broker_id, symbol.broker_id, symbol.symbol_id
+        )
+        current = best.get(key)
+        if current is None or rank < current[0]:
+            best[key] = (
+                rank,
+                product.broker_id,
+                broker.code if broker is not None else None,
+                product.ticker,
+            )
+    return {key: value[1:] for key, value in best.items()}
+
+
+def _holding_response(
+    holding: ManagedFundHolding,
+    identity: Optional[tuple[Optional[int], Optional[str], Optional[str]]] = None,
+) -> MFHoldingResponse:
+    broker_id, broker_code, underlying = identity or (None, None, None)
+    return MFHoldingResponse(
+        holding_id=holding.holding_id,
+        portfolio_id=holding.portfolio_id,
+        asset=holding.asset,
+        qty=float(holding.qty or 0),
+        avg_entry_price=float(holding.avg_entry_price or 0),
+        current_price=float(holding.current_price or 0),
+        market_value=float(holding.market_value or 0),
+        unrealized_pl=float(holding.unrealized_pl or 0),
+        unrealized_pl_pct=float(holding.unrealized_pl_pct or 0),
+        profit_threshold=float(holding.profit_threshold or 0),
+        broker_id=broker_id,
+        broker_code=broker_code,
+        underlying=underlying,
+    )
+
+
+async def _holding_responses(
+    db: AsyncSession,
+    portfolio_id: int,
+    holdings: Iterable[ManagedFundHolding],
+) -> List[MFHoldingResponse]:
+    """Serialize holdings with one batched registry-identity query."""
+    rows = list(holdings)
+    portfolio = await db.get(Portfolio, portfolio_id)
+    portfolio_broker_id = portfolio.broker_id if portfolio is not None else None
+    identities = await _resolve_holding_identities(
+        db, portfolio_broker_id, [holding.asset for holding in rows]
+    )
+    return [
+        _holding_response(holding, identities.get(_holding_identity_key(holding.asset)))
+        for holding in rows
+    ]
+
+
+async def _registry_price(
+    db: AsyncSession,
+    broker_id: Optional[int],
+    asset: Any,
+) -> Optional[Decimal]:
+    """Registry quote for one dashboard symbol, or ``None`` when unpriced.
+
+    Delegates to ``registry.local_prices`` so the new-holding path resolves the
+    same ``asset_symbols`` row (portfolio broker first, else the lowest broker
+    id, then the lowest symbol id) as the reprice/sync path.
+    """
+    key = registry.normalise_symbol(asset)
+    if key is None:
+        return None
+    price = (await registry.local_prices(db, broker_id, [key])).get(key)
+    if price is None or price <= 0:
+        return None
+    return Decimal(str(price))
 
 
 def _pick_registry_rows(

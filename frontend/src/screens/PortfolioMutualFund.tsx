@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { Fragment, useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import {
@@ -177,6 +177,22 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
 
   const totalPl = holdings.reduce((s, h) => s + (h.unrealized_pl || 0), 0);
   const totalInvested = holdings.reduce((s, h) => s + (h.avg_entry_price * h.qty), 0);
+
+  // Group by the registry underlying (never stored on the holding); a holding
+  // with no registry identity lands in a single Unassigned group rendered last.
+  const holdingGroups = useMemo(() => {
+    const groups = new Map<string, MFHolding[]>();
+    for (const holding of holdings) {
+      const label = holding.underlying?.trim() || "Unassigned";
+      const rows = groups.get(label);
+      if (rows) rows.push(holding);
+      else groups.set(label, [holding]);
+    }
+    const ordered = [...groups.entries()].filter(([label]) => label !== "Unassigned");
+    const unassigned = groups.get("Unassigned");
+    if (unassigned) ordered.push(["Unassigned", unassigned]);
+    return ordered.map(([label, rows]) => ({ label, holdings: rows }));
+  }, [holdings]);
   const totalPlPct = totalInvested > 0 ? (totalPl / totalInvested) * 100 : 0;
 
   // --- loading: the same shell, with pulse blocks where the data goes ---------
@@ -349,38 +365,49 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
               ) : (
                 <div className="mf-rows">
                   <div className="mf-head" aria-hidden="true">
-                    <span>Asset</span>
+                    <span>Broker</span>
+                    <span>Symbol</span>
                     <span className="at-num">Qty</span>
-                    <span className="at-num">Entry</span>
-                    <span className="at-num">Current</span>
-                    <span className="at-num">Market value</span>
+                    <span className="at-num">Avg. NAV</span>
+                    <span className="at-num">Current NAV</span>
+                    <span className="at-num">Mkt. val</span>
                     <span className="at-num">P/L</span>
                     <span className="at-num">P/L %</span>
                     <span className="at-num">Sell</span>
                   </div>
-                  {holdings.map((h) => (
-                    <div className="mf-row" key={h.holding_id}>
-                      <span className="mf-ticker" title={h.asset}>{h.asset}</span>
-                      <span className="at-num">{h.qty.toFixed(4)}</span>
-                      <span className="at-num">{formatMoney(h.avg_entry_price)}</span>
-                      <span className="at-num">{formatMoney(h.current_price)}</span>
-                      <span className="at-num">{formatMoney(h.market_value)}</span>
-                      <span className={`at-num ${plClass(h.unrealized_pl)}`}>
-                        {h.unrealized_pl > 0 ? "+" : ""}{formatMoney(h.unrealized_pl)}
-                      </span>
-                      <span className="at-num"><PctBadge value={h.unrealized_pl_pct} /></span>
-                      <div className="mf-actions">
-                        <IconButton
-                          label="Sell all"
-                          danger
-                          onClick={() => { setSellHoldingTarget(h); setShowSellHolding(true); }}
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="7 13 12 18 17 13" /><path d="M12 18V2" /><path d="M3 22h18" />
-                          </svg>
-                        </IconButton>
+                  {holdingGroups.map((group) => (
+                    <Fragment key={group.label}>
+                      <div className="mf-row mf-group-row">
+                        <span>{group.label}</span>
                       </div>
-                    </div>
+                      {group.holdings.map((h) => (
+                        <div className="mf-row" key={h.holding_id}>
+                          <span className="mf-broker" title={h.broker_id != null ? `Broker #${h.broker_id}` : undefined}>
+                            {h.broker_code ?? "—"}
+                          </span>
+                          <span className="mf-ticker" title={h.asset}>{h.asset}</span>
+                          <span className="at-num">{h.qty.toFixed(4)}</span>
+                          <span className="at-num">{formatMoney(h.avg_entry_price)}</span>
+                          <span className="at-num">{formatMoney(h.current_price)}</span>
+                          <span className="at-num">{formatMoney(h.market_value)}</span>
+                          <span className={`at-num ${plClass(h.unrealized_pl)}`}>
+                            {h.unrealized_pl > 0 ? "+" : ""}{formatMoney(h.unrealized_pl)}
+                          </span>
+                          <span className="at-num"><PctBadge value={h.unrealized_pl_pct} /></span>
+                          <div className="mf-actions">
+                            <IconButton
+                              label="Sell all"
+                              danger
+                              onClick={() => { setSellHoldingTarget(h); setShowSellHolding(true); }}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="7 13 12 18 17 13" /><path d="M12 18V2" /><path d="M3 22h18" />
+                              </svg>
+                            </IconButton>
+                          </div>
+                        </div>
+                      ))}
+                    </Fragment>
                   ))}
                 </div>
               )}

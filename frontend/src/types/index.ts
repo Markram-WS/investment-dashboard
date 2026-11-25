@@ -259,6 +259,7 @@ export interface FundPortfolio {
   portfolio_id: number;
   portfolio_name: string;
   port_type: string;
+  product_type: string | null;
   current_nav: number;
   margin_locked: number;
   available_cash: number;
@@ -319,6 +320,10 @@ export interface MFHolding {
   unrealized_pl: number;
   unrealized_pl_pct: number;
   profit_threshold: number;
+  /** Registry identity derived from `asset`; null when unregistered. */
+  broker_id: number | null;
+  broker_code: string | null;
+  underlying: string | null;
 }
 
 export interface MFOrder {
