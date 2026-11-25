@@ -389,6 +389,77 @@ async def test_retained_migration_adds_product_span_margin_idempotently():
 
 
 @pytest.mark.asyncio
+async def test_retained_migration_adds_portfolio_product_type_idempotently():
+    engine = _engine()
+    try:
+        await _prepare(engine)
+        # A portfolio table created by the previous release: no identity type.
+        async with engine.begin() as conn:
+            await conn.execute(text("DROP TABLE portfolios"))
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE portfolios (
+                        portfolio_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        portfolio_name TEXT NOT NULL,
+                        port_type TEXT NOT NULL,
+                        broker_id INTEGER,
+                        product_ticker TEXT,
+                        product_tickers JSON,
+                        x_amount NUMERIC(20,8) NOT NULL DEFAULT 0,
+                        initial_capital NUMERIC(20,8) NOT NULL DEFAULT 0,
+                        available_cash NUMERIC(20,8) DEFAULT 0,
+                        margin_locked NUMERIC(20,8) DEFAULT 0
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO portfolios "
+                    "(portfolio_name, port_type, product_ticker, product_tickers, "
+                    "x_amount, initial_capital) "
+                    "VALUES ('Kept', 'Managed Fund', 'AAA', '[\"AAA\"]', 5, 100)"
+                )
+            )
+
+        for _ in range(2):
+            async with engine.begin() as conn:
+                await conn.run_sync(run_asset_registry_migration)
+
+        async with engine.connect() as conn:
+            rows = (
+                await conn.execute(text("PRAGMA table_info(portfolios)"))
+            ).all()
+        columns = {row[1]: tuple(row) for row in rows}
+        assert "product_type" in columns
+        # PRAGMA table_info: (cid, name, type, notnull, dflt_value, pk).
+        assert columns["product_type"][3] == 0
+        assert (
+            await _scalar(engine, "SELECT COUNT(*) FROM portfolios")
+        ) == 1
+        assert (
+            await _scalar(
+                engine, "SELECT product_type FROM portfolios WHERE portfolio_name='Kept'"
+            )
+        ) is None
+        assert (
+            await _scalar(
+                engine,
+                "SELECT product_ticker FROM portfolios WHERE portfolio_name='Kept'",
+            )
+        ) == "AAA"
+        assert (
+            await _scalar(
+                engine,
+                "SELECT x_amount FROM portfolios WHERE portfolio_name='Kept'",
+            )
+        ) == 5
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_duplicate_dashboard_key_rolls_back_the_whole_migration():
     engine = _engine()
     try:

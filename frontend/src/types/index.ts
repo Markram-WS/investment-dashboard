@@ -187,6 +187,8 @@ export interface PortfolioData {
   broker_code?: string | null;
   product_ticker: string | null;
   product_tickers?: string[] | null;
+  /** Identity type for the portfolio's multiplier/margin display. */
+  product_type?: string | null;
   x_amount: number;
   initial_capital: number;
   cash_buffer_limit: number | null;

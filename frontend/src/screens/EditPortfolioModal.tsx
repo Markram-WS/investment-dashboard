@@ -73,6 +73,7 @@ interface EditPortfolioModalProps {
   brokerId: number | null;
   productTicker: string | null;
   productTickers?: string[] | null;
+  productType?: string | null;
   /** Broker-scoped products already loaded by the grid. */
   products?: AssetProduct[];
   xAmount: number;
@@ -92,7 +93,7 @@ interface EditPortfolioModalProps {
 
 const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
   portfolioId, portfolioName, marginLocked, cashBufferLimit,
-  brokerId, productTicker, productTickers, products: initialProducts, xAmount, initialCapital,
+  brokerId, productTicker, productTickers, productType, products: initialProducts, xAmount, initialCapital,
   rawAvailableCash, cumulativePl, tags, showModal, onClose, onSaved,
   onDepositWithdraw, activeOrderCount, onDeleted, readOnly = false,
 }) => {
@@ -101,6 +102,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
     cash_buffer_limit: String(cashBufferLimit ?? 0),
     broker_id: brokerId as number | null,
     product_tickers: hydrateProductTickers(productTickers, productTicker),
+    product_type: productType ?? '',
     x_amount: String(xAmount ?? 0),
     initial_capital: String(initialCapital ?? 0),
     tags: tags ? Object.keys(tags).join(", ") : "",
@@ -126,6 +128,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
         cash_buffer_limit: String(cashBufferLimit ?? 0),
         broker_id: brokerId,
         product_tickers: hydrateProductTickers(productTickers, productTicker),
+        product_type: productType ?? '',
         x_amount: String(xAmount ?? 0),
         initial_capital: String(initialCapital ?? 0),
         tags: tags ? Object.keys(tags).join(", ") : "",
@@ -215,6 +218,7 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
         broker_id: form.broker_id,
         product_tickers: form.product_tickers,
         product_ticker: form.product_tickers[0] ?? null,
+        product_type: form.product_type || null,
         x_amount: parseFloat(form.x_amount) || 0,
         initial_capital: parseFloat(form.initial_capital) || 0,
         cash_buffer_limit: newBuffer,
@@ -311,6 +315,25 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
   const projectedAvailableCash = Math.max(0, rawAvailableCash - projectedDiff);
   const displayEquity = projectedAvailableCash + cumulativePl;
 
+  const resolvedUnderlying = form.product_tickers.length === 1 ? form.product_tickers[0] : null;
+  const resolvedType = form.product_type;
+  const resolvedProduct = resolvedUnderlying && resolvedType
+    ? products.find(product => (
+      (product.ticker ?? '').toUpperCase() === resolvedUnderlying.toUpperCase()
+      && product.asset_type === resolvedType
+    ))
+    : undefined;
+  const showResolution = Boolean(resolvedUnderlying && resolvedType);
+  const resolvedBroker = form.broker_id == null
+    ? 'Unassigned'
+    : brokers.find(broker => broker.id === form.broker_id)?.code ?? 'Unassigned';
+  const resolvedMargin = resolvedProduct?.margin_rate != null
+    ? `${Number((Number(resolvedProduct.margin_rate) * 100).toFixed(2))}%`
+    : '—';
+  const resolutionLine = resolvedProduct
+    ? `${resolvedUnderlying} · ${resolvedBroker} · ${resolvedType} — multiplier ${resolvedProduct.multiplier ?? '—'} · margin ${resolvedMargin} · ${resolvedProduct.margin_mode}`
+    : 'No matching product — multiplier 1 · margin 0% will be used.';
+
   return (
     <ModalShell open={showModal} onClose={onClose} title="Edit portfolio">
       <div className={`${MODAL_CARD} w-full max-w-xl mx-4 relative`} style={modalPanelStyle}>
@@ -375,7 +398,8 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
                   ))}
                 </SelectInput>
               </Field>
-              <Field label="Product ticker" htmlFor="edit-portfolio-ticker">
+              <div className="flex flex-col" style={{ gap: 6 }}>
+              <Field label="Underlying" htmlFor="edit-portfolio-ticker" hint="Underlyings this portfolio trades">
                 <div className="flex flex-col" style={{ gap: 4 }}>
                   <div className="flex flex-wrap items-center" style={{ gap: 4 }}>
                     <button
@@ -456,6 +480,27 @@ const EditPortfolioModal: React.FC<EditPortfolioModalProps> = ({
               <datalist id="edit-portfolio-tickers">
                 {tickers.map((t) => <option key={t} value={t} />)}
               </datalist>
+              <Field label="Type" htmlFor="edit-portfolio-type"
+                hint="Maps the portfolio's multiplier and margin display to this underlying · broker · type.">
+                <SelectInput
+                  id="edit-portfolio-type"
+                  value={form.product_type}
+                  disabled={readOnly}
+                  onChange={(e) => handleChange("product_type", e.target.value)}
+                >
+                  <option value="" data-muted="true">— No type —</option>
+                  <option value="stock">Stock</option>
+                  <option value="future">Future</option>
+                  <option value="option">Option</option>
+                  <option value="crypto">Crypto</option>
+                </SelectInput>
+              </Field>
+              {showResolution && (
+                <p style={{ ...SPEC_HINT, color: resolvedProduct ? 'var(--color-slate)' : 'var(--color-warning-text)' }}>
+                  {resolutionLine}
+                </p>
+              )}
+              </div>
               <Field
                 label="Adverse move (X)"
                 htmlFor="edit-portfolio-multiplier"

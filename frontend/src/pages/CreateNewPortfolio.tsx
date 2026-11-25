@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import type { BrokerRecord, MappingTemplate, PortfolioPayload } from '../lib/api';
 import type { AssetProduct } from '../types';
 import PageLayout from '../components/PageLayout';
+import { SelectInput } from '../screens/components/Field';
 import PageHeader from '../components/PageHeader';
 import {
   CONTROL_LABEL, CONTROL_INPUT, CONTROL_HELPER, CONTROL_VALUE,
@@ -223,7 +224,7 @@ const CreateNewPortfolio: React.FC = () => {
     cash_buffer_limit: '' as OptionalNumber,
     broker_id: null as number | null,
     product_ticker: '',
-    x_amount: '' as OptionalNumber,
+    product_type: '',
     initial_capital: '' as OptionalNumber,
     available_cash: '' as OptionalNumber,
     trade_plan_md: '',
@@ -396,6 +397,7 @@ const CreateNewPortfolio: React.FC = () => {
         current_nav: formData.current_nav,
         broker_id: formData.broker_id ?? null,
         product_ticker: formData.product_ticker.trim() || null,
+        product_type: formData.product_type || null,
         trade_plan_md: formData.trade_plan_md,
         tags: formData.tags,
         db_host: formData.db_host,
@@ -409,8 +411,6 @@ const CreateNewPortfolio: React.FC = () => {
       if (cashBufferLimit !== undefined) payload.cash_buffer_limit = cashBufferLimit;
       const availableCash = toOptionalNumber(formData.available_cash);
       if (availableCash !== undefined) payload.available_cash = availableCash;
-      const xAmount = toOptionalNumber(formData.x_amount);
-      if (xAmount !== undefined) payload.x_amount = xAmount;
       const initialCapital = toOptionalNumber(formData.initial_capital);
       if (initialCapital !== undefined) payload.initial_capital = initialCapital;
       if (formData.port_type === 'Managed Fund' && targetRatioStr.trim()) {
@@ -502,6 +502,18 @@ const CreateNewPortfolio: React.FC = () => {
     ? products.filter((product) => (product.ticker ?? '').toUpperCase() === selectedTicker)
     : [];
   const selectedProduct = matchingProducts.length === 1 ? matchingProducts[0] : null;
+  const resolvedProduct = selectedTicker && formData.product_type
+    ? matchingProducts.find((product) => product.asset_type === formData.product_type)
+    : undefined;
+  const resolvedBroker = formData.broker_id == null
+    ? 'Unassigned'
+    : brokers.find(broker => broker.id === formData.broker_id)?.code ?? 'Unassigned';
+  const resolvedMargin = resolvedProduct?.margin_rate != null
+    ? `${Number((Number(resolvedProduct.margin_rate) * 100).toFixed(2))}%`
+    : '—';
+  const resolutionLine = resolvedProduct
+    ? `${selectedTicker} · ${resolvedBroker} · ${formData.product_type} — multiplier ${resolvedProduct.multiplier ?? '—'} · margin ${resolvedMargin} · ${resolvedProduct.margin_mode}`
+    : 'No matching product — multiplier 1 · margin 0% will be used.';
 
   return (
     <PageLayout>
@@ -694,7 +706,7 @@ const CreateNewPortfolio: React.FC = () => {
                   </div>
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <label style={CONTROL_LABEL} htmlFor="product_ticker">Product Ticker</label>
+                  <label style={CONTROL_LABEL} htmlFor="product_ticker">Underlying</label>
                   <input
                     id="product_ticker"
                     type="text"
@@ -708,22 +720,35 @@ const CreateNewPortfolio: React.FC = () => {
                   <datalist id="create-portfolio-tickers">
                     {tickers.map(t => <option key={t} value={t} />)}
                   </datalist>
+                  <p style={{ ...CONTROL_HELPER, margin: '4px 0 0' }}>Underlyings this portfolio trades</p>
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <label style={CONTROL_LABEL} htmlFor="x_amount">Multiplier</label>
-                  <AffixInput
-                    id="x_amount"
-                    type="number"
-                    step="any"
-                    name="x_amount"
-                    value={formData.x_amount ?? ''}
-                    onChange={handleNumberChange}
-                    suffix="×"
-                    placeholder="0"
-                  />
+                  <label style={CONTROL_LABEL} htmlFor="product_type">Type</label>
+                  <SelectInput
+                    id="product_type"
+                    value={formData.product_type}
+                    onChange={(e) => setFormData(prev => ({ ...prev, product_type: e.target.value }))}
+                  >
+                    <option value="" data-muted="true">— No type —</option>
+                    <option value="stock">Stock</option>
+                    <option value="future">Future</option>
+                    <option value="option">Option</option>
+                    <option value="crypto">Crypto</option>
+                  </SelectInput>
+                  <p style={{ ...CONTROL_HELPER, margin: '4px 0 0' }}>
+                    Maps the portfolio's multiplier and margin display to this underlying · broker · type.
+                  </p>
                 </div>
                   </div>
-                  {selectedProduct ? (
+                  {selectedTicker && formData.product_type ? (
+                    <p style={{
+                      ...CONTROL_HELPER,
+                      margin: "6px 0 0",
+                      color: resolvedProduct ? "var(--color-slate)" : "var(--color-warning-text)",
+                    }}>
+                      {resolutionLine}
+                    </p>
+                  ) : selectedProduct ? (
                     <p style={{ ...CONTROL_HELPER, margin: "6px 0 0" }}>
                       Contract spec: multiplier {selectedProduct.multiplier ?? '—'} · margin rate{' '}
                       {selectedProduct.margin_rate != null ? Number(selectedProduct.margin_rate).toFixed(2) : '—'} ·{' '}
@@ -1151,17 +1176,6 @@ const CreateNewPortfolio: React.FC = () => {
             <p style={summaryRowStyle}>
               <span>Cash buffer</span>
               <span style={summaryValueStyle}>{hasNumber(formData.cash_buffer_limit) ? fmtMoney(formData.cash_buffer_limit) : '—'}</span>
-            </p>
-            <p style={summaryRowStyle}>
-              <span>Multiplier</span>
-              <span style={summaryValueStyle}>
-                {hasNumber(formData.x_amount) ? (
-                  <>
-                    {formData.x_amount}
-                    <span style={{ color: "var(--color-slate)", fontWeight: 400 }}> ×</span>
-                  </>
-                ) : '—'}
-              </span>
             </p>
           </div>
 

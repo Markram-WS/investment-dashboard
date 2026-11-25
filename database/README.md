@@ -35,7 +35,7 @@ Tables for portfolio management, managed fund, trade execution, ledger, the asse
 
 | Table | Purpose |
 |-------|---------|
-| `portfolios` | Portfolio config: name, type, `is_custom` flag, cash fields (`available_cash`, `margin_locked`, `cash_buffer_limit`), `risk_status`, `tags` (JSONB), `internal_notes`, `trade_plan_md` |
+| `portfolios` | Portfolio config: name, type, `is_custom` flag, `broker_id` + `product_ticker` / `product_tickers` + `product_type` (display identity: underlying + broker + type), cash fields (`available_cash`, `margin_locked`, `cash_buffer_limit`), `risk_status`, `tags` (JSONB), `internal_notes`, `trade_plan_md` |
 | `custom_portfolio_connections` | Encrypted credentials for external DBs: `portfolio_id` FK, `db_host`, `db_port`, `db_name`, `db_user`, `encrypted_password` (Fernet), `mapping_config` (JSON, nullable — non-null makes the portfolio a read-only view over a foreign broker schema; null keeps the owned-tables mode) |
 | `portfolio_nav_history` | NAV time-series per portfolio |
 | `trade_plans` | Per-portfolio trade plan: entry/exit zones, leverage, margin rate, TP/SL levels |
@@ -80,6 +80,7 @@ CREATE TABLE custom_portfolio_connections (
 ### Updated column on `portfolios`
 
 - `is_custom BOOLEAN DEFAULT FALSE` — flags whether data routes to an external database
+- `product_type VARCHAR NULL` — the type half of the portfolio display identity (`stock` / `future` / `option` / `crypto`; normalized by the API, `null` = no type). Added to existing databases by the idempotent startup `ALTER TABLE ... ADD COLUMN` in `PORTFOLIO_COLUMNS`, so retained portfolios keep every value and gain a NULL. Display-only: per-order margin still comes from each order's own broker-scoped symbol spec.
 
 ### Asset registry (`asset_products` / `asset_symbols` / `asset_quotes`)
 

@@ -32,6 +32,7 @@ class PortfolioCreate(BaseModel):
     broker_id: Optional[int] = None
     product_ticker: Optional[str] = None
     product_tickers: Optional[List[str]] = None
+    product_type: Optional[str] = None
     x_amount: Optional[float] = 0.0
     initial_capital: Optional[float] = 0.0
     target_ratio: Optional[Dict[str, Any]] = None
@@ -60,6 +61,7 @@ class PortfolioResponse(BaseModel):
     broker_id: Optional[int] = None
     product_ticker: Optional[str] = None
     product_tickers: Optional[List[str]] = None
+    product_type: Optional[str] = None
     x_amount: Optional[float] = 0.0
     initial_capital: Optional[float] = 0.0
     target_ratio: Optional[Dict[str, Any]]
@@ -112,6 +114,7 @@ class PortfolioUpdate(BaseModel):
     broker_id: Optional[int] = None
     product_ticker: Optional[str] = None
     product_tickers: Optional[List[str]] = None
+    product_type: Optional[str] = None
     x_amount: Optional[float] = None
     initial_capital: Optional[float] = None
     target_ratio: Optional[Dict[str, Any]] = None
@@ -160,6 +163,23 @@ def _normalize_product_tickers(values: Optional[List[str]]) -> Optional[List[str
         seen.add(key)
         normalized.append(value)
     return normalized or None
+
+
+def _normalize_product_type(value: Optional[str]) -> Optional[str]:
+    """The identity type, normalized; anything outside the allow-list is 400.
+
+    ``None`` clears the type and keeps the legacy unique ticker+broker display
+    resolution. ``product_ticker`` handling is unaffected.
+    """
+    if value is None:
+        return None
+    normalized = str(value).strip().lower()
+    if normalized not in ("stock", "future", "option", "crypto"):
+        raise HTTPException(
+            status_code=400,
+            detail="product_type must be one of stock, future, option or crypto",
+        )
+    return normalized
 
 
 def _serialize_product_tickers(portfolio: Portfolio) -> Optional[List[str]]:
@@ -254,6 +274,7 @@ async def list_portfolios(db: AsyncSession = Depends(get_db)):
         "available_cash": p.available_cash,
         "port_type": p.port_type,
         "is_custom": p.is_custom,
+        "product_type": p.product_type,
     } for p in portfolios]
 
 
@@ -299,6 +320,7 @@ async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depend
         broker_id=portfolio.broker_id,
         product_ticker=product_ticker,
         product_tickers=product_tickers,
+        product_type=_normalize_product_type(portfolio.product_type),
         x_amount=portfolio.x_amount or 0,
         initial_capital=portfolio.initial_capital or 0,
         target_ratio=portfolio.target_ratio,
@@ -340,6 +362,7 @@ async def create_portfolio(portfolio: PortfolioCreate, db: AsyncSession = Depend
         "broker_id": db_portfolio.broker_id,
         "product_ticker": db_portfolio.product_ticker,
         "product_tickers": _serialize_product_tickers(db_portfolio),
+        "product_type": db_portfolio.product_type,
         "x_amount": db_portfolio.x_amount,
         "initial_capital": db_portfolio.initial_capital,
         "target_ratio": db_portfolio.target_ratio,
@@ -407,6 +430,7 @@ async def get_portfolio(portfolio_id: int, db: AsyncSession = Depends(get_db)):
         "broker_id": portfolio.broker_id,
         "product_ticker": portfolio.product_ticker,
         "product_tickers": _serialize_product_tickers(portfolio),
+        "product_type": portfolio.product_type,
         "x_amount": portfolio.x_amount,
         "initial_capital": portfolio.initial_capital,
         "target_ratio": portfolio.target_ratio,
@@ -462,6 +486,12 @@ async def update_portfolio(portfolio_id: int, update: PortfolioUpdate, db: Async
         )
         update_data["product_tickers"] = tickers
         update_data["product_ticker"] = tickers[0] if tickers else None
+    # The identity type is display-only metadata: null clears it, and a value
+    # outside the allow-list is rejected (it never rewrites the ticker).
+    if "product_type" in update_data:
+        update_data["product_type"] = _normalize_product_type(
+            update_data["product_type"]
+        )
     # margin_locked is a policy input only for Managed Fund; Active Trading
     # computes it from live orders, so a submitted value is accepted and dropped.
     if update_data.get("port_type", portfolio.port_type) == "Active Trading":
@@ -478,6 +508,7 @@ async def update_portfolio(portfolio_id: int, update: PortfolioUpdate, db: Async
         "broker_id": portfolio.broker_id,
         "product_ticker": portfolio.product_ticker,
         "product_tickers": _serialize_product_tickers(portfolio),
+        "product_type": portfolio.product_type,
         "x_amount": portfolio.x_amount,
         "initial_capital": portfolio.initial_capital,
         "target_ratio": portfolio.target_ratio,

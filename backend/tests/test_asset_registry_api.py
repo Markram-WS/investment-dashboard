@@ -2067,6 +2067,164 @@ async def test_margin_modes_overrides_and_display_risk(async_client):
 
 
 @pytest.mark.asyncio
+async def test_portfolio_product_type_display_identity(async_client):
+    _, Session = get_test_engine()
+    async with Session() as session:
+        broker = Broker(code="PTYP", name="Portfolio Type Broker")
+        session.add(broker)
+        await session.flush()
+        stock = AssetProduct(
+            ticker="SHARED",
+            broker_id=broker.id,
+            asset_type="stock",
+            multiplier=Decimal("1"),
+            margin_rate=Decimal("0"),
+            margin_mode="notional",
+            source="-",
+        )
+        future = AssetProduct(
+            ticker="SHARED",
+            broker_id=broker.id,
+            asset_type="future",
+            multiplier=Decimal("200"),
+            margin_rate=Decimal("0.1"),
+            margin_mode="notional",
+            source="-",
+        )
+        session.add_all([stock, future])
+        await session.flush()
+        symbol = AssetSymbol(
+            product_id=future.product_id,
+            broker_id=broker.id,
+            price_symbol="SHFUT",
+            sync_symbol="SHFUT",
+        )
+        portfolio = Portfolio(
+            portfolio_name="Typed Identity",
+            port_type="Active Trading",
+            risk_status="Safe",
+            broker_id=broker.id,
+            product_ticker="SHARED",
+            product_tickers=["SHARED"],
+            product_type="stock",
+            x_amount=Decimal("50"),
+            available_cash=Decimal("1000"),
+            margin_locked=Decimal("0"),
+        )
+        session.add_all([symbol, portfolio])
+        await session.flush()
+        plan = TradePlan(portfolio_id=portfolio.portfolio_id)
+        session.add(plan)
+        await session.flush()
+        # One contract on the future identity: per-order margin must keep using
+        # this order's own spec whatever the portfolio display type says.
+        session.add(
+            ActiveOrder(
+                plan_id=plan.plan_id,
+                portfolio_id=portfolio.portfolio_id,
+                asset_type="SHFUT",
+                side="Buy",
+                qty=Decimal("1"),
+                entry_price=Decimal("10"),
+                current_price=Decimal("10"),
+                contract_type="spot",
+            )
+        )
+        await session.commit()
+        portfolio_id = portfolio.portfolio_id
+        broker_id = broker.id
+
+    try:
+        async with Session() as session:
+            loaded = await session.get(Portfolio, portfolio_id)
+            orders = (
+                await session.execute(
+                    select(ActiveOrder).where(
+                        ActiveOrder.portfolio_id == portfolio_id
+                    )
+                )
+            ).scalars().all()
+            risk_stock = await compute_risk(session, loaded, orders)
+            # Two products share the ticker: the type picks the identity.
+            loaded.product_type = "future"
+            risk_future = await compute_risk(session, loaded, orders)
+            # Without a type the ticker is ambiguous -> display fallback 1 / 0.
+            loaded.product_type = None
+            risk_untyped = await compute_risk(session, loaded, orders)
+
+        assert risk_stock["multiplier"] == 1.0
+        assert risk_stock["margin_rate"] == 0.0
+        assert risk_future["multiplier"] == 200.0
+        assert risk_future["margin_rate"] == 0.1
+        assert risk_untyped["multiplier"] == 1.0
+        assert risk_untyped["margin_rate"] == 0.0
+        # Per-order margin is unchanged: 10 × 200 × 1 × 0.1 from SHFUT's own
+        # future identity in every display mode.
+        assert risk_stock["margin_locked"] == pytest.approx(200.0)
+        assert risk_future["margin_locked"] == pytest.approx(200.0)
+        assert risk_untyped["margin_locked"] == pytest.approx(200.0)
+
+        # Payloads expose the stored type on detail, list and analytics grids.
+        detail = await async_client.get(f"/api/v1/portfolios/{portfolio_id}")
+        assert detail.status_code == 200
+        assert detail.json()["product_type"] == "stock"
+        listed = {
+            row["portfolio_id"]: row
+            for row in (await async_client.get("/api/v1/portfolios")).json()
+        }
+        assert listed[portfolio_id]["product_type"] == "stock"
+
+        future_update = await async_client.put(
+            f"/api/v1/portfolios/{portfolio_id}",
+            json={"product_type": "future"},
+        )
+        assert future_update.status_code == 200, future_update.text
+        assert future_update.json()["product_type"] == "future"
+        assert future_update.json()["product_ticker"] == "SHARED"
+        grid = {
+            row["portfolio_id"]: row
+            for row in (
+                await async_client.get("/api/v1/analytics/portfolio-grid")
+            ).json()
+        }
+        assert grid[portfolio_id]["product_type"] == "future"
+
+        invalid = await async_client.put(
+            f"/api/v1/portfolios/{portfolio_id}",
+            json={"product_type": "bond"},
+        )
+        assert invalid.status_code == 400
+        assert invalid.json()["detail"] == (
+            "product_type must be one of stock, future, option or crypto"
+        )
+        cleared = await async_client.put(
+            f"/api/v1/portfolios/{portfolio_id}", json={"product_type": None}
+        )
+        assert cleared.status_code == 200
+        assert cleared.json()["product_type"] is None
+        assert cleared.json()["product_ticker"] == "SHARED"
+    finally:
+        async with Session() as session:
+            await session.execute(
+                delete(ActiveOrder).where(ActiveOrder.portfolio_id == portfolio_id)
+            )
+            await session.execute(
+                delete(TradePlan).where(TradePlan.portfolio_id == portfolio_id)
+            )
+            await session.execute(
+                delete(AssetSymbol).where(AssetSymbol.broker_id == broker_id)
+            )
+            await session.execute(
+                delete(AssetProduct).where(AssetProduct.broker_id == broker_id)
+            )
+            await session.execute(
+                delete(Portfolio).where(Portfolio.portfolio_id == portfolio_id)
+            )
+            await session.execute(delete(Broker).where(Broker.id == broker_id))
+            await session.commit()
+
+
+@pytest.mark.asyncio
 async def test_symbol_payload_effective_and_inherited_contract_values(async_client):
     broker_id = await create_broker(async_client, "EFF1")
     try:

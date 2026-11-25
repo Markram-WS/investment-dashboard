@@ -111,8 +111,13 @@ async def resolve_product(
     db: AsyncSession,
     ticker: Any,
     broker_id: Optional[int],
+    asset_type: Optional[str] = None,
 ) -> list[AssetProduct]:
-    """All products whose normalized ticker matches inside the broker scope."""
+    """All products whose normalized ticker matches inside the broker scope.
+
+    ``asset_type`` narrows the match to one identity type (compared normalized,
+    case/whitespace-insensitive); omit it for the legacy ticker+broker lookup.
+    """
     symbol = normalise_symbol(ticker)
     if symbol is None:
         return []
@@ -123,6 +128,11 @@ async def resolve_product(
         query = query.where(AssetProduct.broker_id.is_(None))
     else:
         query = query.where(AssetProduct.broker_id == broker_id)
+    if asset_type is not None:
+        query = query.where(
+            func.lower(func.trim(AssetProduct.asset_type))
+            == str(asset_type).strip().lower()
+        )
     result = await db.execute(query.order_by(AssetProduct.product_id))
     return list(result.scalars().all())
 

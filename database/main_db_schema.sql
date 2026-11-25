@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS portfolios (
     -- Risk model (Phase 1): one product per portfolio = broker + ticker.
     broker_id INTEGER REFERENCES brokers(id),
     product_ticker TEXT,
+    product_type VARCHAR,            -- identity type; NULL keeps the unique ticker+broker resolution
     x_amount NUMERIC(20,8) NOT NULL DEFAULT 0,   -- adverse move in product price points
     initial_capital NUMERIC(20,8) NOT NULL DEFAULT 0,
     target_ratio JSONB,

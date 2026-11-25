@@ -60,6 +60,7 @@ PORTFOLIO_COLUMNS = (
     ("broker_id", "INTEGER"),
     ("product_ticker", "VARCHAR"),
     ("product_tickers", "JSON"),
+    ("product_type", "VARCHAR"),
     ("x_amount", "NUMERIC(20,8) NOT NULL DEFAULT 0"),
     ("initial_capital", "NUMERIC(20,8) NOT NULL DEFAULT 0"),
 )

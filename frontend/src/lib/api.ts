@@ -59,6 +59,7 @@ export interface PortfolioRecord {
   broker_code?: string | null;
   product_ticker: string | null;
   product_tickers?: string[] | null;
+  product_type?: string | null;
   x_amount: number;
   initial_capital: number;
   available_cash: number;
@@ -83,6 +84,7 @@ export interface PortfolioPayload {
   broker_id?: number | null;
   product_ticker?: string | null;
   product_tickers?: string[] | null;
+  product_type?: string | null;
   x_amount?: number;
   initial_capital?: number;
   cash_buffer_limit?: number;
@@ -107,6 +109,7 @@ export interface PortfolioUpdatePayload {
   broker_id?: number | null;
   product_ticker?: string | null;
   product_tickers?: string[] | null;
+  product_type?: string | null;
   x_amount?: number;
   initial_capital?: number;
   cash_buffer_limit?: number;

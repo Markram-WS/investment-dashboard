@@ -151,6 +151,7 @@ class PortfolioGridData(BaseModel):
     broker_code: Optional[str] = None
     product_ticker: Optional[str] = None
     product_tickers: Optional[List[str]] = None
+    product_type: Optional[str] = None
     x_amount: float = 0
     initial_capital: float = 0
     tags: Optional[Dict[str, Any]] = None
@@ -478,6 +479,7 @@ async def _degraded_grid_data(
         broker_code=broker_code,
         product_ticker=portfolio.product_ticker,
         product_tickers=_portfolio_product_tickers(portfolio),
+        product_type=portfolio.product_type,
         x_amount=_to_float(portfolio.x_amount) or 0,
         initial_capital=_to_float(portfolio.initial_capital) or 0,
         tags=portfolio.tags,
@@ -611,6 +613,7 @@ async def _build_mapped_grid_data(
         broker_code=broker_code,
         product_ticker=portfolio.product_ticker,
         product_tickers=_portfolio_product_tickers(portfolio),
+        product_type=portfolio.product_type,
         x_amount=_to_float(portfolio.x_amount) or 0,
         initial_capital=_to_float(portfolio.initial_capital) or 0,
         tags=portfolio.tags,
@@ -846,6 +849,7 @@ async def _build_local_grid_data(
         broker_id=portfolio.broker_id,
         product_ticker=portfolio.product_ticker,
         product_tickers=_portfolio_product_tickers(portfolio),
+        product_type=portfolio.product_type,
         x_amount=_to_float(portfolio.x_amount) or 0,
         initial_capital=_to_float(portfolio.initial_capital) or 0,
         tags=portfolio.tags,
@@ -1157,6 +1161,7 @@ async def get_portfolio_detail(
             broker_code=broker_code,
             product_ticker=portfolio.product_ticker,
             product_tickers=_portfolio_product_tickers(portfolio),
+            product_type=portfolio.product_type,
             x_amount=_to_float(portfolio.x_amount) or 0,
             initial_capital=_to_float(portfolio.initial_capital) or 0,
             tags=portfolio.tags,

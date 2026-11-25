@@ -45,13 +45,25 @@ async def _load_order_specs(db: AsyncSession, portfolio: Portfolio, orders):
 
 
 async def _display_product_spec(db: AsyncSession, portfolio: Portfolio):
-    """First ``product_tickers`` entry in the portfolio broker scope, or None."""
+    """First ``product_tickers`` entry in the portfolio's display identity.
+
+    The identity is ``(ticker, broker, product_type)`` when the portfolio names
+    a type, and the legacy unique ``(ticker, broker)`` match otherwise; an
+    ambiguous ticker without a type resolves to None (display 1 / 0). This is
+    display-only: per-order margin keeps using each order's own symbol spec,
+    and a missing spec contributes zero.
+    """
     if db is None:
         return None
     tickers = getattr(portfolio, "product_tickers", None)
     if not isinstance(tickers, list) or not tickers:
         return None
-    matches = await registry.resolve_product(db, tickers[0], portfolio.broker_id)
+    matches = await registry.resolve_product(
+        db,
+        tickers[0],
+        portfolio.broker_id,
+        asset_type=getattr(portfolio, "product_type", None),
+    )
     if len(matches) != 1:
         return None
     return matches[0]
@@ -150,7 +162,11 @@ async def compute_risk(
     Per-order sizing uses that order's own symbol spec (no portfolio-product
     fallback) and multiplier 1 when it has none. With ``db is None`` no registry
     lookup happens. Top-level ``multiplier``/``margin_rate`` are display-only:
-    they come only from the first resolvable ``product_tickers`` entry.
+    they come only from the first ``product_tickers`` entry resolved as its
+    full identity ``(ticker, broker, product_type)``, or as a unique ticker +
+    broker match when no type is set. Per-order margin is unchanged — each
+    order still resolves its own symbol spec and a missing spec contributes
+    zero.
     """
     display = await _display_product_spec(db, portfolio)
     multiplier = _spec_fallback(display.multiplier, "1") if display else Decimal("1")

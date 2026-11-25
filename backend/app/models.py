@@ -26,6 +26,9 @@ class Portfolio(Base):
     product_ticker = Column(String, nullable=True)
     # Ordered list of products the portfolio trades; product_ticker mirrors the first entry for legacy readers.
     product_tickers = Column(JSON)
+    # Contract type of the portfolio's display identity (underlying + broker +
+    # type). Null keeps the legacy unique ticker+broker resolution.
+    product_type = Column(String, nullable=True)
     x_amount = Column(Numeric(20, 8), nullable=False, default=Decimal('0'))
     initial_capital = Column(Numeric(20, 8), nullable=False, default=Decimal('0'))
     target_ratio = Column(JSON)

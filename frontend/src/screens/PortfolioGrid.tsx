@@ -911,6 +911,7 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
           selectedPortfolio.product_tickers
           ?? (selectedPortfolio.product_ticker ? [selectedPortfolio.product_ticker] : null)
         }
+        productType={selectedPortfolio.product_type ?? null}
         products={portfolioProducts}
         xAmount={selectedPortfolio.x_amount ?? 0}
         initialCapital={selectedPortfolio.initial_capital ?? 0}
