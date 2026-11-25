@@ -31,7 +31,7 @@ from app.custom_mapping import (
     update_mapped_order,
 )
 from pydantic import BaseModel, field_validator
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, Iterable, List
 
 router = APIRouter()
 
@@ -106,6 +106,7 @@ class ActiveOrderResponse(BaseModel):
     plan_id: Optional[int] = None
     portfolio_id: int
     asset_type: str
+    underlying: str
     side: str
     qty: Optional[float]
     entry_price: Optional[float]
@@ -145,6 +146,9 @@ def _mapped_response(
     shaped["portfolio_id"] = portfolio_id
     shaped.setdefault("plan_id", None)
     shaped["order_source"] = order_source
+    # A mapped row's contract lives in the foreign schema; the local registry
+    # never owns its spec, so the underlying is always unassigned.
+    shaped["underlying"] = ""
     return shaped
 
 
@@ -277,6 +281,57 @@ async def _create_main_order_row(db: AsyncSession, data: dict) -> ActiveOrder:
     return db_order
 
 
+async def _broker_by_portfolio(
+    db: AsyncSession, portfolio_ids: Iterable[Optional[int]]
+) -> dict[int, Optional[int]]:
+    """portfolio_id -> broker_id for the given ids (one query per request)."""
+    wanted = {portfolio_id for portfolio_id in portfolio_ids if portfolio_id is not None}
+    if not wanted:
+        return {}
+    rows = (
+        await db.execute(
+            select(Portfolio.portfolio_id, Portfolio.broker_id).where(
+                Portfolio.portfolio_id.in_(wanted)
+            )
+        )
+    ).all()
+    return {portfolio_id: broker_id for portfolio_id, broker_id in rows}
+
+
+async def _attach_underlying(db: AsyncSession, rows: list) -> None:
+    """Fill ``underlying`` on canonical order dicts or ORM order instances.
+
+    The underlying is the ticker of the product that owns the order's contract
+    spec (``price_symbol`` = the order's ``asset_type``) inside the order's
+    portfolio broker scope. One batched registry lookup per request; an unknown
+    symbol, a brokerless portfolio or a missing spec yields ``""``.
+    """
+    if not rows:
+        return
+
+    def field(row, name):
+        return row.get(name) if isinstance(row, dict) else getattr(row, name, None)
+
+    pairs = [(field(row, "portfolio_id"), field(row, "asset_type")) for row in rows]
+    brokers = await _broker_by_portfolio(db, [portfolio_id for portfolio_id, _ in pairs])
+    resolved = await registry.resolve_underlyings(
+        db, [(brokers.get(portfolio_id), symbol) for portfolio_id, symbol in pairs]
+    )
+    for row, (portfolio_id, symbol) in zip(rows, pairs):
+        key = (brokers.get(portfolio_id), registry.normalise_symbol(symbol))
+        underlying = resolved.get(key, "")
+        if isinstance(row, dict):
+            row["underlying"] = underlying
+        else:
+            row.underlying = underlying
+
+
+async def _with_underlying(db: AsyncSession, row):
+    """Single-row convenience wrapper around :func:`_attach_underlying`."""
+    await _attach_underlying(db, [row])
+    return row
+
+
 @router.get("", tags=["orders"], response_model=List[ActiveOrderResponse])
 async def list_orders(
     db: AsyncSession = Depends(get_db),
@@ -287,6 +342,7 @@ async def list_orders(
     if connection is not None:
         local_orders = await fetch_local_option_orders(db, portfolio_id)
         dashboard_rows = [local_order_row(order) for order in local_orders]
+        await _attach_underlying(db, dashboard_rows)
         try:
             engine = await mapped_engine(connection)
             orders = await fetch_mapped_orders(engine, connection.mapping_config)
@@ -303,7 +359,8 @@ async def list_orders(
     try:
         ModelClass = CustomActiveOrder if is_custom else ActiveOrder
         result = await session.execute(select(ModelClass))
-        orders = result.scalars().all()
+        orders = list(result.scalars().all())
+        await _attach_underlying(db, orders)
         return orders
     finally:
         if is_custom:
@@ -326,7 +383,7 @@ async def create_order(order: ActiveOrderCreate, db: AsyncSession = Depends(get_
             data.pop("fee", None)
             data["contract_type"] = "option"
             db_order = await _create_main_order_row(db, data)
-            return local_order_row(db_order)
+            return await _with_underlying(db, local_order_row(db_order))
 
         config = connection.mapping_config
         caps = mapped_orders_write_capabilities(config)
@@ -373,8 +430,9 @@ async def create_order(order: ActiveOrderCreate, db: AsyncSession = Depends(get_
             session.add(db_order)
             await session.commit()
             await session.refresh(db_order)
-            return db_order
-        return await _create_main_order_row(db, data)
+            return await _with_underlying(db, db_order)
+        db_order = await _create_main_order_row(db, data)
+        return await _with_underlying(db, db_order)
     finally:
         if is_custom:
             await session.close()
@@ -395,7 +453,7 @@ async def get_order(
             order = await fetch_local_option_order(db, portfolio_id, order_id)
             if order is None:
                 raise HTTPException(status_code=404, detail="Order not found")
-            return local_order_row(order)
+            return await _with_underlying(db, local_order_row(order))
         engine = await mapped_engine(connection)
         order = await _mapped_store_result(
             fetch_mapped_order(engine, connection.mapping_config, order_id)
@@ -410,7 +468,7 @@ async def get_order(
         order = result.scalar_one_or_none()
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
-        return order
+        return await _with_underlying(db, order)
     finally:
         if is_custom:
             await session.close()
@@ -571,7 +629,7 @@ async def update_order(
                 setattr(order, field, value)
             await db.commit()
             await db.refresh(order)
-            return local_order_row(order)
+            return await _with_underlying(db, local_order_row(order))
 
         config = connection.mapping_config
         caps = mapped_orders_write_capabilities(config) or {}
@@ -615,7 +673,7 @@ async def update_order(
 
         await session.commit()
         await session.refresh(order)
-        return order
+        return await _with_underlying(db, order)
     finally:
         if is_custom:
             await session.close()

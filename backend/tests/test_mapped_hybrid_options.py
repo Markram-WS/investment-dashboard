@@ -304,6 +304,7 @@ async def cleanup_portfolio(portfolio_id: int) -> None:
 
 async def create_broker_contract(client) -> dict:
     suffix = uuid4().hex[:6].upper()
+    ticker = f"OPT{suffix}"
     broker_resp = await client.post(
         "/api/v1/brokers", json={"code": f"HB{suffix}", "name": "Hybrid Broker"}
     )
@@ -312,7 +313,7 @@ async def create_broker_contract(client) -> dict:
     product_resp = await client.post(
         "/api/v1/assets/products",
         json={
-            "ticker": f"OPT{suffix}",
+            "ticker": ticker,
             "broker_id": broker_id,
             "asset_type": "option",
             "multiplier": OPTION_MULTIPLIER,
@@ -332,7 +333,11 @@ async def create_broker_contract(client) -> dict:
         },
     )
     assert symbol_resp.status_code == 201, symbol_resp.text
-    return {"broker_id": broker_id, "product_id": product_id}
+    return {
+        "broker_id": broker_id,
+        "product_id": product_id,
+        "ticker": ticker,
+    }
 
 
 def patch_engine(monkeypatch, engine) -> None:
@@ -415,6 +420,7 @@ async def hybrid(async_client, monkeypatch):
         portfolio_id=portfolio_id,
         broker_id=contract["broker_id"],
         product_id=contract["product_id"],
+        ticker=contract["ticker"],
     )
     try:
         yield state
@@ -565,6 +571,7 @@ async def test_mapped_option_create_is_dashboard_local(
     assert body["order_source"] == "dashboard"
     assert body["contract_type"] == "option"
     assert body["plan_id"] is not None
+    assert body["underlying"] == hybrid.ticker
 
     _, Session = get_test_engine()
     async with Session() as session:
@@ -599,6 +606,7 @@ async def test_mapped_non_option_create_keeps_the_foreign_writer(
     body = resp.json()
     assert body["order_source"] == "mapped"
     assert body["order_ref"] == "HYBRID-REF-1"
+    assert body["underlying"] == ""
 
     foreign = await foreign_rows(hybrid.engine, "SELECT symbol FROM opened_orders")
     assert [item["symbol"] for item in foreign] == ["FUTQ26"]
@@ -712,6 +720,12 @@ async def test_mapped_order_list_unions_both_sources(async_client, hybrid):
     rows = resp.json()
     assert [item["order_source"] for item in rows] == ["dashboard", "mapped"]
     assert [item["order_id"] for item in rows] == [local["order_id"], "MAPPED-1"]
+    # The dashboard option row resolves its product ticker; the mapped row's
+    # contract lives in the foreign schema, so its underlying is unassigned.
+    assert local["underlying"] == hybrid.ticker
+    by_source = {item["order_source"]: item for item in rows}
+    assert by_source["dashboard"]["underlying"] == hybrid.ticker
+    assert by_source["mapped"]["underlying"] == ""
 
 
 @pytest.mark.asyncio
@@ -729,6 +743,7 @@ async def test_local_non_option_rows_are_never_exposed(async_client, hybrid):
     )
     assert listed.status_code == 200, listed.text
     assert [item["order_id"] for item in listed.json()] == ["MAPPED-ONLY"]
+    assert [item["underlying"] for item in listed.json()] == [""]
 
     analytics = await async_client.get(
         f"/api/v1/analytics/portfolio/{hybrid.portfolio_id}"

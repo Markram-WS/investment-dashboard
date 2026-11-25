@@ -130,11 +130,14 @@ async def test_active_order_create_status(async_client):
     resp = await async_client.post("/api/v1/orders", json=order_payload)
     assert resp.status_code == 201
     order_id = resp.json()["order_id"]
+    # The order symbol resolves to the product ticker that owns its spec.
+    assert resp.json()["underlying"] == "CRYPTO"
 
     # Verify order retrieval
     resp = await async_client.get(f"/api/v1/orders/{order_id}")
     assert resp.status_code == 200
     assert resp.json()["order_status"] in ("pending_sync", "filled", "cancel_pending")
+    assert resp.json()["underlying"] == "CRYPTO"
 
     # Update order status via PATCH (status transition endpoint)
     resp = await async_client.patch(f"/api/v1/orders/{order_id}/status", json={"new_status": "filled"})

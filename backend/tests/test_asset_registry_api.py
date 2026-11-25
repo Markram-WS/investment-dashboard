@@ -41,8 +41,9 @@ PRODUCT_KEYS = {
 SYMBOL_KEYS = {
     "symbol_id", "product_id", "price_symbol", "sync_symbol", "contract_kind",
     "option_type", "expiry_date", "strike_price", "multiplier_override",
-    "margin_rate_override", "margin_per_contract", "price", "change_24h",
-    "updated_at",
+    "margin_rate_override", "multiplier_effective", "margin_rate_effective",
+    "multiplier_inherited", "margin_rate_inherited", "margin_per_contract",
+    "price", "change_24h", "updated_at",
 }
 
 
@@ -1382,6 +1383,190 @@ async def test_margin_modes_overrides_and_display_risk(async_client):
             )
             await session.execute(delete(Broker).where(Broker.id == broker_id))
             await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_symbol_payload_effective_and_inherited_contract_values(async_client):
+    broker_id = await create_broker(async_client, "EFF1")
+    try:
+        product = await create_product(
+            async_client,
+            ticker="EFF1",
+            broker_id=broker_id,
+            asset_type="future",
+            multiplier=2.5,
+            margin_rate=0.25,
+        )
+        assert product["multiplier"] == 2.5
+        assert product["margin_rate"] == 0.25
+
+        inherited_resp = await create_symbol(
+            async_client,
+            product["product_id"],
+            price_symbol="EFF1",
+            sync_symbol="EFF1.BK",
+        )
+        assert inherited_resp.status_code == 201, inherited_resp.text
+        inherited = inherited_resp.json()
+        assert inherited["multiplier_override"] is None
+        assert inherited["margin_rate_override"] is None
+        assert inherited["multiplier_effective"] == 2.5
+        assert inherited["margin_rate_effective"] == 0.25
+        assert inherited["multiplier_inherited"] is True
+        assert inherited["margin_rate_inherited"] is True
+
+        override_resp = await create_symbol(
+            async_client,
+            product["product_id"],
+            price_symbol="EFF1-O",
+            sync_symbol="EFF1-O.BK",
+            multiplier_override=4,
+            margin_rate_override=0.5,
+        )
+        assert override_resp.status_code == 201, override_resp.text
+        override = override_resp.json()
+        assert override["multiplier_effective"] == 4.0
+        assert override["margin_rate_effective"] == 0.5
+        assert override["multiplier_inherited"] is False
+        assert override["margin_rate_inherited"] is False
+
+        # Each field resolves independently: one override, one product value.
+        partial_resp = await create_symbol(
+            async_client,
+            product["product_id"],
+            price_symbol="EFF1-P",
+            sync_symbol="EFF1-P.BK",
+            margin_rate_override=0.1,
+        )
+        assert partial_resp.status_code == 201, partial_resp.text
+        partial = partial_resp.json()
+        assert partial["multiplier_effective"] == 2.5
+        assert partial["multiplier_inherited"] is True
+        assert partial["margin_rate_effective"] == 0.1
+        assert partial["margin_rate_inherited"] is False
+
+        listed = await async_client.get(
+            f"/api/v1/assets/symbols?product_id={product['product_id']}"
+        )
+        assert listed.status_code == 200, listed.text
+        by_symbol = {row["price_symbol"]: row for row in listed.json()}
+        assert by_symbol["EFF1-O"]["multiplier_effective"] == 4.0
+        assert by_symbol["EFF1-O"]["multiplier_inherited"] is False
+
+        # A product with neither value falls back to multiplier 1 / rate 0 and
+        # both stay inherited — the same rule risk_calc applies without a spec.
+        _, Session = get_test_engine()
+        async with Session() as session:
+            fallback = await registry.symbol_payload(
+                session,
+                AssetSymbol(sync_symbol="NOQUOTE"),
+                AssetProduct(),
+            )
+        assert fallback["multiplier_effective"] == 1.0
+        assert fallback["margin_rate_effective"] == 0.0
+        assert fallback["multiplier_inherited"] is True
+        assert fallback["margin_rate_inherited"] is True
+
+        # The batched order-underlying resolver leaves brokerless and unknown
+        # pairs unassigned instead of borrowing another broker's product.
+        async with Session() as session:
+            assert (
+                await registry.resolve_underlyings(
+                    session,
+                    [(None, "EFF1"), (broker_id, "UNKNOWN"), (broker_id, None)],
+                )
+                == {}
+            )
+            assert await registry.resolve_underlyings(
+                session, [(broker_id, "eff1")]
+            ) == {(broker_id, "EFF1"): "EFF1"}
+    finally:
+        await cleanup_brokers(broker_id)
+
+
+@pytest.mark.asyncio
+async def test_blank_underlying_is_valid_only_when_scoped(async_client):
+    broker_id = await create_broker(async_client, "UNS1")
+    unscoped_id = None
+    try:
+        # Blank + broker: unassigned but scoped, so the product is valid.
+        scoped_resp = await async_client.post(
+            "/api/v1/assets/products",
+            json={"ticker": "   ", "broker_id": broker_id},
+        )
+        assert scoped_resp.status_code == 201, scoped_resp.text
+        scoped = scoped_resp.json()
+        assert scoped["ticker"] is None
+        assert scoped["broker_id"] == broker_id
+        assert scoped["asset_type"] is None
+
+        # Blank + broker + type is a second valid scoped identity.
+        typed_resp = await async_client.post(
+            "/api/v1/assets/products",
+            json={"ticker": "", "broker_id": broker_id, "asset_type": "future"},
+        )
+        assert typed_resp.status_code == 201, typed_resp.text
+        typed = typed_resp.json()
+        assert typed["ticker"] is None
+        assert typed["asset_type"] == "future"
+
+        # Blank with neither broker nor type is the reserved default identity.
+        reserved = await async_client.post(
+            "/api/v1/assets/products", json={"ticker": " "}
+        )
+        assert reserved.status_code == 400
+        assert reserved.json()["detail"] == "Ticker is required"
+
+        # A blank-ticker scoped product is not the default and stays editable.
+        _, Session = get_test_engine()
+        async with Session() as session:
+            stored = await session.get(AssetProduct, scoped["product_id"])
+            assert stored is not None
+            assert registry.is_default_product(stored) is False
+        edited = await async_client.put(
+            f"/api/v1/assets/products/{scoped['product_id']}",
+            json={"name": "Unassigned underlying"},
+        )
+        assert edited.status_code == 200, edited.text
+        assert edited.json()["ticker"] is None
+        assert edited.json()["name"] == "Unassigned underlying"
+
+        # Blanking an existing ticker keeps the scoped product valid.
+        named = await create_product(
+            async_client,
+            ticker="UNS1-OLD",
+            broker_id=broker_id,
+            asset_type="stock",
+        )
+        blanked_resp = await async_client.put(
+            f"/api/v1/assets/products/{named['product_id']}",
+            json={"ticker": "   "},
+        )
+        assert blanked_resp.status_code == 200, blanked_resp.text
+        blanked = blanked_resp.json()
+        assert blanked["ticker"] is None
+        assert blanked["broker_id"] == broker_id
+        assert blanked["asset_type"] == "stock"
+
+        # Blanking the ticker while clearing the only scope is refused.
+        unscoped = await create_product(async_client, ticker="UNS1-NOSCOPE")
+        unscoped_id = unscoped["product_id"]
+        refused = await async_client.put(
+            f"/api/v1/assets/products/{unscoped_id}", json={"ticker": ""}
+        )
+        assert refused.status_code == 400
+        assert refused.json()["detail"] == "Ticker is required"
+
+        # Unassigned products are listed, scoped by broker or by type.
+        listed = await async_client.get("/api/v1/assets/products")
+        assert listed.status_code == 200, listed.text
+        listed_ids = {row["product_id"] for row in listed.json()}
+        assert scoped["product_id"] in listed_ids
+        assert typed["product_id"] in listed_ids
+    finally:
+        if unscoped_id is not None:
+            await async_client.delete(f"/api/v1/assets/products/{unscoped_id}")
+        await cleanup_brokers(broker_id)
 
 
 @pytest.mark.asyncio

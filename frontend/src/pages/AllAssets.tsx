@@ -63,6 +63,14 @@ const COL_SOURCE = 'hidden sm:table-cell';
 
 const COLUMN_COUNT = 9;
 
+/** Effective multiplier for a contract: the symbol override or the product default. */
+const formatMultiplier = (value: number) =>
+  Number.isFinite(value) ? String(Number(value.toFixed(8))) : '—';
+
+/** Effective margin rate as a percentage, e.g. 0.10 → 10%. */
+const formatMarginPct = (rate: number) =>
+  Number.isFinite(rate) ? `${Number((rate * 100).toFixed(2))}%` : '—';
+
 interface ProductDragItem {
   productId: number;
   groupId: number | null;
@@ -234,11 +242,12 @@ function SymbolRows({ product, onEditSymbol, onRefreshSymbol, onSaveQuote }: {
             symbol.expiry_date,
             symbol.strike_price != null ? `@${symbol.strike_price}` : null,
           ].filter(Boolean).join(' · ');
-          const overrides = [
-            symbol.multiplier_override != null ? `×${symbol.multiplier_override}` : null,
-            symbol.margin_rate_override != null ? `rate ${symbol.margin_rate_override}` : null,
-            symbol.margin_per_contract != null ? `margin ${symbol.margin_per_contract}` : null,
-          ].filter(Boolean).join(' · ');
+          const effectiveSpec = [
+            'mult',
+            formatMultiplier(symbol.multiplier_effective),
+            formatMarginPct(symbol.margin_rate_effective),
+          ].join(' · ')
+            + (symbol.multiplier_inherited || symbol.margin_rate_inherited ? ' (default)' : '');
           return (
             <tr key={symbol.symbol_id} className="transition-colors hover:bg-surface" style={{ height: 30 }}>
               <td style={{ ...cell, paddingLeft: 32, color: 'var(--color-ink)', fontWeight: 500 }}>
@@ -247,8 +256,14 @@ function SymbolRows({ product, onEditSymbol, onRefreshSymbol, onSaveQuote }: {
               <td style={{ ...cell, color: 'var(--color-slate)' }}>{symbol.sync_symbol}</td>
               <td className={COL_SPEC} style={{ ...cell, color: 'var(--color-slate)' }}>
                 <span>{symbol.contract_kind}{optionBits ? ` · ${optionBits}` : ''}</span>
-                {overrides && (
-                  <span style={{ display: 'block', fontSize: 'var(--fs-micro)' }}>{overrides}</span>
+                <span style={{ display: 'block', fontSize: 'var(--fs-label)', color: 'var(--color-slate)' }}
+                  title="Effective values for this contract">
+                  {effectiveSpec}
+                </span>
+                {symbol.margin_per_contract != null && (
+                  <span style={{ display: 'block', fontSize: 'var(--fs-micro)' }}>
+                    margin {symbol.margin_per_contract}
+                  </span>
                 )}
               </td>
               <td className="text-right" style={{ ...cell, cursor: 'pointer', fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)' }}
@@ -632,11 +647,11 @@ export default function AllAssets() {
         <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
             <tr>
-              <th style={{ ...headTh, width: '20%' }}>Ticker</th>
+              <th style={{ ...headTh, width: '20%' }} title="Underlying: the product that owns these contracts">Underlying</th>
               <th className={COL_SPEC} style={{ ...headTh, width: '8%' }}>Broker</th>
               <th className={COL_SPEC} style={{ ...headTh, width: '9%' }}>Type</th>
-              <th className="text-right" style={{ ...headTh, width: '10%', textAlign: 'right' }} title="multiplier">Multiplier</th>
-              <th className="text-right" style={{ ...headTh, width: '9%', textAlign: 'right' }} title="rate of notional, 0.10 = 10%">Margin</th>
+              <th className="text-right" style={{ ...headTh, width: '10%', textAlign: 'right' }} title="Default multiplier — inherited by every contract unless the contract overrides it">Multiplier</th>
+              <th className="text-right" style={{ ...headTh, width: '9%', textAlign: 'right' }} title="Default margin rate, 0.10 = 10% — inherited by every contract unless the contract overrides it">Margin</th>
               <th className={COL_SPEC} style={{ ...headTh, width: '9%' }}>Mode</th>
               <th className={COL_SOURCE} style={{ ...headTh, width: '9%' }}>Source</th>
               <th className="text-right" style={{ ...headTh, width: '8%', textAlign: 'right' }}>Symbols</th>

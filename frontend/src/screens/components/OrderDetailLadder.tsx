@@ -305,6 +305,19 @@ const legLabel = (o: SpreadOrder) =>
     ? `${o.asset_type} ${o.option_type ?? ""} ${o.strike_price != null ? money(o.strike_price) : ""}`.trim()
     : `${o.asset_type} · ${o.contract_type ?? "spot"}`;
 
+/** Symbol cell: the contract ticker, prefixed by its underlying when that resolves to a different ticker. */
+const SymbolCell = ({ order }: { order: SpreadOrder }) => {
+  const underlying = (order.underlying ?? "").trim();
+  const symbol = order.asset_type ?? "";
+  const showUnderlying = underlying !== "" && underlying !== symbol;
+  return (
+    <span className="at-left" title={showUnderlying ? `Underlying ${underlying}` : undefined}>
+      {showUnderlying ? <><span className="at-muted">{underlying}</span>{" · "}</> : null}
+      {symbol || "—"}
+    </span>
+  );
+};
+
 /** LC / LP / SC / SP: option type as a two-letter code, side first. */
 const typeCode = (o: SpreadOrder) => {
   const s = (o.side ?? "").trim().toUpperCase();
@@ -583,7 +596,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
       return (
         <>
           {mark}
-          <span className="at-left">{eq.asset_type || "—"}</span>
+          <SymbolCell order={eq} />
           {mapped && <SourceCell orders={[eq]} />}
           <span className="at-left at-muted">{statusText(eq.order_status)}</span>
           <span className="at-left at-muted">{shortDate(eq.created_at)}</span>
@@ -619,7 +632,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
       return (
         <>
           {mark}
-          <span className="at-left">{opt.asset_type || "—"}</span>
+          <SymbolCell order={opt} />
           {mapped && <SourceCell orders={[opt]} />}
           <span className="at-left at-muted">{statusText(opt.order_status)}</span>
           <span className="at-left at-muted">{shortDate(opt.expiry_date)}</span>

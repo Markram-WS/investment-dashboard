@@ -71,6 +71,8 @@ export interface SpreadOrder {
   /** Foreign broker's human order number for a mapped order. */
   order_ref?: string | null;
   asset_type: string;
+  /** Product ticker that owns this order's contract spec; "" when none resolves. */
+  underlying: string;
   side: string;
   qty: number | string;
   entry_price: number | null;
@@ -467,6 +469,14 @@ export interface AssetSymbol {
   multiplier_override: number | null;
   margin_rate_override: number | null;
   margin_per_contract: number | null;
+  /** Symbol override when set, else the product default. */
+  multiplier_effective: number;
+  /** Symbol override when set, else the product default. */
+  margin_rate_effective: number;
+  /** True when the multiplier comes from the product (no symbol override). */
+  multiplier_inherited: boolean;
+  /** True when the margin rate comes from the product (no symbol override). */
+  margin_rate_inherited: boolean;
   price: number | null;
   change_24h: number | null;
   updated_at: string | null;

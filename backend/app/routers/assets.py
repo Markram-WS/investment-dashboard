@@ -483,7 +483,9 @@ async def list_products(
 @router.post("/products", status_code=201, tags=["assets"])
 async def create_product(data: ProductCreate, db: AsyncSession = Depends(get_db)):
     ticker = registry.normalise_ticker(data.ticker)
-    if ticker is None:
+    if ticker is None and data.broker_id is None and data.asset_type is None:
+        # An unassigned underlying is valid only when scoped by a broker or a
+        # type; the all-NULL triple is the reserved default-product identity.
         raise HTTPException(400, "Ticker is required")
     _validate_product_values(
         data.multiplier, data.margin_rate, data.margin_mode
@@ -543,7 +545,13 @@ async def update_product(
     effective_broker_id = fields.get("broker_id", product.broker_id)
     if "ticker" in fields:
         new_ticker = registry.normalise_ticker(fields.pop("ticker"))
-        if new_ticker is None:
+        if (
+            new_ticker is None
+            and effective_broker_id is None
+            and fields.get("asset_type", product.asset_type) is None
+        ):
+            # Blank is allowed while the product is scoped by a broker or a
+            # type; the all-NULL triple is the reserved default identity.
             raise HTTPException(400, "Ticker is required")
         if new_ticker != old_ticker:
             if await _identity_exists(
@@ -598,7 +606,13 @@ async def update_product(
             raise HTTPException(400, "An asset with this ticker already exists")
 
     if new_ticker != old_ticker:
-        await registry.rename_product_references(db, old_ticker, new_ticker, product)
+        if old_ticker is not None and new_ticker is not None:
+            # Only a real key-to-key rename rewrites order/ledger references.
+            # Blanking the underlying must never null an order's symbol, and
+            # assigning one must never claim rows whose symbol was NULL.
+            await registry.rename_product_references(
+                db, old_ticker, new_ticker, product
+            )
         product.ticker = new_ticker
         if not product.name or product.name == old_ticker:
             product.name = new_ticker

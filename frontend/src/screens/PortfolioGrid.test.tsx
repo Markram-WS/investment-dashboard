@@ -84,6 +84,7 @@ const dashboardOption: SpreadOrder = {
   order_id: 'SAME-1',
   order_source: 'dashboard',
   asset_type: 'DASH-OPT',
+  underlying: '',
   side: 'LONG',
   qty: 1,
   entry_price: 10,
@@ -109,6 +110,7 @@ const mappedFuture: SpreadOrder = {
   order_id: 'SAME-1',
   order_source: 'mapped',
   asset_type: 'BOT-FUT',
+  underlying: '',
   side: 'SHORT',
   qty: 2,
   entry_price: 900,
@@ -317,6 +319,25 @@ describe('Active ladder sources', () => {
     expect(screen.queryByRole('button', { name: /^Edit BOT-FUT/ })).not.toBeInTheDocument();
     // canEdit remains true globally: only the per-store resolver gates the row.
     expect(screen.getByRole('button', { name: /^Close BOT-FUT/ })).toBeInTheDocument();
+  });
+
+  it('prefixes the contract ticker with its underlying', () => {
+    renderLadder({
+      activeOrders: [{ ...dashboardOption, asset_type: 'S50H26', underlying: 'S50' }],
+      view: 'option',
+    });
+
+    expect(screen.getByTitle('Underlying S50')).toHaveTextContent('S50 · S50H26');
+  });
+
+  it('renders the contract ticker alone when no underlying resolves', () => {
+    renderLadder({
+      activeOrders: [{ ...dashboardOption, asset_type: 'S50H26', underlying: '' }],
+      view: 'option',
+    });
+
+    expect(screen.queryByTitle(/^Underlying /)).not.toBeInTheDocument();
+    expect(screen.getByText('S50H26')).toBeInTheDocument();
   });
 });
 

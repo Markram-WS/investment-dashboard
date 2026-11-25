@@ -139,9 +139,17 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
 
   const editingSymbol = mode === 'symbol';
 
+  const inheritedMultiplier = product?.multiplier != null ? String(product.multiplier) : '1';
+  const inheritedMargin = product?.margin_rate != null
+    ? `${Number((product.margin_rate * 100).toFixed(2))}%`
+    : '0%';
+
   const handleSaveProduct = async () => {
     const ticker = productForm.ticker.trim();
-    if (!ticker) { setError('Ticker is required'); return; }
+    if (!ticker && !productForm.broker_id && !productForm.asset_type) {
+      setError('Ticker is required');
+      return;
+    }
     const multiplier = Number(productForm.multiplier);
     const marginRate = Number(productForm.margin_rate);
     if (!productForm.multiplier.trim() || !Number.isFinite(multiplier) || multiplier <= 0) {
@@ -156,7 +164,7 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
     setError('');
     try {
       await api.createProduct({
-        ticker,
+        ticker: ticker || undefined,
         name: productForm.name.trim() || undefined,
         broker_id: productForm.broker_id ? Number(productForm.broker_id) : null,
         asset_type: productForm.asset_type || null,
@@ -269,7 +277,7 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
               </p>
               <div>
                 <div className={rowTwo}>
-                  <Field className="min-w-0" label="Price symbol" htmlFor="add-symbol-price-symbol">
+                  <Field className="min-w-0" label="Ticker" htmlFor="add-symbol-price-symbol">
                     <TextInput id="add-symbol-price-symbol" value={symbolForm.price_symbol}
                       onChange={e => setSymbolForm(p => ({ ...p, price_symbol: e.target.value }))}
                       placeholder="Dashboard / order symbol" />
@@ -303,23 +311,25 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                 </Field>
               </div>
               <div>
+                <p style={{ ...CONTROL_HELPER, margin: '0 0 4px' }}>This contract can override the underlying defaults.</p>
                 <div className={rowThree}>
                   <Field className="min-w-0" label="Strike price" htmlFor="add-symbol-strike">
                     <NumberInput id="add-symbol-strike" step="any" value={symbolForm.strike_price}
                       onChange={e => setSymbolForm(p => ({ ...p, strike_price: e.target.value }))} placeholder="—" />
                   </Field>
-                  <Field className="min-w-0" label="Multiplier override" htmlFor="add-symbol-multiplier">
+                  <Field className="min-w-0" label="Multiplier (this contract)" htmlFor="add-symbol-multiplier"
+                    hint={`Empty = inherit the underlying default (${inheritedMultiplier}).`}>
                     <NumberInput id="add-symbol-multiplier" step="any" value={symbolForm.multiplier_override}
-                      onChange={e => setSymbolForm(p => ({ ...p, multiplier_override: e.target.value }))} placeholder="Product default" />
+                      onChange={e => setSymbolForm(p => ({ ...p, multiplier_override: e.target.value }))} placeholder="Underlying default" />
                   </Field>
-                  <Field className="min-w-0" label="Margin rate override" htmlFor="add-symbol-margin-rate">
+                  <Field className="min-w-0" label="Margin rate (this contract)" htmlFor="add-symbol-margin-rate"
+                    hint={`Empty = inherit the underlying default (${inheritedMargin}).`}>
                     <NumberInput id="add-symbol-margin-rate" step="any" value={symbolForm.margin_rate_override}
-                      onChange={e => setSymbolForm(p => ({ ...p, margin_rate_override: e.target.value }))} placeholder="Product default" />
+                      onChange={e => setSymbolForm(p => ({ ...p, margin_rate_override: e.target.value }))} placeholder="Underlying default" />
                   </Field>
                 </div>
-                <p style={CONTROL_HELPER}>Overrides fall back to the product multiplier and margin rate.</p>
               </div>
-              <Field className="min-w-0" label="Margin per contract" htmlFor="add-symbol-margin-per-contract">
+              <Field className="min-w-0" label="Margin per contract (span)" htmlFor="add-symbol-margin-per-contract">
                 <NumberInput id="add-symbol-margin-per-contract" step="any" value={symbolForm.margin_per_contract}
                   onChange={e => setSymbolForm(p => ({ ...p, margin_per_contract: e.target.value }))}
                   placeholder="Used by span margin mode" />
@@ -328,10 +338,11 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
           ) : (
             <div className="space-y-2.5">
               <div className={rowTwo}>
-                <Field className="min-w-0" label="Ticker" htmlFor="add-product-ticker" required>
+                <Field className="min-w-0" label="Underlying" htmlFor="add-product-ticker"
+                  hint="Leave blank for no underlying — allowed only when a broker or a default type is set.">
                   <TextInput id="add-product-ticker" value={productForm.ticker}
                     onChange={e => setProductForm(p => ({ ...p, ticker: e.target.value }))}
-                    placeholder="e.g. S50" />
+                    placeholder="e.g. S50, or leave blank for none" />
                 </Field>
                 <Field className="min-w-0" label="Name" htmlFor="add-product-name">
                   <TextInput id="add-product-name" value={productForm.name}
@@ -357,7 +368,8 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                     </button>
                   )}
                 </div>
-                <Field className="min-w-0" label="Asset type" htmlFor="add-product-type">
+                <Field className="min-w-0" label="Default type" htmlFor="add-product-type"
+                  hint="Inherited by every contract unless the contract overrides it.">
                   <SelectInput id="add-product-type" value={productForm.asset_type}
                     onChange={e => setProductForm(p => ({ ...p, asset_type: e.target.value }))}>
                     <option value="">—</option>
@@ -441,15 +453,18 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
                 )}
               </div>
               <div className={rowThree}>
-                <Field className="min-w-0" label="Multiplier" htmlFor="add-product-multiplier">
+                <Field className="min-w-0" label="Default multiplier" htmlFor="add-product-multiplier"
+                  hint="Inherited by every contract unless the contract overrides it.">
                   <NumberInput id="add-product-multiplier" step="any" value={productForm.multiplier}
                     onChange={e => setProductForm(p => ({ ...p, multiplier: e.target.value }))} placeholder="1" />
                 </Field>
-                <Field className="min-w-0" label="Margin rate" htmlFor="add-product-margin-rate">
+                <Field className="min-w-0" label="Default margin rate" htmlFor="add-product-margin-rate"
+                  hint="Inherited by every contract unless the contract overrides it.">
                   <NumberInput id="add-product-margin-rate" step="any" value={productForm.margin_rate}
                     onChange={e => setProductForm(p => ({ ...p, margin_rate: e.target.value }))} placeholder="0" />
                 </Field>
-                <Field className="min-w-0" label="Margin mode" htmlFor="add-product-margin-mode">
+                <Field className="min-w-0" label="Default margin mode" htmlFor="add-product-margin-mode"
+                  hint="Inherited by every contract unless the contract overrides it.">
                   <SelectInput id="add-product-margin-mode" value={productForm.margin_mode}
                     onChange={e => setProductForm(p => ({ ...p, margin_mode: e.target.value }))}>
                     {MARGIN_MODES.map(m => <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>)}

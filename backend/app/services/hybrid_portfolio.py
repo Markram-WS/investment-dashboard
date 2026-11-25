@@ -153,9 +153,10 @@ async def fetch_local_history(
 def local_order_row(order: ActiveOrder) -> dict:
     """Dashboard ``ActiveOrder`` -> source-stamped canonical order dict.
 
-    The dict is a superset of ``ActiveOrderResponse`` and the analytics
-    ``active_orders[]`` entry; each consumer's response model filters the keys
-    it does not declare.
+    The dict is a superset of ``ActiveOrderResponse`` except for ``underlying``:
+    that field needs the asset registry, so the orders router resolves it per
+    request and writes it onto the returned dict. Each consumer's response
+    model filters the keys it does not declare.
     """
     return {
         "order_id": order.order_id,

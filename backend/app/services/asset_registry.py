@@ -69,20 +69,29 @@ def is_default_product(product: AssetProduct) -> bool:
     )
 
 
+def effective_value(
+    override: Any, product_value: Any, default: str
+) -> tuple[Decimal, bool]:
+    """Resolve one contract value to ``(effective, inherited)``.
+
+    The symbol override wins when set (not inherited). Otherwise the product
+    value is inherited, and a NULL product value falls back to ``default`` —
+    also inherited, because it still comes from the product side of the
+    contract. Every override/default pair follows this one rule.
+    """
+    if override is not None:
+        return Decimal(str(override)), False
+    if product_value is not None:
+        return Decimal(str(product_value)), True
+    return Decimal(default), True
+
+
 def effective_multiplier(symbol: AssetSymbol, product: AssetProduct) -> Decimal:
-    if symbol.multiplier_override is not None:
-        return Decimal(str(symbol.multiplier_override))
-    if product.multiplier is not None:
-        return Decimal(str(product.multiplier))
-    return Decimal("1")
+    return effective_value(symbol.multiplier_override, product.multiplier, "1")[0]
 
 
 def effective_margin_rate(symbol: AssetSymbol, product: AssetProduct) -> Decimal:
-    if symbol.margin_rate_override is not None:
-        return Decimal(str(symbol.margin_rate_override))
-    if product.margin_rate is not None:
-        return Decimal(str(product.margin_rate))
-    return Decimal("0")
+    return effective_value(symbol.margin_rate_override, product.margin_rate, "0")[0]
 
 
 async def broker_codes(db: AsyncSession) -> dict[int, str]:
@@ -159,6 +168,53 @@ async def resolve_symbol_owner(
         return None
     specs = await resolve_symbol_specs(db, broker_id, [symbol])
     return specs.get(symbol)
+
+
+async def resolve_underlyings(
+    db: AsyncSession,
+    pairs: Iterable[tuple[Optional[int], Any]],
+) -> dict[tuple[Optional[int], str], str]:
+    """``(broker_id, order symbol)`` -> owning product ticker in one query.
+
+    This is the read-side counterpart of :func:`resolve_symbol_specs` for
+    lists: the underlying of an order is the ticker of the product that owns
+    its contract spec. A pair without a broker, without a symbol, or without a
+    resolving spec is absent from the result, so callers render ``""``
+    (unassigned) instead of inventing a product.
+    """
+    wanted: dict[int, set[str]] = {}
+    for broker_id, symbol in pairs:
+        key = normalise_symbol(symbol)
+        if broker_id is None or key is None:
+            continue
+        wanted.setdefault(broker_id, set()).add(key)
+    if not wanted:
+        return {}
+    rows = (
+        await db.execute(
+            select(
+                AssetSymbol.broker_id,
+                AssetSymbol.price_symbol,
+                AssetProduct.ticker,
+            )
+            .join(AssetProduct, AssetProduct.product_id == AssetSymbol.product_id)
+            .where(
+                AssetSymbol.broker_id.in_(sorted(wanted)),
+                AssetSymbol.price_symbol.isnot(None),
+                AssetProduct.ticker.isnot(None),
+                func.upper(func.trim(AssetSymbol.price_symbol)).in_(
+                    sorted({symbol for group in wanted.values() for symbol in group})
+                ),
+            )
+            .order_by(AssetSymbol.symbol_id)
+        )
+    ).all()
+    resolved: dict[tuple[Optional[int], str], str] = {}
+    for broker_id, price_symbol, ticker in rows:
+        key = (broker_id, normalise_symbol(price_symbol))
+        if key[1] in wanted.get(broker_id, ()) and key not in resolved:
+            resolved[key] = ticker
+    return resolved
 
 
 async def translate_product_tickers(
@@ -281,6 +337,12 @@ async def symbol_payload(
     db: AsyncSession, symbol: AssetSymbol, product: AssetProduct
 ) -> dict:
     quote = await quote_for(db, product, symbol)
+    multiplier, multiplier_inherited = effective_value(
+        symbol.multiplier_override, product.multiplier, "1"
+    )
+    margin_rate, margin_rate_inherited = effective_value(
+        symbol.margin_rate_override, product.margin_rate, "0"
+    )
     return {
         "symbol_id": symbol.symbol_id,
         "product_id": symbol.product_id,
@@ -292,6 +354,10 @@ async def symbol_payload(
         "strike_price": _float(symbol.strike_price),
         "multiplier_override": _float(symbol.multiplier_override),
         "margin_rate_override": _float(symbol.margin_rate_override),
+        "multiplier_effective": float(multiplier),
+        "margin_rate_effective": float(margin_rate),
+        "multiplier_inherited": multiplier_inherited,
+        "margin_rate_inherited": margin_rate_inherited,
         "margin_per_contract": _float(symbol.margin_per_contract),
         "price": _float(quote.price) if quote else None,
         "change_24h": _float(quote.change_24h) if quote else None,
