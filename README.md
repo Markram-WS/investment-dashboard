@@ -58,7 +58,7 @@ The read-through mode ships with the `tfex-settrade-v1` template (`usd_pct_abc.o
 - **Portfolio Grid** — Zone-grouped orders, drag-drop assignment, contract type filters, order link system
 - **Payoff Chart** — Pure SVG: intrinsic + BS IV overlay, crosshair, tooltip, area fill, break-even markers
 - **Options Strategy Sandbox** — Frontend-only scratchpad with per-portfolio localStorage persistence
-- **Asset Management** — One two-level registry table: ticker is the editable registry key (a local rename cascades through orders, trade history, transactions and Managed Fund holdings; `name` is a legacy field the UI no longer shows), broker sections render as collapsible rows ordered by broker code (`Unassigned` last, hidden when empty), price edits inline, and every asset whose `source` is a live feed has a per-row refresh icon. Prices come from Yahoo Finance (`source = 'yfinance'`) and the TFEX quotation API (`source = 'tfex'`, quotes are **delayed**, roughly 15 minutes). Each asset stores the provider symbol in `price_symbol` (defaults to the dashboard ticker, stored as entered, never uppercased) so a display ticker can differ from the feed symbol; the last known price is cached in `localStorage('cached_price_{ticker}')`
+- **Asset Management** — One collapsible registry table per broker (`CODE · N`, code ascending, `Unassigned` last and hidden when empty) with **two levels**: a tinted product band per identity (underlying + type, with multiplier · margin · mode · source right-aligned in the Price cell) and its symbol rows. Products are `(underlying, broker, type)` and own multiplier, margin rate, margin mode, span margin and source; symbols inherit those and carry only their dashboard/provider keys plus option terms. Manual price edits inline, feed-backed rows show `has no price` until a quote arrives, and the per-row refresh icon appears only for live feeds. Prices come from Yahoo Finance (`source = 'yfinance'`) and the TFEX quotation API (`source = 'tfex'`, quotes are **delayed**, roughly 15 minutes). `price_symbol` is the dashboard/order key and `sync_symbol` the case-preserving provider key stored as entered; the last known price is cached in `localStorage('cached_price_{price_symbol}')`
 - **Notification System** — Centralized context with navbar bell icon, unread badge, history dropdown, 3s auto-dismiss
 - **Dark Mode** — Class-based toggle with localStorage persistence and anti-flash protection
 - **Transaction Ledger** — Deposit, withdraw, transfer between portfolios with full history; global aggregation across all custom DBs, with 11px (`--fs-label`) data cells
@@ -106,7 +106,6 @@ InvestmentDashboard/
 │   ├── base/                   # Environment-agnostic resources
 │   └── overlays/kind/          # Dev-only kind cluster adapter
 ├── scripts/            # kind-up.sh / kind-down.sh
-├── requirement/        # Functional specs + UI designs
 └── .opencode/          # AI agent governance
 ```
 
@@ -128,4 +127,4 @@ Uses CSS variables for theming with automatic dark mode switching:
 | `--color-brand-yellow` | `#ffd02f` | `#ffd02f` |
 | `--color-brand-coral` | `#ff9999` | `#ff9999` |
 
-*Last updated: 23 November 2026 (All Assets rebuilt as one grouped registry with an editable ticker and local rename cascade, asset-groups modal, in-page `SelectInput` combobox, and the TFEX delayed price source with `price_symbol`; transactions ledger rows at 11px)*
+*Last updated: 25 November 2026 (All Assets rebuilt as one collapsible table per broker with two levels — a tinted product identity band plus symbol rows — product-owned multiplier/margin/mode/span/source, a symbol modal with a three-dropdown identity picker and inline identity creation, a per-row Broker select in Sync from orders, and portfolio Underlying + Type display identity; asset groups and `requirement/` retired)*

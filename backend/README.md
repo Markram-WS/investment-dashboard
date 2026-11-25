@@ -175,7 +175,7 @@ Collection endpoints are registered **without a trailing slash** (e.g. `/api/v1/
 
 ### Assets — broker-scoped registry
 
-The main registry is two levels: a **product** (broker-scoped contract spec) owns **symbols** (dashboard contract keys) and each symbol joins its latest **quote**. Root `/api/v1/assets` is no longer a main-database CRUD surface:
+The main registry is two levels: a **product** (the identity `underlying + broker + type`) owns **symbols** (dashboard price/order keys) and each symbol joins its latest **quote**. The product owns multiplier, margin rate, margin mode, span margin, source and the effective contract type; a symbol owns only its price/provider keys and option terms. Root `/api/v1/assets` is no longer a main-database CRUD surface:
 
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
