@@ -135,6 +135,7 @@ interface SelectOption {
   value: string;
   label: string;
   disabled: boolean;
+  muted: boolean;
 }
 
 function textContentOf(node: unknown): string {
@@ -173,6 +174,7 @@ function collectOptions(children: ReactNode): SelectOption[] {
       value: value === undefined ? label : String(value),
       label,
       disabled: 'disabled' in props && props.disabled === true,
+      muted: 'data-muted' in props && props['data-muted'] === 'true',
     });
   });
   return options;
@@ -677,7 +679,7 @@ export const SelectInput = forwardRef<HTMLButtonElement, SelectInputProps>(
                       borderRadius: 4,
                       fontSize: 'var(--fs-label)',
                       fontWeight: isSelected ? 600 : 500,
-                      color: option.disabled
+                      color: option.disabled || option.muted
                         ? 'var(--color-slate)'
                         : 'var(--color-ink)',
                       opacity: option.disabled ? 0.55 : 1,

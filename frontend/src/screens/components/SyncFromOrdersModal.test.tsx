@@ -140,7 +140,7 @@ describe('Sync from orders broker pick', () => {
     const brokerlessSelect = screen.getByRole('combobox', { name: 'Broker for NOBROKER' });
     expect(brokerlessSelect).toHaveValue('');
     expect(within(brokerlessSelect).getAllByRole('option').map((option) => option.textContent))
-      .toEqual(['Unassigned', 'PI', 'KS']);
+      .toEqual(['— Unassigned —', 'PI', 'KS']);
   });
 
   it('filters Assign-to options by the chosen broker and resets a pick the broker no longer offers', async () => {
@@ -235,9 +235,27 @@ describe('Sync from orders create panel', () => {
     expect(screen.getByLabelText('Underlying for S50H26')).toHaveValue('');
     expect(screen.getByPlaceholderText('e.g. S50, or leave blank')).toBeInTheDocument();
     expect(screen.getByText(IDENTITY_SENTENCE)).toBeInTheDocument();
-    expect(screen.getByText('Empty = use the identity with no underlying; the row\'s broker still applies.')).toBeInTheDocument();
+    expect(screen.getByText('Choose — No underlying — to use the identity with no underlying; the row\'s broker still applies.')).toBeInTheDocument();
     expect(screen.getByText(/Pick the underlying if the contract has one/)).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'No type — default identity' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '— No type —' })).toBeInTheDocument();
+  });
+
+  it('puts the unified null entries first in the create identity controls', async () => {
+    renderSync();
+    await openCreate();
+
+    const underlying = screen.getByLabelText('Underlying for S50H26');
+    fireEvent.focus(underlying);
+    const listbox = await screen.findByRole('listbox', { name: 'Underlying choices for S50H26' });
+    const underlyings = within(listbox).getAllByRole('option');
+    expect(underlyings[0]).toHaveTextContent('— No underlying —');
+    expect(underlyings[0]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(underlying, { key: 'Escape' });
+
+    const assetType = screen.getByRole('combobox', { name: 'Asset type for S50H26' });
+    expect(within(assetType).getAllByRole('option')[0]).toHaveTextContent('— No type —');
+    const broker = screen.getByRole('combobox', { name: 'Broker for S50H26' });
+    expect(within(broker).getAllByRole('option')[0]).toHaveTextContent('— Unassigned —');
   });
 
   it('shows the default-identity helper only while no type is selected', async () => {

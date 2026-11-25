@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 import type { BrokerRecord } from '../lib/api';
 import type { AssetProduct, AssetSymbol } from '../types';
 import ModalShell from './components/ModalShell';
+import BrokerCombobox from './components/BrokerCombobox';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
 import { Field, NumberInput, SelectInput, TextInput } from './components/Field';
 import {
@@ -91,7 +92,7 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({
 }) => {
   const [productForm, setProductForm] = useState({
     ticker: '', asset_type: '', source: 'manual',
-    broker_id: '', multiplier: '1', margin_rate: '0', margin_mode: 'notional',
+    broker_code: '', multiplier: '1', margin_rate: '0', margin_mode: 'notional',
     margin_per_contract: '',
   });
   const [symbolForm, setSymbolForm] = useState({
@@ -105,8 +106,10 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({
   const [productsLoaded, setProductsLoaded] = useState(false);
   const [creationSource, setCreationSource] = useState('');
   const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
+  const [newBrokerCurrency, setNewBrokerCurrency] = useState('THB');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const brokerInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -139,12 +142,13 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({
     setProducts(product ? [product] : []);
     setProductsLoaded(product != null);
     setCreationSource('');
+    setNewBrokerCurrency('THB');
     if (mode === 'product' && product) {
       setProductForm({
         ticker: product.ticker ?? '',
         asset_type: product.asset_type ?? '',
         source: product.source ?? 'manual',
-        broker_id: product.broker_id != null ? String(product.broker_id) : '',
+        broker_code: product.broker_code ?? '',
         multiplier: String(product.multiplier ?? 1),
         margin_rate: String(product.margin_rate ?? 0),
         margin_mode: product.margin_mode || 'notional',
@@ -186,9 +190,22 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({
   if (!open || !product) return null;
   if (editingSymbol && !symbol) return null;
 
+  const brokerCodeInput = productForm.broker_code.trim();
+  const unassignedBroker = brokerCodeInput === ''
+    || brokerCodeInput === '—'
+    || brokerCodeInput === '— Unassigned —';
+  const matchedBroker = unassignedBroker
+    ? undefined
+    : brokers.find(broker => broker.code.trim().toLowerCase() === brokerCodeInput.toLowerCase());
+  const createBrokerCode = unassignedBroker || matchedBroker ? '' : brokerCodeInput;
+  const resolvedBrokerId = unassignedBroker ? null : matchedBroker?.id ?? null;
+  const brokerChanged = createBrokerCode !== '' || resolvedBrokerId !== product.broker_id;
+  const attachedBrokerGuard = product.symbol_count > 0 && brokerChanged;
+  const attachedBrokerGuardMessage = `Cannot change the broker while ${product.symbol_count} contract(s) are attached — move or delete them first.`;
+
   const handleSaveProduct = async () => {
     const ticker = productForm.ticker.trim();
-    if (!ticker && !productForm.broker_id && !productForm.asset_type) {
+    if (!ticker && unassignedBroker && !productForm.asset_type) {
       setError('Ticker is required');
       return;
     }
@@ -209,14 +226,36 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({
         return;
       }
     }
+    if (attachedBrokerGuard) {
+      setError(attachedBrokerGuardMessage);
+      brokerInputRef.current?.focus();
+      return;
+    }
     setLoading(true);
     setError('');
+    let failedOnBroker = false;
     try {
+      let brokerId = matchedBroker?.id ?? null;
+      if (createBrokerCode) {
+        failedOnBroker = true;
+        const created = await api.createBroker({
+          code: createBrokerCode,
+          name: createBrokerCode,
+          currency: newBrokerCurrency,
+        });
+        setBrokers(prev => (
+          prev.some(broker => broker.id === created.id)
+            ? prev
+            : [...prev, created].sort((a, b) => a.code.localeCompare(b.code))
+        ));
+        brokerId = created.id;
+        failedOnBroker = false;
+      }
       await api.updateProduct(product.product_id, {
         ticker,
         asset_type: productForm.asset_type || null,
         source: productForm.source,
-        broker_id: productForm.broker_id ? Number(productForm.broker_id) : null,
+        broker_id: brokerId,
         multiplier,
         margin_rate: marginRate,
         margin_mode: productForm.margin_mode,
@@ -228,7 +267,19 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({
       onClose();
     } catch (e) {
       console.error('Failed to update the product', e);
-      setError(apiErrorDetail(e, "Couldn't update the product."));
+      const message = apiErrorDetail(e, failedOnBroker
+        ? "Couldn't create the broker. Try again."
+        : "Couldn't update the product.");
+      setError(message);
+      const status = (e as { status?: number } | null)?.status;
+      if (failedOnBroker && (status === 409 || /already exists/i.test(message))) {
+        try {
+          const rows = await api.getBrokers();
+          setBrokers(rows);
+        } catch {
+          /* the existing-broker adoption needs the refreshed list; keep the inline error */
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -423,18 +474,25 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({
                   onChange={e => setProductForm(p => ({ ...p, ticker: e.target.value }))} />
               </Field>
               <div className={rowTwo}>
-                <Field className="min-w-0" label="Broker" htmlFor="edit-product-broker">
-                  <SelectInput id="edit-product-broker" value={productForm.broker_id}
-                    onChange={e => setProductForm(p => ({ ...p, broker_id: e.target.value }))}>
-                    <option value="">Unassigned</option>
-                    {brokers.map(b => <option key={b.id} value={b.id}>{b.code}</option>)}
-                  </SelectInput>
+                <Field className="min-w-0" label="Broker" htmlFor="edit-product-broker"
+                  hint="Pick an existing broker or type a new code to create it.">
+                  <BrokerCombobox
+                    id="edit-product-broker"
+                    inputRef={brokerInputRef}
+                    value={productForm.broker_code}
+                    onChange={brokerCode => setProductForm(p => ({ ...p, broker_code: brokerCode }))}
+                    brokers={brokers}
+                    createCode={createBrokerCode}
+                    currency={newBrokerCurrency}
+                    onCurrencyChange={setNewBrokerCurrency}
+                    placeholder="DF, PI — or type a new code"
+                  />
                 </Field>
-                <Field className="min-w-0" label="Default type" htmlFor="edit-product-type"
+                <Field className="min-w-0" label="Type" htmlFor="edit-product-type"
                   hint="Inherited by every contract unless the contract overrides it.">
                   <SelectInput id="edit-product-type" value={productForm.asset_type}
                     onChange={e => setProductForm(p => ({ ...p, asset_type: e.target.value }))}>
-                    <option value="">—</option>
+                    <option value="" data-muted="true">— No type —</option>
                     {ASSET_TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
                   </SelectInput>
                 </Field>
@@ -481,13 +539,6 @@ const EditAssetModal: React.FC<EditAssetModalProps> = ({
             </div>
           )}
         </div>
-
-        {!editingSymbol && product.symbol_count > 0 &&
-          (productForm.broker_id ? Number(productForm.broker_id) : null) !== product.broker_id && (
-          <div style={warningText} className="text-[length:var(--fs-label)]" role="status">
-            A product with attached symbols cannot change broker until its symbols are removed.
-          </div>
-        )}
 
         <div className={`${MODAL_FOOTER} flex justify-between items-center`} style={{ marginTop: 12 }}>
           <div>

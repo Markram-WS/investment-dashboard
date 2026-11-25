@@ -31,7 +31,7 @@ export const selectionForProduct = (product: AssetProduct | null | undefined): P
 /**
  * The exact product for an Underlying + Broker + Type combination.
  *
- * A blank value means NULL on that dimension (`— (none)` / `Unassigned` / `—`).
+ * A blank value means NULL on that dimension (`— No underlying —` / `— Unassigned —` / `— No type —`).
  */
 export const resolveProduct = (
   products: AssetProduct[],
@@ -91,24 +91,24 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
     <>
       <div className={className}>
         <Field className="min-w-0" label="Underlying" htmlFor={`${idPrefix}-underlying`}
-          hint="Products without an underlying appear as — (none).">
+          hint="Products without an underlying appear as —.">
           <SelectInput id={`${idPrefix}-underlying`} value={selection.underlying}
             onChange={e => update({ underlying: e.target.value })}>
-            <option value="">— (none)</option>
+            <option value="" data-muted="true">— No underlying —</option>
             {tickers.map(ticker => <option key={ticker} value={ticker}>{ticker}</option>)}
           </SelectInput>
         </Field>
         <Field className="min-w-0" label="Broker" htmlFor={`${idPrefix}-broker`}>
           <SelectInput id={`${idPrefix}-broker`} value={selection.broker}
             onChange={e => update({ broker: e.target.value })}>
-            <option value="">Unassigned</option>
+            <option value="" data-muted="true">— Unassigned —</option>
             {brokers.map(broker => <option key={broker.id} value={broker.id}>{broker.code}</option>)}
           </SelectInput>
         </Field>
         <Field className="min-w-0" label="Type" htmlFor={`${idPrefix}-type`}>
           <SelectInput id={`${idPrefix}-type`} value={selection.type}
             onChange={e => update({ type: e.target.value })}>
-            <option value="">—</option>
+            <option value="" data-muted="true">— No type —</option>
             {ASSET_TYPES.map(type => (
               <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
             ))}

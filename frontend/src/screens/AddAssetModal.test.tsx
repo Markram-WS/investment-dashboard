@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import AddAssetModal from './AddAssetModal';
@@ -169,11 +169,12 @@ const renderSymbolEditFor = (owner: AssetProduct, owned: AssetSymbol) => render(
 
 const renderSymbolEdit = () => renderSymbolEditFor(product, symbol);
 
-const waitForBrokerOptions = () => waitFor(() => {
-  const options = Array.from(document.querySelectorAll('#broker-codes option'))
-    .map(option => option.getAttribute('value'));
-  expect(options).toContain('PI');
-});
+const waitForBrokerOptions = async () => {
+  const input = screen.getByLabelText('Broker');
+  fireEvent.focus(input);
+  await screen.findByRole('option', { name: 'PI' });
+  fireEvent.keyDown(input, { key: 'Escape' });
+};
 
 const pttStockSymbol: AssetSymbol = {
   ...symbol,
@@ -189,6 +190,11 @@ const pttStockSymbol: AssetSymbol = {
   margin_rate_effective: 0,
   price: 35,
   change_24h: 0.8,
+};
+
+const productNoSymbols: AssetProduct = {
+  ...product,
+  symbol_count: 0,
 };
 
 const createdFuture: AssetProduct = {
@@ -265,12 +271,14 @@ describe('AddAssetModal broker combobox', () => {
 
     renderProductCreate();
     await waitForBrokerOptions();
-    await user.type(screen.getByLabelText('Broker'), 'zz');
+    const brokerInput = screen.getByLabelText('Broker');
+    await user.type(brokerInput, 'zz');
 
     expect(screen.getByText('New broker · zz')).toBeInTheDocument();
     expect(screen.getByText('Creates this broker with the typed code as its name.')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Currency' })).toHaveTextContent('THB');
-    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Currency' }), { key: 'u' });
+    const currency = screen.getByRole('combobox', { name: 'Currency' });
+    expect(currency).toHaveValue('THB');
+    fireEvent.change(currency, { target: { value: 'USD' } });
 
     await user.click(screen.getByRole('button', { name: 'Add product' }));
 
@@ -309,10 +317,12 @@ describe('AddAssetModal broker combobox', () => {
     await user.click(screen.getByRole('button', { name: 'Add product' }));
 
     expect(await screen.findByText("Broker code 'ZZ' already exists")).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.queryByText('New broker · ZZ')).not.toBeInTheDocument();
-    });
-    expect(screen.getByLabelText('Broker')).toHaveValue('ZZ');
+    const brokerInput = screen.getByLabelText('Broker');
+    fireEvent.focus(brokerInput);
+    await screen.findByRole('listbox', { name: 'Brokers' });
+    expect(screen.queryByText('New broker · ZZ')).not.toBeInTheDocument();
+    fireEvent.keyDown(brokerInput, { key: 'Escape' });
+    expect(brokerInput).toHaveValue('ZZ');
     expect(apiMock.createProduct).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: 'Add product' }));
@@ -346,6 +356,55 @@ describe('AddAssetModal broker combobox', () => {
     expect(screen.queryByLabelText(/broker code/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/broker name/i)).not.toBeInTheDocument();
   });
+
+  it('filters the in-page listbox, highlights an exact code and commits with Enter', async () => {
+    renderProductCreate();
+    await waitForBrokerOptions();
+    const brokerInput = screen.getByLabelText('Broker');
+
+    fireEvent.focus(brokerInput);
+    const listbox = await screen.findByRole('listbox', { name: 'Brokers' });
+    expect(brokerInput).toHaveAttribute('aria-expanded', 'true');
+    expect(within(listbox).getAllByRole('option').map(option => option.textContent))
+      .toEqual(['— Unassigned —', 'DF', 'PI']);
+
+    fireEvent.change(brokerInput, { target: { value: 'df' } });
+    expect(within(listbox).getAllByRole('option').map(option => option.textContent))
+      .toEqual(['DF']);
+
+    fireEvent.change(brokerInput, { target: { value: 'PI' } });
+    const option = within(listbox).getByRole('option', { name: 'PI' });
+    expect(option).toHaveAttribute('aria-selected', 'true');
+    expect(brokerInput).toHaveAttribute('aria-activedescendant', option.id);
+
+    fireEvent.keyDown(brokerInput, { key: 'Enter' });
+    expect(brokerInput).toHaveValue('PI');
+    expect(screen.queryByRole('listbox', { name: 'Brokers' })).not.toBeInTheDocument();
+  });
+
+  it('moves the highlight with arrows, closes on Escape and commits on click', async () => {
+    const user = userEvent.setup();
+    renderProductCreate();
+    await waitForBrokerOptions();
+    const brokerInput = screen.getByLabelText('Broker');
+
+    fireEvent.focus(brokerInput);
+    const listbox = await screen.findByRole('listbox', { name: 'Brokers' });
+    fireEvent.keyDown(brokerInput, { key: 'ArrowDown' });
+    expect(within(listbox).getByRole('option', { name: 'DF' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(brokerInput, { key: 'ArrowUp' });
+    expect(within(listbox).getByRole('option', { name: '— Unassigned —' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(brokerInput, { key: 'Escape' });
+    expect(screen.queryByRole('listbox', { name: 'Brokers' })).not.toBeInTheDocument();
+
+    fireEvent.focus(brokerInput);
+    const reopened = await screen.findByRole('listbox', { name: 'Brokers' });
+    const pi = within(reopened).getByRole('option', { name: 'PI' });
+    fireEvent.mouseDown(pi);
+    await waitFor(() => expect(brokerInput).toHaveValue('PI'));
+    expect(screen.queryByRole('listbox', { name: 'Brokers' })).not.toBeInTheDocument();
+    expect(user).toBeTruthy();
+  });
 });
 
 describe('Product create modal', () => {
@@ -360,7 +419,7 @@ describe('Product create modal', () => {
     expect(screen.getByLabelText('Multiplier')).toBeInTheDocument();
     expect(screen.getByLabelText('Margin rate')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Margin mode' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Default type' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Type' })).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Margin per contract')).not.toBeInTheDocument();
     expect(screen.getAllByText('Inherited by every contract unless the contract overrides it.')).toHaveLength(4);
@@ -444,7 +503,7 @@ describe('Product create modal', () => {
     expect(screen.getByLabelText('Multiplier')).toHaveValue(1000);
     expect(screen.getByLabelText('Margin rate')).toHaveValue(0.1);
     expect(screen.getByRole('combobox', { name: 'Margin mode' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Default type' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Type' })).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Margin per contract')).not.toBeInTheDocument();
     expect(screen.getAllByText('Inherited by every contract unless the contract overrides it.')).toHaveLength(4);
@@ -480,6 +539,141 @@ describe('Product create modal', () => {
         margin_per_contract: 750,
       }));
     });
+  });
+
+  it('updates to an existing broker without creating one', async () => {
+    const user = userEvent.setup();
+    apiMock.updateProduct.mockResolvedValue({});
+
+    render(
+      <EditAssetModal
+        open
+        mode="product"
+        product={productNoSymbols}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    await waitForBrokerOptions();
+    fireEvent.change(screen.getByLabelText('Broker'), { target: { value: 'DF' } });
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(apiMock.updateProduct).toHaveBeenCalledWith(1, expect.objectContaining({ broker_id: 2 }));
+    });
+    expect(apiMock.createBroker).not.toHaveBeenCalled();
+  });
+
+  it('creates a new broker then updates the product with its id', async () => {
+    const user = userEvent.setup();
+    const createdBroker = {
+      id: 9,
+      code: 'ZZ',
+      name: 'ZZ',
+      default_margin_rate: 0,
+      currency: 'THB',
+      created_at: null,
+    };
+    apiMock.createBroker.mockResolvedValue(createdBroker);
+    apiMock.updateProduct.mockResolvedValue({});
+
+    render(
+      <EditAssetModal
+        open
+        mode="product"
+        product={productNoSymbols}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    await waitForBrokerOptions();
+    const broker = screen.getByLabelText('Broker');
+    fireEvent.change(broker, { target: { value: 'ZZ' } });
+    expect(screen.getByText('New broker · ZZ')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(apiMock.createBroker).toHaveBeenCalledWith({ code: 'ZZ', name: 'ZZ', currency: 'THB' });
+    });
+    await waitFor(() => {
+      expect(apiMock.updateProduct).toHaveBeenCalledWith(1, expect.objectContaining({ broker_id: 9 }));
+    });
+  });
+
+  it('blocks a broker change while contracts are attached and keeps the field focused', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <EditAssetModal
+        open
+        mode="product"
+        product={product}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    await waitForBrokerOptions();
+    const broker = screen.getByLabelText('Broker');
+    fireEvent.change(broker, { target: { value: 'ZZ' } });
+    fireEvent.keyDown(broker, { key: 'Escape' });
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText('Cannot change the broker while 1 contract(s) are attached — move or delete them first.'))
+      .toBeInTheDocument();
+    expect(broker).toHaveFocus();
+    expect(apiMock.createBroker).not.toHaveBeenCalled();
+    expect(apiMock.updateProduct).not.toHaveBeenCalled();
+  });
+
+  it('shows a broker 409 inline and adopts the existing broker for the next save', async () => {
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const existingBroker = {
+      id: 8,
+      code: 'ZZ',
+      name: 'ZZ',
+      default_margin_rate: 0,
+      currency: 'THB',
+      created_at: null,
+    };
+    apiMock.getBrokers.mockReset();
+    apiMock.getBrokers
+      .mockResolvedValueOnce([piBroker, dfBroker])
+      .mockResolvedValue([piBroker, dfBroker, existingBroker]);
+    apiMock.createBroker.mockRejectedValue({
+      status: 409,
+      body: JSON.stringify({ detail: "Broker code 'ZZ' already exists" }),
+    });
+    apiMock.updateProduct.mockResolvedValue({});
+
+    render(
+      <EditAssetModal
+        open
+        mode="product"
+        product={productNoSymbols}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    await waitForBrokerOptions();
+    const broker = screen.getByLabelText('Broker');
+    fireEvent.change(broker, { target: { value: 'ZZ' } });
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText("Broker code 'ZZ' already exists")).toBeInTheDocument();
+    fireEvent.focus(broker);
+    await screen.findByRole('listbox', { name: 'Brokers' });
+    expect(screen.queryByText('New broker · ZZ')).not.toBeInTheDocument();
+    fireEvent.keyDown(broker, { key: 'Escape' });
+    expect(apiMock.updateProduct).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(apiMock.updateProduct).toHaveBeenCalledWith(1, expect.objectContaining({ broker_id: 8 }));
+    });
+    expect(apiMock.createBroker).toHaveBeenCalledTimes(1);
+    consoleError.mockRestore();
   });
 
   it('clears the underlying with an empty ticker when a broker is set', async () => {
@@ -524,6 +718,76 @@ describe('Product create modal', () => {
 
     expect(apiMock.updateProduct).not.toHaveBeenCalled();
     expect(screen.getByText('Ticker is required')).toBeInTheDocument();
+  });
+});
+
+describe('Unified identity null entries', () => {
+  const rectSpy = () => vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+    width: 200,
+    height: 26,
+    top: 100,
+    left: 100,
+    right: 300,
+    bottom: 126,
+    x: 100,
+    y: 100,
+    toJSON: () => ({}),
+  } as DOMRect);
+
+  const expectNullFirst = (name: string, label: string) => {
+    const trigger = screen.getByRole('combobox', { name });
+    fireEvent.click(trigger);
+    const listbox = screen.getByRole('listbox');
+    expect(within(listbox).getAllByRole('option')[0]).toHaveTextContent(label);
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+  };
+
+  it('puts the unified null entries first in both symbol modals', async () => {
+    const spy = rectSpy();
+    const { unmount } = renderSymbolCreate(product);
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Broker' })).toHaveTextContent('PI');
+    });
+    expectNullFirst('Underlying', '— No underlying —');
+    expectNullFirst('Broker', '— Unassigned —');
+    expectNullFirst('Type', '— No type —');
+    unmount();
+
+    renderSymbolEdit();
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Broker' })).toHaveTextContent('PI');
+    });
+    expectNullFirst('Underlying', '— No underlying —');
+    expectNullFirst('Broker', '— Unassigned —');
+    expectNullFirst('Type', '— No type —');
+    spy.mockRestore();
+  });
+
+  it('puts — No type — first in both product Type selects', () => {
+    const spy = rectSpy();
+    const { unmount } = renderProductCreate();
+    const addType = screen.getByRole('combobox', { name: 'Type' });
+    fireEvent.click(addType);
+    expect(within(screen.getByRole('listbox')).getAllByRole('option')[0])
+      .toHaveTextContent('— No type —');
+    fireEvent.keyDown(addType, { key: 'Escape' });
+    unmount();
+
+    render(
+      <EditAssetModal
+        open
+        mode="product"
+        product={product}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    const editType = screen.getByRole('combobox', { name: 'Type' });
+    fireEvent.click(editType);
+    expect(within(screen.getByRole('listbox')).getAllByRole('option')[0])
+      .toHaveTextContent('— No type —');
+    fireEvent.keyDown(editType, { key: 'Escape' });
+    spy.mockRestore();
   });
 });
 
@@ -667,7 +931,7 @@ describe('Symbol modal product resolution', () => {
 
     renderSymbolEdit();
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Underlying' }), { key: '—' });
-    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Broker' }), { key: 'u' });
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Broker' }), { key: '—' });
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Type' }), { key: '—' });
 
     expect(await screen.findByText('— · Unassigned · —')).toBeInTheDocument();
@@ -745,7 +1009,7 @@ describe('Symbol modal product resolution', () => {
       />,
     );
 
-    expect(await screen.findByRole('combobox', { name: 'Underlying' })).toHaveTextContent('— (none)');
+    expect(await screen.findByRole('combobox', { name: 'Underlying' })).toHaveTextContent('— No underlying —');
     expect(screen.getByText('No product matches Underlying + Broker + Type — create it with + New product.'))
       .toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create symbol' })).toBeDisabled();
@@ -860,13 +1124,13 @@ describe('Symbol modal product resolution', () => {
     expect(payload).toMatchObject({ product_id: 2, sync_symbol: 'S50H26' });
   });
 
-  it('selects a NULL-ticker product through — (none) and posts to it', async () => {
+  it('selects a NULL-ticker product through — No underlying — and posts to it', async () => {
     const user = userEvent.setup();
     apiMock.createSymbol.mockResolvedValue({});
 
     renderSymbolCreate(nullUnderlyingProduct);
 
-    expect(screen.getByRole('combobox', { name: 'Underlying' })).toHaveTextContent('— (none)');
+    expect(screen.getByRole('combobox', { name: 'Underlying' })).toHaveTextContent('— No underlying —');
     expect(screen.getByText('— · Unassigned · future')).toBeInTheDocument();
 
     await waitFor(() => {
@@ -879,7 +1143,7 @@ describe('Symbol modal product resolution', () => {
     expect(apiMock.createSymbol.mock.calls[0][0]).toBe(4);
   });
 
-  it('moves an existing symbol onto a NULL-ticker product via — (none)', async () => {
+  it('moves an existing symbol onto a NULL-ticker product via — No underlying —', async () => {
     const user = userEvent.setup();
     apiMock.updateSymbol.mockResolvedValue({});
 
@@ -889,7 +1153,7 @@ describe('Symbol modal product resolution', () => {
       expect(screen.getByRole('combobox', { name: 'Broker' })).toHaveTextContent('PI');
     });
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Underlying' }), { key: '—' });
-    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Broker' }), { key: 'U' });
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Broker' }), { key: '—' });
 
     expect(await screen.findByText('— · Unassigned · future')).toBeInTheDocument();
 

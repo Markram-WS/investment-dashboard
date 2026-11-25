@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import type { BrokerRecord } from '../lib/api';
 import type { AssetProduct } from '../types';
 import ModalShell from './components/ModalShell';
+import BrokerCombobox from './components/BrokerCombobox';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './components/modalLayout';
 import { Field, NumberInput, SelectInput, TextInput } from './components/Field';
 import { CONTROL_HELPER, CONTROL_TITLE } from './components/controlStyles';
@@ -388,43 +389,26 @@ const AddAssetModal: React.FC<AddAssetModalProps> = ({
               <div className={rowTwo}>
                 <Field className="min-w-0" label="Broker" htmlFor="add-product-broker"
                   hint="Pick an existing broker or type a new code to create it.">
-                  <TextInput id="add-product-broker" list="broker-codes"
+                  <BrokerCombobox
+                    id="add-product-broker"
                     value={productForm.broker_code}
-                    onChange={e => setProductForm(p => ({ ...p, broker_code: e.target.value }))}
-                    placeholder="DF, PI — or type a new code" />
+                    onChange={brokerCode => setProductForm(p => ({ ...p, broker_code: brokerCode }))}
+                    brokers={brokers}
+                    createCode={createBrokerCode}
+                    currency={newBrokerCurrency}
+                    onCurrencyChange={setNewBrokerCurrency}
+                    placeholder="DF, PI — or type a new code"
+                  />
                 </Field>
-                <datalist id="broker-codes">
-                  <option value="— Unassigned —">Unassigned</option>
-                  {brokers.map(broker => (
-                    <option key={broker.id} value={broker.code}>{broker.name}</option>
-                  ))}
-                </datalist>
-                <Field className="min-w-0" label="Default type" htmlFor="add-product-type"
+                <Field className="min-w-0" label="Type" htmlFor="add-product-type"
                   hint="Inherited by every contract unless the contract overrides it.">
                   <SelectInput id="add-product-type" value={productForm.asset_type}
                     onChange={e => setProductForm(p => ({ ...p, asset_type: e.target.value }))}>
-                    <option value="">—</option>
+                    <option value="" data-muted="true">— No type —</option>
                     {ASSET_TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
                   </SelectInput>
                 </Field>
               </div>
-              {createBrokerCode && (
-                <div className="min-w-0 rounded-xl border border-hairline p-2.5">
-                  <div className={rowTwo}>
-                    <p style={{ ...CONTROL_HELPER, color: 'var(--color-ink)', margin: 0 }}>
-                      New broker · {createBrokerCode}
-                    </p>
-                    <Field className="min-w-0" label="Currency" htmlFor="add-product-new-broker-currency">
-                      <SelectInput id="add-product-new-broker-currency" value={newBrokerCurrency}
-                        onChange={e => setNewBrokerCurrency(e.target.value)}>
-                        <option value="THB">THB</option>
-                        <option value="USD">USD</option>
-                      </SelectInput>
-                    </Field>
-                  </div>
-                  <p style={CONTROL_HELPER}>Creates this broker with the typed code as its name.</p>
-                </div>
-              )}
               <div className={rowThree}>
                 <Field className="min-w-0" label="Multiplier" htmlFor="add-product-multiplier"
                   hint="Inherited by every contract unless the contract overrides it.">

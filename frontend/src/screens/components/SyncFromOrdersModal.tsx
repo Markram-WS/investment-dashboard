@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import type { AssetProduct, AssetSyncChoice, SyncProposalItem, SyncProposalProduct } from '../../types';
@@ -6,6 +6,8 @@ import ModalShell from './ModalShell';
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from './modalLayout';
 import { CONTROL_BUTTON_PRIMARY, CONTROL_BUTTON_SECONDARY, CONTROL_HELPER, CONTROL_INPUT, CONTROL_LABEL, CONTROL_TITLE } from './controlStyles';
 import { apiErrorDetail } from './apiError';
+import EntityCombobox from './EntityCombobox';
+import type { EntityOption } from './EntityCombobox';
 
 type CreateAssetType = 'stock' | 'future' | 'option' | 'crypto';
 type CreateSource = 'yfinance' | 'tfex' | 'manual';
@@ -135,6 +137,18 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
       setError('');
     }
   }, [open]);
+
+  const underlyingOptions = useMemo<EntityOption[]>(() => {
+    const tickers = Array.from(new Set(
+      (allProducts ?? [])
+        .map(product => product.ticker)
+        .filter((ticker): ticker is string => ticker != null && ticker !== ''),
+    )).sort((a, b) => a.localeCompare(b));
+    return [
+      { value: '', label: '— No underlying —', muted: true },
+      ...tickers.map(ticker => ({ value: ticker, label: ticker })),
+    ];
+  }, [allProducts]);
 
   if (!open) return null;
 
@@ -284,7 +298,7 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                           onChange={(e) => changeBroker(item, key, e.target.value)}
                           style={CONTROL_INPUT}
                         >
-                          <option value={UNASSIGNED_BROKER}>Unassigned</option>
+                          <option value={UNASSIGNED_BROKER} style={{ color: 'var(--color-slate)' }}>— Unassigned —</option>
                           {(brokers ?? []).map((record) => (
                             <option key={record.id} value={String(record.id)}>{record.code}</option>
                           ))}
@@ -358,16 +372,16 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                                 >
                                   <label style={{ gridColumn: '1 / -1' }}>
                                     <span style={CONTROL_LABEL}>Underlying</span>
-                                    <input
-                                      type="text"
-                                      aria-label={`Underlying for ${item.symbol}`}
+                                    <EntityCombobox
+                                      ariaLabel={`Underlying for ${item.symbol}`}
+                                      listboxLabel={`Underlying choices for ${item.symbol}`}
                                       value={draft.underlying}
+                                      options={underlyingOptions}
                                       placeholder="e.g. S50, or leave blank"
-                                      onChange={(e) => rememberDraft(key, { underlying: e.target.value })}
-                                      style={CONTROL_INPUT}
+                                      onChange={(underlying) => rememberDraft(key, { underlying })}
                                     />
                                     <span style={{ ...CONTROL_HELPER, display: 'block' }}>
-                                      Empty = use the identity with no underlying; the row's broker still applies.
+                                      Choose — No underlying — to use the identity with no underlying; the row's broker still applies.
                                     </span>
                                   </label>
                                   <label>
@@ -379,7 +393,7 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                                         rememberDraft(key, { assetType: e.target.value as CreateDraft['assetType'] })}
                                       style={CONTROL_INPUT}
                                     >
-                                      <option value="">No type — default identity</option>
+                                      <option value="" style={{ color: 'var(--color-slate)' }}>— No type —</option>
                                       {ASSET_TYPE_OPTIONS.map((assetType) => (
                                         <option key={assetType} value={assetType}>{assetType}</option>
                                       ))}
