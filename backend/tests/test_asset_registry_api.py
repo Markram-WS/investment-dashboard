@@ -497,7 +497,7 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
             for item in proposal.json()["items"]
         }
         item = items[(broker_id, "NEWSYM")]
-        assert item["create"] == {"ticker": "NEWSYM"}
+        assert item["create"] == {"symbol": "NEWSYM"}
         assert item["order_asset_types"] == ["future"]
         assert item["broker_required"] is False
         assert items[(None, "NOBROKER")]["broker_required"] is True
@@ -559,8 +559,8 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
             "is not in broker SYN1"
         )
 
-        # Duplicate create ticker (same broker, any asset type).
-        existing = await create_product(
+        # Duplicate underlying identity: same underlying + broker + asset type.
+        await create_product(
             async_client,
             ticker="NEWSYM",
             broker_id=broker_id,
@@ -574,6 +574,7 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
                         "symbol": "NEWSYM",
                         "broker_id": broker_id,
                         "create_product": True,
+                        "create_underlying": " newsym ",
                         "create_source": "yfinance",
                         "create_sync_symbol": "NEWSYM",
                         "create_asset_type": "stock",
@@ -582,7 +583,9 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
             },
         )
         assert duplicate.status_code == 400
-        assert duplicate.json()["detail"] == "A product with this ticker already exists"
+        assert duplicate.json()["detail"] == (
+            "An asset with this ticker already exists"
+        )
 
         # Brokerless Active Trading portfolio cannot receive a symbol.
         brokerless = await async_client.post(
@@ -605,29 +608,13 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
             "Assign a broker in Edit portfolio before adding orders"
         )
 
-        # Successful create, provider failure keeps a null quote.
+        # Successful create: the product ticker is the explicit underlying and
+        # the contract row keeps the order symbol as its price symbol.
         monkeypatch.setattr(
             registry,
             "_fetch_quote",
             lambda source, sync_symbol: (_ for _ in ()).throw(RuntimeError("down")),
         )
-        created = await async_client.post(
-            "/api/v1/assets/apply",
-            json={
-                "choices": [
-                    {
-                        "symbol": "NEWSYM",
-                        "broker_id": broker_id,
-                        "create_product": True,
-                        "create_source": "yfinance",
-                        "create_sync_symbol": "NEWSYM",
-                        "create_asset_type": "stock",
-                    }
-                ]
-            },
-        )
-        assert created.status_code == 400  # duplicate ticker still wins
-
         third_portfolio, _, third_order = await _seed_order("FRESHSYM", broker_id)
         created = await async_client.post(
             "/api/v1/assets/apply",
@@ -637,6 +624,7 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
                         "symbol": "FRESHSYM",
                         "broker_id": broker_id,
                         "create_product": True,
+                        "create_underlying": " fresh ",
                         "create_source": "yfinance",
                         "create_sync_symbol": "FRESHSYM.BK",
                         "create_asset_type": "stock",
@@ -652,7 +640,7 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
             product = (
                 await session.execute(
                     select(AssetProduct).where(
-                        AssetProduct.ticker == "FRESHSYM",
+                        AssetProduct.ticker == "FRESH",
                         AssetProduct.broker_id == broker_id,
                     )
                 )
@@ -664,6 +652,15 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
                     )
                 )
             ).scalars().first()
+            failed_quote = (
+                await session.execute(
+                    select(AssetQuote).where(
+                        AssetQuote.source == "yfinance",
+                        AssetQuote.sync_symbol == "FRESHSYM.BK",
+                    )
+                )
+            ).scalars().first()
+        assert product.ticker == "FRESH"
         assert product.asset_type == "stock"
         assert product.source == "yfinance"
         assert product.multiplier == 1
@@ -672,6 +669,7 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
         assert symbol.price_symbol == "FRESHSYM"
         assert symbol.sync_symbol == "FRESHSYM.BK"
         assert symbol.contract_kind == "stock"
+        assert failed_quote is None
 
         # Same-owner selection is idempotent.
         again = await async_client.post(
@@ -689,8 +687,52 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
         assert again.status_code == 200
         assert again.json()["created"] == 0
 
+        # A blank underlying is valid when the broker scopes the product: the
+        # product keeps a NULL ticker and the contract carries the order symbol.
+        fourth_portfolio, _, fourth_order = await _seed_order("BLANKSYM", broker_id)
+        blank_create = await async_client.post(
+            "/api/v1/assets/apply",
+            json={
+                "choices": [
+                    {
+                        "symbol": "BLANKSYM",
+                        "broker_id": broker_id,
+                        "create_product": True,
+                        "create_underlying": "   ",
+                        "create_source": "manual",
+                        "create_asset_type": "future",
+                    }
+                ]
+            },
+        )
+        assert blank_create.status_code == 200, blank_create.text
+        assert blank_create.json()["created"] == 1
+
+        _, Session = get_test_engine()
+        async with Session() as session:
+            blank_product = (
+                await session.execute(
+                    select(AssetProduct).where(
+                        AssetProduct.broker_id == broker_id,
+                        AssetProduct.ticker.is_(None),
+                        AssetProduct.asset_type == "future",
+                    )
+                )
+            ).scalars().first()
+            blank_symbol = (
+                await session.execute(
+                    select(AssetSymbol).where(
+                        AssetSymbol.product_id == blank_product.product_id
+                    )
+                )
+            ).scalars().first()
+        assert blank_product.ticker is None
+        assert blank_symbol.price_symbol == "BLANKSYM"
+        assert blank_symbol.sync_symbol == "BLANKSYM"
+        assert blank_symbol.contract_kind == "future"
+
         # A THB broker changes nothing: the create default still carries only
-        # the dashboard ticker, with no guessed provider symbol.
+        # the dashboard symbol, with no guessed provider symbol.
         thb_broker = await create_broker(async_client, "SYN3", currency="THB")
         thb_portfolio, _, thb_order = await _seed_order("PTT", thb_broker)
         thb_proposal = await async_client.get("/api/v1/assets/proposal")
@@ -698,13 +740,13 @@ async def test_proposal_and_apply_contract(async_client, monkeypatch):
             (item["broker_id"], item["symbol"]): item
             for item in thb_proposal.json()["items"]
         }
-        assert thb_items[(thb_broker, "PTT")]["create"] == {"ticker": "PTT"}
+        assert thb_items[(thb_broker, "PTT")]["create"] == {"symbol": "PTT"}
         assert "sync_symbol" not in thb_items[(thb_broker, "PTT")]["create"]
 
         await cleanup_brokers(broker_id, other_broker, thb_broker)
     finally:
         await _delete_orders(
-            order_id, brokerless_order, third_order, thb_order
+            order_id, brokerless_order, third_order, fourth_order, thb_order
         )
 
 
@@ -991,6 +1033,7 @@ async def test_apply_create_needs_explicit_source_type_and_provider(
                     {
                         "symbol": "S50Z26",
                         **base,
+                        "create_underlying": "TFEXUND",
                         "create_source": "tfex",
                         "create_sync_symbol": "S50Z26",
                         "create_asset_type": "future",
@@ -1009,6 +1052,7 @@ async def test_apply_create_needs_explicit_source_type_and_provider(
                     {
                         "symbol": "MANOPT",
                         **base,
+                        "create_underlying": "MANUND",
                         "create_source": "manual",
                         "create_sync_symbol": "",
                         "create_asset_type": "option",
@@ -1025,7 +1069,7 @@ async def test_apply_create_needs_explicit_source_type_and_provider(
             tfex_product = (
                 await session.execute(
                     select(AssetProduct).where(
-                        AssetProduct.ticker == "S50Z26",
+                        AssetProduct.ticker == "TFEXUND",
                         AssetProduct.broker_id == broker_id,
                     )
                 )
@@ -1040,7 +1084,7 @@ async def test_apply_create_needs_explicit_source_type_and_provider(
             manual_product = (
                 await session.execute(
                     select(AssetProduct).where(
-                        AssetProduct.ticker == "MANOPT",
+                        AssetProduct.ticker == "MANUND",
                         AssetProduct.broker_id == broker_id,
                     )
                 )
@@ -1053,12 +1097,14 @@ async def test_apply_create_needs_explicit_source_type_and_provider(
                 )
             ).scalars().one()
 
+        assert tfex_product.ticker == "TFEXUND"
         assert tfex_product.source == "tfex"
         assert tfex_product.asset_type == "future"
         assert tfex_symbol.price_symbol == "S50Z26"
         assert tfex_symbol.sync_symbol == "S50Z26"
         assert tfex_symbol.contract_kind == "future"
 
+        assert manual_product.ticker == "MANUND"
         assert manual_product.source == "manual"
         assert manual_product.asset_type == "option"
         assert manual_symbol.price_symbol == "MANOPT"
@@ -1930,6 +1976,7 @@ async def test_apply_default_product_owner_collision_and_multi_choice(
                         "symbol": "COLSYM",
                         "broker_id": broker_id,
                         "create_product": True,
+                        "create_underlying": "COLSYMU",
                         "create_source": "manual",
                         "create_sync_symbol": "",
                         "create_asset_type": "stock",
@@ -1951,6 +1998,7 @@ async def test_apply_default_product_owner_collision_and_multi_choice(
                         "symbol": "MULT1",
                         "broker_id": broker_id,
                         "create_product": True,
+                        "create_underlying": "MULTU1",
                         "create_source": "tfex",
                         "create_sync_symbol": "MULT1Z26",
                         "create_asset_type": "future",
@@ -1959,6 +2007,7 @@ async def test_apply_default_product_owner_collision_and_multi_choice(
                         "symbol": "MULT2",
                         "broker_id": broker_id,
                         "create_product": True,
+                        "create_underlying": "MULTU2",
                         "create_source": "manual",
                         "create_sync_symbol": "",
                         "create_asset_type": "crypto",
@@ -1972,7 +2021,7 @@ async def test_apply_default_product_owner_collision_and_multi_choice(
             created_products = (
                 await session.execute(
                     select(AssetProduct).where(
-                        AssetProduct.ticker.in_(["MULT1", "MULT2"]),
+                        AssetProduct.ticker.in_(["MULTU1", "MULTU2"]),
                         AssetProduct.broker_id == broker_id,
                     )
                 )
@@ -1988,10 +2037,10 @@ async def test_apply_default_product_owner_collision_and_multi_choice(
         assert len(created_products) == 2
         assert len(created_symbols) == 2
         by_ticker = {product.ticker: product for product in created_products}
-        assert by_ticker["MULT1"].asset_type == "future"
-        assert by_ticker["MULT1"].source == "tfex"
-        assert by_ticker["MULT2"].asset_type == "crypto"
-        assert by_ticker["MULT2"].source == "manual"
+        assert by_ticker["MULTU1"].asset_type == "future"
+        assert by_ticker["MULTU1"].source == "tfex"
+        assert by_ticker["MULTU2"].asset_type == "crypto"
+        assert by_ticker["MULTU2"].source == "manual"
         symbols_by_key = {symbol.price_symbol: symbol for symbol in created_symbols}
         assert symbols_by_key["MULT1"].sync_symbol == "MULT1Z26"
         assert symbols_by_key["MULT1"].contract_kind == "future"

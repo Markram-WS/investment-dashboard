@@ -11,12 +11,13 @@ type CreateAssetType = 'stock' | 'future' | 'option' | 'crypto';
 type CreateSource = 'yfinance' | 'tfex' | 'manual';
 
 interface CreateDraft {
+  underlying: string;
   assetType: '' | CreateAssetType;
   source: '' | CreateSource;
   syncSymbol: string;
 }
 
-const EMPTY_CREATE_DRAFT: CreateDraft = { assetType: '', source: '', syncSymbol: '' };
+const EMPTY_CREATE_DRAFT: CreateDraft = { underlying: '', assetType: '', source: '', syncSymbol: '' };
 const ASSET_TYPE_OPTIONS: CreateAssetType[] = ['stock', 'future', 'option', 'crypto'];
 const SOURCE_OPTIONS: { value: CreateSource; label: string }[] = [
   { value: 'yfinance', label: 'yfinance (Yahoo Finance)' },
@@ -143,6 +144,7 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
           create_source: draft.source as CreateSource,
           create_asset_type: draft.assetType as CreateAssetType,
           create_sync_symbol: draft.source === 'manual' ? '' : draft.syncSymbol.trim(),
+          create_underlying: draft.underlying.trim(),
         });
       } else {
         choices.push({
@@ -249,7 +251,7 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                                   ))}
                                 </optgroup>
                               )}
-                              <option value="create">Create new — {item.create.ticker || item.symbol}</option>
+                              <option value="create">Create new — {item.create.symbol}</option>
                             </select>
                             {value === 'create' && (
                               <div
@@ -271,7 +273,7 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                                   An order stores only the symbol, so the dashboard cannot tell whether it is a TFEX series or a Thai stock.
                                 </span>
                                 <span style={{ ...CONTROL_HELPER, margin: 0 }}>
-                                  Pick the source, the provider key and the asset type — PTT.BK for a THB stock on Yahoo,
+                                  Pick the underlying if the contract has one, then the source, the provider key and the asset type — PTT.BK for a THB stock on Yahoo,
                                   S50Z26 for TFEX, or manual when there is no feed.
                                 </span>
                                 <span style={{ ...CONTROL_HELPER, margin: 0 }}>
@@ -285,6 +287,20 @@ export default function SyncFromOrdersModal({ open, onClose, onApplied }: SyncFr
                                     gap: 8,
                                   }}
                                 >
+                                  <label style={{ gridColumn: '1 / -1' }}>
+                                    <span style={CONTROL_LABEL}>Underlying</span>
+                                    <input
+                                      type="text"
+                                      aria-label={`Underlying for ${item.symbol}`}
+                                      value={draft.underlying}
+                                      placeholder="e.g. S50, or leave blank"
+                                      onChange={(e) => rememberDraft(key, { underlying: e.target.value })}
+                                      style={CONTROL_INPUT}
+                                    />
+                                    <span style={{ ...CONTROL_HELPER, display: 'block' }}>
+                                      Grouping key for this contract; leave blank when the contract has no underlying.
+                                    </span>
+                                  </label>
                                   <label>
                                     <span style={CONTROL_LABEL}>Asset type</span>
                                     <select

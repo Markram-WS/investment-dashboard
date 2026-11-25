@@ -568,7 +568,8 @@ export interface SyncProposalProduct {
 }
 
 export interface SyncProposalCreate {
-  ticker: string;
+  /** Order symbol the create branch will use as the contract's price symbol. */
+  symbol: string;
 }
 
 export interface SyncProposalItem {
@@ -597,6 +598,8 @@ export interface AssetSyncChoice {
   create_source?: 'yfinance' | 'tfex' | 'manual';
   create_sync_symbol?: string;
   create_asset_type?: 'stock' | 'future' | 'option' | 'crypto';
+  /** Optional grouping ticker for the new product; "" means no underlying. */
+  create_underlying?: string;
 }
 
 export interface AssetSyncApplyResult {

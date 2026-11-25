@@ -370,6 +370,7 @@ class SyncChoice(BaseModel):
     broker_id: Optional[int] = None
     product_id: Optional[int] = None
     create_product: Optional[bool] = None
+    create_underlying: Optional[str] = None
     create_source: Optional[str] = None
     create_sync_symbol: Optional[str] = None
     create_asset_type: Optional[str] = None
@@ -1081,7 +1082,7 @@ async def _proposal_items(db: AsyncSession) -> list[dict]:
                 "order_asset_types": sorted(
                     pairs[(broker_id, symbol)].order_asset_types
                 ),
-                "create": {"ticker": symbol},
+                "create": {"symbol": symbol},
             }
         )
     return items
@@ -1175,27 +1176,24 @@ async def sync_apply(data: SyncApplyRequest, db: AsyncSession = Depends(get_db))
                         f"is not in broker {broker_code_value}",
                     )
             else:
+                underlying = registry.normalise_ticker(choice.create_underlying)
+                if (
+                    underlying is None
+                    and broker_id is None
+                    and not (choice.create_asset_type or "").strip()
+                ):
+                    # An unassigned underlying needs a broker or a type; the
+                    # all-NULL triple is the reserved default-product identity.
+                    raise HTTPException(400, "Ticker is required")
                 source, asset_type, sync_symbol = _validated_create_fields(
                     choice, symbol
                 )
-                ticker = symbol
-                duplicate_ticker_query = select(AssetProduct.product_id).where(
-                    func.upper(func.trim(AssetProduct.ticker)) == ticker
-                )
-                if broker_id is None:
-                    duplicate_ticker_query = duplicate_ticker_query.where(
-                        AssetProduct.broker_id.is_(None)
-                    )
-                else:
-                    duplicate_ticker_query = duplicate_ticker_query.where(
-                        AssetProduct.broker_id == broker_id
-                    )
-                if (await db.execute(duplicate_ticker_query.limit(1))).first() is not None:
+                if await _identity_exists(db, underlying, broker_id, asset_type):
                     raise HTTPException(
-                        400, "A product with this ticker already exists"
+                        400, "An asset with this ticker already exists"
                     )
                 product = AssetProduct(
-                    ticker=ticker,
+                    ticker=underlying,
                     broker_id=broker_id,
                     asset_type=asset_type,
                     multiplier=1,
