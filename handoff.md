@@ -312,3 +312,44 @@ Allocation editor โดยใช้ Chevron ตัวเดียวร่ว�
 - **Tests** — `backend/tests/test_asset_registry_migration.py` เพิ่มเคส drop
   (คอลัมน์หาย, แถวและค่าอื่นคงอยู่, รันซ้ำได้)
 
+## 10. Follow-up commit `1029f60` — grouped rebalance table + Rebalance entry point เดียว
+
+`1029f60` ต่อจาก `940b1ee`: ทำตาราง rebalance ให้จัดกลุ่มตาม underlying และเหลือ
+ปุ่ม Rebalance ปุ่มเดียวบนหน้า (แตะ backend router + types + modal + page + tests;
+docs รอบนี้แก้ `DESIGN.md`, `.opencode/AGENT.md`, `backend/README.md`,
+`frontend/README.md`, `handoff.md`)
+
+- **Response field ใหม่** — `MFRebalanceResponse.groups: List[MFRebalanceGroup] = []`
+  โดย `MFRebalanceGroup` มี `label`, `current_value`, `target_value`,
+  `current_pct`, `target_pct`, `drift`, `order_value`; `calculate_rebalance`
+  เติมหนึ่ง entry ต่อ allocation group ตามลำดับที่เจอก่อน (first-seen) และ group
+  ที่ `order_value` เป็น 0 ก็ยังถูกส่งมา; path ที่ไม่มี group คืน `groups=[]`
+  พร้อม `recommendations=[]` (group ยังสรุปจาก `recommendations` ฝั่ง client ไม่ได้)
+- **ตารางใน modal จัดกลุ่มแล้ว** — `MFRebalanceRecommendModal.tsx` เรนเดอร์แถว
+  กลุ่มก่อน (Current = `current_value`, Target = `target_value`, Allocation
+  `<current_pct>% → <target_pct>%` หนึ่งตำแหน่ง, Drift, Order value ที่มีเครื่องหมาย)
+  แล้วจึงเป็น holding ของกลุ่มนั้นเยื้องเข้าไป (Current = `holding.market_value`,
+  Qty พร้อม chip Buy/Sell, Price, Order value ตาม side) — ทุกหัวตารางและทุก cell
+  อยู่ที่ `--fs-micro` (10px) คอลัมน์คือ
+  `Asset | Current | Target | Allocation | Drift | Qty | Price | Order value`;
+  holding ที่ไม่มี recommendation ไม่แสดง Qty/Price/Order value;
+  `Total drift` รวม `groups[].drift` กลุ่มละครั้ง (ไม่ใช่ต่อ holding) จึงตรงกับ
+  แถวกลุ่มที่เห็น; modal รับ `groups` + `holdings` จากหน้าเพิ่ม
+- **Header เหลือชุด action เดียว** — `PortfolioMutualFund.tsx` ไม่ส่ง
+  `extraActions` ให้ `PortfolioHeader` แล้ว จึงเหลือปุ่ม `Edit portfolio` และ
+  `Refresh` เท่านั้น; ปุ่ม `Rebalance` ใน card Rebalance (`.mf-rebalance-btn`)
+  เป็นทางเข้า modal เพียงทางเดียว; ปิด modal ล้างทั้ง `rebalanceRecs` และ
+  `rebalanceGroups`
+- **Live check หลัง deploy (fund 2, allocation base `$4,330.00`)**:
+  - header มีปุ่ม `Edit portfolio` + `Refresh` เท่านั้น และทั้งหน้าเหลือปุ่ม
+    `Rebalance` ปุ่มเดียว (ใน card Rebalance)
+  - modal แสดงแถวกลุ่ม `CHA` `23.1% → 50.0%` (`$1,000.00 → $2,165.00`,
+    order `$1,165.00`) เหนือ holding ของกลุ่ม และแถวกลุ่ม `S&P500`
+    `24.7% → 50.0%` (`$1,070.00 → $2,165.00`, order `$1,095.00`) เหนือ
+    `VOO $547.50` / `ABC $547.50`
+  - footer: Allocation base `$4,330.00`, Total drift `52.2%`
+- **Tests** — commit message ระบุ backend rebalance 42 passed, frontend 154
+  passed, `vite build` และ `tsc` clean; เคสใหม่ใน
+  `MFRebalanceRecommendModal.test.tsx` ตรวจแถวกลุ่ม/`data-testid`
+  `rebalance-group-<label>` และ `rebalance-holding-<id>`, และ
+  `PortfolioMutualFund.test.tsx` ตรวจว่า header ไม่มีปุ่ม Rebalance
