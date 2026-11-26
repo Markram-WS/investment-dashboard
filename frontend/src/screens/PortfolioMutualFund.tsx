@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import type { ApiError } from "../lib/api";
 import {
   FundPortfolio, MFHolding, MFOrder, MFHistory, MFSetting,
-  MFRebalanceRecommendation, MFOrderCreate, MFOrderUpdate, MFAllocationMode,
+  MFRebalanceRecommendation, MFRebalanceGroup, MFOrderCreate, MFOrderUpdate, MFAllocationMode,
 } from "../types";
 import Chevron from "../components/Chevron";
 import IconButton from "../components/IconButton";
@@ -105,6 +105,7 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
   // Group labels whose holdings are folded away; empty means every group is open.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
   const [rebalanceRecs, setRebalanceRecs] = useState<MFRebalanceRecommendation[]>([]);
+  const [rebalanceGroups, setRebalanceGroups] = useState<MFRebalanceGroup[]>([]);
   const [rebalanceLoading, setRebalanceLoading] = useState(false);
   const [rebalanceAllocationBase, setRebalanceAllocationBase] = useState<number | null>(null);
   const [rebalanceError, setRebalanceError] = useState<string | null>(null);
@@ -144,10 +145,12 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
     try {
       const res = await api.mfCalculateRebalance(parseInt(resolvedId), cashTopUp);
       setRebalanceRecs(res.recommendations || []);
+      setRebalanceGroups(res.groups || []);
       setRebalanceAllocationBase(res.allocation_base ?? null);
     } catch (e) {
       console.error("Rebalance calc failed:", e);
       setRebalanceRecs([]);
+      setRebalanceGroups([]);
       setRebalanceAllocationBase(null);
       const apiError = e as Partial<ApiError> | null;
       const status = typeof apiError?.status === "number" ? apiError.status : null;
@@ -360,11 +363,6 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
           lastUpdated={lastUpdated}
           onRefresh={fetchData}
           onEditPortfolio={() => setShowEditModal(true)}
-          extraActions={
-            <button type="button" className="at-btn" onClick={handleCalculateRebalance}>
-              Rebalance
-            </button>
-          }
         />
 
         {/* KPI rail: four compact figures on one 84px band. */}
@@ -635,12 +633,15 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
         show={showRebalanceModal}
         loading={rebalanceLoading}
         recommendations={rebalanceRecs}
+        groups={rebalanceGroups}
+        holdings={holdings}
         allocationBase={rebalanceAllocationBase}
         error={rebalanceError}
         onRecalculate={handleRebalanceRecalc}
         onClose={() => {
           setShowRebalanceModal(false);
           setRebalanceRecs([]);
+          setRebalanceGroups([]);
           setRebalanceAllocationBase(null);
           setRebalanceError(null);
         }}

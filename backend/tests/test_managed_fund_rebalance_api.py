@@ -406,6 +406,7 @@ async def test_zero_holdings_returns_empty_not_400(async_client):
         assert resp.status_code == 200, resp.text
         data = resp.json()
         assert data["recommendations"] == []
+        assert data["groups"] == []
         assert data["target_allocations"] == {}
         assert data["current_allocations"] == {}
         assert data["current_nav"] == 0
@@ -435,6 +436,186 @@ async def test_exactly_balanced_groups_return_no_orders(async_client):
         assert data["current_allocations"] == {"S&P500": 50.0, "CHA": 50.0}
         assert data["recommendations"] == []
         assert data["total_drift"] == 0
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_rebalance_groups_balanced_group_has_zero_order_value(async_client):
+    # Equal group values: both groups need no trade and must still appear.
+    fund = await seed_neutral_fund(
+        products=[
+            ("S&P500", "VOO", "VOO", "yfinance"),
+            ("CHA", "SCBCHAE", "SCBCHAE", "yfinance"),
+        ],
+        holdings=[("VOO", 10, 20, 0), ("SCBCHAE", 20, 10, 0)],
+        quotes=[("yfinance", "VOO", 20), ("yfinance", "SCBCHAE", 10)],
+    )
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["groups"] == [
+            {
+                "label": "S&P500",
+                "current_value": 200.0,
+                "target_value": 200.0,
+                "current_pct": 50.0,
+                "target_pct": 50.0,
+                "drift": 0.0,
+                "order_value": 0.0,
+            },
+            {
+                "label": "CHA",
+                "current_value": 200.0,
+                "target_value": 200.0,
+                "current_pct": 50.0,
+                "target_pct": 50.0,
+                "drift": 0.0,
+                "order_value": 0.0,
+            },
+        ]
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_rebalance_groups_values_and_drift_match_allocation(async_client):
+    # Live base 1000 (holdings 300 + cash 700); equal targets of 500.
+    fund = await seed_neutral_fund(
+        products=[
+            ("S&P500", "VOO", "VOO", "yfinance"),
+            ("CHA", "SCBCHAE", "SCBCHAE", "yfinance"),
+        ],
+        holdings=[("VOO", 10, 20, 0), ("SCBCHAE", 10, 10, 0)],
+        quotes=[("yfinance", "VOO", 20), ("yfinance", "SCBCHAE", 10)],
+        available_cash=700,
+    )
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        base = data["allocation_base"]
+        assert base == 1000
+        groups = {row["label"]: row for row in data["groups"]}
+        assert list(groups) == ["S&P500", "CHA"]
+
+        sp = groups["S&P500"]
+        assert sp["current_value"] == 200.0
+        assert sp["target_value"] == 500.0
+        assert sp["current_value"] == pytest.approx(base * sp["current_pct"] / 100)
+        assert sp["target_value"] == pytest.approx(base * sp["target_pct"] / 100)
+        assert sp["current_pct"] == 20.0
+        assert sp["target_pct"] == 50.0
+        assert sp["drift"] == 30.0
+        assert sp["order_value"] == 300.0
+
+        cha = groups["CHA"]
+        assert cha["current_value"] == 100.0
+        assert cha["target_value"] == 500.0
+        assert cha["current_value"] == pytest.approx(base * cha["current_pct"] / 100)
+        assert cha["target_value"] == pytest.approx(base * cha["target_pct"] / 100)
+        assert cha["current_pct"] == 10.0
+        assert cha["target_pct"] == 50.0
+        assert cha["drift"] == 40.0
+        assert cha["order_value"] == 400.0
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_rebalance_group_order_values_conserve_cash_neutral(async_client):
+    fund = await seed_neutral_fund(**live_fund_kwargs())
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate",
+            json={"cash_top_up": 1000},
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        groups = {row["label"]: row for row in data["groups"]}
+        assert list(groups) == ["S&P500", "CHA"]
+        # Live base 5230 with equal 50% targets of 2615: groups buy 1545 and
+        # 1715, which conserves cash 2260 plus the 1000 top-up.
+        assert groups["S&P500"]["current_value"] == 1070.0
+        assert groups["S&P500"]["target_value"] == 2615.0
+        assert groups["S&P500"]["order_value"] == pytest.approx(1545.0, abs=1e-8)
+        assert groups["CHA"]["current_value"] == 900.0
+        assert groups["CHA"]["target_value"] == 2615.0
+        assert groups["CHA"]["order_value"] == pytest.approx(1715.0, abs=1e-8)
+        assert sum(row["order_value"] for row in data["groups"]) == pytest.approx(
+            2260.0 + 1000.0, abs=1e-8
+        )
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_rebalance_group_order_values_conserve_cash_weighted(async_client):
+    fund = await seed_neutral_fund(
+        **weight_fund_kwargs({"S&P500": 60, "CHA": 40})
+    )
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        groups = {row["label"]: row for row in data["groups"]}
+        # Base 1000: 200/100 current against 600/400 targets.
+        assert groups["S&P500"]["current_value"] == 200.0
+        assert groups["S&P500"]["target_value"] == 600.0
+        assert groups["S&P500"]["current_pct"] == 20.0
+        assert groups["S&P500"]["target_pct"] == 60.0
+        assert groups["S&P500"]["drift"] == 40.0
+        assert groups["S&P500"]["order_value"] == pytest.approx(400.0, abs=1e-8)
+        assert groups["CHA"]["current_value"] == 100.0
+        assert groups["CHA"]["target_value"] == 400.0
+        assert groups["CHA"]["current_pct"] == 10.0
+        assert groups["CHA"]["target_pct"] == 40.0
+        assert groups["CHA"]["drift"] == 30.0
+        assert groups["CHA"]["order_value"] == pytest.approx(300.0, abs=1e-8)
+        assert sum(row["order_value"] for row in data["groups"]) == pytest.approx(
+            700.0, abs=1e-8
+        )
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_rebalance_groups_follow_first_seen_order(async_client):
+    fund = await seed_neutral_fund(
+        products=[
+            ("CHA", "SCBCHAE", "SCBCHAE", "yfinance"),
+            ("S&P500", "VOO", "VOO", "yfinance"),
+            ("gold", "SCBGOLDE", "SCBGOLDE", "yfinance"),
+        ],
+        holdings=[
+            ("SCBCHAE", 10, 10, 0),
+            ("VOO", 10, 10, 0),
+            ("SCBGOLDE", 10, 10, 0),
+        ],
+        quotes=[
+            ("yfinance", "SCBCHAE", 10),
+            ("yfinance", "VOO", 10),
+            ("yfinance", "SCBGOLDE", 10),
+        ],
+        available_cash=700,
+    )
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        labels = [row["label"] for row in data["groups"]]
+        assert labels == ["CHA", "S&P500", "gold"]
+        assert labels == list(data["current_allocations"])
+        assert labels == list(data["target_allocations"])
     finally:
         await drop_fund(fund)
 

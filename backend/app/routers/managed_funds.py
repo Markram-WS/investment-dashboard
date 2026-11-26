@@ -154,6 +154,17 @@ class MFRebalanceRecommendation(BaseModel):
     target_allocation: float
     drift: float
 
+class MFRebalanceGroup(BaseModel):
+    """One allocation group's aggregate row in the rebalance table."""
+
+    label: str
+    current_value: float
+    target_value: float
+    current_pct: float
+    target_pct: float
+    drift: float
+    order_value: float
+
 class MFRebalanceResponse(BaseModel):
     portfolio_id: int
     portfolio_name: str
@@ -162,6 +173,7 @@ class MFRebalanceResponse(BaseModel):
     target_allocations: Dict[str, float]
     current_allocations: Dict[str, float]
     recommendations: List[MFRebalanceRecommendation]
+    groups: List[MFRebalanceGroup] = []
     total_drift: float
 
 
@@ -800,6 +812,7 @@ async def calculate_rebalance(
             target_allocations=target_allocations,
             current_allocations=current_allocations,
             recommendations=recommendations,
+            groups=[],
             total_drift=0.0,
         )
 
@@ -866,12 +879,14 @@ async def calculate_rebalance(
     # weights split only that group's drift; null/zero weights fall back to the
     # holding's market-value proportion inside the group.
     lines: List[dict] = []
+    group_drifts: Dict[str, Decimal] = {}
     for group in groups:
         target_pct = group_targets[group.label]
         target_value = target_values[group.label]
         raw_pct = group.value / allocation_base * 100
         drift = abs(target_pct - raw_pct)
         total_drift += drift
+        group_drifts[group.label] = drift
 
         delta = (target_value - group.value).quantize(
             _VALUE_QUANTUM, rounding=ROUND_HALF_UP
@@ -945,6 +960,30 @@ async def calculate_rebalance(
         )
         lines[recipient]["line"] += net_residual
 
+    # Per-group aggregates for the grouped table: one row per allocation group
+    # in first-seen order, including groups whose holdings need no trade.
+    group_order_values: Dict[str, Decimal] = {
+        group.label: Decimal("0") for group in groups
+    }
+    for entry in lines:
+        group_order_values[entry["group"].label] += entry["line"]
+    rebalance_groups = [
+        MFRebalanceGroup(
+            label=group.label,
+            current_value=float(group.value),
+            target_value=float(target_values[group.label]),
+            current_pct=current_allocations[group.label],
+            target_pct=target_allocations[group.label],
+            drift=float(
+                group_drifts[group.label].quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+            ),
+            order_value=float(group_order_values[group.label]),
+        )
+        for group in groups
+    ]
+
     for entry in lines:
         line = entry["line"]
         if line == 0:
@@ -1007,6 +1046,7 @@ async def calculate_rebalance(
         target_allocations=target_allocations,
         current_allocations=current_allocations,
         recommendations=recommendations,
+        groups=rebalance_groups,
         total_drift=float(total_drift.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
     )
 

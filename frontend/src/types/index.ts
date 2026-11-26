@@ -384,6 +384,23 @@ export interface MFSetting {
   last_rebalance_date: string | null;
 }
 
+export interface MFRebalanceGroup {
+  /** Allocation-group label (registry underlying or "Unassigned"). */
+  label: string;
+  /** Sum(qty × current_price) for the group's holdings, live marks. */
+  current_value: number;
+  /** allocation_base × target_pct / 100. */
+  target_value: number;
+  /** Current share of the allocation base (e.g. 24.71). */
+  current_pct: number;
+  /** Target share of the allocation base (e.g. 50.0). */
+  target_pct: number;
+  /** |target_pct − current_pct| rounded to 0.01. */
+  drift: number;
+  /** Signed sum of the group's order lines; 0 when the group needs no trade. */
+  order_value: number;
+}
+
 export interface MFRebalanceRecommendation {
   symbol: string;
   underlying: string;
@@ -407,6 +424,8 @@ export interface MFRebalanceResponse {
   target_allocations: Record<string, number>;
   current_allocations: Record<string, number>;
   recommendations: MFRebalanceRecommendation[];
+  /** One aggregate row per allocation group, first-seen order, no-trade groups included. */
+  groups: MFRebalanceGroup[];
   total_drift: number;
 }
 

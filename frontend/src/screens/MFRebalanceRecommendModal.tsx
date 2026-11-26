@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { MFRebalanceRecommendation } from "../types";
+import { MFHolding, MFRebalanceGroup, MFRebalanceRecommendation } from "../types";
 import ModalShell from "./components/ModalShell";
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
 import { Field, NumberInput } from "./components/Field";
@@ -16,6 +16,10 @@ interface MFRebalanceRecommendModalProps {
   show: boolean;
   loading: boolean;
   recommendations: MFRebalanceRecommendation[];
+  /** One aggregate row per allocation group, including groups that need no trade. */
+  groups: MFRebalanceGroup[];
+  /** The page's loaded holdings; supplies holding market values to the group rows. */
+  holdings: MFHolding[];
   allocationBase: number | null;
   /** Human-readable calculation failure from the caller; replaces the empty-state copy. */
   error?: string | null;
@@ -28,11 +32,12 @@ interface MFRebalanceRecommendModalProps {
 const modalPanelStyle: CSSProperties = {
   padding: "var(--space-md)", borderRadius: "var(--rounded-xl)",
 };
-/** Ledger column head: 11px/500 slate, sentence case. */
+/** Ledger column head: micro, 500 slate, sentence case. */
 const headCell = { fontWeight: 500, color: "var(--color-slate)", whiteSpace: "nowrap" } as const;
 const cell: CSSProperties = { color: "var(--color-ink)", fontVariantNumeric: "tabular-nums" };
+const groupCell: CSSProperties = { ...cell, fontWeight: 600 };
 const sideChip = {
-  padding: "2px 8px",
+  padding: "2px 6px",
   borderRadius: "var(--rounded-full)",
   fontWeight: 600,
   whiteSpace: "nowrap",
@@ -44,8 +49,11 @@ const totalPanel: CSSProperties = {
 const primaryButton = CONTROL_BUTTON_PRIMARY;
 const secondaryButton = CONTROL_BUTTON_SECONDARY;
 
+/** Every table cell (heads included) renders at the 10px micro token. */
+const MICRO = "text-[length:var(--fs-micro)]";
+
 export default function MFRebalanceRecommendModal({
-  show, loading, recommendations, allocationBase, error, onRecalculate, onClose, onCreateOrders,
+  show, loading, recommendations, groups, holdings, allocationBase, error, onRecalculate, onClose, onCreateOrders,
 }: MFRebalanceRecommendModalProps) {
   // Transient calculation-only amount; never persisted or credited.
   const [topUp, setTopUp] = useState("0");
@@ -75,12 +83,22 @@ export default function MFRebalanceRecommendModal({
 
   const invalidTopUp = parseTopUpAmount(topUp) === null;
 
-  // Every row carries its underlying group's drift, so a group with several
-  // holdings would otherwise be counted once per holding. Sum one drift per
-  // distinct underlying to match the backend's per-group total.
-  const totalDrift = [
-    ...new Map(recommendations.map(r => [r.underlying, r.drift] as const)).values(),
-  ].reduce((sum, drift) => sum + drift, 0);
+  // One drift per group row (the backend's group list already deduped the
+  // per-holding drift), so the panel total matches the visible group rows.
+  const totalDrift = groups.reduce((sum, group) => sum + group.drift, 0);
+
+  const holdingsByGroup = new Map<string, MFHolding[]>();
+  for (const holding of holdings) {
+    const label = holding.underlying?.trim() || "Unassigned";
+    const rows = holdingsByGroup.get(label);
+    if (rows) rows.push(holding);
+    else holdingsByGroup.set(label, [holding]);
+  }
+  const recommendationBySymbol = new Map(
+    recommendations.map(rec => [rec.symbol, rec] as const),
+  );
+
+  const hasRows = groups.length > 0;
 
   return (
     <ModalShell open={show} onClose={onClose} title="Rebalance Recommendations" closeOnBackdrop={false}>
@@ -122,7 +140,7 @@ export default function MFRebalanceRecommendModal({
           >
             {error}
           </div>
-        ) : recommendations.length === 0 ? (
+        ) : !hasRows && recommendations.length === 0 ? (
           <div className="text-center py-8 text-green-600 text-[length:var(--fs-body)]" style={{ fontWeight: 500 }}>
             Portfolio is already balanced! No adjustments needed.
           </div>
@@ -133,51 +151,101 @@ export default function MFRebalanceRecommendModal({
                 Recalculating with the new top-up...
               </p>
             )}
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-hairline">
-                  <th className="text-left py-2 text-[length:var(--fs-label)]" style={headCell}>Asset</th>
-                  <th className="text-left py-2 text-[length:var(--fs-label)]" style={headCell}>Underlying</th>
-                  <th className="text-left py-2 text-[length:var(--fs-label)]" style={headCell}>Side</th>
-                  <th className="text-right py-2 text-[length:var(--fs-label)]" style={headCell}>Qty</th>
-                  <th className="text-right py-2 text-[length:var(--fs-label)]" style={headCell}>Est. Price</th>
-                  <th className="text-right py-2 text-[length:var(--fs-label)]" style={headCell}>Order Value</th>
-                  <th className="text-right py-2 text-[length:var(--fs-label)]" style={headCell}>Current</th>
-                  <th className="text-right py-2 text-[length:var(--fs-label)]" style={headCell}>Target</th>
-                  <th className="text-right py-2 text-[length:var(--fs-label)]" style={headCell}>Drift</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recommendations.map((r, i) => (
-                  <tr key={i} className="border-b border-hairline">
-                    <td className="py-2 text-[length:var(--fs-content)]" style={{ ...cell, fontWeight: 500 }}>{r.symbol}</td>
-                    <td className="py-2 text-[length:var(--fs-label)]" style={{ color: "var(--color-slate)" }}>{r.underlying}</td>
-                    <td className="py-2">
-                      <span
-                        className={`text-[length:var(--fs-label)] ${
-                          r.side === "Buy" ? "bg-teal-light text-brand-teal" : "bg-coral-light text-brand-coral"
-                        }`}
-                        style={sideChip}
-                      >
-                        {r.side}
-                      </span>
-                    </td>
-                    <td className="py-2 text-right text-[length:var(--fs-content)]" style={cell}>{r.qty.toFixed(4)}</td>
-                    <td className="py-2 text-right text-[length:var(--fs-content)]" style={cell}>${r.estimated_price.toFixed(2) || "—"}</td>
-                    <td className="py-2 text-right text-[length:var(--fs-content)]" style={cell}>{formatMoney(r.estimated_value)}</td>
-                    <td className="py-2 text-right text-[length:var(--fs-content)]" style={cell}>{r.current_allocation.toFixed(1)}%</td>
-                    <td className="py-2 text-right text-[length:var(--fs-content)]" style={cell}>{r.target_allocation.toFixed(1)}%</td>
-                    <td className="py-2 text-right">
-                      <span className={`text-[length:var(--fs-label)] ${
-                        r.drift > 15 ? "text-brand-coral" : r.drift > 5 ? "text-brand-yellow" : "text-success"
-                      }`} style={{ fontWeight: 600 }}>
-                        {r.drift.toFixed(1)}%
-                      </span>
-                    </td>
+            <div style={{ overflowX: "auto" }}>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-hairline">
+                    <th className={`text-left py-1.5 ${MICRO}`} style={headCell}>Asset</th>
+                    <th className={`text-right py-1.5 ${MICRO}`} style={headCell}>Current</th>
+                    <th className={`text-right py-1.5 ${MICRO}`} style={headCell}>Target</th>
+                    <th className={`text-right py-1.5 ${MICRO}`} style={headCell}>Allocation</th>
+                    <th className={`text-right py-1.5 ${MICRO}`} style={headCell}>Drift</th>
+                    <th className={`text-right py-1.5 ${MICRO}`} style={headCell}>Qty</th>
+                    <th className={`text-right py-1.5 ${MICRO}`} style={headCell}>Price</th>
+                    <th className={`text-right py-1.5 ${MICRO}`} style={headCell}>Order value</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {groups.map(group => {
+                    const groupHoldings = holdingsByGroup.get(group.label) ?? [];
+                    return (
+                      <Fragment key={group.label}>
+                        <tr
+                          data-testid={`rebalance-group-${group.label}`}
+                          className="border-b border-hairline"
+                          style={{ background: "var(--color-surface-soft)" }}
+                        >
+                          <td className={`py-1.5 ${MICRO}`} style={groupCell}>{group.label}</td>
+                          <td className={`py-1.5 text-right ${MICRO}`} style={groupCell}>{formatMoney(group.current_value)}</td>
+                          <td className={`py-1.5 text-right ${MICRO}`} style={groupCell}>{formatMoney(group.target_value)}</td>
+                          <td className={`py-1.5 text-right ${MICRO}`} style={groupCell}>
+                            {group.current_pct.toFixed(1)}% → {group.target_pct.toFixed(1)}%
+                          </td>
+                          <td className={`py-1.5 text-right ${MICRO}`} style={groupCell}>
+                            <span className={group.drift > 15 ? "text-brand-coral" : group.drift > 5 ? "text-brand-yellow" : "text-success"}>
+                              {group.drift.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className={`py-1.5 ${MICRO}`} />
+                          <td className={`py-1.5 ${MICRO}`} />
+                          <td className={`py-1.5 text-right ${MICRO}`} style={groupCell}>
+                            <span className={group.order_value < 0 ? "text-brand-coral" : group.order_value > 0 ? "text-brand-teal" : "text-ink"}>
+                              {formatMoney(group.order_value)}
+                            </span>
+                          </td>
+                        </tr>
+                        {groupHoldings.map(holding => {
+                          const rec = recommendationBySymbol.get(holding.asset);
+                          const signedOrderValue = rec == null
+                            ? null
+                            : rec.side === "Sell" ? -rec.estimated_value : rec.estimated_value;
+                          return (
+                            <tr
+                              key={`${group.label}-${holding.holding_id}`}
+                              data-testid={`rebalance-holding-${holding.holding_id}`}
+                              className="border-b border-hairline"
+                            >
+                              <td className={`py-1.5 ${MICRO}`} style={{ ...cell, paddingLeft: 14 }}>{holding.asset}</td>
+                              <td className={`py-1.5 text-right ${MICRO}`} style={cell}>{formatMoney(holding.market_value)}</td>
+                              <td className={`py-1.5 ${MICRO}`} />
+                              <td className={`py-1.5 ${MICRO}`} />
+                              <td className={`py-1.5 ${MICRO}`} />
+                              <td className={`py-1.5 text-right ${MICRO}`} style={cell}>
+                                {rec && (
+                                  <span className="inline-flex items-center justify-end" style={{ gap: 4 }}>
+                                    <span
+                                      className={`${MICRO} ${
+                                        rec.side === "Buy" ? "bg-teal-light text-brand-teal" : "bg-coral-light text-brand-coral"
+                                      }`}
+                                      style={sideChip}
+                                    >
+                                      {rec.side}
+                                    </span>
+                                    <span>{rec.qty.toFixed(4)}</span>
+                                  </span>
+                                )}
+                              </td>
+                              <td className={`py-1.5 text-right ${MICRO}`} style={cell}>
+                                {rec ? formatMoney(rec.estimated_price) : ""}
+                              </td>
+                              <td className={`py-1.5 text-right ${MICRO}`} style={cell}>
+                                {signedOrderValue == null
+                                  ? ""
+                                  : (
+                                    <span className={signedOrderValue < 0 ? "text-brand-coral" : signedOrderValue > 0 ? "text-brand-teal" : "text-ink"}>
+                                      {formatMoney(signedOrderValue)}
+                                    </span>
+                                  )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
             <div style={totalPanel}>
               <div className="flex items-center justify-between" style={{ gap: 8 }}>
                 <span className="text-[length:var(--fs-label)]" style={{ color: "var(--color-slate)" }}>Allocation base</span>

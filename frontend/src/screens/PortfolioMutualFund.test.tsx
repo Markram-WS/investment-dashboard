@@ -82,8 +82,8 @@ describe('PortfolioMutualFund rebalance errors', () => {
     }));
 
     renderScreen();
-    const buttons = await screen.findAllByRole('button', { name: 'Rebalance' });
-    fireEvent.click(buttons[0]);
+    const card = await screen.findByRole('region', { name: 'Rebalance' });
+    fireEvent.click(within(card).getByRole('button', { name: 'Rebalance' }));
 
     expect(await screen.findByRole('alert'))
       .toHaveTextContent('Weighted sell exceeds the value of SCBSEMI(E)');
@@ -97,12 +97,38 @@ describe('PortfolioMutualFund rebalance errors', () => {
     }));
 
     renderScreen();
-    const buttons = await screen.findAllByRole('button', { name: 'Rebalance' });
-    fireEvent.click(buttons[0]);
+    const card = await screen.findByRole('region', { name: 'Rebalance' });
+    fireEvent.click(within(card).getByRole('button', { name: 'Rebalance' }));
 
     expect(await screen.findByRole('alert'))
       .toHaveTextContent('Rebalance calculation failed (HTTP 422)');
     expect(screen.queryByText(/already balanced/i)).toBeNull();
+  });
+});
+
+describe('PortfolioMutualFund header actions', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    apiMock.getPortfolio.mockResolvedValue(portfolio);
+    apiMock.mfSettings.mockResolvedValue(settings);
+    apiMock.mfHoldings.mockResolvedValue([]);
+    apiMock.mfOrders.mockResolvedValue([]);
+    apiMock.mfHistory.mockResolvedValue([]);
+  });
+
+  it('keeps the Rebalance button in the card only, not in the page header', async () => {
+    renderScreen();
+
+    const editButton = await screen.findByRole('button', { name: 'Edit portfolio' });
+    const header = editButton.closest('header');
+    expect(header).not.toBeNull();
+    expect(within(header as HTMLElement).queryByRole('button', { name: 'Rebalance' })).toBeNull();
+    expect(within(header as HTMLElement).getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
+
+    const card = screen.getByRole('region', { name: 'Rebalance' });
+    expect(within(card).getByRole('button', { name: 'Rebalance' })).toBeInTheDocument();
+
+    expect(screen.getAllByRole('button', { name: 'Rebalance' })).toHaveLength(1);
   });
 });
 
@@ -114,7 +140,7 @@ describe('PortfolioMutualFund allocation mode', () => {
     apiMock.mfHoldings.mockResolvedValue([]);
     apiMock.mfOrders.mockResolvedValue([]);
     apiMock.mfHistory.mockResolvedValue([]);
-    apiMock.mfCalculateRebalance.mockResolvedValue({ recommendations: [], allocation_base: 0 });
+    apiMock.mfCalculateRebalance.mockResolvedValue({ recommendations: [], groups: [], allocation_base: 0 });
   });
 
   it('switches to Weight (%) in the edit modal and saves the entered targets', async () => {
