@@ -118,21 +118,6 @@ const hasNumber = (value: OptionalNumber) => value !== '' && value !== null;
 const toOptionalNumber = (value: OptionalNumber): number | undefined =>
   value === '' || value === null ? undefined : Number(value);
 
-/** Parses an allocation map from user JSON; numeric entries only, null when invalid. */
-const parseTargetRatios = (raw: string): Record<string, number> | null => {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
-    const ratios: Record<string, number> = {};
-    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof value === 'number') ratios[key] = value;
-    }
-    return ratios;
-  } catch {
-    return null;
-  }
-};
-
 const affixShellStyle = {
   position: "relative",
   display: "flex",
@@ -219,7 +204,6 @@ const CreateNewPortfolio: React.FC = () => {
   const [formData, setFormData] = useState({
     portfolio_name: '',
     port_type: '',
-    target_ratio: {} as Record<string, number>,
     current_nav: null,
     cash_buffer_limit: '' as OptionalNumber,
     broker_id: null as number | null,
@@ -250,7 +234,6 @@ const CreateNewPortfolio: React.FC = () => {
   const [mappingTemplate, setMappingTemplate] = useState('');
   const [mappingConfigStr, setMappingConfigStr] = useState('');
   const [mappingError, setMappingError] = useState<string | null>(null);
-  const [targetRatioStr, setTargetRatioStr] = useState<string>('');
   const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
   const [products, setProducts] = useState<AssetProduct[]>([]);
   const [tickers, setTickers] = useState<string[]>([]);
@@ -304,13 +287,6 @@ const CreateNewPortfolio: React.FC = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
-    if (name === 'port_type' && value === 'Managed Fund') {
-      setTargetRatioStr(
-        Object.keys(formData.target_ratio).length > 0
-          ? JSON.stringify(formData.target_ratio, null, 2)
-          : ''
-      );
-    }
   };
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -393,7 +369,6 @@ const CreateNewPortfolio: React.FC = () => {
       const payload: PortfolioPayload = {
         portfolio_name: formData.portfolio_name,
         port_type: formData.port_type,
-        target_ratio: formData.target_ratio,
         current_nav: formData.current_nav,
         broker_id: formData.broker_id ?? null,
         product_ticker: formData.product_ticker.trim() || null,
@@ -413,18 +388,6 @@ const CreateNewPortfolio: React.FC = () => {
       if (availableCash !== undefined) payload.available_cash = availableCash;
       const initialCapital = toOptionalNumber(formData.initial_capital);
       if (initialCapital !== undefined) payload.initial_capital = initialCapital;
-      if (formData.port_type === 'Managed Fund' && targetRatioStr.trim()) {
-        const parsed = parseTargetRatios(targetRatioStr);
-        if (parsed) {
-          const vals = Object.values(parsed);
-          if (vals.length > 0 && Math.max(...vals) <= 1) {
-            for (const k of Object.keys(parsed)) parsed[k] = parsed[k] * 100;
-          }
-          payload.target_ratio = parsed;
-        } else {
-          payload.target_ratio = {};
-        }
-      }
       // Remove empty connection fields for non-custom portfolios
       if (formData.port_type !== 'Custom Portfolio') {
         delete payload.db_host;
@@ -1081,37 +1044,6 @@ const CreateNewPortfolio: React.FC = () => {
                     )}
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* Target Ratio (for Managed Funds) */}
-            {formData.port_type === 'Managed Fund' && (
-              <div>
-                <label style={CONTROL_LABEL} htmlFor="target_ratio">
-                  Target Allocation Ratio (JSON format)
-                </label>
-                <textarea
-                  id="target_ratio"
-                  name="target_ratio"
-                  value={targetRatioStr}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    setTargetRatioStr(raw);
-                    const parsed = parseTargetRatios(raw);
-                    if (parsed) setFormData(prev => ({ ...prev, target_ratio: parsed }));
-                    // Allow free typing; parsed state stays at last valid value
-                  }}
-                  style={{
-                    ...CONTROL_INPUT,
-                    minHeight: 72,
-                    resize: "vertical",
-                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                  }}
-                  placeholder='{"BTC": 0.4, "ETH": 0.3, "USDC": 0.3}'
-                />
-                <p style={CONTROL_HELPER}>
-                  Example: {'{"BTC": 0.4, "ETH": 0.3, "USDC": 0.3}'}
-                </p>
               </div>
             )}
           </form>

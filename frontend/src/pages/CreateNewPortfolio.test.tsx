@@ -160,3 +160,27 @@ describe('Create portfolio identity', () => {
       .toBeInTheDocument();
   });
 });
+
+describe('Managed Fund allocation', () => {
+  it('renders no JSON allocation field for a Managed Fund', async () => {
+    renderPage();
+    await waitFor(() => expect(apiMock.getProducts).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('radio', { name: /Managed Fund/ }));
+
+    expect(document.querySelector('textarea[name="target_ratio"]')).toBeNull();
+    expect(screen.queryByLabelText(/allocation ratio/i)).not.toBeInTheDocument();
+  });
+
+  it('posts a Managed Fund without a target_ratio', async () => {
+    renderPage();
+    await waitFor(() => expect(apiMock.getProducts).toHaveBeenCalled());
+    fireEvent.change(screen.getByLabelText('Portfolio Name*'), { target: { value: 'Fund' } });
+    fireEvent.click(screen.getByRole('radio', { name: /Managed Fund/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create Portfolio' }));
+
+    await waitFor(() => expect(apiMock.createPortfolio).toHaveBeenCalled());
+    const payload = apiMock.createPortfolio.mock.calls[0][0];
+    expect(payload).toHaveProperty('port_type', 'Managed Fund');
+    expect(payload).not.toHaveProperty('target_ratio');
+  });
+});
