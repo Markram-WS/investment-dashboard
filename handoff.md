@@ -1,13 +1,15 @@
 # Handoff — Managed Fund allocation สองโหมด (neutral / weight)
 
 เอกสารนี้สรุปงาน Managed Fund allocation รอบล่าสุด (two-mode) เพื่อให้ session ถัดไป
-ทำงานต่อได้ทันที ทุก path, field และตัวเลขในนี้ตรวจกับ code ใน worktree แล้ว
-(ยังไม่ commit)
+ทำงานต่อได้ทันที ทุก path, field และตัวเลขในนี้ตรวจกับ code ที่ commit แล้ว
+(`b4103e3`)
 
 ## 1. สถานะปัจจุบัน (State)
 
-- Branch `feature/custom-port` — การเปลี่ยนแปลงทั้งหมดยังอยู่ใน worktree
-  **ยังไม่ commit และยังไม่ push**
+- Branch `feature/custom-port` — งาน allocation ถูก commit ในเครื่องแล้ว
+  (`b8e6a6a` two-mode allocation, `b4103e3` grouped editor) แต่ **ยังไม่ push**
+  (branch ahead 14 commits); worktree เหลือแค่ `ExampleFundAllocationCal.xlsx`
+  ที่ untracked
 - Code ที่แก้ (8 ไฟล์):
   - `backend/app/routers/managed_funds.py` — two-mode allocation, target_ratio
     label contract, ถอด alerts
@@ -16,41 +18,43 @@
   - `frontend/src/types/index.ts` — `MFAllocationMode`, ถอด `MFAlert`/threshold
   - `frontend/src/lib/api.ts` — `allocation_mode: 'neutral' | 'weight'`,
     ถอด `mfAlerts`
-  - `frontend/src/screens/PortfolioMutualFund.tsx` — header toggle
-  - `frontend/src/screens/MFEditPortfolioModal.tsx` — target inputs ต่อกลุ่ม
+  - `frontend/src/screens/PortfolioMutualFund.tsx` — per-group `% target share`;
+    ถอด header toggle และ `modeSaving`/`modeError`
+  - `frontend/src/screens/MFEditPortfolioModal.tsx` — grouped allocation editor
+    + in-modal mode toggle + equal-split prefill
   - `frontend/src/screens/PortfolioMutualFund.test.tsx`
 - Docs ที่อัปเดตรอบนี้: `DESIGN.md`, `.opencode/AGENT.md`, `handoff.md`,
   `README.md`, `backend/README.md`, `frontend/README.md`, `database/README.md`
 - ไฟล์ untracked เดิม: `ExampleFundAllocationCal.xlsx` (ไม่เกี่ยวกับงานนี้)
-- **Deploy แล้วใน session นี้**: build ใหม่จาก worktree แล้ว deploy ขึ้น kind
-  cluster เดิมด้วย `./scripts/kind-up.sh`; backend + frontend rollout ใหม่
-  ส่วน `postgres-main` ไม่ถูกแตะ ข้อมูลเดิมคงอยู่ — UI ใช้ได้ที่
-  http://localhost:8080
+- **Deploy รอบ two-mode + `b4103e3`**: deploy ขึ้น kind cluster เดิมด้วย
+  `./scripts/kind-up.sh`; backend + frontend rollout ใหม่ (รวม grouped editor
+  และ toggle ใน edit modal จาก `b4103e3`) ส่วน `postgres-main` ไม่ถูกแตะ
+  ข้อมูลเดิมคงอยู่ — UI ที่ http://localhost:8080 เป็น build จาก `b4103e3`
   - ก่อน deploy node container ค้างเป็น `Exited` มาแล้ว ~13 ชั่วโมง
     (`podman ps` แสดง `investment-dashboard-control-plane Exited (0)`)
     ทำให้ kind-up fail ที่ขั้น image-load ด้วย
     `can only create exec sessions on running containers: container state improper`
   - วิธีแก้: `podman start investment-dashboard-control-plane` แล้วรอ API
     พร้อม จากนั้นรัน `./scripts/kind-up.sh` ซ้ำ -> ผ่าน
-- **Live verify บน fund 2** (allocation base 4,330 = cash 2,260 + holdings 2,070):
-  - `GET settings` คืน legacy symbol keys ที่ยุบเป็น label แล้ว
-    `{"S&P500": 0.0}` โหมด `neutral`
-  - กด `Weight (%)` ตอนยังไม่มี target -> ถูก reject ด้วย
-    `Target weights must sum to 100` และ edit modal เปิดขึ้นเองให้แก้ตัวเลข
-  - ใส่ 70 / 30 ให้ S&P500 / CHA ในโหมด neutral -> บันทึกผ่าน (neutral ไม่มี
-    กติกาผลรวม) และ `GET settings` คืน `{"S&P500": 70.0, "CHA": 30.0}`
-  - สลับเป็น `Weight (%)` -> persist `allocation_mode=weight` และหน้าแสดง
-    target share 70.0% / 30.0%
-  - `POST rebalance/calculate` โหมด weight: `target_allocations`
-    `{"S&P500":70,"CHA":30}`, current 24.71% / 23.09%, `total_drift` 52.19,
-    recommendations `ABC Buy 40.3196 @25 = 1,007.99`,
-    `VOO Buy 36.6542 @26 = 953.01`, `SCBCHAE Buy 14.9500 @20 = 299.00`
-    — ยอด buy รวมเท่ากับ cash 2,260
-  - ตั้ง `rebalance_weight` ของ ABC = 100 -> drift ของ S&P500 ทั้งก้อน 1,961
-    ย้ายไป ABC; ล้างค่า -> กลับมาแบ่งตาม market value
-    (ABC 1,007.99 / VOO 953.01)
-  - ทิ้ง fund ไว้ที่ `allocation_mode=neutral` พร้อม target
-    `{"S&P500":70,"CHA":30}` เก็บไว้สำหรับสลับโหมดภายหลัง
+- **Live verify บน fund 2 หลัง deploy `b4103e3`** (allocation base 4,330 =
+  cash 2,260 + holdings 2,070):
+  - หน้าเพจไม่มี toggle Neutral/Weight แล้ว — toggle อยู่ใน Edit managed fund
+    modal ส่วน Allocation
+  - ใน modal: S&P500 แสดงสอง holding (VOO, ABC) เยื้องใต้กลุ่ม น้ำหนัก
+    prefill 50 / 50; CHA แสดง SCBCHAE ที่ 100 (ทั้งสามตัวมี weight เป็น null
+    มาก่อน จึงใช้ equal split)
+  - สลับ toggle ใน modal เป็น Neutral: ทั้งสองกลุ่มแสดง "50.0% share" และช่อง
+    weight ยังแก้ได้; sum helper อ่าน
+    "sum 100 / 100 — partial targets are saved for a later switch to weight mode"
+  - บันทึกด้วย target 50 / 50 ใน weight mode: persist `allocation_mode=weight`,
+    `target_ratio {"S&P500":50,"CHA":50}` และ `rebalance_weight` 50 / 50 / 100
+    ของสาม holding
+  - `POST rebalance/calculate`: `target_allocations {"S&P500":50,"CHA":50}`,
+    `total_drift` 52.19, buys `VOO 21.0577 = 547.50`,
+    `ABC 21.9000 = 547.50`, `SCBCHAE 58.2500 = 1165.00`
+    (รวม 2,260 = available cash)
+  - fund 2 ถูกทิ้งไว้ที่ `allocation_mode=weight` target 50 / 50 และ weight
+    50 / 50 / 100
 - ผล automated checks รอบนี้ (session นี้):
   - `cd backend && ~/.cache/investment-dashboard-venv/bin/python -m pytest -q tests/test_managed_fund_rebalance_api.py tests/test_asset_registry_migration.py`
     -> **44 passed, 1 skipped**
@@ -100,13 +104,18 @@
   คอลัมน์ `managed_fund_settings.global_profit_threshold` และ
   `managed_fund_holdings.profit_threshold` ยังอยู่ใน DB แต่ไม่มีใครอ่าน/เขียน
 - **Frontend**
-  - `PortfolioMutualFund.tsx`: header มี segmented `Neutral` | `Weight (%)`;
-    กดแล้ว `PUT .../settings` ด้วย `allocation_mode` แล้ว recalculate;
-    ถ้า server reject จะเปิด edit modal ให้แก้ target ทันที
-  - `MFEditPortfolioModal.tsx`: ไม่มีช่อง threshold แล้ว; มี target input
-    ต่อ held group (แสดง `sum X / 100`) และช่อง `Rebalance weight (%)`
-    ต่อ holding; บันทึก neutral อนุญาต partial target, บันทึก weight
-    บังคับ sum 100
+  - `PortfolioMutualFund.tsx`: ไม่มี toggle แล้ว — แต่ละกลุ่มแสดง
+    `<pct>% target share` จาก stored mode (`neutral` = `100 / N`, `weight` =
+    `target_ratio[label]`) และไม่มี `modeSaving`/`modeError`; การสลับโหมดย้าย
+    เข้า edit modal
+  - `MFEditPortfolioModal.tsx`: ไม่มีช่อง threshold แล้ว; Allocation section
+    เป็นเจ้าของ toggle (`role="group"` `aria-label="Allocation mode"`,
+    `Neutral` | `Weight (%)`, `aria-pressed`) และ grouped editor — หนึ่ง block
+    ต่อ allocation group (registry underlying, `Unassigned` สุดท้าย): แถวกลุ่มมี
+    ช่อง target percent ใน weight mode หรืออ่านอย่างเดียว `100 / N % share`
+    ใน neutral, holdings ของกลุ่มเยื้องใต้แถวกลุ่มพร้อมช่อง `Rebalance weight (%)`
+    ต่อ holding; ไม่มี section "Rebalance weights" แยกแล้ว; save ส่ง
+    `allocation_mode` + `target_ratio` + `rebalance_weight` ของทุก holding
 
 ## 3. สัญญา API และตัวเลขที่ตรึงไว้ (API + numbers)
 
@@ -159,17 +168,55 @@
   `update_settings`, `calculate_rebalance`,
   `_group_holdings_by_underlying` และ `backend/app/services/asset_registry.py`:
   `resolve_allocation_labels` ก่อนแก้
-- อ่าน frontend: `PortfolioMutualFund.tsx` (`handleAllocationModeChange`,
-  `activeMode`) และ `MFEditPortfolioModal.tsx` (`groupLabelsOf`, `handleSave`)
+- อ่าน frontend: `PortfolioMutualFund.tsx` (`activeMode`, `holdingGroups`)
+  และ `MFEditPortfolioModal.tsx` (`groupLabelsOf`, `initialAssetWeights`,
+  `handleSave`)
 - ถ้าจะปิด open item 1: เปลี่ยนแหล่ง label ของ modal จาก holdings เป็น registry
   products (mutual fund) แล้วตรวจว่า GET settings คืน target ของ label ที่ยัง
   ไม่ถือหรือไม่ (ปัจจุบัน drop)
-- ก่อน commit: รันชุด verify ในข้อ 1 ซ้ำ แล้ว `git status` ต้องเห็นเฉพาะไฟล์
-  code/test/docs ที่ตั้งใจ; ห้าม commit `ExampleFundAllocationCal.xlsx`
-- Deploy รอบนี้ทำเสร็จแล้ว (ข้อ 1) และทดสอบ toggle สองโหมดบน fund 2 ผ่านแล้ว
-  (fund ถูกทิ้งไว้ที่ `neutral` พร้อม target `{"S&P500":70,"CHA":30}`)
+- ก่อน commit docs รอบนี้: `git status` ต้องเห็นเฉพาะไฟล์ Markdown ที่ตั้งใจ;
+  ห้าม commit `ExampleFundAllocationCal.xlsx`
+- Deploy รอบ two-mode + `b4103e3` เสร็จแล้ว (ข้อ 1) และทดสอบ grouped editor
+  กับ toggle ใน modal บน fund 2 ผ่านแล้ว (ตัวเลขตามข้อ 1); fund ถูกทิ้งไว้ที่
+  `allocation_mode=weight` target `{"S&P500":50,"CHA":50}` และ weight 50/50/100
   - ถ้าจะ deploy ซ้ำหลังแก้ open item: เช็ค `podman ps` ว่า
     `investment-dashboard-control-plane` ไม่ใช่ `Exited` (ถ้าใช่ให้
     `podman start` ก่อน) แล้วรัน `./scripts/kind-up.sh`
-  - หลัง deploy ให้ทดสอบ toggle บน fund 2 อีกครั้ง; เคสที่ยังไม่ได้ปิดคือ
-    label ที่ยังไม่มี holding (open item 1) ซึ่งปัจจุบันถูก drop จาก GET settings
+  - เคสที่ยังไม่ได้ปิดคือ label ที่ยังไม่มี holding (open item 1) ซึ่งปัจจุบัน
+    ถูก drop จาก GET settings
+
+## 6. Follow-up commit `b4103e3` — grouped allocation editor
+
+`b4103e3` ต่อจาก `b8e6a6a`: ย้ายเจ้าของโหมดจาก header เข้า edit modal และเปลี่ยน
+Allocation section เป็น grouped editor (แตะ frontend 3 ไฟล์:
+`MFEditPortfolioModal.tsx`, `PortfolioMutualFund.tsx`, `PortfolioMutualFund.test.tsx`)
+
+- **Toggle ใน modal** — `MFEditPortfolioModal.tsx` ถือ `activeMode`
+  (`useState<MFAllocationMode>` จาก `settings?.allocation_mode`) และ render
+  segmented `Neutral` | `Weight (%)` ใน `role="group"` `aria-label="Allocation mode"`
+  (`aria-pressed` ต่อปุ่ม) ใต้หัวข้อ `Allocation`; `handleSave` ส่ง
+  `allocation_mode` + `target_ratio` ผ่าน `mfUpdateSettings` แล้วตามด้วย
+  `mfUpdateHolding` ต่อ holding เพื่อเขียน `rebalance_weight`
+- **หน้าเพจ** — `PortfolioMutualFund.tsx` ไม่มี toggle, `modeSaving`,
+  `modeError` แล้ว; แต่ละกลุ่มแสดง `{targetPct.toFixed(1)}% target share`
+  จาก `activeMode` (`weight` = `settings?.target_ratio?.[group.label] ?? 0`,
+  `neutral` = `100 / groupCount`)
+- **Grouped Allocation layout** — หนึ่ง block ต่อ group จาก `groupLabelsOf()`
+  (registry underlying, `Unassigned` ท้ายสุด): แถวกลุ่มมี target input ใน
+  weight mode (`aria-label` "`<label>` target weight") หรือ read-only
+  `(100 / N).toFixed(1)% share` ใน neutral; holdings เยื้องใต้แถวกลุ่ม
+  (`paddingLeft: 16`) พร้อม `aria-label` "`<asset>` rebalance weight";
+  section "Rebalance weights" แยกถูกถอดแล้ว
+- **Equal-split default** (`initialAssetWeights`) — กลุ่มที่ทุก holding มี
+  `rebalance_weight == null` ถูก prefill `100 / n` (ทศนิยม 2 ตำแหน่ง, เศษปัด
+  ไปตัวสุดท้าย, `n = 1` → `100`); ถ้ามี stored weight อย่างน้อยหนึ่งตัว ค่าที่
+  เหลือเว้นว่างและช่องว่างยัง save เป็น `null` (server fallback เป็น market
+  value); weight ยังสัมพัทธ์ ไม่บังคับรวม 100
+- **Validation เท่าเดิม** — group targets ต้องรวม 100 ใน weight mode
+  (client `Math.abs(targetSum - 100) > 1e-6` + server `400`); neutral ไม่มี
+  input target จึง round-trip ค่าที่มีอยู่ และหน้าแสดง `sum <X> / 100`
+- **Tests** — `PortfolioMutualFund.test.tsx` เพิ่มเคส grouped rows,
+  equal-split prefill, partial group ที่เหลือ blank และ neutral read-only share
+- **Deploy แล้ว** — `b4103e3` ถูก deploy ขึ้น kind cluster (backend + frontend
+  rollout ใหม่, `postgres-main` ไม่ถูกแตะ) และ verify grouped editor/toggle
+  ใน modal บน fund 2 ผ่าน; ตัวเลขดูข้อ 1

@@ -64,12 +64,12 @@ frontend/
 │   │
 │   ├── screens/
 │   │   ├── PortfolioGrid.tsx      # Per-portfolio payoff state + orders grid + group management
-│   │   ├── PortfolioMutualFund.tsx # Managed fund: 4-card summary (NAV/Cash/Invested/P/L), 3-section tree table (Asset List / Orders in Progress / Order History), header Neutral | Weight (%) allocation-mode toggle, rebalance, 3-dot → Edit Portfolio modal
+│   │   ├── PortfolioMutualFund.tsx # Managed fund: 4-card summary (NAV/Cash/Invested/P/L), 3-section tree table (Asset List / Orders in Progress / Order History), per-group `<pct>% target share` from the stored mode, rebalance, 3-dot → Edit Portfolio modal (its Allocation section owns the `Neutral` | `Weight (%)` toggle; the header carries none)
 │   │   ├── MFCreateOrderModal.tsx # Managed Fund: create buy/sell order form
 │   │   ├── MFEditOrderModal.tsx   # Managed Fund: edit order fields
 │   │   ├── MFSellHoldingModal.tsx # Managed Fund: sell holding with manual price entry
 │   │   ├── MFRebalanceRecommendModal.tsx # Managed Fund: rebalance recommendations table
-│   │   ├── MFEditPortfolioModal.tsx # Managed Fund: unified edit modal (name, cash fields, per-group target percentages, per-holding rebalance weight, deposit/withdraw, Danger Zone delete + navbar query invalidation)
+│   │   ├── MFEditPortfolioModal.tsx # Managed Fund: unified edit modal (name, cash fields, deposit/withdraw, Danger Zone delete + navbar query invalidation); its Allocation section owns the mode toggle and the grouped editor — one block per allocation group (registry underlying, `Unassigned` last) with a target percent in weight mode or `100 / N % share` in neutral, holdings indented with per-holding `Rebalance weight (%)` inputs, equal-split prefill for an all-null group, blank = null market-value fallback, weights relative
 │   │   ├── AddAssetModal.tsx      # Create product (underlying/broker/type/multiplier/margin rate/margin mode/span/source) or symbol (identity picker + inline identity creation, price/sync, option terms); 560px
 │   │   ├── EditAssetModal.tsx     # Edit/delete product or symbol; attached-symbols broker guard; symbol move through the identity picker; manual quote price input
 │   │   ├── AddOrderModal.tsx      # Add order form with contract_type toggle
@@ -293,7 +293,7 @@ In the cluster no frontend env vars are needed: the browser calls `/api/v1/...` 
 
 ## 🧩 Key Features
 
-1. **Managed Fund**: Full portfolio rebalancing with separate order lifecycle (Create → Pending → Confirm Done → Asset List + NAV + History), 4-card summary (Current NAV, Available Cash, Total Invested, Unrealized P/L), two underlying-group allocation modes (`neutral` equal split or `weight` stored per-underlying targets), rebalance recommendations
+1. **Managed Fund**: Full portfolio rebalancing with separate order lifecycle (Create → Pending → Confirm Done → Asset List + NAV + History), 4-card summary (Current NAV, Available Cash, Total Invested, Unrealized P/L), two underlying-group allocation modes (`neutral` equal split or `weight` stored per-underlying targets) switched inside the Edit Portfolio modal's grouped Allocation section (not the page header), rebalance recommendations
 2. **Portfolio Overview**: Hero Card + Pool Health gauge + Money Reserve + Portfolio cards with DnD transfer
 2. **Portfolio Grid**: Orders grouped by zone, drag-and-drop, contract type filters, link system
 3. **Payoff Chart**: Pure SVG — intrinsic + BS IV overlay, crosshair, tooltip, area fill
