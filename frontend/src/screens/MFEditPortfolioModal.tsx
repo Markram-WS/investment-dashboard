@@ -108,6 +108,12 @@ export default function MFEditPortfolioModal({
     for (const h of holdings) m[h.holding_id] = String(h.profit_threshold || 0);
     return m;
   });
+  // Blank means "unset" (null); an explicit "0" is stored as zero.
+  const [perAssetWeight, setPerAssetWeight] = useState<Record<number, string>>(() => {
+    const m: Record<number, string> = {};
+    for (const h of holdings) m[h.holding_id] = h.rebalance_weight == null ? "" : String(h.rebalance_weight);
+    return m;
+  });
 
   // Deposit/Withdraw
   const [dwAmount, setDwAmount] = useState("");
@@ -129,6 +135,9 @@ export default function MFEditPortfolioModal({
       setCashBuffer(String(portfolio.cash_buffer_limit || 0));
       setTagsStr(portfolio.tags ? Object.keys(portfolio.tags).join(", ") : "");
       setGlobalThreshold(String(settings?.global_profit_threshold ?? 0));
+      const weightMap: Record<number, string> = {};
+      for (const h of holdings) weightMap[h.holding_id] = h.rebalance_weight == null ? "" : String(h.rebalance_weight);
+      setPerAssetWeight(weightMap);
       setDwAmount("");
       setDwError("");
       setSaveErr("");
@@ -136,7 +145,7 @@ export default function MFEditPortfolioModal({
       setDeleting(false);
       setDeleteErr("");
     }
-  }, [showModal, portfolio, settings]);
+  }, [showModal, portfolio, settings, holdings]);
 
   if (!showModal) return null;
 
@@ -163,6 +172,18 @@ export default function MFEditPortfolioModal({
     const b = parseFloat(cashBuffer) || 0;
     if (b > cash) { setSaveErr(`Cash buffer limit cannot exceed ${formatMoney(cash)}`); return; }
 
+    const weights = new Map<number, number | null>();
+    for (const h of holdings) {
+      const raw = (perAssetWeight[h.holding_id] ?? "").trim();
+      if (raw === "") { weights.set(h.holding_id, null); continue; }
+      const parsed = Number(raw);
+      if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+        setSaveErr(`Rebalance weight for ${h.asset} must be between 0 and 100.`);
+        return;
+      }
+      weights.set(h.holding_id, parsed);
+    }
+
     setSaving(true);
     try {
       const tagsObj: Record<string, boolean> = {};
@@ -184,8 +205,10 @@ export default function MFEditPortfolioModal({
       });
 
       for (const [hid, val] of Object.entries(perAssetThreshold)) {
-        await api.mfUpdateHolding(portfolioId, parseInt(hid), {
+        const holdingId = parseInt(hid);
+        await api.mfUpdateHolding(portfolioId, holdingId, {
           profit_threshold: parseFloat(val) || 0,
+          rebalance_weight: weights.get(holdingId) ?? null,
         });
       }
 
@@ -347,18 +370,42 @@ export default function MFEditPortfolioModal({
                 </Field>
                 {holdings.length > 0 && (
                   <div style={{ marginTop: 8 }}>
-                    <label style={{ ...SECTION_LABEL, marginBottom: 6 }}>Per-asset (%)</label>
+                    <label style={{ ...SECTION_LABEL, marginBottom: 6 }}>Per-asset threshold / rebalance weight (%)</label>
+                    <div className="flex items-center" style={{ ...ROW, marginBottom: 2 }} aria-hidden="true">
+                      <span style={{ ...ASSET_NAME, flex: "1 1 auto" }}>Asset</span>
+                      <span style={{ ...percentSuffix, width: 66, textAlign: "center", fontSize: "var(--fs-micro)" }}>Threshold</span>
+                      <span style={{ ...percentSuffix, width: 66, textAlign: "center", fontSize: "var(--fs-micro)" }}>Weight</span>
+                    </div>
                     <div className="flex flex-col" style={{ gap: 6 }}>
                       {holdings.map(h => (
                         <div key={h.holding_id} className="flex items-center" style={ROW}>
                           <span style={ASSET_NAME}>{h.asset}</span>
-                          <NumberInput step="0.1" value={perAssetThreshold[h.holding_id] || "0"}
+                          <NumberInput
+                            aria-label={`${h.asset} profit threshold`}
+                            step="0.1"
+                            value={perAssetThreshold[h.holding_id] || "0"}
                             onChange={e => setPerAssetThreshold({ ...perAssetThreshold, [h.holding_id]: e.target.value })}
-                            style={PERCENT_INPUT} />
+                            style={PERCENT_INPUT}
+                          />
+                          <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
+                          <NumberInput
+                            aria-label={`${h.asset} rebalance weight`}
+                            title="Relative weight within this underlying; blank splits by market value"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            placeholder="—"
+                            value={perAssetWeight[h.holding_id] ?? ""}
+                            onChange={e => setPerAssetWeight({ ...perAssetWeight, [h.holding_id]: e.target.value })}
+                            style={PERCENT_INPUT}
+                          />
                           <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
                         </div>
                       ))}
                     </div>
+                    <p style={{ ...CONTROL_HELPER, marginTop: 6 }}>
+                      Relative weight within this underlying; weights divide its drift. Leave all blank/0 to split by current market value.
+                    </p>
                   </div>
                 )}
               </div>

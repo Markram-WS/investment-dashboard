@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy import select, update, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import AssetProduct, AssetSymbol, Broker, Portfolio, PortfolioNavHistory
 from app.managed_fund_models import ManagedFundHolding, ManagedFundOrder, ManagedFundOrderHistory, ManagedFundSetting
 from app.services import asset_registry as registry
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Iterable, Optional, Dict, Any, List
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, date
 from dataclasses import dataclass
 
@@ -41,6 +41,8 @@ class MFHoldingResponse(BaseModel):
     unrealized_pl: float
     unrealized_pl_pct: float
     profit_threshold: float
+    # Relative weight inside the underlying group; null = market-value fallback.
+    rebalance_weight: Optional[float] = None
     # Registry identity of `asset`, derived per holding — never stored.
     broker_id: Optional[int] = None
     broker_code: Optional[str] = None
@@ -74,6 +76,44 @@ class MFOrderUpdate(BaseModel):
     price: Optional[float] = None
     notes: Optional[str] = None
 
+class MFHoldingUpdate(BaseModel):
+    """Holding-specific update: quantity/price as before, plus the weight.
+
+    Absent ``rebalance_weight`` keeps the stored value; explicit ``null``
+    clears it; ``0`` is stored as zero.
+    """
+    qty: Optional[float] = None
+    price: Optional[float] = None
+    rebalance_weight: Optional[Decimal] = None
+
+    @field_validator("rebalance_weight")
+    @classmethod
+    def _check_rebalance_weight(cls, value: Optional[Decimal]) -> Optional[Decimal]:
+        if value is None:
+            return None
+        if not value.is_finite():
+            raise ValueError("rebalance_weight must be a finite number")
+        if value < 0 or value > 100:
+            raise ValueError("rebalance_weight must be between 0 and 100")
+        if value.normalize().as_tuple().exponent < -4:
+            raise ValueError("rebalance_weight allows at most 4 decimal places")
+        return value
+
+class MFRebalanceRequest(BaseModel):
+    """Optional calculate body; an omitted body means a zero top-up."""
+    cash_top_up: Decimal = Decimal("0")
+
+    @field_validator("cash_top_up")
+    @classmethod
+    def _check_cash_top_up(cls, value: Decimal) -> Decimal:
+        if not value.is_finite():
+            raise ValueError("cash_top_up must be a finite number")
+        if value < 0:
+            raise ValueError("cash_top_up must be non-negative")
+        if value.normalize().as_tuple().exponent < -8:
+            raise ValueError("cash_top_up allows at most 8 decimal places")
+        return value
+
 class MFSellRequest(BaseModel):
     qty: float
     price: Optional[float] = None
@@ -99,6 +139,7 @@ class MFRebalanceRecommendation(BaseModel):
     side: str
     qty: float
     estimated_price: float
+    estimated_value: float
     reason: str
     current_allocation: float
     target_allocation: float
@@ -108,6 +149,7 @@ class MFRebalanceResponse(BaseModel):
     portfolio_id: int
     portfolio_name: str
     current_nav: float
+    allocation_base: float
     target_allocations: Dict[str, float]
     current_allocations: Dict[str, float]
     recommendations: List[MFRebalanceRecommendation]
@@ -232,7 +274,7 @@ async def create_holding(portfolio_id: int, body: MFOrderCreate, db: AsyncSessio
 
 
 @router.put("/{portfolio_id}/holdings/{holding_id}", response_model=MFHoldingResponse)
-async def update_holding(portfolio_id: int, holding_id: int, body: MFOrderUpdate, db: AsyncSession = Depends(get_db)):
+async def update_holding(portfolio_id: int, holding_id: int, body: MFHoldingUpdate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(ManagedFundHolding).where(
             ManagedFundHolding.holding_id == holding_id,
@@ -246,6 +288,8 @@ async def update_holding(portfolio_id: int, holding_id: int, body: MFOrderUpdate
         holding.qty = Decimal(str(body.qty))
     if body.price is not None:
         holding.avg_entry_price = Decimal(str(body.price))
+    if "rebalance_weight" in body.model_fields_set:
+        holding.rebalance_weight = body.rebalance_weight
     holding.market_value = holding.qty * holding.current_price
     holding.unrealized_pl = (holding.current_price - holding.avg_entry_price) * holding.qty
     if holding.avg_entry_price and holding.avg_entry_price > 0:
@@ -579,8 +623,28 @@ async def list_history(portfolio_id: int, db: AsyncSession = Depends(get_db)):
 
 # ─── Rebalance ───
 
+_VALUE_QUANTUM = Decimal("0.00000001")
+
+
+def _decimal(value: Any) -> Decimal:
+    """Coerce a stored value to ``Decimal`` without binary-float drift."""
+    if value is None:
+        return Decimal("0")
+    if isinstance(value, Decimal):
+        return value
+    return Decimal(str(value))
+
+
+def _holding_market_value(holding: ManagedFundHolding) -> Decimal:
+    return _decimal(holding.qty) * _decimal(holding.current_price)
+
+
 @router.post("/{portfolio_id}/rebalance/calculate", response_model=MFRebalanceResponse)
-async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_db)):
+async def calculate_rebalance(
+    portfolio_id: int,
+    body: MFRebalanceRequest = Body(default_factory=MFRebalanceRequest),
+    db: AsyncSession = Depends(get_db),
+):
     portfolio = await db.get(Portfolio, portfolio_id)
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
@@ -599,110 +663,212 @@ async def calculate_rebalance(portfolio_id: int, db: AsyncSession = Depends(get_
     groups, _ = await _group_holdings_by_underlying(
         db, portfolio, holdings, global_threshold
     )
-    holdings_value = sum(group.value for group in groups)
 
-    # The allocation base is the fund's NAV — cash plus holdings market value —
-    # so idle cash dilutes every group's share and funds the buys. Fall back to
-    # the components when the stored NAV is missing.
-    total_value = float(portfolio.current_nav or 0)
-    if total_value <= 0:
-        total_value = holdings_value + float(portfolio.available_cash or 0)
+    # The base is live holdings plus available cash plus the hypothetical
+    # top-up. The stored ``current_nav`` can lag registry repricing and is
+    # never read here.
+    cash_top_up = body.cash_top_up
+    holdings_value = sum((group.value for group in groups), Decimal("0"))
+    available_cash = _decimal(portfolio.available_cash)
+    live_nav = holdings_value + available_cash
+    allocation_base = live_nav + cash_top_up
 
-    recommendations: List[MFRebalanceRecommendation] = []
-    total_drift = 0.0
     target_allocations: Dict[str, float] = {}
     current_allocations: Dict[str, float] = {}
+    recommendations: List[MFRebalanceRecommendation] = []
+    total_drift = Decimal("0")
 
-    if not groups or total_value <= 0:
+    if not groups:
+        if allocation_base != 0:
+            raise HTTPException(
+                status_code=422,
+                detail="No underlying groups to allocate cash to",
+            )
         return MFRebalanceResponse(
             portfolio_id=portfolio_id,
             portfolio_name=portfolio.portfolio_name,
-            current_nav=total_value,
+            current_nav=float(live_nav),
+            allocation_base=float(allocation_base),
             target_allocations=target_allocations,
             current_allocations=current_allocations,
             recommendations=recommendations,
             total_drift=0.0,
         )
 
-    # Neutral mode: every underlying group gets an equal share of the fund.
-    target_pct = 100.0 / len(groups)
-    target_allocations = {group.label: round(target_pct, 2) for group in groups}
+    if allocation_base <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Allocation base must be positive to calculate a rebalance",
+        )
+
+    # Neutral mode: every underlying group owns an equal slice of the base.
+    group_count = Decimal(len(groups))
+    target_pct = Decimal("100") / group_count
+    target_value = allocation_base / group_count
+    target_allocations = {
+        group.label: float(target_pct.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        for group in groups
+    }
     current_allocations = {
-        group.label: round(group.value / total_value * 100, 2) for group in groups
+        group.label: float(
+            (group.value / allocation_base * 100).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+        )
+        for group in groups
     }
 
-    price_symbols = [
-        holding.asset
-        for group in groups
-        if abs(target_pct - group.value / total_value * 100) >= 0.5
-        for holding in group.holdings
-    ]
-    prices = await registry.local_prices(db, portfolio.broker_id, price_symbols)
+    prices = await registry.local_prices(
+        db,
+        portfolio.broker_id,
+        [holding.asset for group in groups for holding in group.holdings],
+    )
 
+    # Allocate each group's quantized signed delta to its holdings. A group's
+    # weights split only that group's drift; null/zero weights fall back to the
+    # holding's market-value proportion inside the group.
+    lines: List[dict] = []
     for group in groups:
-        # Drift keeps the exact proportion so the reported total is not biased
-        # by the rounded display shares.
-        raw_pct = group.value / total_value * 100
-        current_pct = current_allocations[group.label]
+        raw_pct = group.value / allocation_base * 100
         drift = abs(target_pct - raw_pct)
         total_drift += drift
-        if drift < 0.5:
-            continue
 
-        diff_pct = target_pct - raw_pct
-        diff_value = total_value * abs(diff_pct) / 100
-        side = "Buy" if diff_pct > 0 else "Sell"
-
-        # A buy can only be split across holdings that carry market value;
-        # cash is not a group, so a group without holdings gets no order.
-        if group.value <= 0:
-            continue
-
-        # Intra-group split: every holding keeps its current market-value
-        # proportion inside the group; the group's diff value scales them.
+        delta = (target_value - group.value).quantize(
+            _VALUE_QUANTUM, rounding=ROUND_HALF_UP
+        )
+        weights: List[Decimal] = []
         for holding in group.holdings:
-            holding_value = float(holding.qty or 0) * float(holding.current_price or 0)
-            if holding_value <= 0:
-                continue
-            portion = diff_value * holding_value / group.value
-            estimated_price = prices.get(
-                registry.normalise_symbol(holding.asset), 0.0
-            )
-            # No registry quote: the holding's own current price is the last
-            # known mark, so the order still sizes in shares. Only both-zero
-            # falls back to the diff value itself.
-            if estimated_price <= 0:
-                estimated_price = float(holding.current_price or 0)
-            if estimated_price > 0:
-                qty = round(portion / estimated_price, 8)
-            else:
-                qty = round(portion, 2)
+            weight = _decimal(holding.rebalance_weight)
+            if weight < 0:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Negative rebalance weight on {holding.asset}",
+                )
+            weights.append(weight)
+        weight_sum = sum(weights, Decimal("0"))
 
-            recommendations.append(MFRebalanceRecommendation(
-                symbol=holding.asset,
-                underlying=group.label,
-                side=side,
-                qty=qty,
-                estimated_price=estimated_price,
-                reason=(
-                    f"Drift {drift:.1f}%: rebalance {group.label} from "
-                    f"{current_pct:.1f}% to {target_pct:.1f}%"
+        if weight_sum > 0:
+            shares = [weight / weight_sum for weight in weights]
+        elif group.value > 0:
+            shares = [
+                _holding_market_value(holding) / group.value
+                for holding in group.holdings
+            ]
+        elif delta != 0:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"No rebalance recipient for {group.label}: the group has "
+                    "no market value and no positive configured weight"
                 ),
-                current_allocation=current_pct,
-                target_allocation=round(target_pct, 2),
-                drift=round(drift, 2),
-            ))
+            )
+        else:
+            shares = [Decimal("0") for _ in group.holdings]
+
+        group_lines = [
+            (delta * share).quantize(_VALUE_QUANTUM, rounding=ROUND_HALF_UP)
+            for share in shares
+        ]
+        residual = delta - sum(group_lines, Decimal("0"))
+        if residual != 0 and group_lines:
+            recipient = max(
+                range(len(group.holdings)),
+                key=lambda index: (shares[index], -group.holdings[index].holding_id),
+            )
+            group_lines[recipient] += residual
+
+        for holding, share, line in zip(group.holdings, shares, group_lines):
+            lines.append(
+                {
+                    "group": group,
+                    "holding": holding,
+                    "share": share,
+                    "line": line,
+                    "drift": drift,
+                }
+            )
+
+    # Quantizing each group delta can leave a sub-1e-8 mismatch against the
+    # cash plus top-up total; place it deterministically so the net of the
+    # recommendation values conserves the base exactly.
+    target_net = available_cash + cash_top_up
+    net = sum((entry["line"] for entry in lines), Decimal("0"))
+    net_residual = target_net - net
+    if net_residual != 0 and lines:
+        recipient = max(
+            range(len(lines)),
+            key=lambda index: (
+                abs(lines[index]["line"]),
+                lines[index]["share"],
+                -lines[index]["holding"].holding_id,
+            ),
+        )
+        lines[recipient]["line"] += net_residual
+
+    for entry in lines:
+        line = entry["line"]
+        if line == 0:
+            continue
+        group = entry["group"]
+        holding = entry["holding"]
+        holding_value = _holding_market_value(holding)
+
+        price = prices.get(registry.normalise_symbol(holding.asset))
+        price = _decimal(price) if price is not None and price > 0 else Decimal("0")
+        if price <= 0:
+            price = _decimal(holding.current_price)
+
+        if line < 0:
+            if _decimal(holding.qty) <= 0 or -line > holding_value:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"Refusing to sell {float(-line):.8f} of {holding.asset}: "
+                        f"its marked value is {float(holding_value):.8f}"
+                    ),
+                )
+        if price <= 0:
+            raise HTTPException(
+                status_code=422,
+                detail=f"No usable price to size the {holding.asset} order",
+            )
+
+        qty = (abs(line) / price).quantize(
+            _VALUE_QUANTUM, rounding=ROUND_HALF_UP
+        )
+        if qty <= 0:
+            raise HTTPException(
+                status_code=422,
+                detail=f"The {holding.asset} order rounds to zero quantity",
+            )
+
+        current_pct = current_allocations[group.label]
+        recommendations.append(MFRebalanceRecommendation(
+            symbol=holding.asset,
+            underlying=group.label,
+            side="Buy" if line > 0 else "Sell",
+            qty=float(qty),
+            estimated_price=float(price),
+            estimated_value=float(abs(line)),
+            reason=(
+                f"Drift {float(entry['drift']):.1f}%: rebalance {group.label} "
+                f"from {current_pct:.1f}% to {float(target_pct):.1f}%"
+            ),
+            current_allocation=current_pct,
+            target_allocation=target_allocations[group.label],
+            drift=float(entry["drift"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+        ))
 
     return MFRebalanceResponse(
         portfolio_id=portfolio_id,
         portfolio_name=portfolio.portfolio_name,
-        current_nav=total_value,
+        current_nav=float(live_nav),
+        allocation_base=float(allocation_base),
         target_allocations=target_allocations,
         current_allocations=current_allocations,
         recommendations=recommendations,
-        total_drift=round(total_drift, 2),
+        total_drift=float(total_drift.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
     )
-
 
 # ─── Price Sync from the Asset Registry ───
 
@@ -782,6 +948,11 @@ def _holding_response(
         unrealized_pl=float(holding.unrealized_pl or 0),
         unrealized_pl_pct=float(holding.unrealized_pl_pct or 0),
         profit_threshold=float(holding.profit_threshold or 0),
+        rebalance_weight=(
+            None
+            if holding.rebalance_weight is None
+            else float(holding.rebalance_weight)
+        ),
         broker_id=broker_id,
         broker_code=broker_code,
         underlying=underlying,
@@ -811,7 +982,7 @@ class _UnderlyingGroup:
     """One registry-underlying allocation group (broker is deliberately ignored)."""
 
     label: str
-    value: float
+    value: Decimal
     threshold: float
     holdings: List[ManagedFundHolding]
 
@@ -825,8 +996,8 @@ async def _group_holdings_by_underlying(
     """Group holdings by registry underlying — the one allocation rule.
 
     Group value is the sum of the holdings' market value
-    (``qty × current_price``); allocation shares are measured against the
-    fund's NAV by the rebalance calculation, never against holdings alone.
+    (``qty × current_price``); allocation shares are measured against the live
+    allocation base by the rebalance calculation, never against holdings alone.
     Neutral mode gives every group ``100 / N`` percent, so the global profit
     threshold splits evenly to ``global / N`` per group. A holding whose symbol
     is not registered lands in the ``Unassigned`` group. Returns the groups in
@@ -843,10 +1014,10 @@ async def _group_holdings_by_underlying(
     for holding in rows:
         identity = identities.get(_holding_identity_key(holding.asset))
         label = (identity[2] if identity else None) or "Unassigned"
-        value = float(holding.qty or 0) * float(holding.current_price or 0)
+        value = _holding_market_value(holding)
         group = grouped.get(label)
         if group is None:
-            group = _UnderlyingGroup(label, 0.0, 0.0, [])
+            group = _UnderlyingGroup(label, Decimal("0"), 0.0, [])
             grouped[label] = group
         group.value += value
         group.holdings.append(holding)

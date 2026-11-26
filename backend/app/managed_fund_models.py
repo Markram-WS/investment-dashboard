@@ -18,6 +18,9 @@ class ManagedFundHolding(Base):
     unrealized_pl = Column(Numeric(20, 8), default=Decimal('0'))
     unrealized_pl_pct = Column(Numeric(10, 4), default=Decimal('0'))
     profit_threshold = Column(Numeric(10, 4), default=Decimal('0'))
+    # Relative weight inside the holding's underlying group; NULL keeps the
+    # market-value-proportional fallback. No database default or backfill.
+    rebalance_weight = Column(Numeric(10, 4), nullable=True, default=None)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

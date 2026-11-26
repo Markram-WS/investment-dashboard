@@ -1542,6 +1542,19 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
   color: var(--color-slate);
   text-align: right;
 }
+/* Effective intra-group split sits below the group header and wraps instead of
+   widening the nine-column holdings grid. */
+.mf-split-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  padding: 2px 0 4px;
+  background: var(--color-surface-soft);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-slate);
+}
+.mf-split-row .mf-split-mode { font-weight: 600; }
 .mf-broker { color: var(--color-slate); }
 .mf-orders .mf-head,
 .mf-orders .mf-row { grid-template-columns: minmax(48px, 1fr) 54px 60px 72px 70px 84px; }

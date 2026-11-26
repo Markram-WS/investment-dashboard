@@ -460,6 +460,77 @@ async def test_retained_migration_adds_portfolio_product_type_idempotently():
 
 
 @pytest.mark.asyncio
+async def test_retained_migration_adds_rebalance_weight_idempotently():
+    engine = _engine()
+    try:
+        await _prepare(engine)
+        # A holdings table created by the previous release: no weight column.
+        async with engine.begin() as conn:
+            await conn.execute(text("DROP TABLE managed_fund_holdings"))
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE managed_fund_holdings (
+                        holding_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        portfolio_id INTEGER NOT NULL,
+                        asset VARCHAR NOT NULL,
+                        qty NUMERIC(20,8) NOT NULL DEFAULT 0,
+                        avg_entry_price NUMERIC(20,8) DEFAULT 0,
+                        current_price NUMERIC(20,8) DEFAULT 0,
+                        market_value NUMERIC(20,8) DEFAULT 0,
+                        unrealized_pl NUMERIC(20,8) DEFAULT 0,
+                        unrealized_pl_pct NUMERIC(10,4) DEFAULT 0,
+                        profit_threshold NUMERIC(10,4) DEFAULT 0,
+                        created_at DATETIME,
+                        updated_at DATETIME
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO portfolios "
+                    "(portfolio_name, port_type, x_amount, initial_capital, "
+                    "available_cash, margin_locked) "
+                    "VALUES ('Fund', 'Managed Fund', 0, 0, 0, 0)"
+                )
+            )
+            portfolio_id = (
+                await conn.execute(text("SELECT portfolio_id FROM portfolios"))
+            ).scalar()
+            await conn.execute(
+                text(
+                    "INSERT INTO managed_fund_holdings "
+                    "(portfolio_id, asset, qty, current_price) "
+                    "VALUES (:portfolio_id, 'VOO', 10, 20)"
+                ),
+                {"portfolio_id": portfolio_id},
+            )
+
+        for _ in range(2):
+            async with engine.begin() as conn:
+                await conn.run_sync(run_asset_registry_migration)
+
+        async with engine.connect() as conn:
+            rows = (
+                await conn.execute(text("PRAGMA table_info(managed_fund_holdings)"))
+            ).all()
+        columns = {row[1]: tuple(row) for row in rows}
+        assert "rebalance_weight" in columns
+        # PRAGMA table_info: (cid, name, type, notnull, dflt_value, pk).
+        assert columns["rebalance_weight"][3] == 0  # nullable
+        assert columns["rebalance_weight"][4] is None  # no database default
+        assert (
+            await _scalar(engine, "SELECT COUNT(*) FROM managed_fund_holdings")
+        ) == 1
+        assert (
+            await _scalar(engine, "SELECT rebalance_weight FROM managed_fund_holdings")
+        ) is None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_duplicate_dashboard_key_rolls_back_the_whole_migration():
     engine = _engine()
     try:

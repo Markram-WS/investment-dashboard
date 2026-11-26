@@ -400,6 +400,11 @@ def _retained_portfolio_migrations(conn: Connection) -> None:
         conn, "managed_fund_settings", "allocation_mode",
         "VARCHAR DEFAULT 'neutral'",
     )
+    # Per-holding rebalance weight: nullable and unbackfilled, so existing
+    # holdings keep the market-value-proportional split.
+    _add_column(
+        conn, "managed_fund_holdings", "rebalance_weight", "NUMERIC(10,4)"
+    )
 
 
 def _ensure_default_product(conn: Connection) -> None:

@@ -320,6 +320,8 @@ export interface MFHolding {
   unrealized_pl: number;
   unrealized_pl_pct: number;
   profit_threshold: number;
+  /** Relative share of this holding's underlying-group drift; null/0 means market-value fallback. */
+  rebalance_weight: number | null;
   /** Registry identity derived from `asset`; null when unregistered. */
   broker_id: number | null;
   broker_code: string | null;
@@ -386,6 +388,8 @@ export interface MFRebalanceRecommendation {
   side: string;
   qty: number;
   estimated_price: number;
+  /** Positive currency magnitude of the order; `side` supplies the sign. */
+  estimated_value: number;
   reason: string;
   current_allocation: number;
   target_allocation: number;
@@ -396,6 +400,8 @@ export interface MFRebalanceResponse {
   portfolio_id: number;
   portfolio_name: string;
   current_nav: number;
+  /** Live holdings + available cash + calculation-only top-up. */
+  allocation_base: number;
   target_allocations: Record<string, number>;
   current_allocations: Record<string, number>;
   recommendations: MFRebalanceRecommendation[];

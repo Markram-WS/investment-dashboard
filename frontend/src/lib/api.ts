@@ -361,6 +361,8 @@ export interface MFHoldingUpdatePayload {
   // Accepted by MFEditPortfolioModal; the backend MFOrderUpdate schema does
   // not declare profit_threshold, so it is currently dropped by FastAPI.
   profit_threshold?: number;
+  /** Relative drift weight; null clears it. Omit to leave the stored value unchanged. */
+  rebalance_weight?: number | null;
   qty?: number;
   price?: number;
   notes?: string;
@@ -704,9 +706,12 @@ export const api = {
     }),
   mfHistory: (portfolioId: number) =>
     request<MFHistory[]>(`/managed-funds/${portfolioId}/history`),
-  mfCalculateRebalance: (portfolioId: number) =>
+  mfCalculateRebalance: (portfolioId: number, cashTopUp?: number) =>
     request<MFRebalanceResponse>(`/managed-funds/${portfolioId}/rebalance/calculate`, {
       method: 'POST',
+      ...(cashTopUp === undefined
+        ? {}
+        : { body: JSON.stringify({ cash_top_up: cashTopUp }) }),
     }),
   mfAlerts: (portfolioId: number) =>
     request<MFAlertsResult>(`/managed-funds/${portfolioId}/alerts`),

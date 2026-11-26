@@ -1,6 +1,7 @@
 import { Fragment, useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../lib/api";
+import type { ApiError } from "../lib/api";
 import {
   FundPortfolio, MFHolding, MFOrder, MFHistory, MFSetting,
   MFRebalanceRecommendation, MFAlert, MFOrderCreate, MFOrderUpdate,
@@ -14,6 +15,7 @@ import MFEditPortfolioModal from "./MFEditPortfolioModal";
 import PageLayout from "../components/PageLayout";
 import PortfolioHeader from "./components/PortfolioHeader";
 import { formatDate, formatMoney, formatPct } from "../utils/format";
+import { computeGroupSplit } from "../utils/mfWeights";
 
 interface ManagedFundProps {
   portfolioId?: string;
@@ -85,6 +87,8 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
   const [sellHoldingTarget, setSellHoldingTarget] = useState<MFHolding | null>(null);
   const [rebalanceRecs, setRebalanceRecs] = useState<MFRebalanceRecommendation[]>([]);
   const [rebalanceLoading, setRebalanceLoading] = useState(false);
+  const [rebalanceAllocationBase, setRebalanceAllocationBase] = useState<number | null>(null);
+  const [rebalanceError, setRebalanceError] = useState<string | null>(null);
 
 
   const fetchData = useCallback(async () => {
@@ -117,18 +121,49 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleCalculateRebalance = async () => {
+  const runRebalanceCalc = useCallback(async (cashTopUp?: number) => {
     setRebalanceLoading(true);
-    setShowRebalanceModal(true);
+    setRebalanceError(null);
     try {
-      const res = await api.mfCalculateRebalance(parseInt(resolvedId));
+      const res = await api.mfCalculateRebalance(parseInt(resolvedId), cashTopUp);
       setRebalanceRecs(res.recommendations || []);
+      setRebalanceAllocationBase(res.allocation_base ?? null);
     } catch (e) {
       console.error("Rebalance calc failed:", e);
       setRebalanceRecs([]);
+      setRebalanceAllocationBase(null);
+      const apiError = e as Partial<ApiError> | null;
+      const status = typeof apiError?.status === "number" ? apiError.status : null;
+      let message = status != null
+        ? `Rebalance calculation failed (HTTP ${status})`
+        : "Rebalance calculation failed.";
+      if (typeof apiError?.body === "string" && apiError.body !== "") {
+        try {
+          const parsed: unknown = JSON.parse(apiError.body);
+          if (parsed !== null && typeof parsed === "object" && "detail" in parsed) {
+            const detail = parsed.detail;
+            if (typeof detail === "string" && detail.trim() !== "") message = detail;
+          }
+        } catch {
+          // Non-JSON error bodies keep the generic HTTP message.
+        }
+      }
+      setRebalanceError(message);
     } finally {
       setRebalanceLoading(false);
     }
+  }, [resolvedId]);
+
+  // The modal debounces top-up edits and asks for a recompute with the new amount.
+  const handleRebalanceRecalc = useCallback((cashTopUp: number) => {
+    void runRebalanceCalc(cashTopUp);
+  }, [runRebalanceCalc]);
+
+  const handleCalculateRebalance = async () => {
+    setRebalanceAllocationBase(null);
+    setRebalanceError(null);
+    setShowRebalanceModal(true);
+    await runRebalanceCalc();
   };
 
   const handleCreateRebalanceOrders = async (recs: MFRebalanceRecommendation[]) => {
@@ -191,7 +226,7 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
     const ordered = [...groups.entries()].filter(([label]) => label !== "Unassigned");
     const unassigned = groups.get("Unassigned");
     if (unassigned) ordered.push(["Unassigned", unassigned]);
-    return ordered.map(([label, rows]) => ({ label, holdings: rows }));
+    return ordered.map(([label, rows]) => ({ label, holdings: rows, split: computeGroupSplit(rows) }));
   }, [holdings]);
   const totalPlPct = totalInvested > 0 ? (totalPl / totalInvested) * 100 : 0;
 
@@ -389,6 +424,16 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
                           {groupSharePct.toFixed(1)}% share · {groupThresholdPct.toFixed(1)}% threshold
                         </span>
                       </div>
+                      <div className="mf-split-row" data-testid={`group-split-${group.label}`}>
+                        <span className="mf-split-mode">
+                          {group.split.mode === "configured" ? "Configured weights" : "Market-value fallback"}
+                        </span>
+                        {group.split.shares.map(share => (
+                          <span key={share.holding_id}>
+                            {share.symbol} {share.pct.toFixed(1)}%
+                          </span>
+                        ))}
+                      </div>
                       {group.holdings.map((h) => (
                         <div className="mf-row" key={h.holding_id}>
                           <span className="mf-broker" title={h.broker_id != null ? `Broker #${h.broker_id}` : undefined}>
@@ -569,7 +614,15 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
         show={showRebalanceModal}
         loading={rebalanceLoading}
         recommendations={rebalanceRecs}
-        onClose={() => { setShowRebalanceModal(false); setRebalanceRecs([]); }}
+        allocationBase={rebalanceAllocationBase}
+        error={rebalanceError}
+        onRecalculate={handleRebalanceRecalc}
+        onClose={() => {
+          setShowRebalanceModal(false);
+          setRebalanceRecs([]);
+          setRebalanceAllocationBase(null);
+          setRebalanceError(null);
+        }}
         onCreateOrders={handleCreateRebalanceOrders}
       />
       <MFCreateOrderModal
