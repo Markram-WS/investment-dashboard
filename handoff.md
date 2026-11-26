@@ -354,20 +354,23 @@ docs รอบนี้แก้ `DESIGN.md`, `.opencode/AGENT.md`, `backend/REA
   `rebalance-group-<label>` และ `rebalance-holding-<id>`, และ
   `PortfolioMutualFund.test.tsx` ตรวจว่า header ไม่มีปุ่ม Rebalance
 
-## 11. Follow-up commit `748d66c3` — Top-up cash เริ่มที่ 0 และเปิดใหม่รีเซ็ตเป็น 0
+## 11. Follow-up commit `ce58ce07` — Top-up cash เปิดมาเป็นค่าว่าง แสดง 0 เป็น placeholder
 
-- `MFRebalanceRecommendModal.tsx`: ช่อง `Top-up cash ($)` เริ่มที่ `"0"` (เห็นเลข 0
-  จริงในช่อง) และรีเซ็ตเป็น `"0"` ทุกครั้งที่เปิด modal พร้อมคง `placeholder="0"`
-  ไว้เผื่อผู้ใช้ล้างช่อง; ค่าว่างยังถือว่าถูกต้องและหมายถึง 0 โดยจำนวนที่ใช้คำนวณคือ
+- `MFRebalanceRecommendModal.tsx`: ช่อง `Top-up cash ($)` เปิดมาเป็นค่าว่าง
+  (`useState("")` และรีเซ็ตเป็น `""` ทุกครั้งที่เปิด modal) โดยแสดง `0` เป็น
+  `placeholder="0"` ในสี placeholder — ค่าเริ่มต้นยังเห็นได้แต่ไม่ใช่ค่าจริงในช่อง
+  จึงพิมพ์ตัวเลขได้ทันทีโดยไม่ต้องลบ 0 ก่อน; ค่าว่างยังถือว่าถูกต้องและหมายถึง 0
+  โดยจำนวนที่ใช้คำนวณคือ
   `topUp.trim() === "" ? 0 : parseTopUpAmount(topUp)` (`parseTopUpAmount` ใน
   `utils/mfWeights.ts` ไม่เปลี่ยน — ค่าว่างยังคืน `null`) การเปิด modal จึงตั้ง
-  `lastApplied.current = 0` ควบคู่กับการรีเซ็ตเป็น `"0"` ทำให้ไม่ยิง recalculate
+  `lastApplied.current = 0` ควบคู่กับการล้างช่อง ทำให้ไม่ยิง recalculate
   ด้วย 0 ซ้ำ แต่การลบค่าที่ไม่ใช่ศูนย์จนว่างจะคำนวณใหม่ด้วย 0; อินพุตที่ไม่ใช่
   ตัวเลขหรือติดลบยังขึ้น "Enter a non-negative amount." และไม่คำนวณใหม่
-- **Live check (fund 2)**: เปิด modal แล้วช่อง top-up แสดง `0` และ Allocation base
-  `$4,330.00`; พิมพ์ `100` ทำให้ base เปลี่ยนเป็น `$4,430.00`; ปิดแล้วเปิดใหม่
-  ช่องกลับเป็น `0` และ base กลับมา `$4,330.00`
-- Tests: commit ระบุ frontend 156 passed, `vite build` และ `tsc` clean; เคสใน
-  `MFRebalanceRecommendModal.test.tsx` ตรวจว่า input มีค่า `"0"` ตอนเปิด, ไม่มี
-  recalculate ตอนเปิด, พิมพ์ `100` แล้วเรียก `onRecalculate(100)`, ล้างช่องแล้วเรียก
-  `onRecalculate(0)` โดยไม่มี error, และอินพุตติดลบยังขึ้น error
+- **Live check (fund 2)**: เปิด modal แล้วช่อง top-up ว่างและมี `0` สีเทาเป็น
+  placeholder, Allocation base `$4,330.00`; พิมพ์ `100` ลงไปได้เลย base เปลี่ยนเป็น
+  `$4,430.00`; ล้างช่อง base กลับมา `$4,330.00` โดยไม่มี error
+- Tests: commit ระบุ frontend 157 passed, `vite build` และ `tsc` clean; เคสใน
+  `MFRebalanceRecommendModal.test.tsx` ตรวจว่า input ว่างและ `placeholder` เป็น
+  `"0"` ตอนเปิด, ไม่มี recalculate ตอนเปิด, พิมพ์ `100` ตรงๆ แล้วเรียก
+  `onRecalculate(100)`, ล้างช่องแล้วเรียก `onRecalculate(0)` โดยไม่มี error, และ
+  อินพุตติดลบยังขึ้น error
