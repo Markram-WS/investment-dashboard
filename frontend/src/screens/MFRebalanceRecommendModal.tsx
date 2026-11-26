@@ -55,15 +55,16 @@ const MICRO = "text-[length:var(--fs-micro)]";
 export default function MFRebalanceRecommendModal({
   show, loading, recommendations, groups, holdings, allocationBase, error, onRecalculate, onClose, onCreateOrders,
 }: MFRebalanceRecommendModalProps) {
-  // Transient calculation-only amount; never persisted or credited.
-  const [topUp, setTopUp] = useState("0");
+  // Transient calculation-only amount; never persisted or credited. Starts blank
+  // so the field is type-over friendly while the default 0 shows as the placeholder.
+  const [topUp, setTopUp] = useState("");
   // Last amount the current results were calculated with, so the debounce does
-  // not re-request unchanged values and a reset to 0 still recomputes.
+  // not re-request unchanged values and a reset to blank still recomputes.
   const lastApplied = useRef(0);
 
   useEffect(() => {
     if (show) {
-      setTopUp("0");
+      setTopUp("");
       lastApplied.current = 0;
     }
   }, [show]);

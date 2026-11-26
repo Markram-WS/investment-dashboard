@@ -170,10 +170,26 @@ describe('MFRebalanceRecommendModal', () => {
     expect(screen.queryByText('2.6%')).toBeNull();
   });
 
-  it('renders a visible zero top-up on open', () => {
+  it('opens with an empty top-up and shows the default zero as a placeholder', () => {
     renderModal();
     const input = screen.getByLabelText(/Top-up cash/i) as HTMLInputElement;
-    expect(input.value).toBe('0');
+    expect(input.value).toBe('');
+    expect(input.placeholder).toBe('0');
+    expect(screen.queryByText('Enter a non-negative amount.')).toBeNull();
+  });
+
+  it('types a top-up straight into the empty field without clearing a zero first', () => {
+    const { onRecalculate } = renderModal();
+    const input = screen.getByLabelText(/Top-up cash/i) as HTMLInputElement;
+
+    // Keystroke by keystroke into the empty field: nothing has to be deleted.
+    for (const keystroke of ['1', '10', '100']) {
+      fireEvent.change(input, { target: { value: keystroke } });
+    }
+    expect(input.value).toBe('100');
+
+    act(() => { vi.advanceTimersByTime(350); });
+    expect(onRecalculate).toHaveBeenLastCalledWith(100);
   });
 
   it('does not recalculate on open with the default zero top-up', () => {
