@@ -170,23 +170,41 @@ describe('MFRebalanceRecommendModal', () => {
     expect(screen.queryByText('2.6%')).toBeNull();
   });
 
-  it('does not recalculate on open with the default zero top-up', () => {
+  it('renders an empty top-up field with a zero placeholder on open', () => {
+    renderModal();
+    const input = screen.getByLabelText(/Top-up cash/i) as HTMLInputElement;
+    expect(input.value).toBe('');
+    expect(input).toHaveAttribute('placeholder', '0');
+  });
+
+  it('does not recalculate on open with the default empty top-up', () => {
     const { onRecalculate } = renderModal();
     act(() => { vi.advanceTimersByTime(500); });
     expect(onRecalculate).not.toHaveBeenCalled();
+  });
+
+  it('treats a blank top-up as zero without showing an error', () => {
+    const { onRecalculate } = renderModal();
+    const input = screen.getByLabelText(/Top-up cash/i);
+
+    fireEvent.change(input, { target: { value: '' } });
+    act(() => { vi.advanceTimersByTime(500); });
+
+    expect(onRecalculate).not.toHaveBeenCalled();
+    expect(screen.queryByText('Enter a non-negative amount.')).toBeNull();
   });
 
   it('debounces top-up edits and recalculates with the new amount', () => {
     const { onRecalculate } = renderModal();
     const input = screen.getByLabelText(/Top-up cash/i);
 
-    fireEvent.change(input, { target: { value: '5000' } });
+    fireEvent.change(input, { target: { value: '100' } });
     act(() => { vi.advanceTimersByTime(349); });
     expect(onRecalculate).not.toHaveBeenCalled();
 
     act(() => { vi.advanceTimersByTime(1); });
     expect(onRecalculate).toHaveBeenCalledTimes(1);
-    expect(onRecalculate).toHaveBeenCalledWith(5000);
+    expect(onRecalculate).toHaveBeenCalledWith(100);
   });
 
   it('only requests the last value while the user is still typing', () => {
@@ -204,7 +222,7 @@ describe('MFRebalanceRecommendModal', () => {
     expect(onRecalculate).toHaveBeenCalledWith(5000);
   });
 
-  it('re-requests zero after a nonzero top-up is cleared back to zero', () => {
+  it('re-requests zero after a nonzero top-up is cleared back to blank', () => {
     const { onRecalculate } = renderModal();
     const input = screen.getByLabelText(/Top-up cash/i);
 
@@ -212,7 +230,7 @@ describe('MFRebalanceRecommendModal', () => {
     act(() => { vi.advanceTimersByTime(350); });
     expect(onRecalculate).toHaveBeenLastCalledWith(2500);
 
-    fireEvent.change(input, { target: { value: '0' } });
+    fireEvent.change(input, { target: { value: '' } });
     act(() => { vi.advanceTimersByTime(350); });
     expect(onRecalculate).toHaveBeenCalledTimes(2);
     expect(onRecalculate).toHaveBeenLastCalledWith(0);
@@ -222,7 +240,7 @@ describe('MFRebalanceRecommendModal', () => {
     const { onRecalculate } = renderModal();
     const input = screen.getByLabelText(/Top-up cash/i);
 
-    fireEvent.change(input, { target: { value: '-1' } });
+    fireEvent.change(input, { target: { value: '-5' } });
     act(() => { vi.advanceTimersByTime(500); });
 
     expect(onRecalculate).not.toHaveBeenCalled();

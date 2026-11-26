@@ -56,21 +56,22 @@ export default function MFRebalanceRecommendModal({
   show, loading, recommendations, groups, holdings, allocationBase, error, onRecalculate, onClose, onCreateOrders,
 }: MFRebalanceRecommendModalProps) {
   // Transient calculation-only amount; never persisted or credited.
-  const [topUp, setTopUp] = useState("0");
+  const [topUp, setTopUp] = useState("");
   // Last amount the current results were calculated with, so the debounce does
   // not re-request unchanged values and a reset to 0 still recomputes.
   const lastApplied = useRef(0);
 
   useEffect(() => {
     if (show) {
-      setTopUp("0");
+      setTopUp("");
       lastApplied.current = 0;
     }
   }, [show]);
 
   useEffect(() => {
     if (!show) return;
-    const parsed = parseTopUpAmount(topUp);
+    // Blank means zero; a non-numeric or negative entry stays invalid.
+    const parsed = topUp.trim() === "" ? 0 : parseTopUpAmount(topUp);
     if (parsed === null || parsed === lastApplied.current) return;
     const timer = window.setTimeout(() => {
       lastApplied.current = parsed;
@@ -81,7 +82,7 @@ export default function MFRebalanceRecommendModal({
 
   if (!show) return null;
 
-  const invalidTopUp = parseTopUpAmount(topUp) === null;
+  const invalidTopUp = topUp.trim() !== "" && parseTopUpAmount(topUp) === null;
 
   // One drift per group row (the backend's group list already deduped the
   // per-holding drift), so the panel total matches the visible group rows.
@@ -119,6 +120,7 @@ export default function MFRebalanceRecommendModal({
               step="0.01"
               inputMode="decimal"
               value={topUp}
+              placeholder="0"
               onChange={e => setTopUp(e.target.value)}
             />
           </Field>
