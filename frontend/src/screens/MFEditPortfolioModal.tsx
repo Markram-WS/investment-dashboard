@@ -81,6 +81,45 @@ function groupLabelsOf(holdings: MFHolding[]): string[] {
     .concat(labels.includes("Unassigned") ? ["Unassigned"] : []);
 }
 
+/**
+ * Initial value for a holding's intra-group weight input. A stored weight is
+ * shown as-is. Null weights are prefilled with the group's equal split (100/n,
+ * two decimals) ONLY when the whole group is unconfigured; the rounding
+ * remainder goes to the last holding so the visible values sum to 100. If any
+ * holding in the group already has a stored weight, the other nulls stay blank
+ * so the stored weight keeps its share of the group instead of being diluted.
+ * Blanking the field still saves null.
+ */
+function initialAssetWeights(holdings: MFHolding[]): Record<number, string> {
+  const byGroup = new Map<string, MFHolding[]>();
+  for (const holding of holdings) {
+    const label = holding.underlying?.trim() || "Unassigned";
+    const rows = byGroup.get(label);
+    if (rows) rows.push(holding);
+    else byGroup.set(label, [holding]);
+  }
+  const weights: Record<number, string> = {};
+  for (const rows of byGroup.values()) {
+    const hasStoredWeight = rows.some(holding => holding.rebalance_weight != null);
+    if (hasStoredWeight) {
+      for (const holding of rows) {
+        weights[holding.holding_id] = holding.rebalance_weight != null
+          ? String(holding.rebalance_weight)
+          : "";
+      }
+      continue;
+    }
+    const base = Math.round((100 / rows.length) * 100) / 100;
+    rows.forEach((holding, index) => {
+      const value = index === rows.length - 1
+        ? Math.round((100 - base * (rows.length - 1)) * 100) / 100
+        : base;
+      weights[holding.holding_id] = String(value);
+    });
+  }
+  return weights;
+}
+
 /** Server `detail` from an ApiError body, or the fallback message. */
 function saveErrorMessage(err: unknown, fallback: string): string {
   const apiError = err as Partial<ApiError> | null;
@@ -129,13 +168,15 @@ export default function MFEditPortfolioModal({
   );
 
   // Blank means "unset" (null); an explicit "0" is stored as zero.
-  const [perAssetWeight, setPerAssetWeight] = useState<Record<number, string>>(() => {
-    const m: Record<number, string> = {};
-    for (const h of holdings) m[h.holding_id] = h.rebalance_weight == null ? "" : String(h.rebalance_weight);
-    return m;
-  });
+  const [perAssetWeight, setPerAssetWeight] = useState<Record<number, string>>(
+    () => initialAssetWeights(holdings),
+  );
   // Weight mode only: target percent per allocation-group label.
   const [perGroupTarget, setPerGroupTarget] = useState<Record<string, string>>({});
+  // Owned here (not by the page header); saved together with the weights.
+  const [activeMode, setActiveMode] = useState<MFAllocationMode>(
+    () => (settings?.allocation_mode === "weight" ? "weight" : "neutral"),
+  );
 
   // Deposit/Withdraw
   const [dwAmount, setDwAmount] = useState("");
@@ -156,9 +197,8 @@ export default function MFEditPortfolioModal({
       setName(portfolio.portfolio_name);
       setCashBuffer(String(portfolio.cash_buffer_limit || 0));
       setTagsStr(portfolio.tags ? Object.keys(portfolio.tags).join(", ") : "");
-      const weightMap: Record<number, string> = {};
-      for (const h of holdings) weightMap[h.holding_id] = h.rebalance_weight == null ? "" : String(h.rebalance_weight);
-      setPerAssetWeight(weightMap);
+      setPerAssetWeight(initialAssetWeights(holdings));
+      setActiveMode(settings?.allocation_mode === "weight" ? "weight" : "neutral");
       const targetMap: Record<string, string> = {};
       for (const label of groupLabelsOf(holdings)) {
         const stored = settings?.target_ratio?.[label];
@@ -178,9 +218,6 @@ export default function MFEditPortfolioModal({
 
   const cash = portfolio.available_cash || 0;
 
-  // The active mode is stored server-side; the modal mirrors it and never
-  // switches it (the page header owns the toggle).
-  const activeMode: MFAllocationMode = settings?.allocation_mode === "weight" ? "weight" : "neutral";
   const orderedGroups = groupLabelsOf(holdings);
   const targetSum = orderedGroups.reduce((total, label) => {
     const raw = (perGroupTarget[label] ?? "").trim();
@@ -383,87 +420,102 @@ export default function MFEditPortfolioModal({
               </Field>
             </div>
 
-            {/* Right: allocation + rebalance weights */}
+            {/* Right: allocation — mode toggle + per-group targets + grouped weights. */}
             <div style={GROUP_STACK}>
-              {/* Allocation — mode-aware; only weight mode is editable. */}
               <div>
-                <p style={{ ...SECTION_LABEL, marginBottom: 6 }}>Allocation</p>
-                <div style={readonlyValue}>
-                  {activeMode === "weight"
-                    ? "Weight (%) — custom share per underlying"
-                    : "Neutral — equal share per underlying"}
-                </div>
-                {orderedGroups.length > 0 && (
-                  <div className="flex flex-col" style={{ gap: 6, marginTop: 8 }}>
-                    {orderedGroups.map(label => (
-                      <div key={label} className="flex items-center justify-between" style={{ gap: 8 }}>
-                        <span className="text-[length:var(--fs-label)]" style={{
-                          color: "var(--color-ink)", fontWeight: 500,
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                        }}>{label}</span>
-                        <div className="flex items-center" style={ROW}>
-                          <NumberInput
-                            aria-label={`${label} target weight`}
-                            step="0.01"
-                            min="0"
-                            max="100"
-                            placeholder="—"
-                            value={perGroupTarget[label] ?? ""}
-                            onChange={e => setPerGroupTarget({ ...perGroupTarget, [label]: e.target.value })}
-                            style={PERCENT_INPUT}
-                          />
-                          <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
-                        </div>
-                      </div>
+                <div className="flex items-center justify-between" style={{ gap: 8, marginBottom: 6 }}>
+                  <p style={SECTION_LABEL}>Allocation</p>
+                  <div role="group" aria-label="Allocation mode" style={{ display: "inline-flex", gap: 6 }}>
+                    {([
+                      { mode: "neutral", label: "Neutral" },
+                      { mode: "weight", label: "Weight (%)" },
+                    ] as const).map(({ mode, label }) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        className="tg-pill"
+                        data-active={activeMode === mode}
+                        aria-pressed={activeMode === mode}
+                        onClick={() => setActiveMode(mode)}
+                      >
+                        {label}
+                      </button>
                     ))}
-                    <p style={{ ...CONTROL_HELPER, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
-                      sum {Number(targetSum.toFixed(2))} / 100
-                      {activeMode === "neutral" && " — partial targets are saved for a later switch"}
-                    </p>
                   </div>
-                )}
-                {activeMode === "weight" && (
-                  <p style={{ ...CONTROL_HELPER, marginTop: 6 }}>
-                    Target weights must sum to 100%.
-                  </p>
-                )}
-              </div>
+                </div>
 
-              {/* Rebalance weights: each holding's share of its group's drift. */}
-              <div>
-                <p style={{ ...SECTION_LABEL, marginBottom: 6 }}>Rebalance weights</p>
-                {holdings.length > 0 ? (
-                  <div>
-                    <div className="flex items-center" style={{ ...ROW, marginBottom: 2 }} aria-hidden="true">
-                      <span style={{ ...ASSET_NAME, flex: "1 1 auto" }}>Asset</span>
-                      <span style={{ ...percentSuffix, width: 66, textAlign: "center", fontSize: "var(--fs-micro)" }}>Weight</span>
-                    </div>
-                    <div className="flex flex-col" style={{ gap: 6 }}>
-                      {holdings.map(h => (
-                        <div key={h.holding_id} className="flex items-center" style={ROW}>
-                          <span style={ASSET_NAME}>{h.asset}</span>
-                          <NumberInput
-                            aria-label={`${h.asset} rebalance weight`}
-                            title="Relative weight within this underlying; blank splits by market value"
-                            step="0.01"
-                            min="0"
-                            max="100"
-                            placeholder="—"
-                            value={perAssetWeight[h.holding_id] ?? ""}
-                            onChange={e => setPerAssetWeight({ ...perAssetWeight, [h.holding_id]: e.target.value })}
-                            style={PERCENT_INPUT}
-                          />
-                          <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
+                {orderedGroups.length > 0 ? (
+                  <div className="flex flex-col" style={{ gap: 12 }}>
+                    {orderedGroups.map(label => {
+                      const groupHoldings = holdings.filter(
+                        h => (h.underlying?.trim() || "Unassigned") === label,
+                      );
+                      return (
+                        <div key={label} className="flex flex-col" style={{ gap: 6 }}>
+                          <div className="flex items-center justify-between" style={{ gap: 8 }}>
+                            <span style={{
+                              color: "var(--color-ink)", fontWeight: 500,
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            }}>{label}</span>
+                            {activeMode === "weight" ? (
+                              <div className="flex items-center" style={ROW}>
+                                <NumberInput
+                                  aria-label={`${label} target weight`}
+                                  step="0.01"
+                                  min="0"
+                                  max="100"
+                                  placeholder="—"
+                                  value={perGroupTarget[label] ?? ""}
+                                  onChange={e => setPerGroupTarget({ ...perGroupTarget, [label]: e.target.value })}
+                                  style={PERCENT_INPUT}
+                                />
+                                <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
+                              </div>
+                            ) : (
+                              <span style={{ ...CONTROL_HELPER, margin: 0, fontVariantNumeric: "tabular-nums" }}>
+                                {(orderedGroups.length > 0 ? 100 / orderedGroups.length : 0).toFixed(1)}% share
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-col" style={{ gap: 6, paddingLeft: 16 }}>
+                            {groupHoldings.map(h => (
+                              <div key={h.holding_id} className="flex items-center" style={ROW}>
+                                <span style={ASSET_NAME}>{h.asset}</span>
+                                <NumberInput
+                                  aria-label={`${h.asset} rebalance weight`}
+                                  title="Relative weight within this underlying; blank splits by market value"
+                                  step="0.01"
+                                  min="0"
+                                  max="100"
+                                  placeholder="—"
+                                  value={perAssetWeight[h.holding_id] ?? ""}
+                                  onChange={e => setPerAssetWeight({ ...perAssetWeight, [h.holding_id]: e.target.value })}
+                                  style={PERCENT_INPUT}
+                                />
+                                <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                    <p style={{ ...CONTROL_HELPER, marginTop: 6 }}>
-                      Relative weight within this underlying; weights divide its drift. Leave all blank/0 to split by current market value.
-                    </p>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p style={{ ...CONTROL_HELPER, marginTop: 4 }}>No holdings yet.</p>
                 )}
+
+                <p style={{ ...CONTROL_HELPER, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
+                  sum {Number(targetSum.toFixed(2))} / 100
+                  {activeMode === "neutral"
+                    ? " — partial targets are saved for a later switch to weight mode"
+                    : ""}
+                </p>
+
+                <p style={{ ...CONTROL_HELPER, marginTop: 8 }}>
+                  Group targets must sum to 100% in weight mode. Weights are relative within their
+                  underlying group and divide that group's drift; leave a weight blank to split by
+                  current market value.
+                </p>
               </div>
             </div>
           </div>

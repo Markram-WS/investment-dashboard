@@ -75,8 +75,6 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
   const [settings, setSettings] = useState<MFSetting | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [modeSaving, setModeSaving] = useState(false);
-  const [modeError, setModeError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
   const [showEditModal, setShowEditModal] = useState(false);
@@ -163,38 +161,6 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
     setRebalanceError(null);
     setShowRebalanceModal(true);
     await runRebalanceCalc();
-  };
-
-  // Persist the mode first, then recompute against the newly stored targets.
-  const handleAllocationModeChange = async (mode: MFAllocationMode) => {
-    if (modeSaving || mode === activeMode) return;
-    setModeSaving(true);
-    setModeError(null);
-    try {
-      const updated = await api.mfUpdateSettings(parseInt(resolvedId), { allocation_mode: mode });
-      setSettings(updated);
-      await runRebalanceCalc();
-    } catch (e) {
-      const apiError = e as Partial<ApiError> | null;
-      let message = "Couldn't switch the allocation mode.";
-      if (typeof apiError?.body === "string" && apiError.body !== "") {
-        try {
-          const parsed: unknown = JSON.parse(apiError.body);
-          if (parsed !== null && typeof parsed === "object" && "detail" in parsed) {
-            const detail = parsed.detail;
-            if (typeof detail === "string" && detail.trim() !== "") message = detail;
-          }
-        } catch {
-          // Non-JSON bodies keep the generic message.
-        }
-      }
-      setModeError(message);
-      // The stored targets are what the server rejected; open the editor so the
-      // user can fix them immediately instead of hitting a dead end.
-      setShowEditModal(true);
-    } finally {
-      setModeSaving(false);
-    }
   };
 
   const handleCreateRebalanceOrders = async (recs: MFRebalanceRecommendation[]) => {
@@ -375,37 +341,11 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
           onRefresh={fetchData}
           onEditPortfolio={() => setShowEditModal(true)}
           extraActions={
-            <>
-              <div role="group" aria-label="Allocation mode" style={{ display: "inline-flex", gap: 6 }}>
-                {([
-                  { mode: "neutral", label: "Neutral" },
-                  { mode: "weight", label: "Weight (%)" },
-                ] as const).map(({ mode, label }) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    className="tg-pill"
-                    data-active={activeMode === mode}
-                    aria-pressed={activeMode === mode}
-                    disabled={modeSaving}
-                    onClick={() => { void handleAllocationModeChange(mode); }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <button type="button" className="at-btn" onClick={handleCalculateRebalance}>
-                Rebalance
-              </button>
-            </>
+            <button type="button" className="at-btn" onClick={handleCalculateRebalance}>
+              Rebalance
+            </button>
           }
         />
-
-        {modeError && (
-          <p role="alert" style={{ color: "var(--color-danger-text)", margin: 0 }}>
-            {modeError}
-          </p>
-        )}
 
         {/* KPI rail: four compact figures on one 84px band. */}
         <section className="at-card mf-rail" aria-label="Fund summary">

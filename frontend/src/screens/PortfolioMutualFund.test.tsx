@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ManagedFund from './PortfolioMutualFund';
@@ -117,18 +117,27 @@ describe('PortfolioMutualFund allocation mode', () => {
     apiMock.mfCalculateRebalance.mockResolvedValue({ recommendations: [], allocation_base: 0 });
   });
 
-  it('persists weight mode from the header toggle and recalculates', async () => {
-    const weightSettings = { ...settings, allocation_mode: 'weight', target_ratio: { VOO: 100 } };
-    apiMock.mfUpdateSettings.mockResolvedValue(weightSettings);
+  it('switches to Weight (%) in the edit modal and saves the entered targets', async () => {
+    apiMock.mfHoldings.mockResolvedValue(holdings);
+    apiMock.updatePortfolio.mockResolvedValue({});
+    apiMock.mfUpdateHolding.mockResolvedValue({});
+    apiMock.mfUpdateSettings.mockResolvedValue({});
 
     renderScreen();
-    const weightToggle = await screen.findByRole('button', { name: 'Weight (%)' });
-    fireEvent.click(weightToggle);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
 
-    await waitFor(() => expect(apiMock.mfUpdateSettings)
-      .toHaveBeenCalledWith(7, { allocation_mode: 'weight' }));
-    await waitFor(() => expect(apiMock.mfCalculateRebalance).toHaveBeenCalledWith(7, undefined));
-    await waitFor(() => expect(weightToggle).toHaveAttribute('aria-pressed', 'true'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Weight (%)' }));
+    fireEvent.change(within(dialog).getByLabelText('VOO target weight'), { target: { value: '60' } });
+    fireEvent.change(within(dialog).getByLabelText('QQQ target weight'), { target: { value: '40' } });
+    expect(within(dialog).getByText(/sum 100 \/ 100/)).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(apiMock.mfUpdateSettings).toHaveBeenCalledWith(7, {
+      allocation_mode: 'weight',
+      target_ratio: { VOO: 60, QQQ: 40 },
+    }));
   });
 
   it('blocks a weight-mode save whose percentages do not sum to 100', async () => {
@@ -170,44 +179,144 @@ describe('PortfolioMutualFund allocation mode', () => {
     expect(await screen.findByText('Unsupported allocation mode')).toBeInTheDocument();
   });
 
-  it('persists neutral-mode target percentages typed in the edit modal', async () => {
+  it('shows neutral group shares read-only and saves neutral mode', async () => {
     apiMock.mfHoldings.mockResolvedValue(holdings);
     apiMock.updatePortfolio.mockResolvedValue({});
     apiMock.mfUpdateHolding.mockResolvedValue({});
-    apiMock.mfUpdateSettings.mockResolvedValue({
-      ...settings, target_ratio: { VOO: 60, QQQ: 40 },
-    });
+    apiMock.mfUpdateSettings.mockResolvedValue({});
 
     renderScreen();
     fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
 
-    fireEvent.change(await screen.findByLabelText('VOO target weight'), { target: { value: '60' } });
-    fireEvent.change(screen.getByLabelText('QQQ target weight'), { target: { value: '40' } });
-    expect(screen.getByText(/sum 100 \/ 100/)).toBeInTheDocument();
+    expect(within(dialog).getAllByText('50.0% share')).toHaveLength(2);
+    expect(within(dialog).queryByLabelText('VOO target weight')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(apiMock.mfUpdateSettings).toHaveBeenCalledWith(7, {
       allocation_mode: 'neutral',
-      target_ratio: { VOO: 60, QQQ: 40 },
+      target_ratio: null,
     }));
   });
 
-  it('opens the edit modal when the weight-mode toggle is rejected', async () => {
-    apiMock.mfSettings.mockResolvedValue({
-      ...settings, target_ratio: { VOO: 0, QQQ: 0 },
-    });
-    apiMock.mfHoldings.mockResolvedValue(holdings);
-    apiMock.mfUpdateSettings.mockRejectedValue(Object.assign(new Error('API 400'), {
-      status: 400,
-      body: JSON.stringify({ detail: 'Target weights must sum to 100' }),
-    }));
+  it('groups holdings under their group row with equal-split defaults', async () => {
+    const sameGroupHoldings = [
+      {
+        ...holdings[0], holding_id: 1, asset: 'SCBS&P500-SSF',
+        rebalance_weight: null, underlying: 'S&P500',
+      },
+      {
+        ...holdings[1], holding_id: 2, asset: 'SCBS&P500A',
+        rebalance_weight: null, underlying: 'S&P500',
+      },
+    ];
+    apiMock.mfHoldings.mockResolvedValue(sameGroupHoldings);
+    apiMock.updatePortfolio.mockResolvedValue({});
+    apiMock.mfUpdateHolding.mockResolvedValue({});
 
     renderScreen();
-    fireEvent.click(await screen.findByRole('button', { name: 'Weight (%)' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
 
-    expect(await screen.findByRole('alert'))
-      .toHaveTextContent('Target weights must sum to 100');
-    expect(await screen.findByLabelText('VOO target weight')).toHaveValue(0);
+    const groupLabel = within(dialog).getByText('S&P500');
+    const firstAsset = within(dialog).getByText('SCBS&P500-SSF');
+    const secondAsset = within(dialog).getByText('SCBS&P500A');
+    expect(groupLabel.compareDocumentPosition(firstAsset) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(firstAsset.compareDocumentPosition(secondAsset) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+
+    expect(within(dialog).getByLabelText('SCBS&P500-SSF rebalance weight')).toHaveValue(50);
+    expect(within(dialog).getByLabelText('SCBS&P500A rebalance weight')).toHaveValue(50);
+  });
+
+  it('leaves null weights blank when the group already has a stored weight', async () => {
+    const partiallyConfigured = [
+      { ...holdings[0], holding_id: 11, asset: 'SCBSEMI', rebalance_weight: 100, underlying: 'E' },
+      { ...holdings[1], holding_id: 12, asset: 'SCBSEMI-A', rebalance_weight: null, underlying: 'E' },
+      { ...holdings[1], holding_id: 13, asset: 'SCBSEMI-B', rebalance_weight: null, underlying: 'E' },
+    ];
+    apiMock.mfHoldings.mockResolvedValue(partiallyConfigured);
+    apiMock.updatePortfolio.mockResolvedValue({});
+    apiMock.mfUpdateHolding.mockResolvedValue({});
+
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
+
+    expect(within(dialog).getByLabelText('SCBSEMI rebalance weight')).toHaveValue(100);
+    expect(within(dialog).getByLabelText('SCBSEMI-A rebalance weight')).toHaveValue(null);
+    expect(within(dialog).getByLabelText('SCBSEMI-B rebalance weight')).toHaveValue(null);
+  });
+
+  it('does not equal-split a group that has no stored weight at all', async () => {
+    const unconfigured = [
+      { ...holdings[0], holding_id: 21, asset: 'SCBSEMI', rebalance_weight: null, underlying: 'E' },
+      { ...holdings[1], holding_id: 22, asset: 'SCBSEMI-A', rebalance_weight: null, underlying: 'E' },
+    ];
+    apiMock.mfHoldings.mockResolvedValue(unconfigured);
+    apiMock.updatePortfolio.mockResolvedValue({});
+    apiMock.mfUpdateHolding.mockResolvedValue({});
+
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
+
+    expect(within(dialog).getByLabelText('SCBSEMI rebalance weight')).toHaveValue(50);
+    expect(within(dialog).getByLabelText('SCBSEMI-A rebalance weight')).toHaveValue(50);
+  });
+
+  it('shows the neutral share per allocation group, not per holding', async () => {
+    const twoGroups = [
+      { ...holdings[0], holding_id: 31, asset: 'VOO-A', rebalance_weight: null, underlying: 'VOO' },
+      { ...holdings[1], holding_id: 32, asset: 'VOO-B', rebalance_weight: null, underlying: 'VOO' },
+      { ...holdings[0], holding_id: 33, asset: 'QQQ', rebalance_weight: null, underlying: 'QQQ' },
+    ];
+    apiMock.mfHoldings.mockResolvedValue(twoGroups);
+
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
+
+    expect(within(dialog).getAllByText('50.0% share')).toHaveLength(2);
+  });
+
+  it('renders the running target sum in weight mode', async () => {
+    apiMock.mfHoldings.mockResolvedValue(holdings);
+    apiMock.updatePortfolio.mockResolvedValue({});
+    apiMock.mfUpdateHolding.mockResolvedValue({});
+    apiMock.mfUpdateSettings.mockResolvedValue({});
+
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Weight (%)' }));
+    expect(within(dialog).getByText(/sum 0 \/ 100/)).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText('VOO target weight'), { target: { value: '70' } });
+    expect(within(dialog).getByText(/sum 70 \/ 100/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/partial targets/i)).toBeNull();
+  });
+
+  it('keeps the sum helper visible in neutral mode with the partial-target note', async () => {
+    apiMock.mfHoldings.mockResolvedValue(holdings);
+
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
+
+    expect(within(dialog).getByText(/sum 0 \/ 100/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/partial targets are saved/i)).toBeInTheDocument();
+  });
+
+  it('does not render a Neutral/Weight toggle in the page header', async () => {
+    renderScreen();
+    await screen.findByRole('button', { name: 'Edit portfolio' });
+
+    expect(screen.queryByRole('group', { name: 'Allocation mode' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Neutral' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Weight (%)' })).toBeNull();
   });
 });
