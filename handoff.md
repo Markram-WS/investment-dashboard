@@ -396,3 +396,46 @@ docs รอบนี้แก้ `DESIGN.md`, `.opencode/AGENT.md`, `backend/REA
   ช่องว่างและ `placeholder` เป็น `"0"` ตอนเปิด, save ตอนช่องว่างส่ง
   `cash_buffer_limit: 0`, พิมพ์ `40` แล้วส่ง `40`, และ limit `25` โหลดมาเป็น 25
   พร้อม round-trip
+
+## 13. Follow-up commit `7fea527` — Create New Portfolio ไม่เก็บ Target Allocation Ratio แล้ว
+
+`7fea527` ถอดช่อง "Target Allocation Ratio (JSON format)" ออกจากหน้า Create New
+Portfolio เฉพาะ Managed Fund (แตะ 2 ไฟล์: `frontend/src/pages/CreateNewPortfolio.tsx`
+−68 บรรทัด, `frontend/src/pages/CreateNewPortfolio.test.tsx` +24 บรรทัด) — ไม่แตะ
+backend หรือสัญญา API
+
+- **สิ่งที่ถูกถอด** — ช่อง `textarea[name="target_ratio"]` พร้อม `label`
+  "Target Allocation Ratio (JSON format)" และ placeholder/helper ตัวอย่าง JSON,
+  ฟังก์ชัน `parseTargetRatios`, state `targetRatioStr`, และบล็อกใน `handleChange`
+  ที่ seed `targetRatioStr` จาก `formData.target_ratio` เมื่อเลือก `port_type`
+  เป็น `Managed Fund`; `formData.target_ratio` ถูกถอดออกจาก state ด้วย
+- **Payload ไม่ส่ง `target_ratio`** — `PortfolioPayload` ที่ submit จึงไม่มี
+  field นี้ (การคูณ 100 เมื่อค่าทุกตัว ≤ 1 ที่เคยอยู่ใน submit branch หายไปพร้อมกัน);
+  ฝั่ง backend `PortfolioCreate.target_ratio` มี default `None`
+  (`backend/app/routers/portfolios.py`) จึงเก็บ `portfolios.target_ratio = NULL`
+- **ตั้ง allocation ที่ไหนตอนนี้** — หลังสร้าง portfolio แล้ว เปิดปุ่ม
+  `Edit portfolio` บน header ของหน้า Managed Fund -> modal `Edit managed fund`
+  (`MFEditPortfolioModal.tsx`) ซึ่งเป็นเจ้าของ section `Allocation` ทั้งหมด:
+  toggle `Neutral` | `Weight (%)` (`role="group"`, `aria-label="Allocation mode"`)
+  และ grouped editor หนึ่ง block ต่อ allocation group พร้อมช่อง target percent
+  (weight mode) และ `Rebalance weight (%)` ต่อ holding (ดูข้อ 2 กับ 6);
+  หน้าเพจยังแสดง `<pct>% target share` จากค่าที่เก็บไว้
+- **Legacy ยังใช้ได้ (migrate on read)** — portfolio เก่าที่เคยเก็บ
+  `portfolios.target_ratio` ยังถูก backfill เข้า `managed_fund_settings.target_ratio`
+  ตอน `GET /managed-funds/{portfolio_id}/settings` (เมื่อ setting ยังไม่มี
+  target); แถวที่ key ด้วย `asset_symbols.price_symbol` ยังถูก map เป็น label
+  ผ่าน `resolve_allocation_labels` ตอนอ่าน และชุดค่าที่ ≤ `1.0` ยังถูกคูณ 100
+  ก่อน map — การถอดช่องตอน create ไม่กระทบข้อมูลเดิม
+- **Browser check** — หน้า `/create-portfolio` ตอนเลือก `Managed Fund`
+  ไม่มีช่อง Target Allocation Ratio แล้ว และ textarea เดียวที่เหลือบนฟอร์มคือ
+  `Trade Plan / Strategy Notes (Optional)` (ช่อง `Mapping config (JSON)` แสดง
+  เฉพาะเมื่อเลือก `Custom Portfolio`) — ยืนยันด้วย selector ในเทสต์
+- **Tests** — `CreateNewPortfolio.test.tsx` เพิ่ม `describe('Managed Fund allocation')`
+  2 เคส: `renders no JSON allocation field for a Managed Fund`
+  (`querySelector('textarea[name="target_ratio"]')` เป็น `null` และไม่มี
+  label `/allocation ratio/i`) และ `posts a Managed Fund without a target_ratio`
+  (payload มี `port_type: 'Managed Fund'` และ `not.toHaveProperty('target_ratio')`);
+  commit message ระบุ frontend 169 passed, `vite build` และ `tsc` clean
+- **Docs** — `DESIGN.md` และ `frontend/README.md` ไม่มีประโยคที่บอกว่า target
+  ถูกกรอกตอนสร้าง portfolio (ทั้งคู่ระบุว่า Allocation section ใน edit modal
+  เป็นเจ้าของ) จึงไม่ต้องแก้
