@@ -320,3 +320,75 @@ describe('PortfolioMutualFund allocation mode', () => {
     expect(screen.queryByRole('button', { name: 'Weight (%)' })).toBeNull();
   });
 });
+
+describe('PortfolioMutualFund group collapse', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    apiMock.getPortfolio.mockResolvedValue(portfolio);
+    apiMock.mfSettings.mockResolvedValue(settings);
+    apiMock.mfHoldings.mockResolvedValue(holdings);
+    apiMock.mfOrders.mockResolvedValue([]);
+    apiMock.mfHistory.mockResolvedValue([]);
+  });
+
+  it('collapses one group without touching the other group or the header meta', async () => {
+    renderScreen();
+    const toggle = await screen.findByRole('button', { name: 'Collapse VOO' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('group-split-VOO')).toBeInTheDocument();
+    expect(screen.getByText('AAA')).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+
+    expect(screen.getByRole('button', { name: 'Expand VOO' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('group-split-VOO')).toBeNull();
+    expect(screen.queryByText('AAA')).toBeNull();
+    expect(screen.getAllByText('50.0% target share')).toHaveLength(2);
+
+    expect(screen.getByTestId('group-split-QQQ')).toBeInTheDocument();
+    expect(screen.getByText('BBB')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Collapse QQQ' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('restores the holdings when the group is expanded again', async () => {
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'Collapse QQQ' }));
+    expect(screen.queryByText('BBB')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand QQQ' }));
+
+    expect(screen.getByTestId('group-split-QQQ')).toBeInTheDocument();
+    expect(screen.getByText('BBB')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Collapse QQQ' })).toHaveAttribute('aria-expanded', 'true');
+  });
+});
+
+describe('MFEditPortfolioModal group collapse', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    apiMock.getPortfolio.mockResolvedValue(portfolio);
+    apiMock.mfSettings.mockResolvedValue({
+      ...settings, allocation_mode: 'weight', target_ratio: { VOO: 60, QQQ: 40 },
+    });
+    apiMock.mfHoldings.mockResolvedValue(holdings);
+    apiMock.mfOrders.mockResolvedValue([]);
+    apiMock.mfHistory.mockResolvedValue([]);
+  });
+
+  it("hides a group's weight rows but keeps its target input and the sum helper", async () => {
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
+
+    expect(within(dialog).getByLabelText('AAA rebalance weight')).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Collapse VOO' }));
+
+    expect(within(dialog).queryByLabelText('AAA rebalance weight')).toBeNull();
+    expect(within(dialog).getByLabelText('VOO target weight')).toHaveValue(60);
+    expect(within(dialog).getByLabelText('BBB rebalance weight')).toBeInTheDocument();
+    expect(within(dialog).getByText(/sum 100 \/ 100/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Expand VOO' }))
+      .toHaveAttribute('aria-expanded', 'false');
+  });
+});

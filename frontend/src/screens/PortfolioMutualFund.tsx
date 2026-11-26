@@ -6,6 +6,7 @@ import {
   FundPortfolio, MFHolding, MFOrder, MFHistory, MFSetting,
   MFRebalanceRecommendation, MFOrderCreate, MFOrderUpdate, MFAllocationMode,
 } from "../types";
+import Chevron from "../components/Chevron";
 import IconButton from "../components/IconButton";
 import MFRebalanceRecommendModal from "./MFRebalanceRecommendModal";
 import MFCreateOrderModal from "./MFCreateOrderModal";
@@ -37,6 +38,23 @@ function formatHistoryDate(value: string | null): string {
 /** Sign colour for a P/L figure: ink-positive, danger-negative, slate at zero. */
 const plClass = (value: number) =>
   value > 0 ? "at-pos" : value < 0 ? "at-neg" : "at-muted";
+
+/**
+ * Button reset for a group header: the `.mf-row.mf-group-row` class keeps the
+ * grid and the type scale, so the toggle occupies exactly the static header's
+ * box instead of the UA button box.
+ */
+const groupToggle = {
+  width: "100%",
+  padding: 0,
+  borderWidth: 0,
+  borderTop: "1px solid var(--color-hairline)",
+  background: "var(--color-surface-soft)",
+  cursor: "pointer",
+  textAlign: "left",
+  color: "inherit",
+  fontFamily: "inherit",
+} as const;
 
 function PctBadge({ value }: { value: number }) {
   return (
@@ -84,6 +102,8 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
   const [editOrderTarget, setEditOrderTarget] = useState<MFOrder | null>(null);
   const [showSellHolding, setShowSellHolding] = useState(false);
   const [sellHoldingTarget, setSellHoldingTarget] = useState<MFHolding | null>(null);
+  // Group labels whose holdings are folded away; empty means every group is open.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
   const [rebalanceRecs, setRebalanceRecs] = useState<MFRebalanceRecommendation[]>([]);
   const [rebalanceLoading, setRebalanceLoading] = useState(false);
   const [rebalanceAllocationBase, setRebalanceAllocationBase] = useState<number | null>(null);
@@ -415,51 +435,71 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
                     const targetPct = activeMode === "weight"
                       ? (settings?.target_ratio?.[group.label] ?? 0)
                       : (groupCount > 0 ? 100 / groupCount : 0);
+                    const collapsed = collapsedGroups.has(group.label);
                     return (
                     <Fragment key={group.label}>
-                      <div className="mf-row mf-group-row">
-                        <span>{group.label}</span>
+                      <button
+                        type="button"
+                        className="mf-row mf-group-row"
+                        aria-expanded={!collapsed}
+                        aria-label={collapsed ? `Expand ${group.label}` : `Collapse ${group.label}`}
+                        onClick={() => setCollapsedGroups((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(group.label)) next.delete(group.label);
+                          else next.add(group.label);
+                          return next;
+                        })}
+                        style={groupToggle}
+                      >
+                        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <Chevron open={!collapsed} size={12} />
+                          {group.label}
+                        </span>
                         <span className="mf-group-meta">
                           {targetPct.toFixed(1)}% target share
                         </span>
-                      </div>
-                      <div className="mf-split-row" data-testid={`group-split-${group.label}`}>
-                        <span className="mf-split-mode">
-                          {group.split.mode === "configured" ? "Configured weights" : "Market-value fallback"}
-                        </span>
-                        {group.split.shares.map(share => (
-                          <span key={share.holding_id}>
-                            {share.symbol} {share.pct.toFixed(1)}%
-                          </span>
-                        ))}
-                      </div>
-                      {group.holdings.map((h) => (
-                        <div className="mf-row" key={h.holding_id}>
-                          <span className="mf-broker" title={h.broker_id != null ? `Broker #${h.broker_id}` : undefined}>
-                            {h.broker_code ?? "—"}
-                          </span>
-                          <span className="mf-ticker" title={h.asset}>{h.asset}</span>
-                          <span className="at-num">{h.qty.toFixed(4)}</span>
-                          <span className="at-num">{formatMoney(h.avg_entry_price)}</span>
-                          <span className="at-num">{formatMoney(h.current_price)}</span>
-                          <span className="at-num">{formatMoney(h.market_value)}</span>
-                          <span className={`at-num ${plClass(h.unrealized_pl)}`}>
-                            {h.unrealized_pl > 0 ? "+" : ""}{formatMoney(h.unrealized_pl)}
-                          </span>
-                          <span className="at-num"><PctBadge value={h.unrealized_pl_pct} /></span>
-                          <div className="mf-actions">
-                            <IconButton
-                              label="Sell all"
-                              danger
-                              onClick={() => { setSellHoldingTarget(h); setShowSellHolding(true); }}
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <polyline points="7 13 12 18 17 13" /><path d="M12 18V2" /><path d="M3 22h18" />
-                              </svg>
-                            </IconButton>
+                      </button>
+                      {!collapsed && (
+                        <>
+                          <div className="mf-split-row" data-testid={`group-split-${group.label}`}>
+                            <span className="mf-split-mode">
+                              {group.split.mode === "configured" ? "Configured weights" : "Market-value fallback"}
+                            </span>
+                            {group.split.shares.map(share => (
+                              <span key={share.holding_id}>
+                                {share.symbol} {share.pct.toFixed(1)}%
+                              </span>
+                            ))}
                           </div>
-                        </div>
-                      ))}
+                          {group.holdings.map((h) => (
+                            <div className="mf-row" key={h.holding_id}>
+                              <span className="mf-broker" title={h.broker_id != null ? `Broker #${h.broker_id}` : undefined}>
+                                {h.broker_code ?? "—"}
+                              </span>
+                              <span className="mf-ticker" title={h.asset}>{h.asset}</span>
+                              <span className="at-num">{h.qty.toFixed(4)}</span>
+                              <span className="at-num">{formatMoney(h.avg_entry_price)}</span>
+                              <span className="at-num">{formatMoney(h.current_price)}</span>
+                              <span className="at-num">{formatMoney(h.market_value)}</span>
+                              <span className={`at-num ${plClass(h.unrealized_pl)}`}>
+                                {h.unrealized_pl > 0 ? "+" : ""}{formatMoney(h.unrealized_pl)}
+                              </span>
+                              <span className="at-num"><PctBadge value={h.unrealized_pl_pct} /></span>
+                              <div className="mf-actions">
+                                <IconButton
+                                  label="Sell all"
+                                  danger
+                                  onClick={() => { setSellHoldingTarget(h); setShowSellHolding(true); }}
+                                >
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <polyline points="7 13 12 18 17 13" /><path d="M12 18V2" /><path d="M3 22h18" />
+                                  </svg>
+                                </IconButton>
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      )}
                     </Fragment>
                     );
                   })}

@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import type { ApiError } from "../lib/api";
 import { MFAllocationMode, MFSetting, MFHolding } from "../types";
+import Chevron from "../components/Chevron";
 import ModalShell from "./components/ModalShell";
 import { MODAL_CARD, MODAL_HEADER, MODAL_BODY, MODAL_FOOTER } from "./components/modalLayout";
 import { Field, NumberInput, TextInput } from "./components/Field";
@@ -57,6 +58,11 @@ const FIELD_PAIR: CSSProperties = {
   alignItems: "start",
 };
 const ROW: CSSProperties = { display: "flex", alignItems: "center", gap: 6 };
+/** Group header toggle: ROW plus the button-chrome resets. */
+const GROUP_TOGGLE: CSSProperties = {
+  ...ROW, padding: 0, border: 0, background: "transparent", cursor: "pointer",
+  textAlign: "left", color: "inherit", fontFamily: "inherit", minWidth: 0,
+};
 const SECTION_LABEL: CSSProperties = { ...CONTROL_LABEL, margin: 0 };
 const GROW_INPUT: CSSProperties = { flex: "1 1 auto", width: "auto", minWidth: 0 };
 const PERCENT_INPUT: CSSProperties = { width: 56 };
@@ -173,6 +179,8 @@ export default function MFEditPortfolioModal({
   );
   // Weight mode only: target percent per allocation-group label.
   const [perGroupTarget, setPerGroupTarget] = useState<Record<string, string>>({});
+  // Group labels whose holding weight rows are folded away; empty means open.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
   // Owned here (not by the page header); saved together with the weights.
   const [activeMode, setActiveMode] = useState<MFAllocationMode>(
     () => (settings?.allocation_mode === "weight" ? "weight" : "neutral"),
@@ -205,6 +213,7 @@ export default function MFEditPortfolioModal({
         targetMap[label] = stored == null ? "" : String(stored);
       }
       setPerGroupTarget(targetMap);
+      setCollapsedGroups(new Set());
       setDwAmount("");
       setDwError("");
       setSaveErr("");
@@ -450,13 +459,28 @@ export default function MFEditPortfolioModal({
                       const groupHoldings = holdings.filter(
                         h => (h.underlying?.trim() || "Unassigned") === label,
                       );
+                      const collapsed = collapsedGroups.has(label);
                       return (
                         <div key={label} className="flex flex-col" style={{ gap: 6 }}>
                           <div className="flex items-center justify-between" style={{ gap: 8 }}>
-                            <span style={{
-                              color: "var(--color-ink)", fontWeight: 500,
-                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                            }}>{label}</span>
+                            <button
+                              type="button"
+                              aria-expanded={!collapsed}
+                              aria-label={collapsed ? `Expand ${label}` : `Collapse ${label}`}
+                              onClick={() => setCollapsedGroups((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(label)) next.delete(label);
+                                else next.add(label);
+                                return next;
+                              })}
+                              style={GROUP_TOGGLE}
+                            >
+                              <Chevron open={!collapsed} size={12} />
+                              <span style={{
+                                color: "var(--color-ink)", fontWeight: 500,
+                                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                              }}>{label}</span>
+                            </button>
                             {activeMode === "weight" ? (
                               <div className="flex items-center" style={ROW}>
                                 <NumberInput
@@ -478,7 +502,7 @@ export default function MFEditPortfolioModal({
                             )}
                           </div>
                           <div className="flex flex-col" style={{ gap: 6, paddingLeft: 16 }}>
-                            {groupHoldings.map(h => (
+                            {!collapsed && groupHoldings.map(h => (
                               <div key={h.holding_id} className="flex items-center" style={ROW}>
                                 <span style={ASSET_NAME}>{h.asset}</span>
                                 <NumberInput
