@@ -64,12 +64,12 @@ frontend/
 │   │
 │   ├── screens/
 │   │   ├── PortfolioGrid.tsx      # Per-portfolio payoff state + orders grid + group management
-│   │   ├── PortfolioMutualFund.tsx # Managed fund: 4-card summary (NAV/Cash/Invested/P/L), 3-section tree table (Asset List / Orders in Progress / Order History), rebalance, profit alerts, 3-dot → Edit Portfolio modal
+│   │   ├── PortfolioMutualFund.tsx # Managed fund: 4-card summary (NAV/Cash/Invested/P/L), 3-section tree table (Asset List / Orders in Progress / Order History), header Neutral | Weight (%) allocation-mode toggle, rebalance, 3-dot → Edit Portfolio modal
 │   │   ├── MFCreateOrderModal.tsx # Managed Fund: create buy/sell order form
 │   │   ├── MFEditOrderModal.tsx   # Managed Fund: edit order fields
 │   │   ├── MFSellHoldingModal.tsx # Managed Fund: sell holding with manual price entry
 │   │   ├── MFRebalanceRecommendModal.tsx # Managed Fund: rebalance recommendations table
-│   │   ├── MFEditPortfolioModal.tsx # Managed Fund: unified edit modal (name, cash fields, target ratios, profit thresholds, deposit/withdraw, Danger Zone delete + navbar query invalidation)
+│   │   ├── MFEditPortfolioModal.tsx # Managed Fund: unified edit modal (name, cash fields, per-group target percentages, per-holding rebalance weight, deposit/withdraw, Danger Zone delete + navbar query invalidation)
 │   │   ├── AddAssetModal.tsx      # Create product (underlying/broker/type/multiplier/margin rate/margin mode/span/source) or symbol (identity picker + inline identity creation, price/sync, option terms); 560px
 │   │   ├── EditAssetModal.tsx     # Edit/delete product or symbol; attached-symbols broker guard; symbol move through the identity picker; manual quote price input
 │   │   ├── AddOrderModal.tsx      # Add order form with contract_type toggle
@@ -162,7 +162,7 @@ Tests live beside the sources they cover (`src/components/Navigation.test.tsx`, 
 
 See `src/lib/api.ts` for the complete list of 65+ endpoints. Key categories:
 - `/api/v1/portfolios` — CRUD + `test-connection`
-- `/api/v1/managed-funds` — settings, holdings, orders, history, rebalance/calculate, sync-prices, alerts (15 methods)
+- `/api/v1/managed-funds` — settings, holdings, orders, history, rebalance/calculate, sync-prices (12 methods)
 - `/api/v1/orders` — CRUD + close/link/unlink
 - `/api/v1/analytics/*` — portfolio-grid, performance, NAV
 - `/api/v1/assets/products` + `/api/v1/assets/symbols` — two-level registry CRUD, identity-owned specs, symbol move via `product_id`, manual quotes, `update-price` + `batch-update-prices`
@@ -293,7 +293,7 @@ In the cluster no frontend env vars are needed: the browser calls `/api/v1/...` 
 
 ## 🧩 Key Features
 
-1. **Managed Fund**: Full portfolio rebalancing with separate order lifecycle (Create → Pending → Confirm Done → Asset List + NAV + History), 4-card summary (Current NAV, Available Cash, Total Invested, Unrealized P/L), profit threshold alerts on page load, rebalance recommendations from target ratio
+1. **Managed Fund**: Full portfolio rebalancing with separate order lifecycle (Create → Pending → Confirm Done → Asset List + NAV + History), 4-card summary (Current NAV, Available Cash, Total Invested, Unrealized P/L), two underlying-group allocation modes (`neutral` equal split or `weight` stored per-underlying targets), rebalance recommendations
 2. **Portfolio Overview**: Hero Card + Pool Health gauge + Money Reserve + Portfolio cards with DnD transfer
 2. **Portfolio Grid**: Orders grouped by zone, drag-and-drop, contract type filters, link system
 3. **Payoff Chart**: Pure SVG — intrinsic + BS IV overlay, crosshair, tooltip, area fill

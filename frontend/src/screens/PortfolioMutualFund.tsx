@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import type { ApiError } from "../lib/api";
 import {
   FundPortfolio, MFHolding, MFOrder, MFHistory, MFSetting,
-  MFRebalanceRecommendation, MFAlert, MFOrderCreate, MFOrderUpdate,
+  MFRebalanceRecommendation, MFOrderCreate, MFOrderUpdate, MFAllocationMode,
 } from "../types";
 import IconButton from "../components/IconButton";
 import MFRebalanceRecommendModal from "./MFRebalanceRecommendModal";
@@ -73,9 +73,10 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
   const [orders, setOrders] = useState<MFOrder[]>([]);
   const [history, setHistory] = useState<MFHistory[]>([]);
   const [settings, setSettings] = useState<MFSetting | null>(null);
-  const [alerts, setAlerts] = useState<MFAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [modeSaving, setModeSaving] = useState(false);
+  const [modeError, setModeError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
   const [showEditModal, setShowEditModal] = useState(false);
@@ -95,20 +96,18 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
     try {
       setLoading(true);
       const pid = parseInt(resolvedId);
-      const [portData, settingsData, holdingsData, ordersData, historyData, alertsData] = await Promise.all([
+      const [portData, settingsData, holdingsData, ordersData, historyData] = await Promise.all([
         api.getPortfolio(pid),
         api.mfSettings(pid),
         api.mfHoldings(pid).catch(() => []),
         api.mfOrders(pid).catch(() => []),
         api.mfHistory(pid).catch(() => []),
-        api.mfAlerts(pid).catch(() => ({ alerts: [] })),
       ]);
       setPortfolio(portData);
       setSettings(settingsData);
       setHoldings(holdingsData);
       setOrders(ordersData);
       setHistory(historyData);
-      setAlerts(alertsData.alerts || []);
       setLastUpdated(new Date());
       setError(null);
     } catch (err) {
@@ -164,6 +163,38 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
     setRebalanceError(null);
     setShowRebalanceModal(true);
     await runRebalanceCalc();
+  };
+
+  // Persist the mode first, then recompute against the newly stored targets.
+  const handleAllocationModeChange = async (mode: MFAllocationMode) => {
+    if (modeSaving || mode === activeMode) return;
+    setModeSaving(true);
+    setModeError(null);
+    try {
+      const updated = await api.mfUpdateSettings(parseInt(resolvedId), { allocation_mode: mode });
+      setSettings(updated);
+      await runRebalanceCalc();
+    } catch (e) {
+      const apiError = e as Partial<ApiError> | null;
+      let message = "Couldn't switch the allocation mode.";
+      if (typeof apiError?.body === "string" && apiError.body !== "") {
+        try {
+          const parsed: unknown = JSON.parse(apiError.body);
+          if (parsed !== null && typeof parsed === "object" && "detail" in parsed) {
+            const detail = parsed.detail;
+            if (typeof detail === "string" && detail.trim() !== "") message = detail;
+          }
+        } catch {
+          // Non-JSON bodies keep the generic message.
+        }
+      }
+      setModeError(message);
+      // The stored targets are what the server rejected; open the editor so the
+      // user can fix them immediately instead of hitting a dead end.
+      setShowEditModal(true);
+    } finally {
+      setModeSaving(false);
+    }
   };
 
   const handleCreateRebalanceOrders = async (recs: MFRebalanceRecommendation[]) => {
@@ -230,12 +261,10 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
   }, [holdings]);
   const totalPlPct = totalInvested > 0 ? (totalPl / totalInvested) * 100 : 0;
 
-  // Neutral allocation: equal share per underlying, global threshold split N ways.
+  // Target share per group follows the stored mode: neutral splits equally,
+  // weight uses the label-keyed stored percentage (0 when unset).
   const groupCount = holdingGroups.length;
-  const groupSharePct = groupCount > 0 ? 100 / groupCount : 0;
-  const groupThresholdPct = groupCount > 0
-    ? (settings?.global_profit_threshold ?? 0) / groupCount
-    : 0;
+  const activeMode: MFAllocationMode = settings?.allocation_mode === "weight" ? "weight" : "neutral";
 
   // --- loading: the same shell, with pulse blocks where the data goes ---------
   if (loading) {
@@ -346,11 +375,37 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
           onRefresh={fetchData}
           onEditPortfolio={() => setShowEditModal(true)}
           extraActions={
-            <button type="button" className="at-btn" onClick={handleCalculateRebalance}>
-              Rebalance
-            </button>
+            <>
+              <div role="group" aria-label="Allocation mode" style={{ display: "inline-flex", gap: 6 }}>
+                {([
+                  { mode: "neutral", label: "Neutral" },
+                  { mode: "weight", label: "Weight (%)" },
+                ] as const).map(({ mode, label }) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className="tg-pill"
+                    data-active={activeMode === mode}
+                    aria-pressed={activeMode === mode}
+                    disabled={modeSaving}
+                    onClick={() => { void handleAllocationModeChange(mode); }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="at-btn" onClick={handleCalculateRebalance}>
+                Rebalance
+              </button>
+            </>
           }
         />
+
+        {modeError && (
+          <p role="alert" style={{ color: "var(--color-danger-text)", margin: 0 }}>
+            {modeError}
+          </p>
+        )}
 
         {/* KPI rail: four compact figures on one 84px band. */}
         <section className="at-card mf-rail" aria-label="Fund summary">
@@ -416,12 +471,16 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
                     <span className="at-num">P/L %</span>
                     <span className="at-num">Sell</span>
                   </div>
-                  {holdingGroups.map((group) => (
+                  {holdingGroups.map((group) => {
+                    const targetPct = activeMode === "weight"
+                      ? (settings?.target_ratio?.[group.label] ?? 0)
+                      : (groupCount > 0 ? 100 / groupCount : 0);
+                    return (
                     <Fragment key={group.label}>
                       <div className="mf-row mf-group-row">
                         <span>{group.label}</span>
                         <span className="mf-group-meta">
-                          {groupSharePct.toFixed(1)}% share · {groupThresholdPct.toFixed(1)}% threshold
+                          {targetPct.toFixed(1)}% target share
                         </span>
                       </div>
                       <div className="mf-split-row" data-testid={`group-split-${group.label}`}>
@@ -462,7 +521,8 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
                         </div>
                       ))}
                     </Fragment>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -537,25 +597,6 @@ export default function ManagedFund({ portfolioId }: ManagedFundProps) {
                 Rebalance
               </button>
             </section>
-
-            {/* Alerts: only when the fund reports one. */}
-            {alerts.length > 0 && (
-              <section className="at-card mf-card" aria-label="Alerts">
-                <header className="mf-card-h">
-                  <h2>Alerts</h2>
-                  <span className="at-count">{alerts.length}</span>
-                </header>
-                {alerts.map((a, i) => (
-                  <div className="mf-alert" key={i} title={a.message}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                      <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-                    </svg>
-                    <span>{a.message}</span>
-                  </div>
-                ))}
-              </section>
-            )}
 
             {/* Order history */}
             <section className="at-card mf-card mf-history" aria-label="Order history">

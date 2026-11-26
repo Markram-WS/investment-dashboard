@@ -319,7 +319,6 @@ export interface MFHolding {
   market_value: number;
   unrealized_pl: number;
   unrealized_pl_pct: number;
-  profit_threshold: number;
   /** Relative share of this holding's underlying-group drift; null/0 means market-value fallback. */
   rebalance_weight: number | null;
   /** Registry identity derived from `asset`; null when unregistered. */
@@ -372,12 +371,15 @@ export interface MFHistory {
   executed_at: string | null;
 }
 
+/** How per-group target shares are chosen: equal weights or stored percentages. */
+export type MFAllocationMode = "neutral" | "weight";
+
 export interface MFSetting {
   id: number;
   portfolio_id: number;
+  /** Allocation-group label -> percent (0..100); null until targets are set. */
   target_ratio: Record<string, number> | null;
-  allocation_mode: string | null;
-  global_profit_threshold: number;
+  allocation_mode: MFAllocationMode;
   total_invested: number;
   last_rebalance_date: string | null;
 }
@@ -406,14 +408,6 @@ export interface MFRebalanceResponse {
   current_allocations: Record<string, number>;
   recommendations: MFRebalanceRecommendation[];
   total_drift: number;
-}
-
-export interface MFAlert {
-  asset: string;
-  qty: number;
-  unrealized_pl_pct: number;
-  threshold: number;
-  message: string;
 }
 
 // === Spread Pairing ===

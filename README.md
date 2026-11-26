@@ -53,7 +53,7 @@ The read-through mode ships with the `tfex-settrade-v1` template (`usd_pct_abc.o
 
 ## Key Features
 
-- **Managed Fund** — Full portfolio rebalancing with separate order lifecycle (Create→Confirm→History), auto cash tracking, 4-card summary (NAV/Cash/Invested/P/L) rendered in the same workstation shell as Active Trading (44px header, four-KPI rail, two-column workspace), target allocation ratios, rebalance recommendations, profit threshold alerts
+- **Managed Fund** — Full portfolio rebalancing with separate order lifecycle (Create→Confirm→History), auto cash tracking, 4-card summary (NAV/Cash/Invested/P/L) rendered in the same workstation shell as Active Trading (44px header, four-KPI rail, two-column workspace), two underlying-group allocation modes (`neutral` equal split or `weight` stored per-underlying targets), rebalance recommendations
 - **Portfolio Overview** — Hero card, Pool Health gauge, Money Reserve, Active Portfolio cards with DnD cash transfer
 - **Portfolio Grid** — Zone-grouped orders, drag-drop assignment, contract type filters, order link system
 - **Payoff Chart** — Pure SVG: intrinsic + BS IV overlay, crosshair, tooltip, area fill, break-even markers

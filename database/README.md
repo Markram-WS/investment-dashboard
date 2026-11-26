@@ -8,10 +8,10 @@ One PostgreSQL database powers the system, plus user-configured external Postgre
 
 | Table | Purpose |
 |-------|---------|
-| `managed_fund_holdings` | Asset holdings: `holding_id` PK, `portfolio_id` FK→`portfolios`, `asset`, `qty`, `avg_entry_price`, `current_price`, `market_value`, `unrealized_pl`, `unrealized_pl_pct`, `profit_threshold` |
+| `managed_fund_holdings` | Asset holdings: `holding_id` PK, `portfolio_id` FK→`portfolios`, `asset`, `qty`, `avg_entry_price`, `current_price`, `market_value`, `unrealized_pl`, `unrealized_pl_pct`, `rebalance_weight`, `profit_threshold` (retained column, unused — alerts retired) |
 | `managed_fund_orders` | Orders in progress (pending): `order_id` PK, `portfolio_id` FK, `asset`, `side` (Buy/Sell), `qty`, `price`, `status` (pending→done/cancelled), `order_type`, `notes` |
 | `managed_fund_order_history` | Completed/cancelled orders: same columns as orders + `executed_at` timestamp; moved here when order status changes to done/cancelled |
-| `managed_fund_settings` | Per-portfolio settings: `id` PK, `portfolio_id` UNIQUE FK, `target_ratio` JSON (`{"BTC":40,"ETH":60}` in percentage), `global_profit_threshold`, `total_invested`, `last_rebalance_date` |
+| `managed_fund_settings` | Per-portfolio settings: `id` PK, `portfolio_id` UNIQUE FK, `target_ratio` JSON (allocation-group label → percent, e.g. `{"S&P500":60,"CHA":40}`), `allocation_mode` (`neutral` \| `weight`), `global_profit_threshold` (retained column, unused), `total_invested`, `last_rebalance_date` |
 
 ### Order Flow
 ```
@@ -24,7 +24,7 @@ Create Order (pending) → Confirm Done → Update Holdings + Adjust available_c
 - `portfolio.current_nav` = `available_cash + sum(holding.qty × holding.current_price)`
 - Buy orders merge into existing holdings (weighted avg entry price); Sell orders reduce qty or delete holding
 - Managed Fund order creation does **not** register a main-database product/symbol; symbols belong to the broker-scoped asset registry and are added explicitly there
-- target_ratio supports both decimal (0.4 = 40%) and percentage (40) input — auto-normalized to percentage on read
+- `target_ratio` is keyed by allocation-group label (`asset_products.ticker` or `Unassigned`) and holds percentages; legacy symbol-keyed rows may be fractional (≤1.0 scaled by 100 on read) and are resolved to labels through the registry. `allocation_mode` is `neutral` or `weight`; weight reads the stored percentages (sum 100)
 - Deleting a portfolio cascades to all `managed_fund_*` tables
 
 ---
@@ -51,10 +51,10 @@ Tables for portfolio management, managed fund, trade execution, ledger, the asse
 | `transactions` | Consolidated ledger: deposits, withdrawals, transfers |
 | `decision_journals` | Mini post-it notes per portfolio, linked to trade history |
 | `asset_groups` | Retired from the UI (kept for compatibility; nothing reads or writes it): `id` SERIAL PK, `name` TEXT UNIQUE NOT NULL, `is_default` BOOLEAN, `created_at` TIMESTAMP. Listing no longer seeds Ungrouped/Watchlist |
-| `managed_fund_holdings` | Managed Fund: asset holdings with avg entry, current price, P/L, profit threshold |
+| `managed_fund_holdings` | Managed Fund: asset holdings with avg entry, current price, P/L, `rebalance_weight` per holding (`profit_threshold` retained, unused) |
 | `managed_fund_orders` | Managed Fund: pending orders (Buy/Sell) before confirmation |
 | `managed_fund_order_history` | Managed Fund: completed/cancelled order archive |
-| `managed_fund_settings` | Managed Fund: target allocation ratios (JSON), profit thresholds, total invested |
+| `managed_fund_settings` | Managed Fund: label-keyed target percentages (JSON), `allocation_mode` (`neutral`/`weight`), total invested (`global_profit_threshold` retained, unused) |
 
 ### New table: `custom_portfolio_connections`
 

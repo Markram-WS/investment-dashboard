@@ -63,25 +63,25 @@
 
 ### Managed Fund Feature
 - **4 new DB tables**: `managed_fund_holdings`, `managed_fund_orders`, `managed_fund_order_history`, `managed_fund_settings`
-- **Router**: `backend/app/routers/managed_funds.py` — 15 endpoints (settings CRUD, holdings CRUD, orders CRUD with confirm/cancel, history, rebalance/calculate, sync-prices, alerts)
+- **Router**: `backend/app/routers/managed_funds.py` — 13 endpoints (settings CRUD, holdings CRUD + sell, orders CRUD with confirm/cancel, history, rebalance/calculate, sync-prices); the alerts endpoint is retired
 - **Order flow**: Create (pending) → PATCH status=done → update holdings + adjust available_cash + record NAV history → move to order_history table
 - **Cash tracking**: Buy confirm deducts `available_cash`; Sell confirm adds to `available_cash`
 - **NAV**: Recalculated on order confirm as `available_cash + sum(holding.qty × current_price)`
-- **Rebalance**: Reads `target_ratio` from `ManagedFundSetting`; compares against current allocation; recommends buy/sell/qty/estimated_price per asset that deviates >0.5% from target
+- **Rebalance**: Reads `allocation_mode` (`neutral` | `weight`) and the label-keyed `target_ratio` from `ManagedFundSetting`; `neutral` targets `100/N %` per underlying group, `weight` targets each group's stored percentage (must sum to 100); recommends buy/sell/qty/estimated_price; there is no 0.5% drift suppression — only an exactly balanced group emits no order
 - **Auto-sync**: New order symbols auto-inserted into `whitelist_assets` with `source='manual'`
-- **target_ratio normalization**: Values ≤1.0 auto-multiplied by 100 (normalized to percentage) in both get_settings and calculate_rebalance
+- **target_ratio contract**: label-keyed percentages (`asset_products.ticker` or `Unassigned`), values `0..100`, at most 4 decimals; weight mode requires the sum to be 100 within `1e-6` on `PUT .../settings` (400) and on calculate (422). Legacy symbol-keyed rows are resolved through the registry on read — `resolve_allocation_labels` maps `asset_symbols.price_symbol` to its product ticker, and a row with max value ≤1.0 and non-label keys is scaled by 100 first; the UI writes labels
 - **Settings auto-creation**: First GET settings copies `target_ratio` from `Portfolio` table if `ManagedFundSetting` row doesn't exist; also backfills NULL target_ratio for existing rows
 - **Portfolio delete cascade**: `portfolios.py` delete endpoint cleans all 4 managed_fund tables + navbar query invalidation via `useQueryClient`
 
 ### Frontend Managed Fund Components
-- **`PortfolioMutualFund.tsx`**: Main screen with 4-card summary (Current NAV, Available Cash, Total Invested, Unrealized P/L), 3-section tree table (Asset List with Entry Price/Current Price, Orders in Progress, Order History), Rebalance button, profit alert banner, 3-dot → Edit Portfolio modal
+- **`PortfolioMutualFund.tsx`**: Main screen with 4-card summary (Current NAV, Available Cash, Total Invested, Unrealized P/L), 3-section tree table (Asset List with Entry Price/Current Price, Orders in Progress, Order History), segmented `Neutral` | `Weight (%)` allocation-mode toggle in the header (persists the mode and recalculates), Rebalance button, 3-dot → Edit Portfolio modal; the profit alert banner is retired
 - **`MFCreateOrderModal.tsx`**: Create Buy/Sell order form
 - **`MFEditOrderModal.tsx`**: Edit existing order fields
 - **`MFSellHoldingModal.tsx`**: Sell holding form with manual qty + price entry
 - **`MFRebalanceRecommendModal.tsx`**: Table showing rebalance recommendations (asset, current %, target %, side, qty, estimated price)
-- **`MFEditPortfolioModal.tsx`**: Unified edit modal (portfolio name, margin/cash/money-market fields, target ratios with asset+pct inputs, profit thresholds per holding, deposit/withdraw, Danger Zone delete with navbar invalidation via `useQueryClient`)
-- **15 API methods** in `api.ts` under `mf*` prefix
-- **Types**: `FundPortfolio`, `MFHolding`, `MFOrder`, `MFOrderCreate`, `MFOrderUpdate`, `MFHistory`, `MFSetting`, `MFRebalanceRecommendation`, `MFRebalanceResponse`, `MFAlert`
+- **`MFEditPortfolioModal.tsx`**: Unified edit modal (portfolio name, margin/cash/money-market fields, one target-percent input per held allocation-group label — sum 100 enforced only when saving in weight mode, partial targets saved in neutral — per-holding `Rebalance weight (%)`, deposit/withdraw, Danger Zone delete with navbar invalidation via `useQueryClient`); no profit-threshold fields
+- **12 API methods** in `api.ts` under `mf*` prefix
+- **Types**: `FundPortfolio`, `MFHolding`, `MFOrder`, `MFOrderCreate`, `MFOrderUpdate`, `MFHistory`, `MFSetting`, `MFAllocationMode`, `MFRebalanceRecommendation`, `MFRebalanceResponse`
 - **Asset auto-sync**: `AllAssets.tsx` calls `POST /api/v1/assets/sync-from-all` on page load and on manual Sync button; endpoint aggregates from active_orders + managed_fund_holdings + managed_fund_order_history
 - **Route**: `PortfolioAnalyticsDetail.tsx` routes `port_type` containing "managed" → `PortfolioMutualFund`
 

@@ -21,7 +21,6 @@ import type {
   MFOrderUpdate,
   MFRebalanceResponse,
   MFSetting,
-  MFAlert,
   OrderSource,
   OverviewResponse,
   PortfolioData,
@@ -353,14 +352,7 @@ export interface UnlinkOrderResult {
   unlinked_partner: string | null;
 }
 
-export interface MFAlertsResult {
-  alerts: MFAlert[];
-}
-
 export interface MFHoldingUpdatePayload {
-  // Accepted by MFEditPortfolioModal; the backend MFOrderUpdate schema does
-  // not declare profit_threshold, so it is currently dropped by FastAPI.
-  profit_threshold?: number;
   /** Relative drift weight; null clears it. Omit to leave the stored value unchanged. */
   rebalance_weight?: number | null;
   qty?: number;
@@ -662,8 +654,7 @@ export const api = {
     portfolioId: number,
     payload: {
       target_ratio?: Record<string, number> | null;
-      allocation_mode?: 'neutral';
-      global_profit_threshold?: number;
+      allocation_mode?: 'neutral' | 'weight';
     },
   ) =>
     request<MFSetting>(`/managed-funds/${portfolioId}/settings`, {
@@ -713,6 +704,4 @@ export const api = {
         ? {}
         : { body: JSON.stringify({ cash_top_up: cashTopUp }) }),
     }),
-  mfAlerts: (portfolioId: number) =>
-    request<MFAlertsResult>(`/managed-funds/${portfolioId}/alerts`),
 };

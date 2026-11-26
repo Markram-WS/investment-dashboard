@@ -227,6 +227,55 @@ async def resolve_underlyings(
     return resolved
 
 
+async def resolve_allocation_labels(
+    db: AsyncSession,
+    keys: Iterable[Any],
+) -> dict[str, str]:
+    """Normalized allocation key -> allocation group label (product ticker).
+
+    A stored managed-fund target key is either a legacy
+    ``asset_symbols.price_symbol`` or an already label-keyed
+    ``asset_products.ticker``. Symbols resolve to their owning product ticker
+    (lowest ``symbol_id`` wins); tickers map to themselves. Keys matching
+    neither are absent from the result.
+    """
+    wanted = {key for key in (normalise_symbol(value) for value in keys) if key}
+    if not wanted:
+        return {}
+    labels: dict[str, str] = {}
+    symbol_rows = (
+        await db.execute(
+            select(AssetSymbol.price_symbol, AssetProduct.ticker)
+            .join(AssetProduct, AssetProduct.product_id == AssetSymbol.product_id)
+            .where(
+                AssetSymbol.price_symbol.isnot(None),
+                AssetProduct.ticker.isnot(None),
+                func.upper(func.trim(AssetSymbol.price_symbol)).in_(wanted),
+            )
+            .order_by(AssetSymbol.symbol_id)
+        )
+    ).all()
+    for price_symbol, ticker in symbol_rows:
+        key = normalise_symbol(price_symbol)
+        if key in wanted and key not in labels:
+            labels[key] = ticker
+    ticker_rows = (
+        await db.execute(
+            select(AssetProduct.ticker)
+            .where(
+                AssetProduct.ticker.isnot(None),
+                func.upper(func.trim(AssetProduct.ticker)).in_(wanted),
+            )
+            .order_by(AssetProduct.product_id)
+        )
+    ).scalars().all()
+    for ticker in ticker_rows:
+        key = normalise_symbol(ticker)
+        if key in wanted and key not in labels:
+            labels[key] = ticker
+    return labels
+
+
 async def translate_product_tickers(
     db: AsyncSession,
     broker_id: Optional[int],

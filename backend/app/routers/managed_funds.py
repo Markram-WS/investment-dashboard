@@ -7,11 +7,14 @@ from app.managed_fund_models import ManagedFundHolding, ManagedFundOrder, Manage
 from app.services import asset_registry as registry
 from pydantic import BaseModel, field_validator
 from typing import Iterable, Optional, Dict, Any, List
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import datetime, date
 from dataclasses import dataclass
 
 router = APIRouter()
+
+#: The two allocation rules: equal slices and stored per-label targets.
+ALLOCATION_MODES = ("neutral", "weight")
 
 
 # ─── Pydantic Schemas ───
@@ -19,16 +22,23 @@ router = APIRouter()
 class MFSettingResponse(BaseModel):
     id: int
     portfolio_id: int
-    target_ratio: Optional[Dict[str, Any]] = None
-    allocation_mode: Optional[str] = 'neutral'
-    global_profit_threshold: Optional[float] = 0
+    target_ratio: Optional[Dict[str, float]] = None
+    allocation_mode: str = 'neutral'
     total_invested: Optional[float] = 0
     last_rebalance_date: Optional[str] = None
 
 class MFSettingUpdate(BaseModel):
-    target_ratio: Optional[Dict[str, float]] = None
+    target_ratio: Optional[Dict[str, Any]] = None
     allocation_mode: Optional[str] = None
-    global_profit_threshold: Optional[float] = None
+
+    @field_validator("allocation_mode")
+    @classmethod
+    def _check_allocation_mode(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and value not in ALLOCATION_MODES:
+            raise HTTPException(
+                status_code=400, detail="Unsupported allocation mode"
+            )
+        return value
 
 class MFHoldingResponse(BaseModel):
     holding_id: int
@@ -40,7 +50,6 @@ class MFHoldingResponse(BaseModel):
     market_value: float
     unrealized_pl: float
     unrealized_pl_pct: float
-    profit_threshold: float
     # Relative weight inside the underlying group; null = market-value fallback.
     rebalance_weight: Optional[float] = None
     # Registry identity of `asset`, derived per holding — never stored.
@@ -155,16 +164,6 @@ class MFRebalanceResponse(BaseModel):
     recommendations: List[MFRebalanceRecommendation]
     total_drift: float
 
-class MFAlertItem(BaseModel):
-    asset: str
-    qty: float
-    unrealized_pl_pct: float
-    threshold: float
-    message: str
-
-class MFAlertsResponse(BaseModel):
-    alerts: List[MFAlertItem]
-
 
 # ─── Helper ───
 
@@ -172,48 +171,103 @@ def _row_to_dict(row, columns: list[str]) -> dict:
     return {c: getattr(row, c) for c in columns}
 
 
+async def _effective_target_ratio(
+    db: AsyncSession,
+    target_ratio: Optional[Dict[str, Any]],
+    known_labels: set[str],
+) -> Dict[str, Decimal]:
+    """Stored target ratios as label-keyed percentages.
+
+    A *legacy* row is symbol-keyed and may be fractional: when the keys are not
+    all current allocation-group labels, values at or below 1.0 are scaled by
+    100 first. A row keyed entirely by current group labels already holds
+    percentages and is used verbatim, so a legitimate sub-1% target survives.
+    Every key is then resolved through the registry — a legacy
+    ``price_symbol`` maps to its owning product ticker, an already
+    label-keyed ticker maps to itself. Keys collapsing onto one label are
+    summed. A key with no registry row is kept verbatim only when it names one
+    of ``known_labels`` (``Unassigned`` is an allocation group without a
+    registry identity); any other unresolved key is dropped.
+    """
+    if not target_ratio:
+        return {}
+    values = {
+        str(key): float(value)
+        for key, value in target_ratio.items()
+        if value is not None
+    }
+    if not values:
+        return {}
+    if max(values.values()) <= 1.0:
+        label_keys = {key.strip() for key in values}
+        if not label_keys.issubset(known_labels):
+            values = {key: value * 100 for key, value in values.items()}
+
+    labels = await registry.resolve_allocation_labels(db, values.keys())
+    merged: Dict[str, Decimal] = {}
+    for key, value in values.items():
+        label = labels.get(registry.normalise_symbol(key))
+        if label is None:
+            label = key.strip()
+            if label not in known_labels:
+                continue
+        amount = Decimal(str(value))
+        merged[label] = merged.get(label, Decimal("0")) + amount
+    return merged
+
+
+async def _current_group_labels(db: AsyncSession, portfolio_id: int) -> set[str]:
+    """Allocation-group labels for a portfolio's live holdings."""
+    portfolio = await db.get(Portfolio, portfolio_id)
+    if not portfolio:
+        return set()
+    result = await db.execute(
+        select(ManagedFundHolding).where(ManagedFundHolding.portfolio_id == portfolio_id)
+    )
+    groups, _ = await _group_holdings_by_underlying(
+        db, portfolio, result.scalars().all()
+    )
+    return {group.label for group in groups}
+
+
 # ─── Settings ───
 
 @router.get("/{portfolio_id}/settings", response_model=MFSettingResponse)
 async def get_settings(portfolio_id: int, db: AsyncSession = Depends(get_db)):
+    portfolio = await db.get(Portfolio, portfolio_id)
     result = await db.execute(
         select(ManagedFundSetting).where(ManagedFundSetting.portfolio_id == portfolio_id)
     )
     setting = result.scalar_one_or_none()
     if not setting:
-        port_result = await db.execute(
-            select(Portfolio).where(Portfolio.portfolio_id == portfolio_id)
-        )
-        port = port_result.scalar_one_or_none()
         setting = ManagedFundSetting(
             portfolio_id=portfolio_id,
-            target_ratio=port.target_ratio if port else None,
+            target_ratio=portfolio.target_ratio if portfolio else None,
         )
         db.add(setting)
         await db.commit()
         await db.refresh(setting)
     elif setting.target_ratio is None:
-        port_result = await db.execute(
-            select(Portfolio).where(Portfolio.portfolio_id == portfolio_id)
-        )
-        port = port_result.scalar_one_or_none()
-        if port and port.target_ratio:
-            setting.target_ratio = port.target_ratio
+        if portfolio and portfolio.target_ratio:
+            setting.target_ratio = portfolio.target_ratio
             await db.commit()
             await db.refresh(setting)
 
-    target_ratio = setting.target_ratio
-    if target_ratio:
-        vals = [float(v) for v in target_ratio.values() if v is not None]
-        if vals and max(vals) <= 1.0:
-            target_ratio = {k: float(v) * 100 for k, v in target_ratio.items() if v is not None}
+    holdings_result = await db.execute(
+        select(ManagedFundHolding).where(ManagedFundHolding.portfolio_id == portfolio_id)
+    )
+    groups, _ = await _group_holdings_by_underlying(
+        db, portfolio, holdings_result.scalars().all()
+    )
+    targets = await _effective_target_ratio(
+        db, setting.target_ratio, known_labels={group.label for group in groups}
+    )
 
     return MFSettingResponse(
         id=setting.id,
         portfolio_id=setting.portfolio_id,
-        target_ratio=target_ratio,
+        target_ratio={label: float(value) for label, value in targets.items()} or None,
         allocation_mode=setting.allocation_mode or 'neutral',
-        global_profit_threshold=float(setting.global_profit_threshold or 0),
         total_invested=float(setting.total_invested or 0),
         last_rebalance_date=setting.last_rebalance_date.isoformat() if setting.last_rebalance_date else None,
     )
@@ -221,8 +275,33 @@ async def get_settings(portfolio_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.put("/{portfolio_id}/settings", response_model=MFSettingResponse)
 async def update_settings(portfolio_id: int, body: MFSettingUpdate, db: AsyncSession = Depends(get_db)):
-    if body.allocation_mode is not None and body.allocation_mode != 'neutral':
-        raise HTTPException(status_code=400, detail="Unsupported allocation mode")
+    provided = "target_ratio" in body.model_fields_set
+    values: Optional[Dict[str, Decimal]] = None
+    if body.target_ratio is not None:
+        values = {}
+        for key, raw in body.target_ratio.items():
+            try:
+                value = Decimal(str(raw))
+            except (InvalidOperation, ValueError):
+                raise HTTPException(
+                    status_code=400, detail="Target weights must be finite numbers"
+                )
+            if not value.is_finite():
+                raise HTTPException(
+                    status_code=400, detail="Target weights must be finite numbers"
+                )
+            if value < 0 or value > 100:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Target weights must be between 0 and 100",
+                )
+            if value.normalize().as_tuple().exponent < -4:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Target weights allow at most 4 decimal places",
+                )
+            values[key] = value
+
     result = await db.execute(
         select(ManagedFundSetting).where(ManagedFundSetting.portfolio_id == portfolio_id)
     )
@@ -230,12 +309,41 @@ async def update_settings(portfolio_id: int, body: MFSettingUpdate, db: AsyncSes
     if not setting:
         setting = ManagedFundSetting(portfolio_id=portfolio_id)
         db.add(setting)
-    if body.target_ratio is not None:
-        setting.target_ratio = body.target_ratio
+
+    mode = (
+        body.allocation_mode
+        if body.allocation_mode is not None
+        else (setting.allocation_mode or 'neutral')
+    )
+    if mode == 'weight':
+        if provided:
+            total = (
+                sum(values.values(), Decimal("0"))
+                if values is not None
+                else Decimal("0")
+            )
+        else:
+            total = sum(
+                (await _effective_target_ratio(
+                    db,
+                    setting.target_ratio,
+                    known_labels=await _current_group_labels(db, portfolio_id),
+                )).values(),
+                Decimal("0"),
+            )
+        if abs(total - Decimal("100")) > Decimal("1e-6"):
+            raise HTTPException(
+                status_code=400, detail="Target weights must sum to 100"
+            )
+
+    if provided:
+        setting.target_ratio = (
+            None if values is None
+            else {key: float(value) for key, value in values.items()}
+        )
     if body.allocation_mode is not None:
         setting.allocation_mode = body.allocation_mode
-    if body.global_profit_threshold is not None:
-        setting.global_profit_threshold = Decimal(str(body.global_profit_threshold))
+
     await db.commit()
     await db.refresh(setting)
     return await get_settings(portfolio_id, db)
@@ -653,16 +761,16 @@ async def calculate_rebalance(
         select(ManagedFundSetting).where(ManagedFundSetting.portfolio_id == portfolio_id)
     )
     setting = setting_result.scalar_one_or_none()
-    global_threshold = float(setting.global_profit_threshold or 0) if setting else 0
+    mode = setting.allocation_mode if setting is not None else None
+    if mode not in ALLOCATION_MODES:
+        mode = 'neutral'
 
     holdings_result = await db.execute(
         select(ManagedFundHolding).where(ManagedFundHolding.portfolio_id == portfolio_id)
     )
     holdings = holdings_result.scalars().all()
 
-    groups, _ = await _group_holdings_by_underlying(
-        db, portfolio, holdings, global_threshold
-    )
+    groups, _ = await _group_holdings_by_underlying(db, portfolio, holdings)
 
     # The base is live holdings plus available cash plus the hypothetical
     # top-up. The stored ``current_nav`` can lag registry repricing and is
@@ -701,13 +809,43 @@ async def calculate_rebalance(
             detail="Allocation base must be positive to calculate a rebalance",
         )
 
-    # Neutral mode: every underlying group owns an equal slice of the base.
-    group_count = Decimal(len(groups))
-    target_pct = Decimal("100") / group_count
-    target_value = allocation_base / group_count
+    group_labels = {group.label for group in groups}
+    if mode == 'weight':
+        stored = await _effective_target_ratio(
+            db,
+            setting.target_ratio if setting is not None else None,
+            known_labels=group_labels,
+        )
+        total_pct = sum(stored.values(), Decimal("0"))
+        if abs(total_pct - Decimal("100")) > Decimal("1e-6"):
+            raise HTTPException(
+                status_code=422, detail="Target weights must sum to 100"
+            )
+        for group in groups:
+            if group.label not in stored:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"No target weight for {group.label}",
+                )
+        group_targets = {
+            group.label: stored[group.label] for group in groups
+        }
+        target_values = {
+            label: allocation_base * pct / Decimal("100")
+            for label, pct in group_targets.items()
+        }
+    else:
+        # Neutral mode: every underlying group owns an equal slice of the base.
+        group_count = Decimal(len(groups))
+        neutral_pct = Decimal("100") / group_count
+        group_targets = {group.label: neutral_pct for group in groups}
+        target_values = {
+            group.label: allocation_base / group_count for group in groups
+        }
+
     target_allocations = {
-        group.label: float(target_pct.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-        for group in groups
+        label: float(pct.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        for label, pct in group_targets.items()
     }
     current_allocations = {
         group.label: float(
@@ -729,6 +867,8 @@ async def calculate_rebalance(
     # holding's market-value proportion inside the group.
     lines: List[dict] = []
     for group in groups:
+        target_pct = group_targets[group.label]
+        target_value = target_values[group.label]
         raw_pct = group.value / allocation_base * 100
         drift = abs(target_pct - raw_pct)
         total_drift += drift
@@ -852,7 +992,7 @@ async def calculate_rebalance(
             estimated_value=float(abs(line)),
             reason=(
                 f"Drift {float(entry['drift']):.1f}%: rebalance {group.label} "
-                f"from {current_pct:.1f}% to {float(target_pct):.1f}%"
+                f"from {current_pct:.1f}% to {target_allocations[group.label]:.1f}%"
             ),
             current_allocation=current_pct,
             target_allocation=target_allocations[group.label],
@@ -947,7 +1087,6 @@ def _holding_response(
         market_value=float(holding.market_value or 0),
         unrealized_pl=float(holding.unrealized_pl or 0),
         unrealized_pl_pct=float(holding.unrealized_pl_pct or 0),
-        profit_threshold=float(holding.profit_threshold or 0),
         rebalance_weight=(
             None
             if holding.rebalance_weight is None
@@ -983,7 +1122,6 @@ class _UnderlyingGroup:
 
     label: str
     value: Decimal
-    threshold: float
     holdings: List[ManagedFundHolding]
 
 
@@ -991,17 +1129,15 @@ async def _group_holdings_by_underlying(
     db: AsyncSession,
     portfolio: Optional[Portfolio],
     holdings: Iterable[ManagedFundHolding],
-    global_profit_threshold: float = 0.0,
 ) -> tuple[List[_UnderlyingGroup], Dict[int, str]]:
     """Group holdings by registry underlying — the one allocation rule.
 
     Group value is the sum of the holdings' market value
     (``qty × current_price``); allocation shares are measured against the live
     allocation base by the rebalance calculation, never against holdings alone.
-    Neutral mode gives every group ``100 / N`` percent, so the global profit
-    threshold splits evenly to ``global / N`` per group. A holding whose symbol
-    is not registered lands in the ``Unassigned`` group. Returns the groups in
-    first-seen order plus a ``holding_id -> group label`` lookup.
+    A holding whose symbol is not registered lands in the ``Unassigned`` group.
+    Returns the groups in first-seen order plus a ``holding_id -> group label``
+    lookup.
     """
     rows = list(holdings)
     broker_id = portfolio.broker_id if portfolio is not None else None
@@ -1017,17 +1153,13 @@ async def _group_holdings_by_underlying(
         value = _holding_market_value(holding)
         group = grouped.get(label)
         if group is None:
-            group = _UnderlyingGroup(label, Decimal("0"), 0.0, [])
+            group = _UnderlyingGroup(label, Decimal("0"), [])
             grouped[label] = group
         group.value += value
         group.holdings.append(holding)
         group_of_holding[holding.holding_id] = label
 
-    groups = list(grouped.values())
-    group_threshold = (global_profit_threshold / len(groups)) if groups else 0.0
-    for group in groups:
-        group.threshold = group_threshold
-    return groups, group_of_holding
+    return list(grouped.values()), group_of_holding
 
 
 async def _registry_price(
@@ -1275,40 +1407,3 @@ async def sync_prices(portfolio_id: int, db: AsyncSession = Depends(get_db)):
         "failed": failed,
     }
 
-
-# ─── Profit Threshold Alerts ───
-
-@router.get("/{portfolio_id}/alerts", response_model=MFAlertsResponse)
-async def check_alerts(portfolio_id: int, db: AsyncSession = Depends(get_db)):
-    setting_result = await db.execute(
-        select(ManagedFundSetting).where(ManagedFundSetting.portfolio_id == portfolio_id)
-    )
-    setting = setting_result.scalar_one_or_none()
-    global_threshold = float(setting.global_profit_threshold or 0) if setting else 0
-
-    holdings_result = await db.execute(
-        select(ManagedFundHolding).where(ManagedFundHolding.portfolio_id == portfolio_id)
-    )
-    holdings = holdings_result.scalars().all()
-
-    portfolio = await db.get(Portfolio, portfolio_id)
-    groups, group_of_holding = await _group_holdings_by_underlying(
-        db, portfolio, holdings, global_threshold
-    )
-    threshold_by_group = {group.label: group.threshold for group in groups}
-
-    alerts: List[MFAlertItem] = []
-    for h in holdings:
-        pl_pct = float(h.unrealized_pl_pct or 0)
-        group_threshold = threshold_by_group.get(group_of_holding.get(h.holding_id, ""), 0.0)
-        threshold = max(float(h.profit_threshold or 0), group_threshold)
-        if threshold > 0 and abs(pl_pct) >= threshold:
-            alerts.append(MFAlertItem(
-                asset=h.asset,
-                qty=float(h.qty or 0),
-                unrealized_pl_pct=pl_pct,
-                threshold=threshold,
-                message=f"{h.asset} P/L {pl_pct:+.2f}% exceeds threshold {threshold:.1f}%",
-            ))
-
-    return MFAlertsResponse(alerts=alerts)

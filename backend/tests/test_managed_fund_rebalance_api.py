@@ -1,11 +1,11 @@
-"""Managed-fund neutral allocation: underlying groups, rebalance, alerts.
+"""Managed-fund two-mode allocation: underlying groups and rebalance.
 
 The allocation unit is the registry underlying (``asset_products.ticker``),
 never the broker: holdings of the same underlying from different brokers form
 one group. Neutral mode gives every group ``100 / N`` percent of the live
 allocation base — holdings market value plus available cash plus the optional
-calculation-only cash top-up — and splits the global profit threshold to
-``global / N`` per group.
+calculation-only cash top-up. Weight mode gives every group its stored
+label-keyed target percentage instead, and the stored weights must sum to 100.
 """
 
 import itertools
@@ -49,7 +49,7 @@ async def seed_neutral_fund(
     products,
     holdings,
     quotes=(),
-    global_profit_threshold=0.0,
+    allocation_mode="neutral",
     target_ratio=None,
     portfolio_broker_index=0,
     current_nav=None,
@@ -128,7 +128,6 @@ async def seed_neutral_fund(
                     market_value=Decimal(str(qty)) * Decimal(str(current_price)),
                     unrealized_pl=Decimal("0"),
                     unrealized_pl_pct=Decimal(str(pl_pct)),
-                    profit_threshold=Decimal("0"),
                     rebalance_weight=(
                         None if weight is None else Decimal(str(weight))
                     ),
@@ -138,8 +137,7 @@ async def seed_neutral_fund(
         session.add(
             ManagedFundSetting(
                 portfolio_id=portfolio.portfolio_id,
-                allocation_mode="neutral",
-                global_profit_threshold=Decimal(str(global_profit_threshold)),
+                allocation_mode=allocation_mode,
                 target_ratio=target_ratio,
             )
         )
@@ -221,8 +219,6 @@ def live_fund_kwargs():
             ("yfinance", "ABC", 25),
             ("yfinance", "SCBCHAE", 18),
         ],
-        global_profit_threshold=50,
-        target_ratio={"VOO": 0, "ABC": 0},
         current_nav=4230,
         available_cash=2260,
     )
@@ -401,7 +397,7 @@ async def test_nonzero_cash_without_groups_is_422(async_client):
 @pytest.mark.asyncio
 async def test_zero_holdings_returns_empty_not_400(async_client):
     fund = await seed_neutral_fund(
-        products=[], holdings=[], global_profit_threshold=50
+        products=[], holdings=[]
     )
     try:
         resp = await async_client.post(
@@ -429,7 +425,6 @@ async def test_exactly_balanced_groups_return_no_orders(async_client):
         ],
         holdings=[("VOO", 10, 20, 0), ("SCBCHAE", 20, 10, 0)],
         quotes=[("yfinance", "VOO", 20), ("yfinance", "SCBCHAE", 10)],
-        global_profit_threshold=50,
     )
     try:
         resp = await async_client.post(
@@ -496,21 +491,23 @@ async def test_missing_registry_quote_falls_back_to_holding_price(async_client):
 
 
 @pytest.mark.asyncio
-async def test_alerts_split_global_threshold_across_groups(async_client):
+async def test_alerts_and_threshold_fields_are_removed(async_client):
     fund = await seed_neutral_fund(**live_fund_kwargs())
     try:
-        resp = await async_client.get(
+        alerts = await async_client.get(
             f"/api/v1/managed-funds/{fund.portfolio_id}/alerts"
         )
-        assert resp.status_code == 200, resp.text
-        alerts = {alert["asset"]: alert for alert in resp.json()["alerts"]}
+        assert alerts.status_code == 404, alerts.text
 
-        # global 50 / 2 groups = 25 per group.
-        assert set(alerts) == {"VOO", "ABC"}
-        assert alerts["VOO"]["threshold"] == 25
-        assert alerts["VOO"]["unrealized_pl_pct"] == 30
-        assert alerts["ABC"]["threshold"] == 25
-        assert "SCBCHAE" not in alerts
+        settings = await async_client.get(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/settings"
+        )
+        assert settings.status_code == 200, settings.text
+        assert "global_profit_threshold" not in settings.json()
+
+        holdings = await _holding_map(async_client, fund.portfolio_id)
+        for holding in holdings.values():
+            assert "profit_threshold" not in holding
     finally:
         await drop_fund(fund)
 
@@ -518,26 +515,152 @@ async def test_alerts_split_global_threshold_across_groups(async_client):
 @pytest.mark.asyncio
 async def test_settings_expose_and_validate_allocation_mode(async_client):
     fund = await seed_neutral_fund(**live_fund_kwargs())
+    url = f"/api/v1/managed-funds/{fund.portfolio_id}/settings"
+    try:
+        resp = await async_client.get(url)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["allocation_mode"] == "neutral"
+        assert "global_profit_threshold" not in resp.json()
+
+        accepted = await async_client.put(url, json={"allocation_mode": "neutral"})
+        assert accepted.status_code == 200, accepted.text
+        assert accepted.json()["allocation_mode"] == "neutral"
+
+        rejected = await async_client.put(
+            url, json={"allocation_mode": "target_percent"}
+        )
+        assert rejected.status_code == 400
+        assert rejected.json()["detail"] == "Unsupported allocation mode"
+
+        # Weight mode without stored targets cannot sum to 100.
+        no_targets = await async_client.put(url, json={"allocation_mode": "weight"})
+        assert no_targets.status_code == 400, no_targets.text
+        assert no_targets.json()["detail"] == "Target weights must sum to 100"
+
+        weighted = await async_client.put(
+            url,
+            json={
+                "allocation_mode": "weight",
+                "target_ratio": {"S&P500": 60, "CHA": 40},
+            },
+        )
+        assert weighted.status_code == 200, weighted.text
+        assert weighted.json()["allocation_mode"] == "weight"
+        assert weighted.json()["target_ratio"] == {"S&P500": 60.0, "CHA": 40.0}
+
+        short = await async_client.put(
+            url,
+            json={
+                "allocation_mode": "weight",
+                "target_ratio": {"S&P500": 60, "CHA": 30},
+            },
+        )
+        assert short.status_code == 400, short.text
+        assert short.json()["detail"] == "Target weights must sum to 100"
+
+        for bad in (
+            {"S&P500": 100.0001, "CHA": 0},
+            {"S&P500": -0.0001, "CHA": 100.0001},
+            {"S&P500": 99.99999, "CHA": 0.00001},
+            {"S&P500": "NaN", "CHA": 100},
+            {"S&P500": "Infinity", "CHA": 100},
+        ):
+            invalid = await async_client.put(url, json={"target_ratio": bad})
+            assert invalid.status_code == 400, (bad, invalid.text)
+
+        # Neutral mode has no sum requirement.
+        neutral_targets = await async_client.put(
+            url,
+            json={
+                "allocation_mode": "neutral",
+                "target_ratio": {"S&P500": 60, "CHA": 10},
+            },
+        )
+        assert neutral_targets.status_code == 200, neutral_targets.text
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_put_weight_keeps_omitted_ratio_and_null_clears(async_client):
+    fund = await seed_neutral_fund(
+        **{**live_fund_kwargs(), "target_ratio": {"S&P500": 50, "CHA": 50}}
+    )
+    url = f"/api/v1/managed-funds/{fund.portfolio_id}/settings"
+    try:
+        switched = await async_client.put(url, json={"allocation_mode": "weight"})
+        assert switched.status_code == 200, switched.text
+        assert switched.json()["target_ratio"] == {"S&P500": 50.0, "CHA": 50.0}
+
+        cleared = await async_client.put(
+            url,
+            json={"allocation_mode": "neutral", "target_ratio": None},
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["target_ratio"] is None
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_legacy_symbol_targets_return_group_labels(async_client):
+    # Legacy keys are registry price symbols; VOO and ABC both collapse onto
+    # the S&P500 group, and GHOST has no registry row so it is dropped.
+    fund = await seed_neutral_fund(
+        **{
+            **live_fund_kwargs(),
+            "target_ratio": {
+                "VOO": 30,
+                "ABC": 20,
+                "SCBCHAE": 50,
+                "GHOST": 10,
+            },
+        }
+    )
     try:
         resp = await async_client.get(
             f"/api/v1/managed-funds/{fund.portfolio_id}/settings"
         )
         assert resp.status_code == 200, resp.text
-        assert resp.json()["allocation_mode"] == "neutral"
+        assert resp.json()["target_ratio"] == {"S&P500": 50.0, "CHA": 50.0}
+    finally:
+        await drop_fund(fund)
 
-        accepted = await async_client.put(
-            f"/api/v1/managed-funds/{fund.portfolio_id}/settings",
-            json={"allocation_mode": "neutral"},
-        )
-        assert accepted.status_code == 200, accepted.text
-        assert accepted.json()["allocation_mode"] == "neutral"
 
-        rejected = await async_client.put(
-            f"/api/v1/managed-funds/{fund.portfolio_id}/settings",
-            json={"allocation_mode": "target_percent"},
+@pytest.mark.asyncio
+async def test_fractional_legacy_targets_are_scaled_before_mapping(async_client):
+    fund = await seed_neutral_fund(
+        **{
+            **live_fund_kwargs(),
+            "target_ratio": {"VOO": 0.3, "ABC": 0.2, "SCBCHAE": 0.5},
+        }
+    )
+    try:
+        resp = await async_client.get(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/settings"
         )
-        assert rejected.status_code == 400
-        assert rejected.json()["detail"] == "Unsupported allocation mode"
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["target_ratio"] == {"S&P500": 50.0, "CHA": 50.0}
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_legacy_fractional_symbol_targets_scale_to_percent(async_client):
+    # Symbol-keyed fractions are still legacy even when every key resolves:
+    # VOO 0.5 and ABC 0.5 scale to 50 + 50 and collapse onto S&P500.
+    fund = await seed_neutral_fund(
+        **{
+            **live_fund_kwargs(),
+            "target_ratio": {"VOO": 0.5, "ABC": 0.5},
+        }
+    )
+    try:
+        resp = await async_client.get(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/settings"
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["target_ratio"] == {"S&P500": 100.0}
     finally:
         await drop_fund(fund)
 
@@ -771,6 +894,218 @@ async def test_zero_value_group_without_weight_is_422(async_client):
         )
         assert resp.status_code == 422, resp.text
         assert "No rebalance recipient for ZERO" in resp.json()["detail"]
+    finally:
+        await drop_fund(fund)
+
+
+# ─── Weight-mode allocation ───
+
+def weight_fund_kwargs(target_ratio):
+    """Two groups over a live base of 1000: VOO 200, SCBCHAE 100, cash 700."""
+    return dict(
+        products=[
+            ("S&P500", "VOO", "VOO", "yfinance"),
+            ("CHA", "SCBCHAE", "SCBCHAE", "yfinance"),
+        ],
+        holdings=[("VOO", 10, 20, 0), ("SCBCHAE", 10, 10, 0)],
+        quotes=[("yfinance", "VOO", 20), ("yfinance", "SCBCHAE", 10)],
+        allocation_mode="weight",
+        target_ratio=target_ratio,
+        available_cash=700,
+    )
+
+
+def ab_weight_fund_kwargs(target_ratio):
+    """Two label-keyed groups A/B over a live base of 1000."""
+    return dict(
+        products=[
+            ("A", "AAA", "AAA", "yfinance"),
+            ("B", "BBB", "BBB", "yfinance"),
+        ],
+        holdings=[("AAA", 10, 20, 0), ("BBB", 10, 10, 0)],
+        quotes=[("yfinance", "AAA", 20), ("yfinance", "BBB", 10)],
+        allocation_mode="weight",
+        target_ratio=target_ratio,
+        available_cash=700,
+    )
+
+
+@pytest.mark.asyncio
+async def test_weight_mode_uses_per_group_targets(async_client):
+    fund = await seed_neutral_fund(
+        **weight_fund_kwargs({"S&P500": 60, "CHA": 40})
+    )
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["allocation_base"] == 1000
+        assert data["current_allocations"] == {"S&P500": 20.0, "CHA": 10.0}
+        assert data["target_allocations"] == {"S&P500": 60.0, "CHA": 40.0}
+        # |60 - 20| + |40 - 10|.
+        assert data["total_drift"] == 70.0
+
+        recs = {rec["symbol"]: rec for rec in data["recommendations"]}
+        assert set(recs) == {"VOO", "SCBCHAE"}
+        assert recs["VOO"]["side"] == "Buy"
+        assert recs["VOO"]["estimated_value"] == pytest.approx(400.0, abs=1e-8)
+        assert recs["VOO"]["qty"] == pytest.approx(20.0, abs=1e-8)
+        assert recs["VOO"]["target_allocation"] == 60.0
+        assert recs["SCBCHAE"]["side"] == "Buy"
+        assert recs["SCBCHAE"]["estimated_value"] == pytest.approx(300.0, abs=1e-8)
+        assert recs["SCBCHAE"]["qty"] == pytest.approx(30.0, abs=1e-8)
+        assert recs["SCBCHAE"]["target_allocation"] == 40.0
+        assert "to 60.0%" in recs["VOO"]["reason"]
+        assert _net_estimated_value(data) == pytest.approx(700.0, abs=1e-8)
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_weight_mode_splits_group_drift_by_holding_weight(async_client):
+    # Both S&P500 holdings belong to one group; the configured weight sends
+    # the group's whole buy to SMALL, while CHA falls back to market value.
+    fund = await seed_neutral_fund(
+        products=[
+            ("S&P500", "BIG", "BIG", "yfinance"),
+            ("S&P500", "SMALL", "SMALL", "yfinance"),
+            ("CHA", "SCBCHAE", "SCBCHAE", "yfinance"),
+        ],
+        holdings=[
+            ("BIG", 10, 10, 0, 0),
+            ("SMALL", 5, 10, 0, 100),
+            ("SCBCHAE", 10, 10, 0),
+        ],
+        allocation_mode="weight",
+        target_ratio={"S&P500": 50, "CHA": 50},
+    )
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["allocation_base"] == 250
+        recs = {rec["symbol"]: rec for rec in data["recommendations"]}
+        # S&P500 holds 150 (60% of base) vs a 125 target: sell 25 from SMALL.
+        # CHA holds 100 (40%) vs 125: buy 25.
+        assert set(recs) == {"SMALL", "SCBCHAE"}
+        assert recs["SMALL"]["side"] == "Sell"
+        assert recs["SMALL"]["estimated_value"] == pytest.approx(25.0, abs=1e-8)
+        assert recs["SCBCHAE"]["side"] == "Buy"
+        assert recs["SCBCHAE"]["estimated_value"] == pytest.approx(25.0, abs=1e-8)
+        assert _net_estimated_value(data) == pytest.approx(0.0, abs=1e-8)
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_weight_mode_sum_not_100_is_422(async_client):
+    fund = await seed_neutral_fund(
+        **weight_fund_kwargs({"S&P500": 60, "CHA": 30})
+    )
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 422, resp.text
+        assert resp.json()["detail"] == "Target weights must sum to 100"
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_weight_mode_missing_group_target_is_422(async_client):
+    fund = await seed_neutral_fund(**weight_fund_kwargs({"S&P500": 100}))
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 422, resp.text
+        assert resp.json()["detail"] == "No target weight for CHA"
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_weight_mode_stale_target_key_is_ignored(async_client):
+    # Ghost names no current group, so it is dropped before the sum check:
+    # the current labels already sum to 100 and only they are allocated.
+    fund = await seed_neutral_fund(
+        **ab_weight_fund_kwargs({"A": 60, "B": 40, "Ghost": 10})
+    )
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["target_allocations"] == {"A": 60.0, "B": 40.0}
+        assert "Ghost" not in data["target_allocations"]
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_weight_mode_stale_target_hiding_shortfall_is_422(async_client):
+    # Ghost is ignored, so the current labels only sum to 60.
+    fund = await seed_neutral_fund(
+        **ab_weight_fund_kwargs({"A": 60, "Ghost": 40})
+    )
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 422, resp.text
+        assert resp.json()["detail"] == "Target weights must sum to 100"
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_sub_one_percent_target_is_used_verbatim(async_client):
+    # Label-keyed values are already percentages: 0.5 stays 0.5, never 50.
+    fund = await seed_neutral_fund(
+        **ab_weight_fund_kwargs({"A": 0.5, "B": 99.5})
+    )
+    try:
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["target_allocations"] == {"A": 0.5, "B": 99.5}
+    finally:
+        await drop_fund(fund)
+
+
+@pytest.mark.asyncio
+async def test_unassigned_target_round_trips(async_client):
+    # "Unassigned" is the group for holdings without a registry identity, so
+    # it has no registry row. It is still a valid target key and must survive
+    # GET /settings and be enforced by weight-mode calculate.
+    fund = await seed_neutral_fund(
+        products=[],
+        holdings=[("NEWX", 10, 10, 0)],
+        allocation_mode="weight",
+        target_ratio={"Unassigned": 100},
+    )
+    try:
+        settings = await async_client.get(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/settings"
+        )
+        assert settings.status_code == 200, settings.text
+        assert settings.json()["target_ratio"] == {"Unassigned": 100.0}
+
+        resp = await async_client.post(
+            f"/api/v1/managed-funds/{fund.portfolio_id}/rebalance/calculate"
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["target_allocations"] == {"Unassigned": 100.0}
+        assert data["current_allocations"] == {"Unassigned": 100.0}
+        assert data["total_drift"] == 0.0
     finally:
         await drop_fund(fund)
 

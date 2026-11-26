@@ -1,193 +1,175 @@
-# Handoff — Managed Fund allocation (live allocation base + per-holding weights)
+# Handoff — Managed Fund allocation สองโหมด (neutral / weight)
 
-เอกสารนี้สรุปสถานะงาน Managed Fund allocation ณ สิ้นสุด session นี้ เพื่อให้ session
-ถัดไป (คนหรือ agent) ทำงานต่อได้ทันทีโดยไม่ต้องไล่ derive ใหม่ ทุกตัวเลขและ path
-ในนี้ถูกตรวจสอบแล้วใน session นี้
+เอกสารนี้สรุปงาน Managed Fund allocation รอบล่าสุด (two-mode) เพื่อให้ session ถัดไป
+ทำงานต่อได้ทันที ทุก path, field และตัวเลขในนี้ตรวจกับ code ใน worktree แล้ว
+(ยังไม่ commit)
 
 ## 1. สถานะปัจจุบัน (State)
 
-- Branch `feature/custom-port`, HEAD `88d5495`, working tree สะอาด ยกเว้นไฟล์
-  untracked `ExampleFundAllocationCal.xlsx`
-- Commit ที่เกี่ยวข้อง เรียงตามลำดับ:
-  - `575aaf0` — จัดกลุ่ม holding ตาม registry underlying, broker อ่านจาก registry
-  - `008b4bd` — neutral underlying-group allocation แทน per-symbol target
-  - `87a9bc4` — allocation base เปลี่ยนเป็น NAV ของกอง (รวม cash)
-  - `684d0e9` — docs (DESIGN + API table)
-  - `9f260d5` — docs (handoff notes ของโมเดล allocation)
-  - `88d5495` — per-holding rebalance weight บน allocation base ที่คำนวณสด
-- Deploy อยู่บน kind cluster: context `kind-investment-dashboard`, namespace
-  `investment-dashboard`, เปิด UI ที่ http://localhost:8080
-- โมเดลที่ ship อยู่: neutral underlying-group + per-holding weight
-  ส่วน mode 2 ยังไม่ถูกสร้าง (ดูข้อ 5)
-
-## 2. กติกาการจัดสรรตอนนี้ (The rule now)
-
-- **Grouping by underlying, ไม่ใช่ symbol และไม่ใช่ broker**
-  holdings ถูกจัดกลุ่มด้วย registry underlying: `asset_symbols.price_symbol` ->
-  `asset_products.ticker`; broker ถูกเมินโดยเจตนา holdings ที่ไม่มี registry row
-  จะตกไปอยู่กลุ่ม `Unassigned`
-  หลักฐาน: `backend/app/routers/managed_funds.py` ฟังก์ชัน
-  `_group_holdings_by_underlying`
-- **มูลค่า holding** = `qty * current_price` (ไม่ใช่ `avg_entry_price` ซึ่งเป็นต้นทุน)
-  มูลค่ากลุ่ม = ผลรวมมูลค่า holding ในกลุ่ม
-- **Allocation base คำนวณสดทุกครั้ง ไม่ใช้ `portfolios.current_nav`:**
-  `allocation_base = sum(group.value) + portfolios.available_cash + cash_top_up`
-  โดย `cash_top_up` มาจาก body ของ request (ไม่ส่ง body = 0)
-  `portfolios.current_nav` ไม่ถูกอ่านในเส้นทางนี้เลย
-  หลักฐาน: `managed_funds.py` ฟังก์ชัน `calculate_rebalance` (`cash_top_up`,
-  `live_nav`, `allocation_base` — ประมาณบรรทัด 670-674)
-- **Neutral mode:** ทุกกลุ่มได้ target เท่ากัน คือ `allocation_base / N`
-  (target % = `100/N`); current share = `group.value / allocation_base`;
-  drift % = `|target% - current%|`; `total_drift` = ผลรวม drift รายกลุ่ม
-  กลุ่มที่มูลค่าเป็น 0 และมี drift จะถูกปฏิเสธถ้าไม่มี positive weight (ข้อ 422)
-- **การแบ่ง buy/sell ภายในกลุ่ม:** ใช้ `managed_fund_holdings.rebalance_weight`
-  เป็น**ส่วนแบ่งของ drift ของกลุ่มนั้น** (ไม่ใช่ส่วนแบ่งของมูลค่ากลุ่ม)
-  normalize ภายในกลุ่มด้วย `weight / sum(weights)`;
-  ถ้าทุก weight ในกลุ่มเป็น null หรือ 0 จึง fallback เป็นสัดส่วนมูลค่าตลาด
-  (`holding market value / group.value`)
-  หลักฐาน: `calculate_rebalance` ส่วน `weights` / `shares` (บรรทัด ~739-760),
-  และ frontend mirror ที่ `frontend/src/utils/mfWeights.ts`
-- **คอลัมน์ weight:** `managed_fund_holdings.rebalance_weight NUMERIC(10,4)`
-  nullable, ไม่มี default, ไม่มี backfill; เพิ่มโดย main-DB startup migration
-  ใน `backend/app/asset_registry_migration.py` ฟังก์ชัน
-  `_retained_portfolio_migrations` (บรรทัด ~406)
-  `PUT .../holdings/{id}`: ไม่ส่ง field = คงค่าเดิม, ส่ง `null` = ล้างค่า,
-  ส่ง `0` = เก็บเป็นศูนย์; ค่าที่รับต้องอยู่ 0-100 และไม่เกิน 4 ตำแหน่งทศนิยม
-- **ไม่มี drift suppression แล้ว:** เดิมมีเกณฑ์ตัด drift ต่ำกว่า 0.5 percentage point
-  ตอนนี้ถอดออกแล้ว ดังนั้นผลรวม `estimated_value` (ค่าบวก, `side` บอกทิศ)
-  ของทุก recommendation เท่ากับ `available_cash + cash_top_up` ที่ความละเอียด 1e-8
-  เศษจากการ quantize ถูกจัดสรรคืนแบบ deterministic ให้บรรทัดที่มีมูลค่าสูงสุด
-  หลักฐาน: `_VALUE_QUANTUM = Decimal("0.00000001")` และบล็อก `net_residual`
-- **Cash อยู่ใน base เสมอ:** neutral mode จึงดูด cash ที่มีอยู่เข้า holdings ทั้งก้อน
-  (`cash_top_up` เป็นเพียง simulation ไม่ได้ฝากเงินจริง — ต้องเติม cash จริงก่อน
-  confirm buy ที่ต้องใช้เงินนั้น)
-- **Profit threshold ระดับ global ยังหาร N ทาง:** threshold ของกลุ่ม = global/N,
-  และ threshold ที่ใช้เตือนจริง = `max(holding.profit_threshold, group threshold)`
-  หลักฐาน: `managed_funds.py` ฟังก์ชัน `check_alerts` (บรรทัด ~1287-1304)
-  (สูตรนี้ไม่เปลี่ยนใน commit นี้)
-
-## 3. ตัวเลขจริงบน fund 2 (วัดจาก API และ UI ที่ render จริง)
-
-ที่มา: เรียก API และเทียบกับหน้าจอที่ deploy อยู่
-
-- Allocation base 4,230 = cash 2,260 + holdings 1,970
-  - VOO: 20 x 26 = 520
-  - ABC: 22 x 25 = 550
-  - SCBCHAE: 50 x 18 = 900
-- กลุ่มและ drift:
-  - S&P500 (VOO + ABC) current 25.30% -> target 50%, drift 24.70
-  - CHA (SCBCHAE) current 21.28% -> target 50%, drift 28.72
-  - total drift 53.43 (ผลรวม drift รายกลุ่ม, ค่าที่ยังไม่ปัด)
-- Orders เมื่อ weight ทุกตัวว่าง (fallback market-value):
-  - VOO Buy 19.5327 @ 26
-  - ABC Buy 21.4860 @ 25
-  - SCBCHAE Buy 67.5 @ 18
-  - มูลค่า buy รวมกันเท่ากับ cash 2,260 พอดี (เพราะ cash อยู่ใน base)
-- Weight test: ตั้ง VOO = 100 ทำให้ VOO ได้ drift ทั้ง 1,045 ของกลุ่ม S&P500
-  (ABC ได้ 0) ส่วน SCBCHAE ยังได้ 1,215 ตามเดิม
-- Top-up test: พิมพ์ top-up 1,000 ทำให้ base 4,230 -> 5,230 และ buy รวมเป็น
-  3,260 = cash 2,260 + top-up 1,000; response ยังรายงาน `current_nav` = 4,230
-  (holdings + available_cash) แยกจาก `allocation_base` = 5,230
-- Alerts: VOO (P/L 30%) และ ABC (25%) ยิงที่ threshold 25.0; SCBCHAE ไม่ยิง
-
-## 4. API ที่ถูกแตะ (API surface)
-
-- `POST /api/v1/managed-funds/{id}/rebalance/calculate`
-  - body ไม่บังคับ: `{"cash_top_up": number}` (ไม่ส่ง body = 0; ต้องไม่ติดลบ
-    และไม่เกิน 8 ตำแหน่งทศนิยม)
-  - response: `current_nav` (= holdings market value + `available_cash`,
-    ไม่รวม top-up), `allocation_base` (รวม top-up),
-    `target_allocations` / `current_allocations` แบบ group-keyed,
-    `total_drift`, และ `recommendations`
-  - recommendation แต่ละแถวมี `symbol`, `underlying`, `side`, `qty`,
-    `estimated_price`, `estimated_value` (ค่าบวกเสมอ; `side` เป็นตัวบอกทิศ),
-    `reason`, `current_allocation`, `target_allocation`, `drift`
-  - 422 (ก่อน emit recommendation ใด ๆ) เมื่อ: ขายแบบ weighted เกินมูลค่า holding
-    ที่ mark ไว้, buy ที่มี weight แต่ไม่มีราคาที่ใช้ได้, order ที่ปัดแล้วเป็น 0,
-    กลุ่มมูลค่า 0 ที่มี drift และไม่มี positive weight, allocation base <= 0,
-    และมี cash/top-up แต่ไม่มี underlying group เลย
-- `PUT /api/v1/managed-funds/{id}/holdings/{holding_id}`
-  รับ `qty`, `price`, `rebalance_weight` (semantics ตามข้อ 2)
-  หมายเหตุ: schema `MFHoldingUpdate` **ไม่ประกาศ** `profit_threshold`
-  จึงเป็นบั๊กที่ยังค้าง (ข้อ 5.1)
-- `GET /api/v1/managed-funds/{id}/holdings`
-  แต่ละ row มี `rebalance_weight`, `broker_id`, `broker_code` และ `underlying`
-  ที่ derive มาให้แล้ว
-- `GET` / `PUT /api/v1/managed-funds/{id}/settings` (field `allocation_mode`,
-  รับเฉพาะ `'neutral'`)
-- `GET /api/v1/managed-funds/{id}/alerts` (ไม่เปลี่ยน)
-- UI ที่เกี่ยวข้อง:
-  - `MFEditPortfolioModal.tsx` — ช่อง Weight ต่อ holding (blank = null, 0 = zero;
-    helper text อธิบายว่า weight แบ่ง drift ของ underlying)
-  - `PortfolioMutualFund.tsx` — แถว split ต่อกลุ่ม: "Configured weights"
-    (แสดง normalized share) หรือ "Market-value fallback"
-  - `MFRebalanceRecommendModal.tsx` — ช่อง Top-up cash แบบข้อความธรรมดา
-    recompute อัตโนมัติด้วย debounce 350ms (ไม่มีปุ่ม Recalculate),
-    แสดง Allocation base และคอลัมน์ Order Value, ระบุชัดว่า top-up เป็น
-    simulation-only และไม่ฝากเงิน, และแสดง detail ของ 422 จาก backend
-    แทนข้อความ "already balanced"
-
-## 5. งานที่ยังค้าง และ known issues
-
-1. **บั๊กเดิมที่ยังไม่แก้: "Per-asset threshold" ไม่เคยถูกบันทึก**
-   `MFEditPortfolioModal` ส่ง `profit_threshold` ไป แต่ backend schema
-   `MFHoldingUpdate` (`backend/app/routers/managed_funds.py`) ไม่ได้ประกาศ field นี้
-   FastAPI จึงทิ้งค่าไปเงียบ ๆ (frontend `api.ts` มี comment ระบุไว้แล้ว)
-   แนวทางแก้: ประกาศ `profit_threshold` ใน schema + validate + persist
-2. **KPI "Current NAV" ยังเป็นค่าที่เก็บไว้ (stale):** `PortfolioMutualFund.tsx`
-   แสดง `portfolio.current_nav` ซึ่งอัปเดตเฉพาะตอน confirm order / sell
-   การ reprice จาก registry (`reprice_holdings_for_symbols`) ไม่ recompute NAV
-   ของ portfolio — การคำนวณ rebalance ไม่ขึ้นกับค่านี้แล้ว แต่ KPI ยังเหมือนเดิม
-   (ตรงกับข้อ 5.4 ของ handoff ก่อนหน้า)
-3. **Holding ที่ถูกขายจนเหลือ 0 จะถูกลบ** weight จึงหายไปด้วย
-   holding ที่สร้างใหม่จะเริ่มที่ weight = null
-4. **Mode 2 "fixed target % per group" ยังไม่ถูกสร้าง**
-   API reject ทุกค่า `allocation_mode` ที่ไม่ใช่ `'neutral'`
-   และ `managed_fund_settings.target_ratio` (`{"VOO":0,"ABC":0}`) ยังเป็น
-   dead data ที่ key ด้วย symbol — ต้อง migrate symbol -> underlying
-   เมื่อทำ mode 2 จริง
-5. **Deploy ต้องให้ node container ของ kind รันอยู่:** หลัง reboot เครื่อง
-   `kind get clusters` ยังรายงาน cluster แต่ node container เป็น `Exited`
-   ทำให้ `kind load` ล้มด้วย "can only create exec sessions on running containers"
-   วิธีแก้ที่ใช้: `podman start investment-dashboard-control-plane`
-
-## 6. บันทึกการทำงาน (Working notes)
-
-- Backend tests (Python 3.12 จาก venv นอก repo เพราะ `/mnt/storage` เป็น exFAT):
+- Branch `feature/custom-port` — การเปลี่ยนแปลงทั้งหมดยังอยู่ใน worktree
+  **ยังไม่ commit และยังไม่ push**
+- Code ที่แก้ (8 ไฟล์):
+  - `backend/app/routers/managed_funds.py` — two-mode allocation, target_ratio
+    label contract, ถอด alerts
+  - `backend/app/services/asset_registry.py` — `resolve_allocation_labels`
+  - `backend/tests/test_managed_fund_rebalance_api.py`
+  - `frontend/src/types/index.ts` — `MFAllocationMode`, ถอด `MFAlert`/threshold
+  - `frontend/src/lib/api.ts` — `allocation_mode: 'neutral' | 'weight'`,
+    ถอด `mfAlerts`
+  - `frontend/src/screens/PortfolioMutualFund.tsx` — header toggle
+  - `frontend/src/screens/MFEditPortfolioModal.tsx` — target inputs ต่อกลุ่ม
+  - `frontend/src/screens/PortfolioMutualFund.test.tsx`
+- Docs ที่อัปเดตรอบนี้: `DESIGN.md`, `.opencode/AGENT.md`, `handoff.md`,
+  `README.md`, `backend/README.md`, `frontend/README.md`, `database/README.md`
+- ไฟล์ untracked เดิม: `ExampleFundAllocationCal.xlsx` (ไม่เกี่ยวกับงานนี้)
+- **Deploy แล้วใน session นี้**: build ใหม่จาก worktree แล้ว deploy ขึ้น kind
+  cluster เดิมด้วย `./scripts/kind-up.sh`; backend + frontend rollout ใหม่
+  ส่วน `postgres-main` ไม่ถูกแตะ ข้อมูลเดิมคงอยู่ — UI ใช้ได้ที่
+  http://localhost:8080
+  - ก่อน deploy node container ค้างเป็น `Exited` มาแล้ว ~13 ชั่วโมง
+    (`podman ps` แสดง `investment-dashboard-control-plane Exited (0)`)
+    ทำให้ kind-up fail ที่ขั้น image-load ด้วย
+    `can only create exec sessions on running containers: container state improper`
+  - วิธีแก้: `podman start investment-dashboard-control-plane` แล้วรอ API
+    พร้อม จากนั้นรัน `./scripts/kind-up.sh` ซ้ำ -> ผ่าน
+- **Live verify บน fund 2** (allocation base 4,330 = cash 2,260 + holdings 2,070):
+  - `GET settings` คืน legacy symbol keys ที่ยุบเป็น label แล้ว
+    `{"S&P500": 0.0}` โหมด `neutral`
+  - กด `Weight (%)` ตอนยังไม่มี target -> ถูก reject ด้วย
+    `Target weights must sum to 100` และ edit modal เปิดขึ้นเองให้แก้ตัวเลข
+  - ใส่ 70 / 30 ให้ S&P500 / CHA ในโหมด neutral -> บันทึกผ่าน (neutral ไม่มี
+    กติกาผลรวม) และ `GET settings` คืน `{"S&P500": 70.0, "CHA": 30.0}`
+  - สลับเป็น `Weight (%)` -> persist `allocation_mode=weight` และหน้าแสดง
+    target share 70.0% / 30.0%
+  - `POST rebalance/calculate` โหมด weight: `target_allocations`
+    `{"S&P500":70,"CHA":30}`, current 24.71% / 23.09%, `total_drift` 52.19,
+    recommendations `ABC Buy 40.3196 @25 = 1,007.99`,
+    `VOO Buy 36.6542 @26 = 953.01`, `SCBCHAE Buy 14.9500 @20 = 299.00`
+    — ยอด buy รวมเท่ากับ cash 2,260
+  - ตั้ง `rebalance_weight` ของ ABC = 100 -> drift ของ S&P500 ทั้งก้อน 1,961
+    ย้ายไป ABC; ล้างค่า -> กลับมาแบ่งตาม market value
+    (ABC 1,007.99 / VOO 953.01)
+  - ทิ้ง fund ไว้ที่ `allocation_mode=neutral` พร้อม target
+    `{"S&P500":70,"CHA":30}` เก็บไว้สำหรับสลับโหมดภายหลัง
+- ผล automated checks รอบนี้ (session นี้):
   - `cd backend && ~/.cache/investment-dashboard-venv/bin/python -m pytest -q tests/test_managed_fund_rebalance_api.py tests/test_asset_registry_migration.py`
-    -> 32 passed, 1 skipped
+    -> **44 passed, 1 skipped**
   - `cd backend && ~/.cache/investment-dashboard-venv/bin/python -m pytest -q tests/test_managed_fund_prices.py`
-    -> 10 passed
-- Frontend (เครื่องนี้มีแค่ `bun` ไม่มี npm/node):
-  - `cd frontend && bun x vitest run` -> 132 passed (12 files)
+    -> **10 passed**
+  - `cd frontend && bun x vitest run` -> **137 passed (12 files)**
   - `cd frontend && bun x vite build` -> ผ่าน
-- Live check บน kind (fund 2): weight VOO=100 ให้ VOO ได้ drift ทั้ง 1,045
-  ของกลุ่ม; typing top-up 1,000 ขยับ base 4,230 -> 5,230 และ buy รวม 3,260
-  = cash + top-up (ตามข้อ 3)
-- Deploy: `./scripts/kind-up.sh` (post-import check ของ script ใช้
-  `crictl inspecti`; ส่วน `crictl images --quiet <ref>` คืนค่าว่างเสมอและทำให้
-  deploy abort ทุกครั้ง — ถ้าเจออีกให้แก้ที่ check นี้)
-- Total drift ที่แสดงบน UI คือผลรวมของ drift รายกลุ่ม (นับหนึ่งครั้งต่อ underlying
-  แม้กลุ่มจะมีหลาย holding) แต่ field จาก API ใช้ค่าที่ยังไม่ปัด จึงคาดการณ์
-  ผลต่าง 0.01-0.03 ได้ตามปกติ ไม่ใช่ bug
-- Related knowledge: K-000619 (group allocation), K-000620 (NAV base),
-  K-000621 (live base + per-holding weights), sessions S-000540 / S-000541,
-  observation 0037 (client-side aggregate double count)
+  - `cd frontend && bun x tsc --noEmit` -> rc 0
 
-## 7. จุดเริ่มต้นสำหรับ session ถัดไป
+## 2. กติกาการจัดสรรสองโหมด (The rule now)
 
-- อ่าน `backend/app/routers/managed_funds.py`: `calculate_rebalance`,
-  `_group_holdings_by_underlying`, `update_holding` / `MFHoldingUpdate`,
-  `check_alerts`, `reprice_holdings_for_symbols` และ
-  `frontend/src/utils/mfWeights.ts` + `MFRebalanceRecommendModal.tsx`
-  ก่อนแก้อะไรทั้งสิ้น
-- **งานหลักถัดไปคือ mode 2:** เริ่มจาก migrate `target_ratio` (symbol -> underlying)
-  แล้วปลดล็อก validation ของ `allocation_mode`; ต้องนิยามก่อนว่า target % ต่อกลุ่ม
-  จะคิดจาก base เดียวกันและ weight ต่อ holding ยังแบ่งเฉพาะ drift ของกลุ่ม
-  (ไม่ใช่แบ่ง target ทั้งก้อน)
-- แก้บั๊ก `profit_threshold` ใน `MFHoldingUpdate` เป็นงานเล็กที่ควรทำก่อน
-  เพราะปลดล็อกการแก้ threshold รายตัวจาก UI
-- ถ้าจะแตะ NAV freshness (ข้อ 5.2) ต้องตัดสินใจเชิงธุรกิจว่า reprice ควร
-  recompute `portfolios.current_nav` หรือเปลี่ยน KPI ให้คำนวณสดจาก holdings + cash
-- ถ้าจะทำ mode 2 ต้องตัดสินใจเรื่อง weight lifecycle เมื่อ holding ถูกลบ
-  (ข้อ 5.3) ว่าจะคงค่า weight ที่ผูกกับ symbol หรือปล่อยเป็น null ตามเดิม
+- **Grouping by underlying** — holdings จัดกลุ่มด้วย registry underlying:
+  `asset_symbols.price_symbol` -> `asset_products.ticker`; broker ถูกเมิน
+  holdings ที่ไม่มี registry row อยู่กลุ่ม `Unassigned`
+  หลักฐาน: `_group_holdings_by_underlying` ใน
+  `backend/app/routers/managed_funds.py`
+- **Allocation base คำนวณสด** —
+  `allocation_base = sum(qty × current_price) + portfolios.available_cash + cash_top_up`
+  ไม่อ่าน `portfolios.current_nav` ในเส้นทางนี้
+- **สองโหมดจาก `managed_fund_settings.allocation_mode`**
+  - `neutral` (ค่า default เมื่อ column ว่าง): ทุกกลุ่มได้ `100 / N` เปอร์เซ็นต์
+  - `weight`: แต่ละกลุ่มได้ `target_ratio[label]` เปอร์เซ็นต์ที่เก็บไว้
+- **target_ratio contract**: key = allocation-group label (`asset_products.ticker`
+  หรือ `Unassigned`), value = `0..100` ทศนิยมไม่เกิน 4 ตำแหน่ง;
+  โหมด weight ต้องรวมได้ `100` ภายใน `1e-6`
+  - `PUT /api/v1/managed-funds/{portfolio_id}/settings`: ค่าที่ส่งต้องรวม 100
+    อยู่แล้ว ไม่งั้น `400`; ค่า mode อื่นที่ไม่ใช่ `neutral`/`weight` -> `400
+    Unsupported allocation mode`; ค่า target นอกช่วง/เกิน 4 ตำแหน่ง -> `400`
+  - `POST .../rebalance/calculate`: resolve row ที่เก็บไว้เป็น label ก่อน แล้ว
+    ถ้ารวมไม่ 100 หรือกลุ่มที่ถืออยู่ไม่มี key -> `422`
+  - key ที่ resolve ไม่ได้และไม่ใช่ label ของกลุ่มปัจจุบันจะถูก **drop**
+    (ไม่ถูกนับ) — `Unassigned` เก็บไว้ได้เพราะเป็น label ที่ไม่มี registry row
+- **Legacy migration on read**: row เก่าที่ key ด้วย `asset_symbols.price_symbol`
+  ยังใช้ได้ — `resolve_allocation_labels` map เป็น product ticker
+  (`UPPER(TRIM())`, ชนกันเลือก `symbol_id` ต่ำสุด) และถ้าค่าทั้งชุด ≤ `1.0`
+  จะคูณ 100 ก่อน map; key ที่ยุบเป็น label เดียวกันจะถูก sum; write เก็บ label
+- **Per-holding weight**: `managed_fund_holdings.rebalance_weight` (`0..100`,
+  4 ตำแหน่ง) เป็นส่วนแบ่งของ **drift ของกลุ่มตัวเองเท่านั้น** ทั้งสองโหมด
+  normalize ด้วย `weight / sum(weights)` ภายในกลุ่ม; ถ้าทุกตัวเป็น null/0
+  fallback เป็นสัดส่วน market value ของ holding ในกลุ่ม
+  weight เป็นค่าสัมพัทธ์ ไม่ต้องรวม 100
+- **Drift/order**: group drift = `|target% - current%|`; target value =
+  `allocation_base × pct / 100` (neutral `pct = 100/N`); ไม่มี drift
+  suppression แล้ว — กลุ่มที่ balance พอดีเท่านั้นที่ไม่ emit order
+- **Thresholds/alerts ถูกถอด**: `GET /managed-funds/{id}/alerts`, `MFAlertItem`,
+  `MFAlertsResponse`, global/per-holding threshold หายจาก API และ UI แล้ว;
+  คอลัมน์ `managed_fund_settings.global_profit_threshold` และ
+  `managed_fund_holdings.profit_threshold` ยังอยู่ใน DB แต่ไม่มีใครอ่าน/เขียน
+- **Frontend**
+  - `PortfolioMutualFund.tsx`: header มี segmented `Neutral` | `Weight (%)`;
+    กดแล้ว `PUT .../settings` ด้วย `allocation_mode` แล้ว recalculate;
+    ถ้า server reject จะเปิด edit modal ให้แก้ target ทันที
+  - `MFEditPortfolioModal.tsx`: ไม่มีช่อง threshold แล้ว; มี target input
+    ต่อ held group (แสดง `sum X / 100`) และช่อง `Rebalance weight (%)`
+    ต่อ holding; บันทึก neutral อนุญาต partial target, บันทึก weight
+    บังคับ sum 100
+
+## 3. สัญญา API และตัวเลขที่ตรึงไว้ (API + numbers)
+
+- `GET /api/v1/managed-funds/{portfolio_id}/settings`
+  -> `MFSettingResponse`: `id`, `portfolio_id`, `target_ratio`
+  (label -> percent หรือ `null`), `allocation_mode` (`neutral`|`weight`),
+  `total_invested`, `last_rebalance_date`; ไม่มี field threshold
+  (สร้าง row อัตโนมัติ และ backfill `target_ratio` จาก `portfolios.target_ratio`)
+- `PUT /api/v1/managed-funds/{portfolio_id}/settings`
+  body: `target_ratio?: Record<string, number>` (ส่ง `null` เพื่อล้าง),
+  `allocation_mode?: "neutral" | "weight"`; ตอบกลับรูปเดียวกับ GET
+- `POST /api/v1/managed-funds/{portfolio_id}/rebalance/calculate`
+  body ไม่บังคับ `{"cash_top_up": number}` (default 0, ห้ามติดลบ/เกิน 8 ตำแหน่ง)
+  response: `current_nav` (holdings + cash, ไม่รวม top-up), `allocation_base`
+  (รวม top-up), `target_allocations` / `current_allocations` (group-keyed),
+  `total_drift`, `recommendations[]` (`symbol`, `underlying`, `side`, `qty`,
+  `estimated_price`, `estimated_value` ค่าบวกเสมอ, `reason`,
+  `current_allocation`, `target_allocation`, `drift`)
+- `PUT /api/v1/managed-funds/{portfolio_id}/holdings/{holding_id}`
+  รับ `qty`, `price`, `rebalance_weight` (`0..100`, ≤4 ตำแหน่ง; ไม่ส่ง = คงค่า,
+  `null` = ล้าง, `0` = ศูนย์)
+- `GET /api/v1/managed-funds/{portfolio_id}/alerts` — **ถูกลบแล้ว**
+- ตัวเลขที่ตรึง: 2 โหมด; neutral `100/N`; weight sum `100 ± 1e-6`;
+  target `0..100`; legacy ≤`1.0` คูณ 100; per-holding weight `0..100`;
+  router 13 endpoints; frontend `mf*` 12 methods
+
+## 4. งานที่ยังค้าง (Open items)
+
+1. **Mode-2 UI สร้าง target ให้ label ที่ยังไม่มี holding ไม่ได้**
+   `MFEditPortfolioModal.groupLabelsOf()` สร้างรายการ label จาก holdings
+   เท่านั้น และ `_effective_target_ratio()` ฝั่ง backend จะ drop key ที่ไม่ใช่
+   registry label หรือ label ของกลุ่มปัจจุบัน ดังนั้น target ของ underlying
+   ที่ยังไม่ถือจะไม่แสดงและไม่รอดผ่าน GET; ต้องตัดสินใจว่าจะเพิ่ม label
+   จาก registry (ให้เลือกได้) หรือยอมให้ตั้ง target ได้เฉพาะกลุ่มที่ถืออยู่
+2. **คอลัมน์ threshold ที่เลิกใช้ยังอยู่ใน DB**
+   `managed_fund_settings.global_profit_threshold` และ
+   `managed_fund_holdings.profit_threshold` (models ยังประกาศ default 0)
+   ยังไม่ drop — ต้องตัดสินใจว่าจะเก็บไว้เฉย ๆ หรือทำ migration ลบคอลัมน์
+3. **Node container ต้อง start ก่อน deploy**
+   เจอ `investment-dashboard-control-plane` เป็น `Exited (0)` (ค้างมา ~13 ชม.)
+   ทำให้ `scripts/kind-up.sh` fail ที่ขั้น image-load ด้วย
+   `can only create exec sessions on running containers: container state improper`;
+   แก้ด้วย `podman start investment-dashboard-control-plane` แล้วรอ API พร้อม
+   จึงรัน `./scripts/kind-up.sh` ซ้ำ (ดูข้อ 1) ถ้าเจออีกให้เช็ค `podman ps`
+   ก่อนเป็นอันดับแรก
+
+## 5. จุดเริ่มต้นสำหรับ session ถัดไป (Next session)
+
+- อ่าน `backend/app/routers/managed_funds.py`: `_effective_target_ratio`,
+  `update_settings`, `calculate_rebalance`,
+  `_group_holdings_by_underlying` และ `backend/app/services/asset_registry.py`:
+  `resolve_allocation_labels` ก่อนแก้
+- อ่าน frontend: `PortfolioMutualFund.tsx` (`handleAllocationModeChange`,
+  `activeMode`) และ `MFEditPortfolioModal.tsx` (`groupLabelsOf`, `handleSave`)
+- ถ้าจะปิด open item 1: เปลี่ยนแหล่ง label ของ modal จาก holdings เป็น registry
+  products (mutual fund) แล้วตรวจว่า GET settings คืน target ของ label ที่ยัง
+  ไม่ถือหรือไม่ (ปัจจุบัน drop)
+- ก่อน commit: รันชุด verify ในข้อ 1 ซ้ำ แล้ว `git status` ต้องเห็นเฉพาะไฟล์
+  code/test/docs ที่ตั้งใจ; ห้าม commit `ExampleFundAllocationCal.xlsx`
+- Deploy รอบนี้ทำเสร็จแล้ว (ข้อ 1) และทดสอบ toggle สองโหมดบน fund 2 ผ่านแล้ว
+  (fund ถูกทิ้งไว้ที่ `neutral` พร้อม target `{"S&P500":70,"CHA":30}`)
+  - ถ้าจะ deploy ซ้ำหลังแก้ open item: เช็ค `podman ps` ว่า
+    `investment-dashboard-control-plane` ไม่ใช่ `Exited` (ถ้าใช่ให้
+    `podman start` ก่อน) แล้วรัน `./scripts/kind-up.sh`
+  - หลัง deploy ให้ทดสอบ toggle บน fund 2 อีกครั้ง; เคสที่ยังไม่ได้ปิดคือ
+    label ที่ยังไม่มี holding (open item 1) ซึ่งปัจจุบันถูก drop จาก GET settings

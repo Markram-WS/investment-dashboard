@@ -30,7 +30,7 @@ This backend is built with:
 
 **Key additions:**
 
-- **Managed Fund** (`port_type = "Managed Fund"`) — portfolio rebalancing with separate order flow: holdings, orders (pending→done→history), NAV tracking, underlying-group neutral allocation, and profit threshold alerts. Order creation never registers a product/symbol; local prices read the broker-scoped registry
+- **Managed Fund** (`port_type = "Managed Fund"`) — portfolio rebalancing with separate order flow: holdings, orders (pending→done→history), NAV tracking, and two underlying-group allocation modes (`neutral` equal split, `weight` stored per-underlying targets). Order creation never registers a product/symbol; local prices read the broker-scoped registry
 - **Custom Portfolio type** replaces `Spread Strategy` — portfolios with isolated external PostgreSQL databases
 - **`CustomPortfolioConnection` model** — stores encrypted credentials (Fernet) for external DB connections
 - **`POST /api/v1/portfolios/test-connection`** — validates external DB connectivity at form time
@@ -120,20 +120,19 @@ Collection endpoints are registered **without a trailing slash** (e.g. `/api/v1/
 ### Managed Fund
 | Method | Endpoint | Description |
 |--------|-----------|-------------|
-| `GET` | `/api/v1/managed-funds/{portfolio_id}/settings` | Get MF settings (`target_ratio` kept for compatibility, `allocation_mode`, profit thresholds); auto-creates row if missing, backfills target_ratio from Portfolio table |
-| `PUT` | `/api/v1/managed-funds/{portfolio_id}/settings` | Update MF settings (`target_ratio`, `allocation_mode`, `global_profit_threshold`); `allocation_mode` accepts only `neutral` (`400 Unsupported allocation mode` otherwise) |
+| `GET` | `/api/v1/managed-funds/{portfolio_id}/settings` | Get MF settings (`target_ratio` as allocation-group-label → percent, `allocation_mode` = `neutral` \| `weight`); auto-creates row if missing, backfills target_ratio from Portfolio table |
+| `PUT` | `/api/v1/managed-funds/{portfolio_id}/settings` | Update MF settings (`target_ratio`, `allocation_mode`); accepts only `neutral` \| `weight` (`400 Unsupported allocation mode` otherwise); weight mode requires target values summing to 100 (`400` otherwise) |
 | `GET` | `/api/v1/managed-funds/{portfolio_id}/holdings` | List asset holdings; each row adds `broker_id`, `broker_code` and `underlying` derived by joining its `asset` to the registry (`UPPER(TRIM(price_symbol))` → `asset_products` → `brokers`; the portfolio broker is only the preferred row, else lowest broker then lowest symbol id) — all three `null` when unregistered. Create/update return the same fields |
 | `POST` | `/api/v1/managed-funds/{portfolio_id}/holdings` | Create a holding (manual); Current starts at the registry quote (portfolio broker preferred) when one exists, else the submitted entry price |
-| `PUT` | `/api/v1/managed-funds/{portfolio_id}/holdings/{holding_id}` | Update holding (profit_threshold) |
+| `PUT` | `/api/v1/managed-funds/{portfolio_id}/holdings/{holding_id}` | Update holding (`qty`, `price`, `rebalance_weight` 0–100 with up to 4 decimals; omitted keeps, `null` clears) |
 | `POST` | `/api/v1/managed-funds/{portfolio_id}/holdings/{holding_id}/sell` | Create a Sell order from a holding |
 | `GET` | `/api/v1/managed-funds/{portfolio_id}/orders` | List orders in progress |
 | `POST` | `/api/v1/managed-funds/{portfolio_id}/orders` | Create a new order (does not register a product/symbol in the main registry) |
 | `PUT` | `/api/v1/managed-funds/{portfolio_id}/orders/{order_id}` | Update order fields |
 | `PATCH` | `/api/v1/managed-funds/{portfolio_id}/orders/{order_id}/status` | Confirm (→done) or Cancel order; on done: updates holdings, adjusts available_cash, records NAV history, moves to history table; a newly created holding takes its Current from the registry quote (portfolio broker preferred), falling back to the order price |
 | `GET` | `/api/v1/managed-funds/{portfolio_id}/history` | List order history |
-| `POST` | `/api/v1/managed-funds/{portfolio_id}/rebalance/calculate` | Neutral rebalance: group holdings by registry underlying (broker ignored, unregistered → `Unassigned`), measure each group's share against NAV (`current_nav`; falls back to holdings market value + available cash when NAV is missing), target `100/N %` of NAV per group, split each group's drift value across its holdings by current market-value proportion. Returns group-keyed `target_allocations`/`current_allocations`, symbol-level recommendations with `underlying`, and `total_drift`; empty/zero-value funds return empty recommendations (never `400`) |
-| `GET` | `/api/v1/managed-funds/{portfolio_id}/alerts` | Profit threshold alerts; each holding fires at `max(holding.profit_threshold, global_profit_threshold / N)` where `N` is the number of underlying groups |
-| `POST` | `/api/v1/managed-funds/{portfolio_id}/sync-prices` | Refresh each holding's price from the asset registry: resolve the holding's normalized asset to the `asset_symbols` row that prices it (portfolio broker first, else lowest broker, then lowest symbol id), fetch the provider quote once per `(source, sync_symbol)` for `yfinance`/`tfex` (manual rows are never fetched), then recompute price, market value and P/L. Returns `synced`/`total`/`missing`/`failed`; a provider failure keeps the stored quote and lists the symbol in `failed` without aborting the request. The same repricing runs automatically after a quote write in All Assets (`PUT /assets/symbols/{id}/quote`, `POST /assets/symbols/{id}/update-price`, `POST /assets/symbols/batch-update-prices`) |
+| `POST` | `/api/v1/managed-funds/{portfolio_id}/rebalance/calculate` | Two-mode rebalance: group holdings by registry underlying (broker ignored, unregistered → `Unassigned`), measure each group's share against a live base (`sum(qty × current_price) + available_cash + cash_top_up`; `current_nav` is not read). `neutral` targets `100/N %` per group; `weight` targets each label's stored `target_ratio` percentage (must sum to 100 ±1e-6, every held group needs a key, else `422`). Splits each group's drift value across its holdings by `rebalance_weight` (market-value proportion when every weight is null/0). Returns group-keyed `target_allocations`/`current_allocations`, symbol-level recommendations with `underlying`, and `total_drift`; no drift suppression |
+| `POST` | `/api/v1/managed-funds/{portfolio_id}/sync-prices` | Refresh each holding's price from the asset registry: resolve the holding's normalized asset to the `asset_symbols` row that prices it (portfolio broker first, else lowest broker, then lowest symbol id), fetch the provider quote once per `(source, sync_symbol)` for `yfinance`/`tfex` (manual rows are never fetched), then recompute price, market value and P/L. Returns `synced`/`total`/`missing`/`failed`; a provider failure keeps the stored quote and lists the symbol in `failed` without aborting the request. The same repricing runs automatically after a quote write in All Assets (`PUT /assets/symbols/{id}/quote`, `POST /assets/symbols/{id}/update-price`, `POST /assets/symbols/batch-update-prices…
 
 ### Active Orders
 | Method | Endpoint | Description |
@@ -286,7 +285,7 @@ backend/
 │       ├── orders_groups.py     # Orders group CRUD
 │       ├── trade_plans.py       # Trade plan CRUD
 │       ├── journal.py           # Decision journal
-│       ├── managed_funds.py     # Managed Fund CRUD: settings, holdings, orders, history, rebalance, sync-prices, alerts
+│       ├── managed_funds.py     # Managed Fund CRUD: settings, holdings, orders, history, rebalance, sync-prices
 │       └── rebalance.py         # Dual-mode rebalancing
 ├── tests/                       # pytest suite (collected from this directory only)
 ├── pytest.ini                   # testpaths = tests
