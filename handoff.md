@@ -220,3 +220,34 @@ Allocation section เป็น grouped editor (แตะ frontend 3 ไฟล�
 - **Deploy แล้ว** — `b4103e3` ถูก deploy ขึ้น kind cluster (backend + frontend
   rollout ใหม่, `postgres-main` ไม่ถูกแตะ) และ verify grouped editor/toggle
   ใน modal บน fund 2 ผ่าน; ตัวเลขดูข้อ 1
+
+## 7. Follow-up commit `137856e` — collapsible allocation groups
+
+`137856e` ต่อจาก `b4103e3`: ทุก allocation group ย่อ/ขยายได้ทั้งใน Asset list และ
+Allocation editor โดยใช้ Chevron ตัวเดียวร่วมกัน (แตะ frontend 5 ไฟล์:
+`components/Chevron.tsx` ใหม่, `pages/AllAssets.tsx`, `screens/PortfolioMutualFund.tsx`,
+`screens/MFEditPortfolioModal.tsx`, `screens/PortfolioMutualFund.test.tsx`)
+
+- **Shared `Chevron`** — ย้าย `Chevron({open, size})` ออกจาก `AllAssets.tsx` ไปเป็น
+  `frontend/src/components/Chevron.tsx` (chevron ลงเมื่อ `open`, หมุน -90° เมื่อยุบ);
+  `AllAssets.tsx` import ตัวใหม่และพฤติกรรมเดิมไม่เปลี่ยน
+- **หน้าเพจ (`PortfolioMutualFund.tsx`)** — group header เดิมเป็น static row
+  กลายเป็น `<button type="button" className="mf-row mf-group-row">` ที่คงแถบ
+  `--color-surface-soft` + hairline เดิม พร้อม `Chevron`, `aria-expanded` และ
+  `aria-label` `Collapse <label>` / `Expand <label>`; การยุบซ่อนเฉพาะ
+  `mf-split-row` (`data-testid="group-split-<label>"`) และ holding rows ของกลุ่มนั้น
+  ส่วน header และ `<pct>% target share` ยังแสดงอยู่
+- **Modal (`MFEditPortfolioModal.tsx`)** — group row ของ Allocation section ใช้
+  toggle เดียวกัน (`aria-expanded`, `aria-label` `Collapse <label>` / `Expand <label>`);
+  การยุบซ่อนเฉพาะ weight input ของ holding ในกลุ่มนั้น ส่วน group target input
+  (weight mode) หรือข้อความ `% share` (neutral) และ helper `sum <X> / 100`
+  ยังมองเห็นและแก้ได้
+- **State model** — `useState<Set<string>>(() => new Set())` ที่ระดับ component
+  ของทั้งสอง surface; Set ว่าง = ขยายทุกกลุ่ม (default expanded) และการ toggle
+  สร้าง Set ใหม่ต่อครั้ง จึงไม่กระทบกลุ่มอื่น
+- **ไม่เพิ่ม shadcn `Trace`** — `Trace` เป็น step list ของ AI agent ไม่ใช่ table
+  primitive repo จึงใช้ `Chevron` + `aria-expanded` ที่มีอยู่แทน
+- **Tests/Deploy** — commit message ระบุ frontend tests 146 ตัวผ่าน, `vite build`
+  และ `tsc` clean; build นี้ถูก deploy ขึ้น kind cluster และเช็คใน browser แล้ว:
+  ยุบ `S&P500` บนหน้าเพจทำให้เหลือ 5 → 3 rows และใน modal ยังเห็น target input
+  `50`% อยู่ขณะที่ holding `VOO`/`ABC` ถูกซ่อน
