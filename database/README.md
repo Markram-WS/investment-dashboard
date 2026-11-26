@@ -8,10 +8,10 @@ One PostgreSQL database powers the system, plus user-configured external Postgre
 
 | Table | Purpose |
 |-------|---------|
-| `managed_fund_holdings` | Asset holdings: `holding_id` PK, `portfolio_id` FK→`portfolios`, `asset`, `qty`, `avg_entry_price`, `current_price`, `market_value`, `unrealized_pl`, `unrealized_pl_pct`, `rebalance_weight`, `profit_threshold` (retained column, unused — alerts retired) |
+| `managed_fund_holdings` | Asset holdings: `holding_id` PK, `portfolio_id` FK→`portfolios`, `asset`, `qty`, `avg_entry_price`, `current_price`, `market_value`, `unrealized_pl`, `unrealized_pl_pct`, `rebalance_weight` |
 | `managed_fund_orders` | Orders in progress (pending): `order_id` PK, `portfolio_id` FK, `asset`, `side` (Buy/Sell), `qty`, `price`, `status` (pending→done/cancelled), `order_type`, `notes` |
 | `managed_fund_order_history` | Completed/cancelled orders: same columns as orders + `executed_at` timestamp; moved here when order status changes to done/cancelled |
-| `managed_fund_settings` | Per-portfolio settings: `id` PK, `portfolio_id` UNIQUE FK, `target_ratio` JSON (allocation-group label → percent, e.g. `{"S&P500":60,"CHA":40}`), `allocation_mode` (`neutral` \| `weight`), `global_profit_threshold` (retained column, unused), `total_invested`, `last_rebalance_date` |
+| `managed_fund_settings` | Per-portfolio settings: `id` PK, `portfolio_id` UNIQUE FK, `target_ratio` JSON (allocation-group label → percent, e.g. `{"S&P500":60,"CHA":40}`), `allocation_mode` (`neutral` \| `weight`), `total_invested`, `last_rebalance_date` |
 
 ### Order Flow
 ```
@@ -25,6 +25,7 @@ Create Order (pending) → Confirm Done → Update Holdings + Adjust available_c
 - Buy orders merge into existing holdings (weighted avg entry price); Sell orders reduce qty or delete holding
 - Managed Fund order creation does **not** register a main-database product/symbol; symbols belong to the broker-scoped asset registry and are added explicitly there
 - `target_ratio` is keyed by allocation-group label (`asset_products.ticker` or `Unassigned`) and holds percentages; legacy symbol-keyed rows may be fractional (≤1.0 scaled by 100 on read) and are resolved to labels through the registry. `allocation_mode` is `neutral` or `weight`; weight reads the stored percentages (sum 100)
+- The profit-threshold/alerts feature is retired and its columns are **dropped**, not retained: `managed_fund_models.py` no longer declares `ManagedFundHolding.profit_threshold` or `ManagedFundSetting.global_profit_threshold`, and the idempotent startup migration (`asset_registry_migration.py` → `_drop_column`, a `_column_exists`-guarded `ALTER TABLE … DROP COLUMN`) removes both inside the startup transaction. A database created by an earlier release loses them on the next backend boot; existing holdings and settings are preserved
 - Deleting a portfolio cascades to all `managed_fund_*` tables
 
 ---
@@ -51,10 +52,10 @@ Tables for portfolio management, managed fund, trade execution, ledger, the asse
 | `transactions` | Consolidated ledger: deposits, withdrawals, transfers |
 | `decision_journals` | Mini post-it notes per portfolio, linked to trade history |
 | `asset_groups` | Retired from the UI (kept for compatibility; nothing reads or writes it): `id` SERIAL PK, `name` TEXT UNIQUE NOT NULL, `is_default` BOOLEAN, `created_at` TIMESTAMP. Listing no longer seeds Ungrouped/Watchlist |
-| `managed_fund_holdings` | Managed Fund: asset holdings with avg entry, current price, P/L, `rebalance_weight` per holding (`profit_threshold` retained, unused) |
+| `managed_fund_holdings` | Managed Fund: asset holdings with avg entry, current price, P/L, `rebalance_weight` per holding |
 | `managed_fund_orders` | Managed Fund: pending orders (Buy/Sell) before confirmation |
 | `managed_fund_order_history` | Managed Fund: completed/cancelled order archive |
-| `managed_fund_settings` | Managed Fund: label-keyed target percentages (JSON), `allocation_mode` (`neutral`/`weight`), total invested (`global_profit_threshold` retained, unused) |
+| `managed_fund_settings` | Managed Fund: label-keyed target percentages (JSON), `allocation_mode` (`neutral`/`weight`), total invested; the retired threshold columns are dropped by the startup migration |
 
 ### New table: `custom_portfolio_connections`
 
@@ -189,4 +190,4 @@ A non-null `custom_portfolio_connections.mapping_config` switches the same portf
 
 ---
 
-*Last updated: 25 November 2026 (hybrid mapped-portfolio options: dashboard-local option orders/history in main PostgreSQL, source-routed active/history reads with `order_source`/`history_source`/`history_key`, store-scoped `order_writes`, union margin/performance and degraded local rows; broker-scoped `asset_products`/`asset_symbols`/`asset_quotes` registry replacing the main `whitelist_assets` table; one-time startup conversion + drop; product/symbol/proposal API contracts; margin modes and the Active Trading order guard; price_symbol vs sync_symbol; mapped read-through mode retained)*
+*Last updated: 26 November 2026 (retired profit-threshold columns dropped from `managed_fund_holdings`/`managed_fund_settings` by the idempotent startup migration, models and `main_db_schema.sql` no longer declare them; hybrid mapped-portfolio options: dashboard-local option orders/history in main PostgreSQL, source-routed active/history reads with `order_source`/`history_source`/`history_key`, store-scoped `order_writes`, union margin/performance and degraded local rows; broker-scoped `asset_products`/`asset_symbols`/`asset_quotes` registry replacing the main `whitelist_assets` table; one-time startup conversion + drop; product/symbol/proposal API contracts; margin modes and the Active Trading order guard; price_symbol vs sync_symbol; mapped read-through mode retained)*

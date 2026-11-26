@@ -64,6 +64,7 @@
 ### Managed Fund Feature
 - **4 new DB tables**: `managed_fund_holdings`, `managed_fund_orders`, `managed_fund_order_history`, `managed_fund_settings`
 - **Router**: `backend/app/routers/managed_funds.py` — 13 endpoints (settings CRUD, holdings CRUD + sell, orders CRUD with confirm/cancel, history, rebalance/calculate, sync-prices); the alerts endpoint is retired
+- **Threshold columns dropped**: `managed_fund_models.py` no longer declares `ManagedFundHolding.profit_threshold` or `ManagedFundSetting.global_profit_threshold`, and `database/main_db_schema.sql` no longer lists them. The idempotent startup `asset_registry_migration.py` drops both from legacy databases via `_drop_column` (`_column_exists`-guarded `ALTER TABLE … DROP COLUMN`) in the startup transaction; holdings and settings rows are preserved
 - **Order flow**: Create (pending) → PATCH status=done → update holdings + adjust available_cash + record NAV history → move to order_history table
 - **Cash tracking**: Buy confirm deducts `available_cash`; Sell confirm adds to `available_cash`
 - **NAV**: Recalculated on order confirm as `available_cash + sum(holding.qty × current_price)`

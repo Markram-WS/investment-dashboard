@@ -464,7 +464,8 @@ async def test_retained_migration_adds_rebalance_weight_idempotently():
     engine = _engine()
     try:
         await _prepare(engine)
-        # A holdings table created by the previous release: no weight column.
+        # A holdings table created by the previous release: no weight column,
+        # but still carrying the now-retired profit_threshold column.
         async with engine.begin() as conn:
             await conn.execute(text("DROP TABLE managed_fund_holdings"))
             await conn.execute(
@@ -487,6 +488,25 @@ async def test_retained_migration_adds_rebalance_weight_idempotently():
                     """
                 )
             )
+            # A settings table created by the previous release: no
+            # allocation_mode, still carrying the retired global threshold.
+            await conn.execute(text("DROP TABLE managed_fund_settings"))
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE managed_fund_settings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        portfolio_id INTEGER NOT NULL UNIQUE,
+                        target_ratio JSON,
+                        global_profit_threshold NUMERIC(10,4) DEFAULT 0,
+                        total_invested NUMERIC(20,8) DEFAULT 0,
+                        last_rebalance_date DATETIME,
+                        created_at DATETIME,
+                        updated_at DATETIME
+                    )
+                    """
+                )
+            )
             await conn.execute(
                 text(
                     "INSERT INTO portfolios "
@@ -501,8 +521,16 @@ async def test_retained_migration_adds_rebalance_weight_idempotently():
             await conn.execute(
                 text(
                     "INSERT INTO managed_fund_holdings "
-                    "(portfolio_id, asset, qty, current_price) "
-                    "VALUES (:portfolio_id, 'VOO', 10, 20)"
+                    "(portfolio_id, asset, qty, current_price, profit_threshold) "
+                    "VALUES (:portfolio_id, 'VOO', 10, 20, 5)"
+                ),
+                {"portfolio_id": portfolio_id},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO managed_fund_settings "
+                    "(portfolio_id, global_profit_threshold, total_invested) "
+                    "VALUES (:portfolio_id, 7, 100)"
                 ),
                 {"portfolio_id": portfolio_id},
             )
@@ -520,12 +548,31 @@ async def test_retained_migration_adds_rebalance_weight_idempotently():
         # PRAGMA table_info: (cid, name, type, notnull, dflt_value, pk).
         assert columns["rebalance_weight"][3] == 0  # nullable
         assert columns["rebalance_weight"][4] is None  # no database default
+        # The retired threshold column is dropped, including on the second run.
+        assert "profit_threshold" not in columns
+
+        async with engine.connect() as conn:
+            settings_rows = (
+                await conn.execute(text("PRAGMA table_info(managed_fund_settings)"))
+            ).all()
+        settings_columns = {row[1]: tuple(row) for row in settings_rows}
+        assert "allocation_mode" in settings_columns
+        assert "global_profit_threshold" not in settings_columns
+
         assert (
             await _scalar(engine, "SELECT COUNT(*) FROM managed_fund_holdings")
         ) == 1
         assert (
             await _scalar(engine, "SELECT rebalance_weight FROM managed_fund_holdings")
         ) is None
+        assert (
+            await _scalar(
+                engine,
+                "SELECT total_invested FROM managed_fund_settings "
+                "WHERE portfolio_id = :portfolio_id",
+                portfolio_id=portfolio_id,
+            )
+        ) == 100
     finally:
         await engine.dispose()
 

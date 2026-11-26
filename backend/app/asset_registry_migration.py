@@ -133,6 +133,12 @@ def _add_column(conn: Connection, table: str, column: str, sql_type: str) -> Non
     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
 
 
+def _drop_column(conn: Connection, table: str, column: str) -> None:
+    if not _column_exists(conn, table, column):
+        return
+    conn.execute(text(f"ALTER TABLE {table} DROP COLUMN {column}"))
+
+
 def _json_param(conn: Connection, value: Any) -> Any:
     """Raw SQL JSON binding: text on SQLite, JSON text cast on PostgreSQL."""
     return json.dumps(value)
@@ -405,6 +411,10 @@ def _retained_portfolio_migrations(conn: Connection) -> None:
     _add_column(
         conn, "managed_fund_holdings", "rebalance_weight", "NUMERIC(10,4)"
     )
+    # The profit-threshold feature is retired: drop its columns from databases
+    # created by earlier releases. Neither column is indexed or backfilled.
+    _drop_column(conn, "managed_fund_holdings", "profit_threshold")
+    _drop_column(conn, "managed_fund_settings", "global_profit_threshold")
 
 
 def _ensure_default_product(conn: Connection) -> None:

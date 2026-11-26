@@ -17,7 +17,6 @@ class ManagedFundHolding(Base):
     market_value = Column(Numeric(20, 8), default=Decimal('0'))
     unrealized_pl = Column(Numeric(20, 8), default=Decimal('0'))
     unrealized_pl_pct = Column(Numeric(10, 4), default=Decimal('0'))
-    profit_threshold = Column(Numeric(10, 4), default=Decimal('0'))
     # Relative weight inside the holding's underlying group; NULL keeps the
     # market-value-proportional fallback. No database default or backfill.
     rebalance_weight = Column(Numeric(10, 4), nullable=True, default=None)
@@ -70,7 +69,6 @@ class ManagedFundSetting(Base):
     portfolio_id = Column(Integer, ForeignKey('portfolios.portfolio_id'), nullable=False, unique=True)
     target_ratio = Column(JSON)
     allocation_mode = Column(String, default='neutral')
-    global_profit_threshold = Column(Numeric(10, 4), default=Decimal('0'))
     total_invested = Column(Numeric(20, 8), default=Decimal('0'))
     last_rebalance_date = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)

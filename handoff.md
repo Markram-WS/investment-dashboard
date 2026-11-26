@@ -8,8 +8,9 @@
 
 - Branch `feature/custom-port` — งาน allocation ถูก commit ในเครื่องแล้ว
   (`b8e6a6a` two-mode allocation, `b4103e3` grouped editor) แต่ **ยังไม่ push**
-  (branch ahead 14 commits); worktree เหลือแค่ `ExampleFundAllocationCal.xlsx`
-  ที่ untracked
+  (branch ahead 14 commits); worktree มี `ExampleFundAllocationCal.xlsx` ที่
+  untracked และการแก้ drop คอลัมน์ threshold (models, startup migration,
+  schema, tests — ดูข้อ 9) ที่ยังไม่ commit
 - Code ที่แก้ (8 ไฟล์):
   - `backend/app/routers/managed_funds.py` — two-mode allocation, target_ratio
     label contract, ถอด alerts
@@ -102,7 +103,8 @@
 - **Thresholds/alerts ถูกถอด**: `GET /managed-funds/{id}/alerts`, `MFAlertItem`,
   `MFAlertsResponse`, global/per-holding threshold หายจาก API และ UI แล้ว;
   คอลัมน์ `managed_fund_settings.global_profit_threshold` และ
-  `managed_fund_holdings.profit_threshold` ยังอยู่ใน DB แต่ไม่มีใครอ่าน/เขียน
+  `managed_fund_holdings.profit_threshold` ถูก **drop** ออกจาก DB แล้วโดย
+  startup migration (ดูข้อ 9) — models ไม่ประกาศ field เหล่านี้แล้ว
 - **Frontend**
   - `PortfolioMutualFund.tsx`: ไม่มี toggle แล้ว — แต่ละกลุ่มแสดง
     `<pct>% target share` จาก stored mode (`neutral` = `100 / N`, `weight` =
@@ -150,11 +152,7 @@
    registry label หรือ label ของกลุ่มปัจจุบัน ดังนั้น target ของ underlying
    ที่ยังไม่ถือจะไม่แสดงและไม่รอดผ่าน GET; ต้องตัดสินใจว่าจะเพิ่ม label
    จาก registry (ให้เลือกได้) หรือยอมให้ตั้ง target ได้เฉพาะกลุ่มที่ถืออยู่
-2. **คอลัมน์ threshold ที่เลิกใช้ยังอยู่ใน DB**
-   `managed_fund_settings.global_profit_threshold` และ
-   `managed_fund_holdings.profit_threshold` (models ยังประกาศ default 0)
-   ยังไม่ drop — ต้องตัดสินใจว่าจะเก็บไว้เฉย ๆ หรือทำ migration ลบคอลัมน์
-3. **Node container ต้อง start ก่อน deploy**
+2. **Node container ต้อง start ก่อน deploy**
    เจอ `investment-dashboard-control-plane` เป็น `Exited (0)` (ค้างมา ~13 ชม.)
    ทำให้ `scripts/kind-up.sh` fail ที่ขั้น image-load ด้วย
    `can only create exec sessions on running containers: container state improper`;
@@ -284,4 +282,33 @@ Allocation editor โดยใช้ Chevron ตัวเดียวร่ว�
   `S&P500` แล้วเห็น `VOO`/`ABC` ที่ 10px
 - **Tests** — commit message ระบุ frontend tests 147 ตัวผ่าน, `vite build` และ
   `tsc` clean
+
+## 9. Threshold column drop — คอลัมน์ threshold ออกจาก DB จริงแล้ว
+
+ต่อจาก `db4991c6` (worktree ยังไม่ commit): เลิกเก็บคอลัมน์ threshold ที่ค้างจาก
+ฟีเจอร์ alerts ที่ถูกถอดไปแล้ว ไม่แตะ API/UI/สัญญา allocation
+
+- **Models** — `backend/app/managed_fund_models.py` ไม่ประกาศ
+  `ManagedFundHolding.profit_threshold` และ
+  `ManagedFundSetting.global_profit_threshold` อีกแล้ว (ไม่มี default 0 ค้างอยู่)
+- **Startup migration** — `backend/app/asset_registry_migration.py` เพิ่ม
+  `_drop_column(conn, table, column)` (guard ด้วย `_column_exists`, เป็น
+  `ALTER TABLE ... DROP COLUMN` ตรง ๆ ไม่มี index/backfill) และเรียกใน
+  `_retained_portfolio_migrations` สำหรับ
+  `managed_fund_holdings.profit_threshold` และ
+  `managed_fund_settings.global_profit_threshold`; รันใน transaction เดียวกับ
+  startup migration อื่น จึง idempotent — DB เก่าที่ยังมีคอลัมน์จะเสียคอลัมน์
+  ทั้งสองตอน backend boot ครั้งถัดไป
+- **Schema** — `database/main_db_schema.sql` ไม่มีคอลัมน์ทั้งสองแล้ว
+- **Live verify บน kind cluster หลัง deploy** — `information_schema.columns`
+  ไม่มี `profit_threshold` บน `managed_fund_holdings` และไม่มี
+  `global_profit_threshold` บน `managed_fund_settings`; ข้อมูลเดิมอยู่ครบ:
+  holdings `VOO`/`ABC` qty 50 และ `SCBCHAE` qty 100, settings ยังเป็น
+  `allocation_mode=weight` target `S&P500` 50 / `CHA` 50
+- **Docs** — `database/README.md`, `DESIGN.md`, `.opencode/AGENT.md`,
+  `handoff.md` เปลี่ยนคำอธิบายคอลัมน์จาก "ยังเก็บไว้แต่ไม่ใช้" เป็น
+  "dropped by the startup migration"; `README.md`/`backend/README.md`/
+  `frontend/README.md` ไม่มีคำกล่าวอ้างว่าคอลัมน์ยังอยู่ จึงไม่ต้องแก้
+- **Tests** — `backend/tests/test_asset_registry_migration.py` เพิ่มเคส drop
+  (คอลัมน์หาย, แถวและค่าอื่นคงอยู่, รันซ้ำได้)
 

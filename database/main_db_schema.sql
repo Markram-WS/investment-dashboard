@@ -298,7 +298,6 @@ CREATE TABLE IF NOT EXISTS managed_fund_holdings (
     market_value NUMERIC(20,8) DEFAULT 0,
     unrealized_pl NUMERIC(20,8) DEFAULT 0,
     unrealized_pl_pct NUMERIC(10,4) DEFAULT 0,
-    profit_threshold NUMERIC(10,4) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -335,7 +334,6 @@ CREATE TABLE IF NOT EXISTS managed_fund_settings (
     id SERIAL PRIMARY KEY,
     portfolio_id INTEGER NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE UNIQUE,
     target_ratio JSONB,
-    global_profit_threshold NUMERIC(10,4) DEFAULT 0,
     total_invested NUMERIC(20,8) DEFAULT 0,
     last_rebalance_date TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
