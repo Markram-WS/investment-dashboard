@@ -168,7 +168,9 @@ export default function MFEditPortfolioModal({
 
   // Portfolio base fields
   const [name, setName] = useState(portfolio.portfolio_name);
-  const [cashBuffer, setCashBuffer] = useState(String(portfolio.cash_buffer_limit || 0));
+  const [cashBuffer, setCashBuffer] = useState(
+    portfolio.cash_buffer_limit ? String(portfolio.cash_buffer_limit) : "",
+  );
   const [tagsStr, setTagsStr] = useState(
     portfolio.tags ? Object.keys(portfolio.tags).join(", ") : ""
   );
@@ -203,7 +205,7 @@ export default function MFEditPortfolioModal({
   useEffect(() => {
     if (showModal) {
       setName(portfolio.portfolio_name);
-      setCashBuffer(String(portfolio.cash_buffer_limit || 0));
+      setCashBuffer(portfolio.cash_buffer_limit ? String(portfolio.cash_buffer_limit) : "");
       setTagsStr(portfolio.tags ? Object.keys(portfolio.tags).join(", ") : "");
       setPerAssetWeight(initialAssetWeights(holdings));
       setActiveMode(settings?.allocation_mode === "weight" ? "weight" : "neutral");
@@ -399,7 +401,7 @@ export default function MFEditPortfolioModal({
                     <div style={readonlyValue}>{formatMoney(availableDisplay)}</div>
                   </Field>
                   <Field label="Cash buffer limit" htmlFor="mf-portfolio-cash-buffer">
-                    <NumberInput id="mf-portfolio-cash-buffer" value={cashBuffer} onChange={e => setCashBuffer(e.target.value)} />
+                    <NumberInput id="mf-portfolio-cash-buffer" placeholder="0" value={cashBuffer} onChange={e => setCashBuffer(e.target.value)} />
                   </Field>
                 </div>
                 <div style={FIELD_PAIR}>

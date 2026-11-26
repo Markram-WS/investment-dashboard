@@ -451,3 +451,65 @@ describe('MFEditPortfolioModal group collapse', () => {
     expect(apiMock.mfUpdateHolding).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('MFEditPortfolioModal cash buffer', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    apiMock.getPortfolio.mockResolvedValue(portfolio);
+    apiMock.mfSettings.mockResolvedValue(settings);
+    apiMock.mfHoldings.mockResolvedValue([]);
+    apiMock.mfOrders.mockResolvedValue([]);
+    apiMock.mfHistory.mockResolvedValue([]);
+    apiMock.updatePortfolio.mockResolvedValue({});
+    apiMock.mfUpdateSettings.mockResolvedValue({});
+  });
+
+  it('opens with an empty zero-limit field whose placeholder shows 0', async () => {
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
+
+    const input = within(dialog).getByLabelText('Cash buffer limit');
+    expect(input).toHaveValue(null);
+    expect(input).toHaveAttribute('placeholder', '0');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(apiMock.updatePortfolio).toHaveBeenCalledWith(7, expect.objectContaining({
+      cash_buffer_limit: 0,
+    })));
+  });
+
+  it('accepts typing into the empty field without deleting a stored zero', async () => {
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
+
+    const input = within(dialog).getByLabelText('Cash buffer limit');
+    fireEvent.change(input, { target: { value: '40' } });
+    expect(input).toHaveValue(40);
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(apiMock.updatePortfolio).toHaveBeenCalledWith(7, expect.objectContaining({
+      cash_buffer_limit: 40,
+    })));
+  });
+
+  it('loads and round-trips a nonzero limit unchanged', async () => {
+    apiMock.getPortfolio.mockResolvedValue({ ...portfolio, cash_buffer_limit: 25 });
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
+
+    const input = within(dialog).getByLabelText('Cash buffer limit');
+    expect(input).toHaveValue(25);
+    expect(input).toHaveAttribute('placeholder', '0');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(apiMock.updatePortfolio).toHaveBeenCalledWith(7, expect.objectContaining({
+      cash_buffer_limit: 25,
+    })));
+  });
+});
