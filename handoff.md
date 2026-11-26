@@ -251,3 +251,37 @@ Allocation editor โดยใช้ Chevron ตัวเดียวร่ว�
   และ `tsc` clean; build นี้ถูก deploy ขึ้น kind cluster และเช็คใน browser แล้ว:
   ยุบ `S&P500` บนหน้าเพจทำให้เหลือ 5 → 3 rows และใน modal ยังเห็น target input
   `50`% อยู่ขณะที่ holding `VOO`/`ABC` ถูกซ่อน
+
+## 8. Follow-up commit `db4991c6` — compact holding rows + allocation groups collapsed by default
+
+`db4991c6` ต่อจาก `137856e` โดยไม่แตะ logic/สัญญา API — เป็นการปรับขนาดตัวอักษร
+และค่าเริ่มต้นของการยุบกลุ่มเท่านั้น (แตะ 3 ไฟล์: `frontend/src/index.css`,
+`frontend/src/screens/MFEditPortfolioModal.tsx`,
+`frontend/src/screens/PortfolioMutualFund.test.tsx`)
+
+- **ขนาดตัวอักษรฝั่งหน้าเพจ** — เพิ่มกฎ `.mf-holdings .mf-row { font-size:
+  var(--fs-micro); }` (`--fs-micro` = 10px, เทียบ `--fs-label` = 11px) ทำให้
+  holding row ใน Asset list เล็กลงหนึ่งขั้น; card header (`.mf-card-h h2` ยังเป็น
+  `--fs-label`) และ `mf-split-row` ไม่เปลี่ยน
+- **ขนาดตัวอักษรใน modal** — `ASSET_NAME` (ชื่อ asset ของ holding) เปลี่ยนจาก
+  `var(--fs-label)` เป็น `var(--fs-micro)` และ suffix `%` ใช้
+  `text-[length:var(--fs-micro)]`; group label และ input ของ group target
+  คงขนาดเดิม
+- **Default-collapse ของ modal** — ตอน modal เปิด `collapsedGroups` ถูก seed
+  ด้วย `new Set(groupLabelsOf(holdings))` คือทุก label ของกลุ่มปัจจุบัน จึงเริ่ม
+  แบบยุบทุกกลุ่ม (เดิม `new Set()` = ขยายทุกกลุ่ม); group label, chevron,
+  target input / `% share`, running sum และ help text ยังมองเห็น ส่วนการกด
+  `Expand <label>` เผย weight input ของ holding ในกลุ่มนั้น
+- **ค่า default ของหน้าเพจไม่ถูกแตะ** — `PortfolioMutualFund.tsx` ยังใช้
+  `useState<Set<string>>(() => new Set())` และ Asset list จึงยังขยายทุกกลุ่ม
+  เหมือนเดิม; เฉพาะ modal ที่เริ่มแบบยุบ
+- **ค่าที่ซ่อนยังถูกบันทึก** — weight input ที่ถูกซ่อนยังมีค่าอยู่ใน state
+  `perAssetWeight` (prefill เดิม) ดังนั้นกด Save โดยไม่ขยายกลุ่มก็ยังเขียนค่า
+  เหล่านั้นครบ; tests เพิ่มเคส "saves prefilled weights for every holding without
+  expanding a group" และเคสเดิมที่ต้องอ่าน holding ต้องกด `Expand <label>` ก่อน
+- **Browser check** — holding rows วัดได้ 10px เทียบ card header 11px; เปิด modal
+  แล้วเห็น 0 weight input ขณะที่ target `50`/`50` ของสองกลุ่มยังแสดง; กดขยาย
+  `S&P500` แล้วเห็น `VOO`/`ABC` ที่ 10px
+- **Tests** — commit message ระบุ frontend tests 147 ตัวผ่าน, `vite build` และ
+  `tsc` clean
+
