@@ -353,3 +353,21 @@ docs รอบนี้แก้ `DESIGN.md`, `.opencode/AGENT.md`, `backend/REA
   `MFRebalanceRecommendModal.test.tsx` ตรวจแถวกลุ่ม/`data-testid`
   `rebalance-group-<label>` และ `rebalance-holding-<id>`, และ
   `PortfolioMutualFund.test.tsx` ตรวจว่า header ไม่มีปุ่ม Rebalance
+
+## 11. Follow-up commit `a297e83` — Top-up cash เริ่มว่างและช่องว่างหมายถึงศูนย์
+
+- `MFRebalanceRecommendModal.tsx`: ช่อง `Top-up cash ($)` เริ่มที่ `""` และรีเซ็ต
+  เป็น `""` ทุกครั้งที่เปิด modal พร้อม `placeholder="0"`; ค่าว่างถือว่าถูกต้องและ
+  หมายถึง 0 โดยจำนวนที่ใช้คำนวณคือ
+  `topUp.trim() === "" ? 0 : parseTopUpAmount(topUp)` (`parseTopUpAmount` ใน
+  `utils/mfWeights.ts` ไม่เปลี่ยน — ค่าว่างยังคืน `null`) ดังนั้นการเปิด modal หรือ
+  ปล่อยช่องว่างไว้จะไม่ยิง recalculate ด้วย 0 ซ้ำ (`lastApplied` เริ่มที่ 0) แต่การ
+  ลบค่าที่ไม่ใช่ศูนย์จนว่างจะคำนวณใหม่ด้วย 0; อินพุตที่ไม่ใช่ตัวเลขหรือติดลบยังขึ้น
+  "Enter a non-negative amount." และไม่คำนวณใหม่
+- **Live check (fund 2)**: เปิด modal แล้วช่อง top-up ว่างและแสดง placeholder `0`;
+  พิมพ์ `100` ทำให้ Allocation base เปลี่ยน `$4,330.00 → $4,430.00` (order value
+  ของ `VOO` และ `ABC` เปลี่ยน `$547.50 → $572.50`); ลบจนช่องว่างทำให้ base กลับมา
+  `$4,330.00` และไม่มี validation error
+- Tests: commit ระบุ frontend 156 passed, `vite build` และ `tsc` clean; เคสใน
+  `MFRebalanceRecommendModal.test.tsx` ตรวจช่องว่าง + placeholder, ค่าว่างไม่มี
+  error, `100` และ `-5`
