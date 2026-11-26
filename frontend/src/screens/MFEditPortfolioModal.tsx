@@ -69,7 +69,7 @@ const PERCENT_INPUT: CSSProperties = { width: 56 };
 const ASSET_NAME: CSSProperties = {
   flex: "1 1 auto", minWidth: 0, maxWidth: 140,
   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-  fontSize: "var(--fs-label)",
+  fontSize: "var(--fs-micro)",
   fontWeight: 500, color: "var(--color-ink)",
 };
 const DANGER_RULE: CSSProperties = {
@@ -207,13 +207,14 @@ export default function MFEditPortfolioModal({
       setTagsStr(portfolio.tags ? Object.keys(portfolio.tags).join(", ") : "");
       setPerAssetWeight(initialAssetWeights(holdings));
       setActiveMode(settings?.allocation_mode === "weight" ? "weight" : "neutral");
+      const labels = groupLabelsOf(holdings);
       const targetMap: Record<string, string> = {};
-      for (const label of groupLabelsOf(holdings)) {
+      for (const label of labels) {
         const stored = settings?.target_ratio?.[label];
         targetMap[label] = stored == null ? "" : String(stored);
       }
       setPerGroupTarget(targetMap);
-      setCollapsedGroups(new Set());
+      setCollapsedGroups(new Set(labels));
       setDwAmount("");
       setDwError("");
       setSaveErr("");
@@ -516,7 +517,7 @@ export default function MFEditPortfolioModal({
                                   onChange={e => setPerAssetWeight({ ...perAssetWeight, [h.holding_id]: e.target.value })}
                                   style={PERCENT_INPUT}
                                 />
-                                <span className="text-[length:var(--fs-label)]" style={percentSuffix}>%</span>
+                                <span className="text-[length:var(--fs-micro)]" style={percentSuffix}>%</span>
                               </div>
                             ))}
                           </div>

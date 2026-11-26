@@ -220,6 +220,7 @@ describe('PortfolioMutualFund allocation mode', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
 
     const groupLabel = within(dialog).getByText('S&P500');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Expand S&P500' }));
     const firstAsset = within(dialog).getByText('SCBS&P500-SSF');
     const secondAsset = within(dialog).getByText('SCBS&P500A');
     expect(groupLabel.compareDocumentPosition(firstAsset) & Node.DOCUMENT_POSITION_FOLLOWING)
@@ -245,6 +246,7 @@ describe('PortfolioMutualFund allocation mode', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
 
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Expand E' }));
     expect(within(dialog).getByLabelText('SCBSEMI rebalance weight')).toHaveValue(100);
     expect(within(dialog).getByLabelText('SCBSEMI-A rebalance weight')).toHaveValue(null);
     expect(within(dialog).getByLabelText('SCBSEMI-B rebalance weight')).toHaveValue(null);
@@ -263,6 +265,7 @@ describe('PortfolioMutualFund allocation mode', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
 
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Expand E' }));
     expect(within(dialog).getByLabelText('SCBSEMI rebalance weight')).toHaveValue(50);
     expect(within(dialog).getByLabelText('SCBSEMI-A rebalance weight')).toHaveValue(50);
   });
@@ -375,20 +378,50 @@ describe('MFEditPortfolioModal group collapse', () => {
     apiMock.mfHistory.mockResolvedValue([]);
   });
 
-  it("hides a group's weight rows but keeps its target input and the sum helper", async () => {
+  it("starts every allocation group collapsed and reveals its weights on expand", async () => {
     renderScreen();
     fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
 
+    expect(within(dialog).getByLabelText('VOO target weight')).toHaveValue(60);
+    expect(within(dialog).getByText(/sum 100 \/ 100/)).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('AAA rebalance weight')).toBeNull();
+    expect(within(dialog).queryByLabelText('BBB rebalance weight')).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Expand VOO' }))
+      .toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Expand VOO' }));
+
     expect(within(dialog).getByLabelText('AAA rebalance weight')).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('BBB rebalance weight')).toBeNull();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Collapse VOO' }));
 
     expect(within(dialog).queryByLabelText('AAA rebalance weight')).toBeNull();
     expect(within(dialog).getByLabelText('VOO target weight')).toHaveValue(60);
-    expect(within(dialog).getByLabelText('BBB rebalance weight')).toBeInTheDocument();
     expect(within(dialog).getByText(/sum 100 \/ 100/)).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Expand VOO' }))
       .toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it("saves prefilled weights for every holding without expanding a group", async () => {
+    apiMock.updatePortfolio.mockResolvedValue({});
+    apiMock.mfUpdateHolding.mockResolvedValue({});
+    apiMock.mfUpdateSettings.mockResolvedValue({});
+
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit portfolio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit managed fund' });
+
+    expect(within(dialog).queryByLabelText('AAA rebalance weight')).toBeNull();
+    expect(within(dialog).queryByLabelText('BBB rebalance weight')).toBeNull();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(apiMock.mfUpdateHolding).toHaveBeenCalledWith(
+      7, 1, { rebalance_weight: 100 },
+    ));
+    expect(apiMock.mfUpdateHolding).toHaveBeenCalledWith(7, 2, { rebalance_weight: 100 });
+    expect(apiMock.mfUpdateHolding).toHaveBeenCalledTimes(2);
   });
 });
