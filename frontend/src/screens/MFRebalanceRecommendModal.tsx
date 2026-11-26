@@ -56,14 +56,14 @@ export default function MFRebalanceRecommendModal({
   show, loading, recommendations, groups, holdings, allocationBase, error, onRecalculate, onClose, onCreateOrders,
 }: MFRebalanceRecommendModalProps) {
   // Transient calculation-only amount; never persisted or credited.
-  const [topUp, setTopUp] = useState("");
+  const [topUp, setTopUp] = useState("0");
   // Last amount the current results were calculated with, so the debounce does
   // not re-request unchanged values and a reset to 0 still recomputes.
   const lastApplied = useRef(0);
 
   useEffect(() => {
     if (show) {
-      setTopUp("");
+      setTopUp("0");
       lastApplied.current = 0;
     }
   }, [show]);

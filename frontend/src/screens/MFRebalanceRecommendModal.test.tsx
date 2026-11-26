@@ -170,14 +170,13 @@ describe('MFRebalanceRecommendModal', () => {
     expect(screen.queryByText('2.6%')).toBeNull();
   });
 
-  it('renders an empty top-up field with a zero placeholder on open', () => {
+  it('renders a visible zero top-up on open', () => {
     renderModal();
     const input = screen.getByLabelText(/Top-up cash/i) as HTMLInputElement;
-    expect(input.value).toBe('');
-    expect(input).toHaveAttribute('placeholder', '0');
+    expect(input.value).toBe('0');
   });
 
-  it('does not recalculate on open with the default empty top-up', () => {
+  it('does not recalculate on open with the default zero top-up', () => {
     const { onRecalculate } = renderModal();
     act(() => { vi.advanceTimersByTime(500); });
     expect(onRecalculate).not.toHaveBeenCalled();
@@ -187,10 +186,14 @@ describe('MFRebalanceRecommendModal', () => {
     const { onRecalculate } = renderModal();
     const input = screen.getByLabelText(/Top-up cash/i);
 
+    fireEvent.change(input, { target: { value: '100' } });
+    act(() => { vi.advanceTimersByTime(350); });
+    expect(onRecalculate).toHaveBeenLastCalledWith(100);
+
     fireEvent.change(input, { target: { value: '' } });
     act(() => { vi.advanceTimersByTime(500); });
 
-    expect(onRecalculate).not.toHaveBeenCalled();
+    expect(onRecalculate).toHaveBeenLastCalledWith(0);
     expect(screen.queryByText('Enter a non-negative amount.')).toBeNull();
   });
 
