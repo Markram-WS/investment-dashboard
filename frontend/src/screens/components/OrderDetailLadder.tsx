@@ -11,7 +11,12 @@ interface OrderDetailLadderProps {
   activeOrders: SpreadOrder[];
   zones: ZoneGroupRecord[];
   onShowZoneGroupModal: () => void;
-  onAddOrder: (preset?: { groupId: number | null; entryPrice: number | null }) => void;
+  onAddOrder: (preset?: {
+    groupId: number | null;
+    entryPrice: number | null;
+    contractType?: "option";
+    strikePrice?: number | null;
+  }) => void;
   onEditOrder: (order: SpreadOrder) => void;
   onCloseOrder: (order: SpreadOrder) => void;
   onAssignGroup?: (orderIds: string[], groupId: number | null) => void;
@@ -218,12 +223,17 @@ const zoneLevels = (zone: ZoneGroupRecord) => {
   });
 };
 
-/** A level's price: the ladder value, else a numeric zone name, else nothing. */
-const levelPrice = (line: LadderLine) => {
-  if (line.price != null) return line.price;
-  const n = Number((line.label ?? "").trim());
+/** A level's numeric price: the ladder value, else a numeric label; blank or non-numeric → null. */
+const numericPrice = (price: number | null, label?: string | null) => {
+  if (price != null) return price;
+  const trimmed = (label ?? "").trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
   return Number.isFinite(n) ? n : null;
 };
+
+/** A level's price: the ladder value, else a numeric zone name, else nothing. */
+const levelPrice = (line: LadderLine) => numericPrice(line.price, line.label);
 
 const buildLines = (zones: ZoneGroupRecord[], orders: SpreadOrder[]): LadderLine[] => {
   const sorted = sortZones(zones);
@@ -238,11 +248,16 @@ const buildLines = (zones: ZoneGroupRecord[], orders: SpreadOrder[]): LadderLine
       continue;
     }
     const levels = bucket.levels;
+    // An option is placed by its strike: an option struck at a level shares
+    // that level's row with the EQ/Future order there. Other legs use entry.
+    const anchor = order.contract_type === "option"
+      ? (order.strike_price ?? order.entry_price)
+      : order.entry_price;
     let target = levels[0];
-    if (order.entry_price != null && levels[0]?.price != null) {
+    if (anchor != null && levels[0]?.price != null) {
       // Levels run high to low: the last level at or above the entry price is
       // the nearest one. An entry above the top level clamps to the top row.
-      const atOrAbove = levels.filter((l) => l.price != null && l.price >= (order.entry_price as number));
+      const atOrAbove = levels.filter((l) => l.price != null && l.price >= anchor);
       target = atOrAbove.length > 0 ? atOrAbove[atOrAbove.length - 1] : levels[0];
     }
     target.legs.push(order);
@@ -254,11 +269,14 @@ const buildLines = (zones: ZoneGroupRecord[], orders: SpreadOrder[]): LadderLine
       const eq = level.legs.filter((o) => o.contract_type !== "option");
       const opt = level.legs.filter((o) => o.contract_type === "option");
       const count = Math.max(eq.length, opt.length, 1);
+      // Continuation rows keep an empty label, but the level's numeric price
+      // still belongs to every row of that level (the + presets it).
+      const price = numericPrice(level.price, level.label);
       for (let i = 0; i < count; i += 1) {
         lines.push({
           key: `${zoneId ?? "none"}-${li}-${i}:${orderKey(eq[i])}:${orderKey(opt[i])}`,
           zoneId,
-          price: level.price,
+          price,
           label: i === 0 ? level.label : "",
           eq: eq[i],
           opt: opt[i],
@@ -507,37 +525,47 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         </IconButton>,
       );
     }
-    if (actions.length === 0) return null;
-    return <div className="at-actions">{actions}</div>;
+    return actions;
   };
 
-  /** A leg's Net cell carries its own actions, so each block owns its cluster. */
-  const netCell = (order?: SpreadOrder) => (
+  type AddKind = "eq" | "option";
+
+  /** A block's own +: the EQ block adds at the level, the Options block adds a strike there. */
+  const addButton = (line: LadderLine, kind?: AddKind) => {
+    const price = levelPrice(line);
+    const label = kind === "option"
+      ? `Add option${price != null ? ` at ${money(price)}` : ""}`
+      : `Add order${price != null ? ` at ${money(price)}` : ""}`;
+    return (
+      <IconButton
+        key="add"
+        label={label}
+        onClick={() => onAddOrder(kind === "option"
+          ? { groupId: line.zoneId, entryPrice: null, contractType: "option", strikePrice: price }
+          : { groupId: line.zoneId, entryPrice: price })}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </IconButton>
+    );
+  };
+
+  /** One .at-net cell: its content plus that block's hover cluster (none when it has no buttons). */
+  const netShell = (content: React.ReactNode, buttons: React.ReactNode[]) => (
     <span className="at-net">
-      {order ? <NetCell order={order} /> : <Dash />}
-      {order ? legActions(order) : null}
+      {content}
+      {buttons.length > 0 ? <div className="at-actions">{buttons}</div> : null}
     </span>
   );
 
-  /** Rows with no leg offer the one thing left to do at that level. */
-  const emptyRowAction = (line: LadderLine) => {
-    if (!canAdd) return null;
-    if (line.eq || line.opt || line.zoneId == null) return null;
-    const price = levelPrice(line);
-    return (
-      <div className="at-actions at-actions-row">
-        <IconButton
-          label={`Add order${price != null ? ` at ${money(price)}` : ""}`}
-          onClick={() => onAddOrder({ groupId: line.zoneId, entryPrice: price })}
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-        </IconButton>
-      </div>
-    );
-  };
+  /** A block's Net cell owns its + and that leg's actions, so each block keeps its own cluster. */
+  const netCell = (order: SpreadOrder | undefined, kind: AddKind | undefined, line: LadderLine) =>
+    netShell(order ? <NetCell order={order} /> : <Dash />, [
+      ...(canAdd && line.zoneId != null ? [addButton(line, kind)] : []),
+      ...(order ? legActions(order) : []),
+    ]);
 
   const renderCells = (line: LadderLine) => {
     const { eq, opt } = line;
@@ -555,6 +583,10 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
 
     if (narrow) {
       const leg = eq ?? opt;
+      // Narrow keeps one Net cell: the add button then follows the leg it shows.
+      const kind: AddKind | undefined = leg
+        ? (leg.contract_type === "option" ? "option" : "eq")
+        : undefined;
       const total = (eq ? netOf(eq) : 0) + (opt ? netOf(opt) : 0);
       return (
         <>
@@ -571,13 +603,14 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
               <span className="at-muted">No order</span>
             )}
           </span>
-          {leg ? (
-            <span className="at-net">
-              <span className={`at-num ${total < 0 ? "at-neg" : "at-pos"}`}>{signedMoney(total)}</span>
-              {legActions(leg)}
-            </span>
-          ) : (
-            <Dash />
+          {netShell(
+            leg
+              ? <span className={`at-num ${total < 0 ? "at-neg" : "at-pos"}`}>{signedMoney(total)}</span>
+              : <Dash />,
+            [
+              ...(canAdd && line.zoneId != null ? [addButton(line, kind)] : []),
+              ...(leg ? legActions(leg) : []),
+            ],
           )}
         </>
       );
@@ -589,7 +622,9 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
           <>
             {mark}
             {mapped && <SourceCell orders={[]} />}
-            {dasher(9)}
+            {dasher(7)}
+            {netCell(undefined, "eq", line)}
+            {dasher(1)}
           </>
         );
       }
@@ -608,7 +643,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
           <span className="at-num">
             {money(mapped ? (eq.tp_price ?? eq.current_price) : eq.current_price)}
           </span>
-          {netCell(eq)}
+          {netCell(eq, "eq", line)}
           <RemarkCell
             order={eq}
             onSave={onUpdateRemark}
@@ -624,7 +659,9 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
           <>
             {mark}
             {mapped && <SourceCell orders={[]} />}
-            {dasher(11)}
+            {dasher(9)}
+            {netCell(undefined, "option", line)}
+            {dasher(1)}
           </>
         );
       }
@@ -642,7 +679,7 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
           <span className="at-num at-class-option">{formatQty(opt.qty)}</span>
           <span className="at-num">{money(opt.entry_price)}</span>
           <span className="at-num">{money(opt.current_price)}</span>
-          {netCell(opt)}
+          {netCell(opt, "option", line)}
           <RemarkCell
             order={opt}
             onSave={onUpdateRemark}
@@ -666,13 +703,13 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
         )}
         {eq ? <span className="at-num">{money(eq.entry_price)}</span> : <Dash />}
         {eq ? <span className="at-num">{money(eq.current_price)}</span> : <Dash />}
-        {netCell(eq)}
+        {netCell(eq, "eq", line)}
         {mapped && <SourceCell orders={[eq, opt]} />}
         {opt ? <TypeChip order={opt} /> : <Dash />}
         {opt ? <span className="at-num at-muted">{dte ?? "—"}</span> : <Dash />}
         {opt ? <span className="at-num">{money(opt.strike_price)}</span> : <Dash />}
         {opt ? <span className="at-num at-class-option">{formatQty(opt.qty)}</span> : <Dash />}
-        {netCell(opt)}
+        {netCell(opt, "option", line)}
       </>
     );
   };
@@ -784,7 +821,6 @@ const OrderDetailLadder: React.FC<OrderDetailLadderProps> = ({
               {...rowDropProps(line)}
             >
               {renderCells(line)}
-              {emptyRowAction(line)}
             </div>
           ))}
 

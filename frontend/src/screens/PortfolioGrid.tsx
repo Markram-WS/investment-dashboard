@@ -459,7 +459,12 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
   /** Header pill opens a blank form; a ladder row presets its zone and mark.
    * The product symbol is prefilled only when its product has exactly one
    * contract symbol, so the order can resolve a spec without picking. */
-  const handleAddOrder = useCallback((preset?: { groupId: number | null; entryPrice: number | null }) => {
+  const handleAddOrder = useCallback((preset?: {
+    groupId: number | null;
+    entryPrice: number | null;
+    contractType?: "option";
+    strikePrice?: number | null;
+  }) => {
     const assetType = addOrderAssetType.trim();
     // Mapped portfolios start on the connected path when it is writable;
     // otherwise the modal opens on the only remaining path (Dashboard option).
@@ -470,6 +475,8 @@ const PortfolioGrid: React.FC<PortfolioGridProps> = ({ portfolioId }) => {
       ...(destination ? { destination } : {}),
       group_id: isMapped ? null : preset?.groupId ?? null,
       entry_price: preset?.entryPrice ?? '',
+      ...(preset?.contractType ? { contract_type: preset.contractType } : {}),
+      ...(preset?.strikePrice != null ? { strike_price: preset.strikePrice } : {}),
       ...(isMapped ? { side: 'LONG', contract_type: 'option' } : {}),
       ...(assetType ? { asset_type: assetType } : {}),
     });

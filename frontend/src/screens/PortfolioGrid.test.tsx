@@ -10,7 +10,7 @@ import { useAddOrder } from '../hooks/useAddOrder';
 import type { AddOrderForm } from '../hooks/useAddOrder';
 import type { OrderWrites, SpreadOrder } from '../types';
 import { api } from '../lib/api';
-import type { TradeHistoryRecord } from '../lib/api';
+import type { TradeHistoryRecord, ZoneGroupRecord } from '../lib/api';
 
 const form = (overrides: Partial<AddOrderForm> = {}): AddOrderForm => ({
   order_id: 'ORD-1',
@@ -338,6 +338,132 @@ describe('Active ladder sources', () => {
 
     expect(screen.queryByTitle(/^Underlying /)).not.toBeInTheDocument();
     expect(screen.getByText('S50H26')).toBeInTheDocument();
+  });
+
+  /** 850 / 900 / 950 ladder: a zoned level holds both instrument kinds. */
+  const zone: ZoneGroupRecord = {
+    id: 7,
+    name: '850-950',
+    min_price: 850,
+    max_price: 950,
+    max_orders: null,
+    range: 50,
+    portfolio_id: 8,
+  };
+
+  it('adds an option struck at the level of a row that already holds an EQ order', () => {
+    const onAddOrder = vi.fn();
+    renderLadder({
+      activeOrders: [{ ...mappedFuture, entry_price: 900, group_id: 7 }],
+      zones: [zone],
+      mapped: false,
+      onAddOrder,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^Add option at \$900\.00$/ }));
+    expect(onAddOrder).toHaveBeenLastCalledWith({
+      groupId: 7,
+      entryPrice: null,
+      contractType: 'option',
+      strikePrice: 900,
+    });
+  });
+
+  it('adds an EQ order at the level of a row that already holds an option', () => {
+    const onAddOrder = vi.fn();
+    renderLadder({
+      activeOrders: [{ ...dashboardOption, entry_price: 1, strike_price: 900, group_id: 7 }],
+      zones: [zone],
+      mapped: false,
+      onAddOrder,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^Add order at \$900\.00$/ }));
+    expect(onAddOrder).toHaveBeenLastCalledWith({ groupId: 7, entryPrice: 900 });
+  });
+
+  it('offers both block buttons on a row that holds both kinds', () => {
+    renderLadder({
+      activeOrders: [
+        { ...mappedFuture, entry_price: 900, group_id: 7 },
+        { ...dashboardOption, entry_price: 1, strike_price: 900, group_id: 7 },
+      ],
+      zones: [zone],
+      mapped: false,
+    });
+
+    expect(screen.getByRole('button', { name: /^Add option at \$900\.00$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Add order at \$900\.00$/ })).toBeInTheDocument();
+  });
+
+  it('places an option on the row of its strike, beside the EQ order there', () => {
+    // The All view prints no Symbol cell, so sharing is read from the two legs'
+    // own Net P&L cells: the EQ leg's -$40.00 row also carries the option's
+    // +$11.00 and its LC chip.
+    const { unmount } = renderLadder({
+      activeOrders: [
+        { ...mappedFuture, entry_price: 900, group_id: 7 },
+        { ...dashboardOption, entry_price: 1, strike_price: 900, group_id: 7 },
+      ],
+      zones: [zone],
+      mapped: false,
+    });
+
+    const row = screen.getByText('-$40.00').closest('.at-row');
+    expect(row).not.toBeNull();
+    expect(row).toHaveTextContent('+$11.00');
+    expect(row).toHaveTextContent('LC');
+    unmount();
+
+    // Placed by strike (900), not by entry (1, which would clamp to 950).
+    renderLadder({
+      activeOrders: [{ ...dashboardOption, entry_price: 1, strike_price: 900, group_id: 7 }],
+      zones: [zone],
+      mapped: false,
+      view: 'option',
+    });
+
+    const optionRow = screen.getByText('DASH-OPT').closest('.at-row');
+    expect(optionRow?.querySelector('.at-mark')).toHaveTextContent('$900.00');
+  });
+
+  it('presets the level price on a continuation row of the same level', () => {
+    const onAddOrder = vi.fn();
+    renderLadder({
+      activeOrders: [
+        { ...mappedFuture, order_id: 'FUT-A', entry_price: 900, group_id: 7 },
+        { ...mappedFuture, order_id: 'FUT-B', entry_price: 900, group_id: 7 },
+      ],
+      zones: [zone],
+      mapped: false,
+      onAddOrder,
+    });
+
+    // Two legs on 900 emit two rows; the second row's label is blank but its
+    // price is still the level's, never 0.
+    const buttons = screen.getAllByRole('button', { name: /^Add order at \$900\.00$/ });
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[1]);
+    expect(onAddOrder).toHaveBeenLastCalledWith({ groupId: 7, entryPrice: 900 });
+    expect(screen.queryAllByRole('button', { name: /\$0\.00/ })).toHaveLength(0);
+  });
+
+  it('keeps the per-block buttons on a legless zoned row', () => {
+    renderLadder({ activeOrders: [], zones: [zone], mapped: false });
+
+    expect(screen.getByRole('button', { name: /^Add order at \$900\.00$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Add option at \$900\.00$/ })).toBeInTheDocument();
+  });
+
+  it('offers no add button on an ungrouped row', () => {
+    renderLadder({
+      activeOrders: [{ ...mappedFuture, group_id: null }],
+      zones: [],
+      mapped: false,
+    });
+
+    expect(screen.queryByRole('button', { name: /^Add order/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Add option/ })).not.toBeInTheDocument();
   });
 });
 

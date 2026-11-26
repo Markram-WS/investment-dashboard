@@ -963,8 +963,6 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
   pointer-events: none;
   background: linear-gradient(90deg, transparent, var(--color-row-hover) 18px);
 }
-/* The empty-row + stays at the row's own right edge. */
-.at-actions-row { right: 4px; }
 .at-row:hover .at-actions,
 .at-row:focus-within .at-actions { opacity: 1; pointer-events: auto; }
 /* --- row icon actions ---
