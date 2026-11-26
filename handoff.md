@@ -374,3 +374,25 @@ docs รอบนี้แก้ `DESIGN.md`, `.opencode/AGENT.md`, `backend/REA
   `"0"` ตอนเปิด, ไม่มี recalculate ตอนเปิด, พิมพ์ `100` ตรงๆ แล้วเรียก
   `onRecalculate(100)`, ล้างช่องแล้วเรียก `onRecalculate(0)` โดยไม่มี error, และ
   อินพุตติดลบยังขึ้น error
+
+## 12. Follow-up commit `d2738bc7` — Cash buffer limit เปิดมาเป็นค่าว่าง แสดง 0 เป็น placeholder
+
+- `MFEditPortfolioModal.tsx`: ช่อง `Cash buffer limit` โหลดค่าเป็น `""`
+  เมื่อ `portfolio.cash_buffer_limit` เป็น 0/falsy
+  (`portfolio.cash_buffer_limit ? String(portfolio.cash_buffer_limit) : ""`
+  ทั้งตอน `useState` และตอนรีเซ็ตใน effect ที่ผูกกับ `showModal`) และแสดง `0`
+  เป็น `placeholder="0"` ในสี placeholder — จึงเห็น 0 เป็นค่าใบ้แต่ช่องว่างจริง
+  พิมพ์ตัวเลขได้ทันทีโดยไม่ต้องลบ 0 ก่อน; กติกา: **ค่าเก็บเป็น 0 → ช่องว่าง +
+  placeholder `0`; ค่าเก็บมากกว่า 0 → แสดงตัวเลขนั้นตรงๆ**
+- การบันทึกไม่เปลี่ยน: ค่าที่ใช้คือ `parseFloat(cashBuffer) || 0` ดังนั้นช่องว่าง
+  ยังบันทึกเป็น `0`, limit ที่มากกว่า 0 ยัง round-trip ค่าเดิม, และ validation
+  "cannot exceed available cash" (`b > cash` → `Cash buffer limit cannot exceed
+  <available>`) ยังเหมือนเดิม
+- **Live check (fund 2)**: เปิด `Edit managed fund` แล้วช่อง Cash buffer limit
+  ว่างและมี `0` สีเทาเป็น placeholder; พิมพ์ `50` ลงไปได้เลยโดยไม่มีขั้นตอนลบ
+  ค่าก่อน — **ยังไม่กด save** ในรอบตรวจนี้
+- Tests: commit ระบุ frontend 160 passed, `vite build` และ `tsc` clean; เคสใหม่
+  `MFEditPortfolioModal cash buffer` ใน `PortfolioMutualFund.test.tsx` ตรวจว่า
+  ช่องว่างและ `placeholder` เป็น `"0"` ตอนเปิด, save ตอนช่องว่างส่ง
+  `cash_buffer_limit: 0`, พิมพ์ `40` แล้วส่ง `40`, และ limit `25` โหลดมาเป็น 25
+  พร้อม round-trip
